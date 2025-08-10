@@ -1,0 +1,34 @@
+gcs:
+  discovery:
+    - discovery_id: list_buckets
+      calls:
+        - action: list_buckets
+    - discovery_id: bucket_metadata
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: location
+              var: location
+
+  checks:
+    - check_id: gcs_bucket_uniform_access_enabled
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: iam_configuration_uniform
+              operator: equals
+              expected: true
+
+    - check_id: gcs_bucket_no_allusers_reader
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_iam_policy
+          fields:
+            - path: bindings[].members[]
+              operator: contains
+              expected: allUsers 

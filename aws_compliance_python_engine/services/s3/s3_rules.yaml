@@ -1,0 +1,312 @@
+s3:
+  scope: global
+  discovery:
+    - discovery_id: list_buckets
+      calls:
+        - action: list_buckets
+          fields:
+            - path: Buckets[].Name
+              var: Bucket
+    - discovery_id: get_bucket_location
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_location
+          fields:
+            - path: LocationConstraint
+              var: region
+              map:
+                "": us-east-1
+                US: us-east-1
+                EU: eu-west-1
+
+  checks:
+    - check_id: s3_bucket_default_encryption
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_encryption
+          fields:
+            - path: ServerSideEncryptionConfiguration.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+              operator: exists
+          errors_as_fail: [ServerSideEncryptionConfigurationNotFoundError]
+
+    - check_id: s3_bucket_kms_encryption_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_encryption
+          fields:
+            - path: ServerSideEncryptionConfiguration.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+              operator: equals
+              expected: aws:kms
+
+    - check_id: s3_bucket_versioning_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_versioning
+          fields:
+            - path: Status
+              operator: equals
+              expected: Enabled
+
+    - check_id: s3_bucket_mfa_delete_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_versioning
+          fields:
+            - path: MFADelete
+              operator: equals
+              expected: Enabled
+
+    - check_id: s3_bucket_server_access_logging_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_logging
+          fields:
+            - path: LoggingEnabled.TargetBucket
+              operator: exists
+          errors_as_fail: [NoLoggingEnabled]
+    - check_id: s3_bucket_lifecycle_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_lifecycle_configuration
+          fields:
+            - path: Rules[]
+              operator: exists
+          errors_as_fail: [NoSuchLifecycleConfiguration]
+
+    - check_id: s3_bucket_replication_configured
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_replication
+          fields:
+            - path: ReplicationConfiguration.Rules[]
+              operator: exists
+          errors_as_fail: [ReplicationConfigurationNotFoundError]
+
+    - check_id: s3_bucket_object_lock_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_object_lock_configuration
+          fields:
+            - path: ObjectLockConfiguration.ObjectLockEnabled
+              operator: equals
+              expected: Enabled
+          errors_as_fail: [ObjectLockConfigurationNotFoundError]
+
+    - check_id: s3_bucket_event_notifications_enabled
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_notification_configuration
+          fields:
+            - path: QueueConfigurations[]
+              operator: exists
+            - path: TopicConfigurations[]
+              operator: exists
+            - path: LambdaFunctionConfigurations[]
+              operator: exists
+          errors_as_fail: [NoSuchConfiguration]
+      multi_step: true
+      logic: OR
+
+    - check_id: s3_bucket_public_access
+      for_each: list_buckets
+      param: Bucket
+      multi_step: true
+      logic: OR
+      calls:
+        - action: get_bucket_acl
+          fields:
+            - path: Grants[].Grantee.URI
+              operator: contains
+              expected: AllUsers
+        - action: get_bucket_policy
+          fields:
+            - path: Statement[].Principal
+              operator: equals
+              expected: '*'
+          errors_as_fail: [NoSuchBucketPolicy]
+
+    - check_id: s3_bucket_public_write_acl
+      for_each: list_buckets
+      param: Bucket
+      multi_step: true
+      logic: AND
+      calls:
+        - action: get_bucket_acl
+          fields:
+            - path: Grants[].Grantee.URI
+              operator: contains
+              expected: AllUsers
+            - path: Grants[].Permission
+              operator: contains
+              expected: WRITE
+
+    - check_id: s3_bucket_public_list_acl
+      for_each: list_buckets
+      param: Bucket
+      multi_step: true
+      logic: AND
+      calls:
+        - action: get_bucket_acl
+          fields:
+            - path: Grants[].Grantee.URI
+              operator: contains
+              expected: AllUsers
+            - path: Grants[].Permission
+              operator: contains
+              expected: READ
+
+    - check_id: s3_bucket_policy_public_write_access
+      for_each: list_buckets
+      param: Bucket
+      multi_step: true
+      logic: AND
+      calls:
+        - action: get_bucket_policy
+          fields:
+            - path: Statement[].Principal
+              operator: equals
+              expected: '*'
+            - path: Statement[].Action
+              operator: contains
+              expected: s3:PutObject
+          errors_as_fail: [NoSuchBucketPolicy]
+
+    # Uncertain checks requiring manual policy parsing or S3 Control APIs
+    - check_id: s3_bucket_secure_transport_policy
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_policy
+          fields:
+            - path: Statement[].Condition
+              operator: contains
+              expected: aws:SecureTransport
+          errors_as_fail: [NoSuchBucketPolicy]
+      _todo: "Manual review: verify Effect:Deny for aws:SecureTransport=false and scope of Principal/Action"
+
+    - check_id: s3_bucket_acl_prohibited
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_acl
+          fields:
+            - path: Grants[].Grantee.URI
+              operator: contains
+              expected: AllUsers
+      _todo: "Manual review: invert logic to PASS when no public grants; engine lacks 'not contains' operator"
+
+    - check_id: s3_bucket_cross_account_access
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_policy
+          fields:
+            - path: Statement[].Principal
+              operator: contains
+              expected: "arn:aws:iam::"
+          errors_as_fail: [NoSuchBucketPolicy]
+      _todo: "Manual review: filter same-account principals; refine to detect non-owner account IDs"
+
+    - check_id: s3_access_point_public_access_block
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_public_access_block
+          fields:
+            - path: PublicAccessBlockConfiguration.IgnorePublicAcls
+              operator: equals
+              expected: true
+            - path: PublicAccessBlockConfiguration.RestrictPublicBuckets
+              operator: equals
+              expected: true
+      multi_step: true
+      logic: AND
+      _todo: "Approximation: using bucket-level PAB. Replace with S3 Control access point checks."
+
+    - check_id: s3_multi_region_access_point_public_access_block
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_public_access_block
+          fields:
+            - path: PublicAccessBlockConfiguration.IgnorePublicAcls
+              operator: equals
+              expected: true
+            - path: PublicAccessBlockConfiguration.RestrictPublicBuckets
+              operator: equals
+              expected: true
+      multi_step: true
+      logic: AND
+      _todo: "Approximation: using bucket-level PAB. Replace with S3 Control MRAP checks."
+
+    - check_id: s3_bucket_kms_encryption
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_encryption
+          fields:
+            - path: ServerSideEncryptionConfiguration.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+              operator: equals
+              expected: aws:kms
+
+    - check_id: s3_bucket_object_versioning
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_versioning
+          fields:
+            - path: Status
+              operator: equals
+              expected: Enabled
+
+    - check_id: s3_bucket_cross_region_replication
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_bucket_replication
+          fields:
+            - path: ReplicationConfiguration.Rules[]
+              operator: exists
+          errors_as_fail: [ReplicationConfigurationNotFoundError]
+
+    - check_id: s3_bucket_object_lock
+      for_each: list_buckets
+      param: Bucket
+      calls:
+        - action: get_object_lock_configuration
+          fields:
+            - path: ObjectLockConfiguration.ObjectLockEnabled
+              operator: equals
+              expected: Enabled
+          errors_as_fail: [ObjectLockConfigurationNotFoundError]
+
+    - check_id: s3_bucket_level_public_access_block
+      for_each: list_buckets
+      param: Bucket
+      multi_step: true
+      logic: AND
+      calls:
+        - action: get_public_access_block
+          fields:
+            - path: PublicAccessBlockConfiguration.IgnorePublicAcls
+              operator: equals
+              expected: true
+            - path: PublicAccessBlockConfiguration.RestrictPublicBuckets
+              operator: equals
+              expected: true
+
+    - check_id: s3_bucket_no_mfa_delete
+      for_each: list_buckets
+      param: Bucket
+      calls: []
+      _todo: "Manual review: decide expected outcome when MFADelete is not Enabled; add fields accordingly"
