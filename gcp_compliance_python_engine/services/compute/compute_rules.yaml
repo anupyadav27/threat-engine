@@ -19,6 +19,9 @@ compute:
             - path: has_external_ip
               operator: equals
               expected: false
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
 
     - check_id: compute_instance_shielded_secure_boot
       for_each: instances
@@ -29,6 +32,9 @@ compute:
             - path: shielded_secure_boot
               operator: equals
               expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
 
     - check_id: compute_instance_serial_port_disabled
       for_each: instances
@@ -39,6 +45,9 @@ compute:
             - path: metadata.serial_port_enabled
               operator: equals
               expected: false
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
 
     - check_id: compute_firewall_no_ssh_from_anywhere
       for_each: firewalls
@@ -53,4 +62,37 @@ compute:
               expected: 0.0.0.0/0
             - path: allowed_tcp_ports[]
               operator: contains
-              expected: "22" 
+              expected: "22"
+      errors_as_fail: []
+
+    - check_id: compute_firewall_no_rdp_from_anywhere
+      for_each: firewalls
+      param: firewall
+      multi_step: true
+      logic: AND
+      calls:
+        - action: eval
+          fields:
+            - path: source_ranges[]
+              operator: contains
+              expected: 0.0.0.0/0
+            - path: allowed_tcp_ports[]
+              operator: contains
+              expected: "3389"
+      errors_as_fail: []
+
+    - check_id: compute_firewall_no_wide_tcp_range_from_anywhere
+      for_each: firewalls
+      param: firewall
+      multi_step: true
+      logic: AND
+      calls:
+        - action: eval
+          fields:
+            - path: source_ranges[]
+              operator: contains
+              expected: 0.0.0.0/0
+            - path: allowed_tcp_ports[]
+              operator: contains
+              expected: "0-65535"
+      errors_as_fail: [] 

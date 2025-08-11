@@ -37,8 +37,8 @@ def save_scan_results(results: List[Dict[str, Any]], output_directory: str, proj
 
 def save_split_scan_results(results: List[Dict[str, Any]], output_directory: str, project_id: str | None = None) -> str:
     ts = _timestamp()
-    proj = project_id or "unknown"
-    scan_folder = os.path.join(output_directory, f"scan_{proj}_{ts}")
+    # Folder now only uses timestamp, not project id
+    scan_folder = os.path.join(output_directory, f"scan_{ts}")
     _ensure_directory(scan_folder)
 
     service_to_results: Dict[str, List[Dict[str, Any]]] = {}

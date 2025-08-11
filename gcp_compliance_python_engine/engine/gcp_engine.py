@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from gcp_compliance_python_engine.auth.gcp_auth import (
     get_storage_client,
@@ -53,11 +53,65 @@ def evaluate_field(value: Any, operator: str, expected: Any = None) -> bool:
     return False
 
 
+# Catalog loading and service resolution
+
+def _load_service_catalog() -> List[Dict[str, Any]]:
+    base_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+    yaml_path = os.path.join(base_dir, "service_list.yaml")
+    json_path = os.path.join(base_dir, "service_list.json")
+    if os.path.exists(yaml_path):
+        with open(yaml_path) as fh:
+            data = yaml.safe_load(fh) or {}
+    else:
+        with open(json_path) as fh:
+            data = json.load(fh)
+    services = data.get("services", [])
+    # Normalize structure
+    for s in services:
+        s.setdefault("enabled", True)
+        s.setdefault("scope", "regional")
+        s.setdefault("apis", [])
+    return services
+
+
+def _list_enabled_apis(project_id: str) -> Set[str]:
+    apis: Set[str] = set()
+    try:
+        su = get_service_usage_client()
+        parent = f"projects/{project_id}"
+        req = su.services().list(parent=parent, filter="state:ENABLED")
+        while req is not None:
+            resp = req.execute()
+            for s in resp.get("services", []) or []:
+                name = s.get("name")  # e.g., projects/123/services/storage.googleapis.com
+                if not name or "/services/" not in name:
+                    continue
+                apis.add(name.split("/services/")[-1])
+            req = su.services().list_next(previous_request=req, previous_response=resp)
+    except Exception:
+        return set()
+    return apis
+
+
+def resolve_enabled_engine_services(project_id: str) -> Set[str]:
+    catalog = _load_service_catalog()
+    enabled_apis = _list_enabled_apis(project_id)
+    enabled_services: Set[str] = set()
+    for svc in catalog:
+        if not svc.get("enabled", True):
+            continue
+        svc_apis = set(svc.get("apis", []) or [])
+        # If apis list is empty, require exact API name equal to service name (back-compat)
+        if not svc_apis and svc.get("name"):
+            svc_apis = {f"{svc['name']}.googleapis.com"}
+        if enabled_apis & svc_apis:
+            enabled_services.add(svc["name"])
+    return enabled_services
+
+
 def load_enabled_services_with_scope() -> List[Tuple[str, str]]:
-    cfg = os.path.join(os.path.dirname(__file__), "..", "config", "service_list.json")
-    with open(cfg) as f:
-        data = json.load(f)
-    return [(s["name"], s.get("scope", "regional")) for s in data.get("services", []) if s.get("enabled")]
+    services = _load_service_catalog()
+    return [(s["name"], s.get("scope", "regional")) for s in services if s.get("enabled")]
 
 
 def load_service_rules(service_name: str) -> Dict[str, Any]:
@@ -67,35 +121,59 @@ def load_service_rules(service_name: str) -> Dict[str, Any]:
     return rules[service_name]
 
 
+def _load_project_ids() -> List[str]:
+    # Allow explicit project list via env to avoid requiring CRM API
+    env_val = os.getenv("GCP_PROJECTS")
+    if env_val:
+        return [p.strip() for p in env_val.split(",") if p.strip()]
+    return []
+
+
 def list_projects() -> List[Dict[str, Any]]:
-    crm = get_resource_manager_client()
+    # If explicit projects provided, prefer them
+    explicit = _load_project_ids()
+    if explicit:
+        return [{"projectId": p, "name": p} for p in explicit]
+    # Prefer enumerating via Cloud Resource Manager; if unavailable, fall back to the default project only
     projects: List[Dict[str, Any]] = []
-    req = crm.projects().list()
-    while req is not None:
-        resp = req.execute()
-        for p in resp.get("projects", []):
-            if p.get("lifecycleState") == "ACTIVE":
-                projects.append(p)
-        req = crm.projects().list_next(previous_request=req, previous_response=resp)
-    # Fallback to default project if none
+    try:
+        crm = get_resource_manager_client()
+        req = crm.projects().list()
+        while req is not None:
+            resp = req.execute()
+            for p in resp.get("projects", []):
+                if p.get("lifecycleState") == "ACTIVE":
+                    projects.append(p)
+            req = crm.projects().list_next(previous_request=req, previous_response=resp)
+    except Exception:
+        # CRM not enabled or not accessible; ignore and use default project if present
+        pass
     if not projects and get_default_project_id():
         projects.append({"projectId": get_default_project_id(), "name": get_default_project_id()})
     return projects
 
 
-def list_enabled_services(project_id: str) -> List[str]:
-    su = get_service_usage_client()
-    parent = f"projects/{project_id}"
-    enabled: List[str] = []
-    req = su.services().list(parent=parent, filter="state:ENABLED")
-    while req is not None:
-        resp = req.execute()
-        for s in resp.get("services", []):
-            name = s.get("name")  # e.g., projects/123/services/storage.googleapis.com
-            if name and "/services/" in name:
-                enabled.append(name.split("/services/")[-1])
-        req = su.services().list_next(previous_request=req, previous_response=resp)
-    return enabled
+# Services implementations
+
+def _get_from_bucket(bucket: Any, path: str) -> Any:
+    # Supports attribute traversal and raw properties via 'raw.' prefix
+    if path.startswith('raw.'):
+        obj: Any = getattr(bucket, '_properties', {}) or {}
+        parts = path.split('.')[1:]
+        for p in parts:
+            if isinstance(obj, dict):
+                obj = obj.get(p)
+            else:
+                return None
+        return obj
+    # Attribute traversal on the bucket object
+    obj = bucket
+    for p in path.split('.'):
+        if hasattr(obj, p):
+            obj = getattr(obj, p)
+        else:
+            return None
+    return obj
 
 
 def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
@@ -117,7 +195,14 @@ def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
                 for b in resources:
                     bucket = storage.bucket(b)
                     bucket.reload()
-                    discovered_vars.setdefault(b, {})['iam_configuration_uniform'] = getattr(bucket.iam_configuration, 'is_uniform_bucket_level_access_enabled', None)
+                    # Extract only what YAML requests
+                    for field in call.get('fields', []) or []:
+                        path = field.get('path')
+                        var_name = field.get('var') or (path.split('.')[-1] if path else None)
+                        if not path or not var_name:
+                            continue
+                        value = _get_from_bucket(bucket, path)
+                        discovered_vars.setdefault(b, {})[var_name] = value
                     out.append({'name': b, 'location': bucket.location})
                 discovery[d['discovery_id']] = out
     # checks
@@ -125,21 +210,44 @@ def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
     for check in rules.get('checks', []):
         for_each = check.get('for_each')
         resources = discovery.get(for_each, [])
+        logic = (check.get('logic') or 'AND').upper()
+        errors_as_fail = set(check.get('errors_as_fail') or [])
+
         def eval_resource(resource):
-            result_flags: List[bool] = []
-            for call in check.get('calls', []):
-                action = call['action']
-                if action == 'get_bucket_iam_policy':
-                    policy = storage.bucket(resource).get_iam_policy(requested_policy_version=3)
-                    values = extract_value(policy, call['fields'][0]['path'])
-                    res = all(evaluate_field(v, call['fields'][0]['operator'], call['fields'][0].get('expected')) for v in (values if isinstance(values, list) else [values]))
-                    result_flags.append(res)
-                elif action == 'get_bucket_metadata':
-                    uniform = discovered_vars.get(resource, {}).get('iam_configuration_uniform')
-                    op = call['fields'][0]
-                    res = evaluate_field(uniform, op['operator'], op.get('expected'))
-                    result_flags.append(res)
-            final = all(result_flags) if result_flags else False
+            call_results: List[bool] = []
+            for call in check.get('calls', []) or []:
+                action = call.get('action')
+                fields = call.get('fields') or []
+                try:
+                    if action == 'get_bucket_iam_policy':
+                        policy = storage.bucket(resource).get_iam_policy(requested_policy_version=3)
+                        field_results: List[bool] = []
+                        for fld in fields:
+                            values = extract_value(policy, fld['path'])
+                            res = all(evaluate_field(v, fld['operator'], fld.get('expected')) for v in (values if isinstance(values, list) else [values]))
+                            field_results.append(res)
+                        call_results.append(all(field_results) if field_results else False)
+                    elif action == 'get_bucket_metadata':
+                        metadata_obj = discovered_vars.get(resource, {})
+                        field_results: List[bool] = []
+                        for fld in fields:
+                            value = extract_value(metadata_obj, fld['path'])
+                            if isinstance(value, list):
+                                res = all(evaluate_field(v, fld['operator'], fld.get('expected')) for v in value)
+                            else:
+                                res = evaluate_field(value, fld['operator'], fld.get('expected'))
+                            field_results.append(res)
+                        call_results.append(all(field_results) if field_results else False)
+                    else:
+                        # Unknown action for GCS
+                        call_results.append(False)
+                except Exception as e:
+                    err_str = getattr(e, 'message', None) or str(e)
+                    if errors_as_fail:
+                        call_results.append(any(token in err_str for token in errors_as_fail) is False and False or False)
+                    else:
+                        call_results.append(False)
+            final = (any(call_results) if logic == 'OR' else all(call_results)) if call_results else False
             return { 'check_id': check['check_id'], 'resource': resource, 'project': project_id or get_default_project_id(), 'result': 'PASS' if final else 'FAIL' }
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
             for fut in as_completed([ex.submit(eval_resource, r) for r in resources]):
@@ -207,15 +315,22 @@ def run_compute_regional(project_id: str, region: str) -> Dict[str, Any]:
     checks_out: List[Dict[str, Any]] = []
     for check in rules.get('checks', []):
         dataset = discovery.get(check.get('for_each'), [])
+        logic = (check.get('logic') or 'AND').upper()
+
         def eval_row(row):
-            flags: List[bool] = []
-            for call in check.get('calls', []):
+            call_results: List[bool] = []
+            for call in check.get('calls', []) or []:
                 if call.get('action') == 'eval':
-                    field = call['fields'][0]
-                    val = extract_value(row, field['path'])
-                    res = all(evaluate_field(v, field['operator'], field.get('expected')) for v in val) if isinstance(val, list) else evaluate_field(val, field['operator'], field.get('expected'))
-                    flags.append(res)
-            final = all(flags) if flags else False
+                    field_results: List[bool] = []
+                    for fld in call.get('fields', []) or []:
+                        val = extract_value(row, fld['path'])
+                        if isinstance(val, list):
+                            res = all(evaluate_field(v, fld['operator'], fld.get('expected')) for v in val)
+                        else:
+                            res = evaluate_field(val, fld['operator'], fld.get('expected'))
+                        field_results.append(res)
+                    call_results.append(all(field_results) if field_results else False)
+            final = (any(call_results) if logic == 'OR' else all(call_results)) if call_results else False
             resource = row.get('name') or row.get('id')
             return { 'check_id': check['check_id'], 'region': region, 'resource': resource, 'result': 'PASS' if final else 'FAIL' }
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
@@ -226,10 +341,12 @@ def run_compute_regional(project_id: str, region: str) -> Dict[str, Any]:
 
 # Uniform interface
 
+
 def run_global_service(service_name: str, project_id: Optional[str] = None) -> Dict[str, Any]:
     if service_name == 'gcs':
         return run_gcs(project_id)
     raise NotImplementedError(f"Global service not implemented: {service_name}")
+
 
 
 def run_region_services(service_name: str, region: str, project_id: Optional[str] = None) -> Dict[str, Any]:
@@ -238,28 +355,46 @@ def run_region_services(service_name: str, region: str, project_id: Optional[str
     raise NotImplementedError(f"Regional service not implemented for GCP: {service_name}")
 
 
-def run_for_project(project_id: str, enabled_services: List[str]) -> List[Dict[str, Any]]:
+
+def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Dict[str, Any]]:
     outputs: List[Dict[str, Any]] = []
+    catalog = _load_service_catalog()
+    configured_services: Set[str] = {s.get('name') for s in catalog if s.get('enabled', True)}
+    # If we couldn't detect enabled APIs (e.g., Service Usage disabled), optimistically try configured ones
+    candidate_services: Set[str] = enabled_service_names or configured_services
+
     # Global services
-    if 'storage.googleapis.com' in enabled_services:
-        outputs.append(run_global_service('gcs', project_id))
-    # Regional: only run compute if API enabled
-    if 'compute.googleapis.com' in enabled_services:
-        compute = get_compute_client(project_id)
-        regions_list: List[str] = []
+    if 'gcs' in candidate_services:
         try:
-            req = compute.regions().list(project=project_id)
-            while req is not None:
-                resp = req.execute()
-                for r in resp.get('items', []) or []:
-                    regions_list.append(r.get('name'))
-                req = compute.regions().list_next(previous_request=req, previous_response=resp)
+            outputs.append(run_global_service('gcs', project_id))
+        except Exception:
+            # Skip if API disabled or no access
+            pass
+
+    # Regional services
+    if 'compute' in candidate_services:
+        try:
+            compute = get_compute_client(project_id)
+            regions_list: List[str] = []
+            try:
+                req = compute.regions().list(project=project_id)
+                while req is not None:
+                    resp = req.execute()
+                    for r in resp.get('items', []) or []:
+                        regions_list.append(r.get('name'))
+                    req = compute.regions().list_next(previous_request=req, previous_response=resp)
+            except Exception:
+                pass
+            regions_list = list({r for r in regions_list if r})
+            for r in regions_list:
+                try:
+                    outputs.append(run_region_services('compute', r, project_id))
+                except Exception:
+                    pass
         except Exception:
             pass
-        regions_list = list({r for r in regions_list if r})
-        for r in regions_list:
-            outputs.append(run_region_services('compute', r, project_id))
     return outputs
+
 
 
 def run() -> List[Dict[str, Any]]:
@@ -271,12 +406,13 @@ def run() -> List[Dict[str, Any]]:
             pid = p.get('projectId')
             if not pid:
                 continue
-            enabled = list_enabled_services(pid)
-            futures.append(ex.submit(run_for_project, pid, enabled))
+            enabled_service_names = resolve_enabled_engine_services(pid)
+            futures.append(ex.submit(run_for_project, pid, enabled_service_names))
         for fut in as_completed(futures):
             for out in fut.result():
                 all_outputs.append(out)
     return all_outputs
+
 
 
 def main():
