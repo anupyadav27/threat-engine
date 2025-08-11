@@ -12,6 +12,7 @@ from gcp_compliance_python_engine.auth.gcp_auth import (
 import yaml
 
 MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_MAX_WORKERS", "16"))
+REGION_MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_REGION_MAX_WORKERS", "16"))
 
 
 def extract_value(obj: Any, path: str):
@@ -58,13 +59,10 @@ def evaluate_field(value: Any, operator: str, expected: Any = None) -> bool:
 def _load_service_catalog() -> List[Dict[str, Any]]:
     base_dir = os.path.join(os.path.dirname(__file__), "..", "config")
     yaml_path = os.path.join(base_dir, "service_list.yaml")
-    json_path = os.path.join(base_dir, "service_list.json")
-    if os.path.exists(yaml_path):
-        with open(yaml_path) as fh:
-            data = yaml.safe_load(fh) or {}
-    else:
-        with open(json_path) as fh:
-            data = json.load(fh)
+    if not os.path.exists(yaml_path):
+        raise FileNotFoundError(f"Missing service catalog: {yaml_path}")
+    with open(yaml_path) as fh:
+        data = yaml.safe_load(fh) or {}
     services = data.get("services", [])
     # Normalize structure
     for s in services:
@@ -386,11 +384,14 @@ def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Di
             except Exception:
                 pass
             regions_list = list({r for r in regions_list if r})
-            for r in regions_list:
-                try:
-                    outputs.append(run_region_services('compute', r, project_id))
-                except Exception:
-                    pass
+            # Parallelize per-region scans
+            with ThreadPoolExecutor(max_workers=REGION_MAX_WORKERS) as region_pool:
+                futures = [region_pool.submit(run_region_services, 'compute', r, project_id) for r in regions_list]
+                for fut in as_completed(futures):
+                    try:
+                        outputs.append(fut.result())
+                    except Exception:
+                        pass
         except Exception:
             pass
     return outputs
