@@ -1,0 +1,39 @@
+storage:
+  scope: subscription
+  iterate_resource_groups: true
+  discovery:
+    - discovery_id: accounts
+      resource_group_param: resource_group_name
+      calls:
+        - action: storage_accounts.list_by_resource_group
+          resource_group_param: resource_group_name
+          fields:
+            - path: __self__
+              var: account
+            - path: name
+              var: account_name
+            - path: id
+              var: account_id
+  checks:
+    - check_id: storage_https_only
+      title: Ensure Storage accounts require HTTPS
+      severity: high
+      for_each: accounts
+      param: account
+      calls:
+        - action: self
+          fields:
+            - path: enable_https_traffic_only
+              operator: equals
+              expected: true
+    - check_id: storage_min_tls12
+      title: Ensure minimum TLS version is 1.2 for Storage accounts
+      severity: medium
+      for_each: accounts
+      param: account
+      calls:
+        - action: self
+          fields:
+            - path: minimum_tls_version
+              operator: equals
+              expected: "TLS1_2" 

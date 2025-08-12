@@ -1,0 +1,34 @@
+component: core
+component_type: workload
+discovery:
+- discovery_id: list_pods
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: pod_name
+    - path: namespace
+      var: namespace
+    - path: hostNetwork
+      var: hostNetwork
+    - path: hostPID
+      var: hostPID
+    - path: hostIPC
+      var: hostIPC
+    - path: containers
+      var: containers
+checks:
+- check_id: core_minimize_containers_added_capabilities
+  name: Core Minimize Containers Added Capabilities
+  severity: MEDIUM
+  for_each: list_pods
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.containers.0.securityContext.capabilities.add.0
+      operator: not_exists
+      expected: true
+  logic: AND
+  errors_as_fail: []

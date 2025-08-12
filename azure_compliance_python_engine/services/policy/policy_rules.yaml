@@ -1,0 +1,35 @@
+policy:
+  scope: management_group
+  discovery:
+    - discovery_id: mg_policy_definitions
+      management_group_param: management_group_id
+      calls:
+        - action: policy_definitions.list_by_management_group
+          management_group_param: management_group_id
+          fields:
+            - path: __self__
+              var: policy_definition
+            - path: name
+              var: policy_definition_name
+    - discovery_id: mg_policy_assignments
+      management_group_param: management_group_id
+      calls:
+        - action: policy_assignments.list_for_management_group
+          management_group_param: management_group_id
+          fields:
+            - path: __self__
+              var: policy_assignment
+            - path: name
+              var: policy_assignment_name
+  checks:
+    - check_id: mg_has_any_policy_assignments
+      title: Ensure at least one policy assignment exists at the management group
+      severity: low
+      for_each: mg_policy_assignments
+      param: policy_assignment
+      calls:
+        - action: self
+          fields:
+            - path: name
+              operator: exists
+              expected: true 

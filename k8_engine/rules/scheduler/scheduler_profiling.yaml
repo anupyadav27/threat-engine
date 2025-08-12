@@ -1,0 +1,37 @@
+component: scheduler
+component_type: control_plane
+discovery:
+- discovery_id: get_scheduler_config
+  calls:
+  - action: get_component_config
+    params:
+      component: kube-scheduler
+    fields:
+    - path: arguments.bind-address
+      var: bind_address
+    - path: arguments.profiling
+      var: profiling
+    - path: arguments.tls-cert-file
+      var: tls_cert_file
+    - path: arguments.tls-private-key-file
+      var: tls_private_key_file
+    - path: arguments.client-ca-file
+      var: client_ca_file
+    - path: pod_name
+      var: pod_name
+checks:
+- check_id: scheduler_profiling
+  name: Scheduler Profiling
+  severity: MEDIUM
+  for_each: get_scheduler_config
+  param: config
+  calls:
+  - action: get_component_config
+    params:
+      component: kube-scheduler
+    fields:
+    - path: profiling
+      operator: equals
+      expected: 'false'
+  logic: AND
+  errors_as_fail: []

@@ -1,0 +1,39 @@
+compute:
+  scope: subscription
+  iterate_resource_groups: true
+  discovery:
+    - discovery_id: vms
+      resource_group_param: resource_group_name
+      calls:
+        - action: virtual_machines.list
+          resource_group_param: resource_group_name
+          fields:
+            - path: __self__
+              var: vm
+            - path: name
+              var: vm_name
+            - path: id
+              var: vm_id
+  checks:
+    - check_id: vm_managed_disks
+      title: Ensure VMs use managed disks
+      severity: medium
+      for_each: vms
+      param: vm
+      calls:
+        - action: self
+          fields:
+            - path: storage_profile.os_disk.managed_disk
+              operator: exists
+              expected: true
+    - check_id: vm_no_public_ip
+      title: Ensure VMs do not have public IPs directly attached
+      severity: high
+      for_each: vms
+      param: vm
+      calls:
+        - action: self
+          fields:
+            - path: network_profile.network_interfaces[].id
+              operator: not_contains
+              expected: "/publicIPAddresses/" 

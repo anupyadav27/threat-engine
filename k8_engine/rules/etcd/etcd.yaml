@@ -1,0 +1,49 @@
+component: etcd
+component_type: control_plane
+
+discovery:
+  - discovery_id: get_etcd_config
+    calls:
+      - action: get_component_config
+        params:
+          component: etcd
+        fields:
+          - path: arguments.client-cert-auth
+            var: client_cert_auth
+          - path: arguments.peer-client-cert-auth
+            var: peer_client_cert_auth
+          - path: arguments.peer-auto-tls
+            var: peer_auto_tls
+
+checks:
+  - check_id: etcd_client_cert_auth_enabled
+    name: Ensure etcd client cert auth is enabled
+    severity: HIGH
+    for_each: get_etcd_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: etcd
+        fields:
+          - path: client_cert_auth
+            operator: equals
+            expected: "true"
+    logic: AND
+    errors_as_fail: []
+
+  - check_id: etcd_peer_auto_tls_disabled
+    name: Ensure etcd peer auto TLS is disabled
+    severity: MEDIUM
+    for_each: get_etcd_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: etcd
+        fields:
+          - path: peer_auto_tls
+            operator: not_equals
+            expected: "true"
+    logic: AND
+    errors_as_fail: [] 

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "secure-pod",
+    "namespace": "default",
+    "hostNetwork": false,
+    "hostPID": false,
+    "hostIPC": false,
+    "containers": [
+      {
+        "name": "app",
+        "image": "nginx:1.25",
+        "securityContext": {
+          "privileged": false,
+          "allow_privilege_escalation": false,
+          "capabilities": {"drop": ["NET_RAW"]},
+          "seccomp_profile": {"type": "RuntimeDefault"}
+        },
+        "env": [{"name": "ENV", "value": "prod"}],
+        "ports": [{"name": "http", "containerPort": 8080, "protocol": "TCP"}]
+      }
+    ]
+  },
+  {
+    "name": "risky-pod",
+    "namespace": "kube-system",
+    "hostNetwork": true,
+    "hostPID": true,
+    "hostIPC": true,
+    "containers": [
+      {
+        "name": "debug",
+        "image": "busybox",
+        "securityContext": {
+          "privileged": true,
+          "allow_privilege_escalation": true,
+          "capabilities": {"add": ["NET_ADMIN"]},
+          "seccomp_profile": {"type": "Unconfined"}
+        },
+        "env": [{"name": "AWS_SECRET_KEY", "value": "xyz"}],
+        "ports": [{"name": "high", "containerPort": 65000, "protocol": "TCP"}]
+      }
+    ]
+  }
+] 

@@ -1,0 +1,31 @@
+component: apiserver
+component_type: control_plane
+
+discovery:
+  - discovery_id: get_apiserver_config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: arguments.audit-log-maxsize
+            var: audit_log_max_size
+          - path: pod_name
+            var: pod_name
+
+checks:
+  - check_id: apiserver_audit_log_maxsize_set
+    name: Ensure that the --audit-log-maxsize argument is set to 100 or higher
+    severity: MEDIUM
+    for_each: get_apiserver_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: audit_log_max_size
+            operator: gte
+            expected: 100
+    logic: AND
+    errors_as_fail: [] 

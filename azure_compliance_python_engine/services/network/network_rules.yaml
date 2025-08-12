@@ -1,0 +1,26 @@
+network:
+  scope: subscription
+  iterate_resource_groups: true
+  discovery:
+    - discovery_id: nsgs
+      resource_group_param: resource_group_name
+      calls:
+        - action: network_security_groups.list
+          resource_group_param: resource_group_name
+          fields:
+            - path: __self__
+              var: nsg
+            - path: name
+              var: nsg_name
+  checks:
+    - check_id: nsg_no_ssh_from_any
+      title: Ensure NSG does not allow SSH from anywhere
+      severity: high
+      for_each: nsgs
+      param: nsg
+      calls:
+        - action: self
+          fields:
+            - path: security_rules[].destination_port_range
+              operator: not_contains
+              expected: "22" 

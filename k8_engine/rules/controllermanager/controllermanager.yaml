@@ -1,0 +1,33 @@
+component: controllermanager
+component_type: control_plane
+
+discovery:
+  - discovery_id: get_controllermanager_config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-controller-manager
+        fields:
+          - path: arguments.bind-address
+            var: bind_address
+          - path: arguments.root-ca-file
+            var: root_ca_file
+          - path: arguments.rotate-kubelet-server-cert
+            var: rotate_kubelet_server_cert
+
+checks:
+  - check_id: controllermanager_bind_address_localhost
+    name: Ensure controller-manager bind-address is localhost
+    severity: MEDIUM
+    for_each: get_controllermanager_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-controller-manager
+        fields:
+          - path: bind_address
+            operator: equals
+            expected: "127.0.0.1"
+    logic: AND
+    errors_as_fail: [] 

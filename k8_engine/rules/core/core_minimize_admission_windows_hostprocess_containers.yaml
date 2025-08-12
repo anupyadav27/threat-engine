@@ -1,0 +1,34 @@
+component: core
+component_type: workload
+discovery:
+- discovery_id: list_pods
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: pod_name
+    - path: namespace
+      var: namespace
+    - path: hostNetwork
+      var: hostNetwork
+    - path: hostPID
+      var: hostPID
+    - path: hostIPC
+      var: hostIPC
+    - path: containers
+      var: containers
+checks:
+- check_id: core_minimize_admission_windows_hostprocess_containers
+  name: Core Minimize Admission Windows Hostprocess Containers
+  severity: LOW
+  for_each: list_pods
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.containers.0.securityContext.windows_options.host_process
+      operator: not_equals
+      expected: true
+  logic: AND
+  errors_as_fail: []

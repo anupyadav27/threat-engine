@@ -1,0 +1,80 @@
+component: apiserver
+component_type: control_plane
+
+discovery:
+  - discovery_id: get_apiserver_config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: arguments.authorization-mode
+            var: authorization_mode
+          - path: arguments.audit-log-path
+            var: audit_log_path
+          - path: arguments.audit-log-maxage
+            var: audit_log_max_age
+          - path: arguments.audit-log-maxbackup
+            var: audit_log_max_backup
+          - path: arguments.audit-log-maxsize
+            var: audit_log_max_size
+          - path: arguments.encryption-provider-config
+            var: encryption_provider_config
+          - path: arguments.tls-cert-file
+            var: tls_cert_file
+          - path: arguments.tls-private-key-file
+            var: tls_private_key_file
+          - path: arguments.client-ca-file
+            var: client_ca_file
+
+checks:
+  - check_id: apiserver_authorization_mode_not_always_allow
+    name: Ensure authorization-mode is not AlwaysAllow
+    severity: HIGH
+    for_each: get_apiserver_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: authorization_mode
+            operator: not_equals
+            expected: "AlwaysAllow"
+    multi_step: false
+    logic: AND
+    errors_as_fail: []
+
+  - check_id: apiserver_audit_log_enabled
+    name: Ensure audit logging is enabled
+    severity: MEDIUM
+    for_each: get_apiserver_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: audit_log_path
+            operator: exists
+            expected: true
+    multi_step: false
+    logic: AND
+    errors_as_fail: []
+
+  - check_id: apiserver_encryption_at_rest_enabled
+    name: Ensure encryption at rest is enabled
+    severity: CRITICAL
+    for_each: get_apiserver_config
+    param: config
+    calls:
+      - action: get_component_config
+        params:
+          component: kube-apiserver
+        fields:
+          - path: encryption_provider_config
+            operator: exists
+            expected: true
+    multi_step: false
+    logic: AND
+    errors_as_fail: [] 
