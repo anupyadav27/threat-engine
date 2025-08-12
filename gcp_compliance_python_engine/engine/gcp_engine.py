@@ -14,6 +14,12 @@ import yaml
 MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_MAX_WORKERS", "16"))
 REGION_MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_REGION_MAX_WORKERS", "16"))
 
+# Optional filters (env-driven)
+_SERVICE_FILTER: Set[str] = {s.strip() for s in (os.getenv("GCP_ENGINE_FILTER_SERVICES", "").split(",")) if s.strip()}
+_REGION_FILTER: Set[str] = {s.strip() for s in (os.getenv("GCP_ENGINE_FILTER_REGIONS", "").split(",")) if s.strip()}
+_CHECK_ID_FILTER: Set[str] = {s.strip() for s in (os.getenv("GCP_ENGINE_FILTER_CHECK_IDS", "").split(",")) if s.strip()}
+_RESOURCE_NAME_FILTER: Optional[str] = os.getenv("GCP_ENGINE_FILTER_RESOURCE_NAME") or None
+
 
 def extract_value(obj: Any, path: str):
     parts = path.split('.')
@@ -104,6 +110,9 @@ def resolve_enabled_engine_services(project_id: str) -> Set[str]:
             svc_apis = {f"{svc['name']}.googleapis.com"}
         if enabled_apis & svc_apis:
             enabled_services.add(svc["name"])
+    # Apply optional service filter
+    if _SERVICE_FILTER:
+        enabled_services = {s for s in enabled_services if s in _SERVICE_FILTER}
     return enabled_services
 
 
@@ -186,6 +195,9 @@ def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
             action = call['action']
             if action == 'list_buckets':
                 buckets = [b.name for b in storage.list_buckets(project=project_id or get_default_project_id())]
+                # Apply resource-name filter if present
+                if _RESOURCE_NAME_FILTER:
+                    buckets = [b for b in buckets if b == _RESOURCE_NAME_FILTER]
                 discovery[d['discovery_id']] = buckets
             elif action == 'get_bucket_metadata':
                 resources = discovery.get(d.get('for_each'), [])
@@ -206,12 +218,18 @@ def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
     # checks
     checks_out: List[Dict[str, Any]] = []
     for check in rules.get('checks', []):
+        # Apply check-id filter if present
+        if _CHECK_ID_FILTER and check.get('check_id') not in _CHECK_ID_FILTER:
+            continue
         for_each = check.get('for_each')
         resources = discovery.get(for_each, [])
         logic = (check.get('logic') or 'AND').upper()
         errors_as_fail = set(check.get('errors_as_fail') or [])
 
         def eval_resource(resource):
+            # Apply resource name filter at evaluation stage (resource is bucket name)
+            if _RESOURCE_NAME_FILTER and resource != _RESOURCE_NAME_FILTER:
+                return None
             call_results: List[bool] = []
             for call in check.get('calls', []) or []:
                 action = call.get('action')
@@ -248,8 +266,11 @@ def run_gcs(project_id: Optional[str] = None) -> Dict[str, Any]:
             final = (any(call_results) if logic == 'OR' else all(call_results)) if call_results else False
             return { 'check_id': check['check_id'], 'resource': resource, 'project': project_id or get_default_project_id(), 'result': 'PASS' if final else 'FAIL' }
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-            for fut in as_completed([ex.submit(eval_resource, r) for r in resources]):
-                checks_out.append(fut.result())
+            futures = [ex.submit(eval_resource, r) for r in resources]
+            for fut in as_completed(futures):
+                res = fut.result()
+                if res is not None:
+                    checks_out.append(res)
     return { 'service': service_name, 'project': project_id or get_default_project_id(), 'inventory': discovery, 'checks': checks_out, 'scope': 'global' }
 
 
@@ -312,10 +333,18 @@ def run_compute_regional(project_id: str, region: str) -> Dict[str, Any]:
     # Evaluate checks (rules use action: eval to read from discovery objects)
     checks_out: List[Dict[str, Any]] = []
     for check in rules.get('checks', []):
+        # Apply check-id filter if present
+        if _CHECK_ID_FILTER and check.get('check_id') not in _CHECK_ID_FILTER:
+            continue
         dataset = discovery.get(check.get('for_each'), [])
         logic = (check.get('logic') or 'AND').upper()
 
         def eval_row(row):
+            # Apply resource-name filter (matches by name or id)
+            if _RESOURCE_NAME_FILTER:
+                rname = row.get('name') or row.get('id')
+                if rname != _RESOURCE_NAME_FILTER:
+                    return None
             call_results: List[bool] = []
             for call in check.get('calls', []) or []:
                 if call.get('action') == 'eval':
@@ -332,8 +361,11 @@ def run_compute_regional(project_id: str, region: str) -> Dict[str, Any]:
             resource = row.get('name') or row.get('id')
             return { 'check_id': check['check_id'], 'region': region, 'resource': resource, 'result': 'PASS' if final else 'FAIL' }
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-            for fut in as_completed([ex.submit(eval_row, r) for r in dataset]):
-                checks_out.append(fut.result())
+            futures = [ex.submit(eval_row, r) for r in dataset]
+            for fut in as_completed(futures):
+                res = fut.result()
+                if res is not None:
+                    checks_out.append(res)
     return { 'service': service_name, 'project': project_id, 'region': region, 'scope': 'regional', 'inventory': discovery, 'checks': checks_out }
 
 
@@ -346,12 +378,10 @@ def run_global_service(service_name: str, project_id: Optional[str] = None) -> D
     raise NotImplementedError(f"Global service not implemented: {service_name}")
 
 
-
 def run_region_services(service_name: str, region: str, project_id: Optional[str] = None) -> Dict[str, Any]:
     if service_name == 'compute':
         return run_compute_regional(project_id or get_default_project_id(), region)
     raise NotImplementedError(f"Regional service not implemented for GCP: {service_name}")
-
 
 
 def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Dict[str, Any]]:
@@ -360,6 +390,9 @@ def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Di
     configured_services: Set[str] = {s.get('name') for s in catalog if s.get('enabled', True)}
     # If we couldn't detect enabled APIs (e.g., Service Usage disabled), optimistically try configured ones
     candidate_services: Set[str] = enabled_service_names or configured_services
+    # Apply optional service filter
+    if _SERVICE_FILTER:
+        candidate_services = {s for s in candidate_services if s in _SERVICE_FILTER}
 
     # Global services
     if 'gcs' in candidate_services:
@@ -384,6 +417,9 @@ def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Di
             except Exception:
                 pass
             regions_list = list({r for r in regions_list if r})
+            # Apply optional region filter
+            if _REGION_FILTER:
+                regions_list = [r for r in regions_list if r in _REGION_FILTER]
             # Parallelize per-region scans
             with ThreadPoolExecutor(max_workers=REGION_MAX_WORKERS) as region_pool:
                 futures = [region_pool.submit(run_region_services, 'compute', r, project_id) for r in regions_list]
@@ -395,7 +431,6 @@ def run_for_project(project_id: str, enabled_service_names: Set[str]) -> List[Di
         except Exception:
             pass
     return outputs
-
 
 
 def run() -> List[Dict[str, Any]]:
@@ -413,7 +448,6 @@ def run() -> List[Dict[str, Any]]:
             for out in fut.result():
                 all_outputs.append(out)
     return all_outputs
-
 
 
 def main():

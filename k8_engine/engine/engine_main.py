@@ -6,10 +6,10 @@ import yaml
 import json
 from kubernetes import client
 
-from .utils.reporting import CheckResult, CheckStatus, CheckSeverity
-from .utils.cluster_namespace_discovery import load_kube_api_client, discover_kubernetes_inventory
-from .registry import ActionRegistry
-from .operators import evaluate_field_condition
+from ..utils.reporting import CheckResult, CheckStatus, CheckSeverity
+from ..utils.cluster_namespace_discovery import load_kube_api_client, discover_kubernetes_inventory
+from ..registry import ActionRegistry
+from ..operators import evaluate_field_condition
 
 
 def _load_yaml_files(rules_dir: str) -> List[Dict[str, Any]]:
