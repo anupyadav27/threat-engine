@@ -14,6 +14,18 @@ compute:
               var: vm_name
             - path: id
               var: vm_id
+    - discovery_id: critical_disks
+      resource_group_param: resource_group_name
+      calls:
+        - action: disks.list_by_resource_group
+          resource_group_param: resource_group_name
+          fields:
+            - path: __self__
+              var: disk
+            - path: encryption.type
+              var: encryption_type
+            - path: encryption.disk_encryption_set_id
+              var: disk_encryption_set_id
   checks:
     - check_id: vm_managed_disks
       title: Ensure VMs use managed disks
@@ -36,4 +48,17 @@ compute:
           fields:
             - path: network_profile.network_interfaces[].id
               operator: not_contains
-              expected: "/publicIPAddresses/" 
+              expected: "/publicIPAddresses/"
+    - check_id: disk_encrypted_with_customer_managed_key
+      title: Ensure disk is encrypted with customer-managed key
+      severity: high
+      for_each: critical_disks
+      param: disk
+      calls:
+        - action: self
+          fields:
+            - path: encryption.type
+              operator: equals
+              expected: EncryptionAtRestWithCustomerKey
+            - path: encryption.disk_encryption_set_id
+              operator: exists 
