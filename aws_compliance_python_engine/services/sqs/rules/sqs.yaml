@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: sqs
+discovery:
+  discovery_id: aws.sqs.resources
+  calls:
+    - client: sqs
+      action: describe_sqss
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Event Encryption Enabled
+    severity: low
+    rule_id: aws.sqs.queue_security.event_encryption_enabled
+    assertion_id: serverless_paas.event_security.event_encryption_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement event encryption enabled for sqs"
+    references:
+      - "https://docs.aws.amazon.com/sqs/"
+  - title: Event Validation Enabled
+    severity: low
+    rule_id: aws.sqs.queue_security.event_validation_enabled
+    assertion_id: serverless_paas.event_security.event_validation_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement event validation enabled for sqs"
+    references:
+      - "https://docs.aws.amazon.com/sqs/"

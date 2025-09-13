@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: directconnect
+discovery:
+  discovery_id: aws.directconnect.resources
+  calls:
+    - client: directconnect
+      action: describe_directconnects
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Vpc Isolation Enforced
+    severity: low
+    rule_id: aws.directconnect.connection_encryption.vpc_isolation_enforced
+    assertion_id: network_perimeter.network_segmentation.vpc_isolation_enforced
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement vpc isolation enforced for directconnect"
+    references:
+      - "https://docs.aws.amazon.com/directconnect/"
+  - title: Subnet Segmentation Configured
+    severity: low
+    rule_id: aws.directconnect.connection_encryption.subnet_segmentation_configured
+    assertion_id: network_perimeter.network_segmentation.subnet_segmentation_configured
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement subnet segmentation configured for directconnect"
+    references:
+      - "https://docs.aws.amazon.com/directconnect/"

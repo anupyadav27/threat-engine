@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: lightsail
+discovery:
+  discovery_id: aws.lightsail.resources
+  calls:
+    - client: lightsail
+      action: describe_lightsails
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Platform Hardening Enabled
+    severity: low
+    rule_id: aws.lightsail.instance_security.platform_hardening_enabled
+    assertion_id: serverless_paas.paas_security.platform_hardening_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement platform hardening enabled for lightsail"
+    references:
+      - "https://docs.aws.amazon.com/lightsail/"
+  - title: Secure Configuration Enforced
+    severity: low
+    rule_id: aws.lightsail.instance_security.secure_configuration_enforced
+    assertion_id: serverless_paas.paas_security.secure_configuration_enforced
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement secure configuration enforced for lightsail"
+    references:
+      - "https://docs.aws.amazon.com/lightsail/"

@@ -1,0 +1,59 @@
+version: 1.0
+provider: aws
+service: transfer
+discovery:
+  discovery_id: aws.transfer.resources
+  calls:
+    - client: transfer
+      action: describe_transfers
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Tls Enforced
+    severity: high
+    rule_id: aws.transfer.server_encryption.tls_enforced
+    assertion_id: crypto_data_protection.encryption_in_transit.tls_enforced
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement tls enforced for transfer"
+    references:
+      - "https://docs.aws.amazon.com/transfer/"
+  - title: Mtls Enabled
+    severity: high
+    rule_id: aws.transfer.server_encryption.mtls_enabled
+    assertion_id: crypto_data_protection.encryption_in_transit.mtls_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement mtls enabled for transfer"
+    references:
+      - "https://docs.aws.amazon.com/transfer/"
+  - title: Private Endpoints Used
+    severity: high
+    rule_id: aws.transfer.server_encryption.private_endpoints_used
+    assertion_id: crypto_data_protection.encryption_in_transit.private_endpoints_used
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement private endpoints used for transfer"
+    references:
+      - "https://docs.aws.amazon.com/transfer/"

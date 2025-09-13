@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: fsx
+discovery:
+  discovery_id: aws.fsx.resources
+  calls:
+    - client: fsx
+      action: describe_fsxs
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Public Access Blocked
+    severity: low
+    rule_id: aws.fsx.access_control.public_access_blocked
+    assertion_id: data_protection_storage.storage_security.public_access_blocked
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement public access blocked for fsx"
+    references:
+      - "https://docs.aws.amazon.com/fsx/"
+  - title: Access Logging Enabled
+    severity: low
+    rule_id: aws.fsx.access_control.access_logging_enabled
+    assertion_id: data_protection_storage.storage_security.access_logging_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement access logging enabled for fsx"
+    references:
+      - "https://docs.aws.amazon.com/fsx/"

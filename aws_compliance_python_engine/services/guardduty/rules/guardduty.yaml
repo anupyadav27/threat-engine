@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: guardduty
+discovery:
+  discovery_id: aws.guardduty.resources
+  calls:
+    - client: guardduty
+      action: describe_guarddutys
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Antimalware Enabled
+    severity: low
+    rule_id: aws.guardduty.threat_detection.antimalware_enabled
+    assertion_id: compute_host_security.endpoint_protection.antimalware_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement antimalware enabled for guardduty"
+    references:
+      - "https://docs.aws.amazon.com/guardduty/"
+  - title: Intrusion Detection Enabled
+    severity: low
+    rule_id: aws.guardduty.threat_detection.intrusion_detection_enabled
+    assertion_id: compute_host_security.endpoint_protection.intrusion_detection_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement intrusion detection enabled for guardduty"
+    references:
+      - "https://docs.aws.amazon.com/guardduty/"

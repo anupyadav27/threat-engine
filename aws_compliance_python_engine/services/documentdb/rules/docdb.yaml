@@ -1,0 +1,84 @@
+version: 1
+provider: aws
+service: docdb
+discovery:
+- discovery_id: docdb_resources
+  calls:
+  - client: docdb
+    action: describe_db_clusters
+    paginate: true
+    params: {}
+    fields:
+    - Db_Clusters[]
+    save_as: resources
+  - client: docdb
+    action: describe_db_instances
+    paginate: true
+    params: {}
+    fields:
+    - Db_Instances[]
+    save_as: resources
+  emit:
+    items_for: '{{ resources }}'
+    as: item
+    item:
+      resource_id: '{{ item.Id }}'
+      resource_name: '{{ item.Name }}'
+      resource_arn: '{{ item.Arn }}'
+      region: '{{ item.Region }}'
+      account: '{{ item.AccountId }}'
+checks:
+- title: Docdb Cluster Encryption.Default Encryption Enabled
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.default_encryption_enabled
+  assertion_id: crypto_data_protection.encryption_at_rest.default_encryption_enabled
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists
+- title: Docdb Cluster Encryption.Customer Managed Keys Used Buckets
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.customer_managed_keys_used_buckets
+  assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_buckets
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists
+- title: Docdb Cluster Encryption.Customer Managed Keys Used Databases
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.customer_managed_keys_used_databases
+  assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_databases
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists
+- title: Docdb Cluster Encryption.Customer Managed Keys Used Disks
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.customer_managed_keys_used_disks
+  assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_disks
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists
+- title: Docdb Cluster Encryption.Database Encryption Enabled
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.database_encryption_enabled
+  assertion_id: crypto_data_protection.encryption_at_rest.database_encryption_enabled
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists
+- title: Docdb Cluster Encryption.Volume Encryption Enabled
+  severity: high
+  rule_id: aws.docdb.cluster_encryption.volume_encryption_enabled
+  assertion_id: crypto_data_protection.encryption_at_rest.volume_encryption_enabled
+  for_each: docdb_resources
+  conditions:
+    all:
+    - var: item.resource_id
+      op: exists

@@ -1,0 +1,59 @@
+version: 1.0
+provider: aws
+service: inspector2
+discovery:
+  discovery_id: aws.inspector2.resources
+  calls:
+    - client: inspector2
+      action: describe_inspector2s
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Vulnerability Scanning Enabled
+    severity: low
+    rule_id: aws.inspector2.container_scanning.vulnerability_scanning_enabled
+    assertion_id: containers_kubernetes.image_security.vulnerability_scanning_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement vulnerability scanning enabled for inspector2"
+    references:
+      - "https://docs.aws.amazon.com/inspector2/"
+  - title: Base Images Approved
+    severity: low
+    rule_id: aws.inspector2.container_scanning.base_images_approved
+    assertion_id: containers_kubernetes.image_security.base_images_approved
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement base images approved for inspector2"
+    references:
+      - "https://docs.aws.amazon.com/inspector2/"
+  - title: Image Signing Enabled
+    severity: low
+    rule_id: aws.inspector2.container_scanning.image_signing_enabled
+    assertion_id: containers_kubernetes.image_security.image_signing_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement image signing enabled for inspector2"
+    references:
+      - "https://docs.aws.amazon.com/inspector2/"

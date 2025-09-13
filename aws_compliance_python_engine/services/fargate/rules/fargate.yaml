@@ -1,0 +1,59 @@
+version: 1.0
+provider: aws
+service: fargate
+discovery:
+  discovery_id: aws.fargate.resources
+  calls:
+    - client: fargate
+      action: describe_fargates
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Runtime Protection Enabled
+    severity: low
+    rule_id: aws.fargate.fargate_security.runtime_protection_enabled
+    assertion_id: containers_kubernetes.runtime_security.runtime_protection_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement runtime protection enabled for fargate"
+    references:
+      - "https://docs.aws.amazon.com/fargate/"
+  - title: Privileged Containers Restricted
+    severity: low
+    rule_id: aws.fargate.fargate_security.privileged_containers_restricted
+    assertion_id: containers_kubernetes.runtime_security.privileged_containers_restricted
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement privileged containers restricted for fargate"
+    references:
+      - "https://docs.aws.amazon.com/fargate/"
+  - title: Resource Limits Enforced
+    severity: low
+    rule_id: aws.fargate.fargate_security.resource_limits_enforced
+    assertion_id: containers_kubernetes.runtime_security.resource_limits_enforced
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement resource limits enforced for fargate"
+    references:
+      - "https://docs.aws.amazon.com/fargate/"

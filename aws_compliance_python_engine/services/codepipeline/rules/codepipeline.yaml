@@ -1,0 +1,59 @@
+version: 1.0
+provider: aws
+service: codepipeline
+discovery:
+  discovery_id: aws.codepipeline.resources
+  calls:
+    - client: codepipeline
+      action: describe_codepipelines
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Secure Build Environments
+    severity: low
+    rule_id: aws.codepipeline.pipeline_security.secure_build_environments
+    assertion_id: supply_chain_registries.build_security.secure_build_environments
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement secure build environments for codepipeline"
+    references:
+      - "https://docs.aws.amazon.com/codepipeline/"
+  - title: Build Artifacts Signed
+    severity: low
+    rule_id: aws.codepipeline.pipeline_security.build_artifacts_signed
+    assertion_id: supply_chain_registries.build_security.build_artifacts_signed
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement build artifacts signed for codepipeline"
+    references:
+      - "https://docs.aws.amazon.com/codepipeline/"
+  - title: Build Secrets Protected
+    severity: low
+    rule_id: aws.codepipeline.pipeline_security.build_secrets_protected
+    assertion_id: supply_chain_registries.build_security.build_secrets_protected
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement build secrets protected for codepipeline"
+    references:
+      - "https://docs.aws.amazon.com/codepipeline/"

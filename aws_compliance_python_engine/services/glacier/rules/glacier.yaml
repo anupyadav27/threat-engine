@@ -1,0 +1,73 @@
+version: 1.0
+provider: aws
+service: glacier
+discovery:
+  discovery_id: aws.glacier.resources
+  calls:
+    - client: glacier
+      action: describe_glaciers
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Retention Policies Enforced
+    severity: low
+    rule_id: aws.glacier.retention_policies.retention_policies_enforced
+    assertion_id: data_protection_storage.data_retention.retention_policies_enforced
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement retention policies enforced for glacier"
+    references:
+      - "https://docs.aws.amazon.com/glacier/"
+  - title: Secure Deletion Enabled
+    severity: low
+    rule_id: aws.glacier.retention_policies.secure_deletion_enabled
+    assertion_id: data_protection_storage.data_retention.secure_deletion_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement secure deletion enabled for glacier"
+    references:
+      - "https://docs.aws.amazon.com/glacier/"
+  - title: Public Access Blocked
+    severity: low
+    rule_id: aws.glacier.vault_lock.public_access_blocked
+    assertion_id: data_protection_storage.storage_security.public_access_blocked
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement public access blocked for glacier"
+    references:
+      - "https://docs.aws.amazon.com/glacier/"
+  - title: Access Logging Enabled
+    severity: low
+    rule_id: aws.glacier.vault_lock.access_logging_enabled
+    assertion_id: data_protection_storage.storage_security.access_logging_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement access logging enabled for glacier"
+    references:
+      - "https://docs.aws.amazon.com/glacier/"

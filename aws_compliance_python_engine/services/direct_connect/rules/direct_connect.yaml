@@ -1,0 +1,73 @@
+version: 1.0
+provider: aws
+service: direct_connect
+discovery:
+  discovery_id: aws.direct_connect.connections
+  calls:
+    - client: directconnect
+      action: describe_connections
+      paginate: true
+  fields:
+    - name: connectionId
+      save_as: connection_id
+  emit:
+    items_for:
+      as: resource
+      item: connection_id
+checks:
+  - title: Vpc Isolation Enforced
+    severity: low
+    rule_id: aws.direct_connect.connect.vpc_isolation_enforced
+    assertion_id: network_perimeter.network_segmentation.vpc_isolation_enforced
+    for_each:
+      as: resource
+      item: connection_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement vpc isolation enforced for direct_connect"
+    references:
+      - "https://docs.aws.amazon.com/direct_connect/"
+  - title: Subnet Segmentation Configured
+    severity: low
+    rule_id: aws.direct_connect.connect.subnet_segmentation_configured
+    assertion_id: network_perimeter.network_segmentation.subnet_segmentation_configured
+    for_each:
+      as: resource
+      item: connection_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement subnet segmentation configured for direct_connect"
+    references:
+      - "https://docs.aws.amazon.com/direct_connect/"
+  - title: Vpn Encryption Enabled
+    severity: low
+    rule_id: aws.direct_connect.connections.vpn_encryption_enabled
+    assertion_id: network_perimeter.vpn_connectivity.vpn_encryption_enabled
+    for_each:
+      as: resource
+      item: connection_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement vpn encryption enabled for direct_connect"
+    references:
+      - "https://docs.aws.amazon.com/direct_connect/"
+  - title: Vpn Monitoring Enabled
+    severity: low
+    rule_id: aws.direct_connect.connections.vpn_monitoring_enabled
+    assertion_id: network_perimeter.vpn_connectivity.vpn_monitoring_enabled
+    for_each:
+      as: resource
+      item: connection_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement vpn monitoring enabled for direct_connect"
+    references:
+      - "https://docs.aws.amazon.com/direct_connect/"

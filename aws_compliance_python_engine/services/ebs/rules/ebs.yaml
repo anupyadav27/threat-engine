@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: ebs
+discovery:
+  discovery_id: aws.ebs.resources
+  calls:
+    - client: ec2
+      action: describe_volumes
+      paginate: true
+  fields:
+    - name: VolumeId
+      save_as: volume_id
+  emit:
+    items_for:
+      as: resource
+      item: volume_id
+checks:
+  - title: Backup Encryption Enabled
+    severity: low
+    rule_id: aws.ebs.snapshots.backup_encryption_enabled
+    assertion_id: data_protection_storage.backup_recovery.backup_encryption_enabled
+    for_each:
+      as: resource
+      item: volume_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement backup encryption enabled for ebs"
+    references:
+      - "https://docs.aws.amazon.com/ebs/"
+  - title: Backup Retention Configured
+    severity: low
+    rule_id: aws.ebs.snapshots.backup_retention_configured
+    assertion_id: data_protection_storage.backup_recovery.backup_retention_configured
+    for_each:
+      as: resource
+      item: volume_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement backup retention configured for ebs"
+    references:
+      - "https://docs.aws.amazon.com/ebs/"

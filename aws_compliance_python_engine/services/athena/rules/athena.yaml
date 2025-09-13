@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: athena
+discovery:
+  discovery_id: aws.athena.resources
+  calls:
+    - client: athena
+      action: describe_athenas
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Anomaly Detection Enabled
+    severity: medium
+    rule_id: aws.athena.log_analysis.anomaly_detection_enabled
+    assertion_id: logging_monitoring.log_analysis.anomaly_detection_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement anomaly detection enabled for athena"
+    references:
+      - "https://docs.aws.amazon.com/athena/"
+  - title: Correlation Analysis Enabled
+    severity: medium
+    rule_id: aws.athena.log_analysis.correlation_analysis_enabled
+    assertion_id: logging_monitoring.log_analysis.correlation_analysis_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement correlation analysis enabled for athena"
+    references:
+      - "https://docs.aws.amazon.com/athena/"

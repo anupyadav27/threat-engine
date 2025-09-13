@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: nlb
+discovery:
+  discovery_id: aws.nlb.resources
+  calls:
+    - client: nlb
+      action: describe_nlbs
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Ssl Termination Configured
+    severity: low
+    rule_id: aws.nlb.load_balancer_security.ssl_termination_configured
+    assertion_id: network_perimeter.load_balancing.ssl_termination_configured
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement ssl termination configured for nlb"
+    references:
+      - "https://docs.aws.amazon.com/nlb/"
+  - title: Health Checks Configured
+    severity: low
+    rule_id: aws.nlb.load_balancer_security.health_checks_configured
+    assertion_id: network_perimeter.load_balancing.health_checks_configured
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement health checks configured for nlb"
+    references:
+      - "https://docs.aws.amazon.com/nlb/"

@@ -1,0 +1,45 @@
+version: 1.0
+provider: aws
+service: autoscaling
+discovery:
+  discovery_id: aws.autoscaling.resources
+  calls:
+    - client: autoscaling
+      action: describe_autoscalings
+      paginate: true
+  fields:
+    - name: id
+      save_as: resource_id
+  emit:
+    items_for:
+      as: resource
+      item: resource_id
+checks:
+  - title: Scanning Enabled
+    severity: low
+    rule_id: aws.autoscaling.launch_template_security.scanning_enabled
+    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement scanning enabled for autoscaling"
+    references:
+      - "https://docs.aws.amazon.com/autoscaling/"
+  - title: Remediation Tracked
+    severity: low
+    rule_id: aws.autoscaling.launch_template_security.remediation_tracked
+    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
+    for_each:
+      as: resource
+      item: resource_id
+    conditions:
+      - field: resource.compliant
+        operator: equals
+        value: true
+    remediation: "Implement remediation tracked for autoscaling"
+    references:
+      - "https://docs.aws.amazon.com/autoscaling/"
