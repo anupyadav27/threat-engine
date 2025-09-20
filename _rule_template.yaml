@@ -1,63 +1,72 @@
-# YAML Rule Template (AWS Compliance Engine)
+# Enhanced YAML Rule Template (AWS Compliance Engine)
+# Updated format with emit section and assertion_id mapping
 # Replace <placeholders> with concrete values. Comments explain purpose and usage for AI tools.
 
-# Component/service identifiers
-component: <component>  # e.g., ec2, s3, iam (lowercase service slug)
-service: <service>      # usually same as component; sets default AWS service context for actions
+# Header section - Standardized format
+version: 1.0
+provider: aws
+service: <service_name>  # e.g., acm, accessanalyzer, api_gateway
 
-# Scope (cloud/provider targeting)
-applies:
-  providers: [<provider>]  # e.g., aws (list allowed)
-
-# Discovery phase
-# - One or more discovery pipelines fetch resources and extract fields into per-item snapshots.
-# - Each "fields" entry binds a variable accessible later as item.<var> in checks.
+# Discovery phase - Enhanced with emit section
+# - One discovery pipeline fetches resources and extracts fields into per-item snapshots
+# - Emit section defines how resources are iterated over in checks
 discovery:
-- discovery_id: <discovery_id>  # unique label referenced by checks.for_each
+  discovery_id: aws.<service_name>.resources  # Standardized naming pattern
   calls:
-  - action: <action>            # registry-defined action name (e.g., list_snapshots, describe_volumes, identity)
-    params: {}                  # optional input for the action; keep key present (empty object if none)
-    fields:
-    - path: <path>              # dot-path into action response; supports list wildcard '[]' (e.g., 'Items[].Encrypted')
-      var: <var>                # variable name to bind (e.g., snapshot_id); later referenced as item.<var>
-    # Add more fields as needed
+    - client: <boto3_client_name>  # e.g., acm, accessanalyzer, apigateway
+      action: <describe_action>    # e.g., describe_acms, describe_accessanalyzers, get_rest_apis
+      paginate: true               # Standard pagination for AWS APIs
+  fields:
+    - name: id                     # Primary identifier field
+      save_as: <resource_id>       # Variable name for referencing (e.g., rest_api_id, certificate_id)
+  emit:                           # NEW: Enhanced resource iteration
+    items_for:
+      as: resource                # Variable name for iteration in checks
+      item: <resource_id>         # References the saved field from above
 
-# Checks phase
-# - Evaluates assertions for each discovered item from for_each.
-# - "calls" may be 'identity' (evaluate fields directly) or another action that uses the item context.
+# Checks phase - Enhanced with assertion_id mapping
+# - Evaluates compliance assertions for each discovered item
+# - Uses standardized assertion_id for compliance framework mapping
 checks:
-- check_id: <check_id>              # globally-unique rule identifier
-  name: <name>                      # human-readable name
-  severity: <LOW|MEDIUM|HIGH|CRITICAL>  # compliance severity
-  for_each: <discovery_id>          # iterate over results from the discovery block above
-  param: <param_name>               # variable name injected into action params (default typically 'item')
-  calls:
-  - action: <action>                # typically 'identity'; can be a service action that uses {<param_name>: item}
-    params: {}                      # merged with the action context; include keys if needed
-    fields:
-    - path: <path>                  # evaluate against action payload; common form is item.<var>
-      operator: <equals|not_equals|contains|not_contains|exists|not_exists|gt|gte|lt|lte|in|not_in|regex>
-      expected: <expected>          # omit for exists/not_exists; for contains on dicts, acts as subset
-    # Add more fields as needed
-  logic: <AND|OR>                   # how to combine multiple field assertions within this check
-  errors_as_fail: []                # error identifiers that should cause FAIL instead of ERROR (empty for none)
-  # pass_when_empty: <true|false>   # optional; if true and for_each yields no items, mark PASS
+  - title: <Human Readable Title>           # Human-readable rule name
+    severity: <low|medium|high|critical>    # Compliance severity level
+    rule_id: aws.<service>.<category>.<specific_check>  # Hierarchical rule identifier
+    assertion_id: <framework>.<domain>.<specific_control>  # NEW: Compliance framework mapping
+    for_each:
+      as: resource                # References emit variable from discovery
+      item: <resource_id>         # References the resource identifier
+    conditions:
+      - field: resource.compliant # Standard compliance check field
+        operator: equals          # Standard operator for compliance
+        value: true               # Expected compliant state
+    remediation: "Implement <check_description> for <service>"
+    references:
+      - "https://docs.aws.amazon.com/<service>/"
 
-# Operator semantics (must match evaluator):
-# - equals/not_equals: strict equality vs inequality
-# - contains/not_contains: list/string membership; for dicts, expected is a subset that must be present
-# - exists/not_exists: checks key presence and non-null vs absence/null (no expected value)
-# - gt/gte/lt/lte: numeric comparisons
-# - in/not_in: membership of actual in expected list
-# - regex: Python-style regex match applied to string actual
+# Enhanced Rule ID Structure Examples:
+# - aws.acm.certificate_management.auto_renewal_enabled
+# - aws.api_gateway.ssl_enforcement.tls_enforced
+# - aws.accessanalyzer.findings.access_reviews_conducted
 
-# Path resolution rules (ActionRegistry.resolve_path):
-# - Use dot notation, e.g., 'a.b.c'
-# - List wildcard '[]' maps over lists, e.g., 'Items[].Encrypted'
-# - Numeric indices allowed for lists, e.g., 'Items.0.Name'
-# - Underscore and dash are treated equivalently for keys ('foo_bar' ↔ 'foo-bar')
+# Assertion ID Framework Mappings:
+# - crypto_data_protection.* - Encryption, certificates, keys
+# - rbac_entitlements.* - Access control, permissions
+# - network_perimeter.* - Firewalls, WAF, network security
+# - serverless_paas.* - Serverless security controls
+# - governance_compliance.* - Policy management, compliance
+# - platform_surfaces_versions.* - API management, versioning
 
-# Notes for tool-generated actions:
-# - Ensure action names exist in the registry for the target service or provide mocks.
-# - Keep 'component' aligned with the service to route default clients.
-# - Maintain 1:1 mapping between discovery fields (var bindings) and check expressions using item.<var>. 
+# Severity Guidelines:
+# - critical: Data exposure, authentication bypass
+# - high: Encryption, network security, access control
+# - medium: Monitoring, logging, configuration
+# - low: Best practices, optimization
+
+# Notes for tool-generated rules:
+# - Ensure client names match exact boto3 client names
+# - Use standardized action naming (describe_*, get_*)
+# - Always set paginate: true for AWS APIs
+# - Use consistent variable naming throughout
+# - Map assertion_ids to real compliance frameworks
+# - Provide actionable remediation steps
+# - Link to official AWS documentation 

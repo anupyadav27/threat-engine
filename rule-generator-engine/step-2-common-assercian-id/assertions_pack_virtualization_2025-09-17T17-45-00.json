@@ -1,0 +1,811 @@
+{
+  "version": "1.0",
+  "pack_id": "assertions_pack_virtualization_2025_09_17",
+  "mode": "assertions",
+  "scope_allowlist": [
+    "virt.identity.user",
+    "virt.identity.group",
+    "virt.identity.role",
+    "virt.identity.service_account",
+    "virt.identity.idp",
+    "virt.rbac.role",
+    "virt.rbac.policy",
+    "virt.secrets.store",
+    "virt.secrets.secret",
+    "virt.crypto.kms",
+    "virt.crypto.kms.key",
+    "virt.crypto.certificate",
+    "virt.crypto.hsm",
+    "virt.storage.datastore",
+    "virt.storage.datastore_cluster",
+    "virt.storage.snapshot",
+    "virt.storage.backup",
+    "virt.backup.vault",
+    "virt.compute.cluster",
+    "virt.compute.resource_pool",
+    "virt.compute.folder",
+    "virt.compute.host",
+    "virt.compute.vm",
+    "virt.compute.template",
+    "virt.compute.image",
+    "virt.compute.disk",
+    "virt.network.switch",
+    "virt.network.segment",
+    "virt.network.firewall",
+    "virt.network.edge_gateway",
+    "virt.network.load_balancer",
+    "virt.network.vpn",
+    "virt.network.nat",
+    "virt.network.address_group",
+    "virt.dns.zone",
+    "virt.mgmt.control_plane",
+    "virt.mgmt.api_endpoint",
+    "virt.logging.sink",
+    "virt.logging.store",
+    "virt.monitoring.alert",
+    "virt.monitoring.metric",
+    "virt.backup.plan",
+    "virt.dr.plan",
+    "virt.governance.org",
+    "virt.governance.project"
+  ],
+  "assertions": [
+    {
+      "assertion_id": "identity.authentication.mfa_enforced_for_admins",
+      "title": "MFA is enforced for all management-plane administrators",
+      "scope": "virt.identity.user",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "mfa" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "MFA reduces risk of account takeover for high-privilege access to management endpoints.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "identity.authentication.legacy_protocols_disabled",
+      "title": "Legacy/weak authentication protocols are disabled on management endpoints",
+      "scope": "virt.mgmt.api_endpoint",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "authentication" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Legacy protocols expose known weaknesses and increase attack surface.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "rbac.role_definition.least_privilege_roles_in_use",
+      "title": "Roles follow least-privilege principles across inventory objects",
+      "scope": "virt.rbac.role",
+      "subcat_ref": { "domain_key": "rbac", "subcat_id": "least_privilege" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Least privilege limits blast radius from compromised accounts and mistakes.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "rbac.sod_toxic.toxic_combination_prevented",
+      "title": "Toxic role combinations are prevented via policy",
+      "scope": "virt.rbac.policy",
+      "subcat_ref": { "domain_key": "rbac", "subcat_id": "sod_toxic" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "SoD reduces fraud and misuse by separating conflicting privileges.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "secrets.secret_storage.central_store_in_use",
+      "title": "Secrets are stored in a central encrypted secrets store",
+      "scope": "virt.secrets.store",
+      "subcat_ref": { "domain_key": "secrets", "subcat_id": "secret_storage" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Centralized storage provides auditability and reduces sprawl.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "crypto.encryption_at_rest.datastore_encryption_enabled",
+      "title": "Datastore encryption at rest is enabled",
+      "scope": "virt.storage.datastore",
+      "subcat_ref": { "domain_key": "crypto", "subcat_id": "encryption_at_rest" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Encryption protects data if media is stolen or accessed without authorization.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "crypto.encryption_in_transit.vmotion_encryption_enabled",
+      "title": "Encrypted live migration is enforced",
+      "scope": "virt.compute.cluster",
+      "subcat_ref": { "domain_key": "crypto", "subcat_id": "encryption_in_transit" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Encrypting inter-host traffic prevents interception of sensitive VM state.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "storage.snapshot_management.excess_snapshots_detected",
+      "title": "Excess snapshot age/count is not exceeded",
+      "scope": "virt.storage.snapshot",
+      "subcat_ref": { "domain_key": "storage", "subcat_id": "snapshot_management" },
+      "params": { "max_snapshot_age_days": "integer", "max_snapshot_count": "integer" },
+      "evidence_type": "config_read",
+      "rationale": "Snapshot sprawl increases risk and degrades performance; enforce hygiene.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "network.virtual_switching.promiscuous_mode_disabled",
+      "title": "Promiscuous mode, forged transmits, and MAC changes are disabled unless justified",
+      "scope": "virt.network.switch",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "virtual_switching" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Restrictive vSwitch settings reduce packet sniffing and spoofing risk.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "network.microsegmentation.default_deny_policy_present",
+      "title": "Microsegmentation enforces default-deny with explicit allow rules",
+      "scope": "virt.network.firewall",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "microsegmentation" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Default-deny limits lateral movement and reduces attack surface.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "compute.host_hardening.lockdown_mode_enabled",
+      "title": "Host lockdown/secure boot are enabled",
+      "scope": "virt.compute.host",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "host_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Hardening controls reduce attack surface on management interfaces.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "mgmt.auditing_api_access.audit_logging_enabled",
+      "title": "Audit logging is enabled for management API actions",
+      "scope": "virt.mgmt.control_plane",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "auditing_api_access" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Audit trails enable investigation and deterrence for admin activity.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "compute.console_access.console_access_restricted",
+      "title": "VM console/serial access is restricted to authorized roles",
+      "scope": "virt.compute.vm",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "console_access" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Console access bypasses network controls; limit to least privilege.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "compute.golden_images.approved_templates_used",
+      "title": "Only approved golden images/templates are used for provisioning",
+      "scope": "virt.compute.template",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "golden_images" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Controlled templates reduce drift and embedded vulnerabilities.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "logging.log_collection.forwarding_to_siem_configured",
+      "title": "Platform and host logs are forwarded to central SIEM",
+      "scope": "virt.logging.sink",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "log_collection" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Central logs enable monitoring, detection, and compliance evidence.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "backup.backup_strategy.vm_backup_policies_applied",
+      "title": "VM backup policies are applied and successful",
+      "scope": "virt.backup.plan",
+      "subcat_ref": { "domain_key": "backup", "subcat_id": "backup_strategy" },
+      "params": { "min_success_rate_pct": "integer" },
+      "evidence_type": "telemetry_read",
+      "rationale": "Reliable backups are critical for recovery and ransomware resilience.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "governance.infrastructure_as_code.iac_scans_enforced",
+      "title": "IaC scans and policy enforcement are enabled for platform configs",
+      "scope": "virt.governance.project",
+      "subcat_ref": { "domain_key": "governance", "subcat_id": "infrastructure_as_code" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Shifting left reduces misconfigurations before deployment.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "identity.authentication.service_accounts_scoped",
+      "title": "Service accounts are scoped to least privilege and rotated",
+      "scope": "virt.identity.service_account",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "authentication" },
+      "params": { "max_key_age_days": "integer" },
+      "evidence_type": "config_read",
+      "rationale": "Limits exposure and misuse of long‑lived credentials.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "identity.federation.external_idp_trusts_reviewed",
+      "title": "External IdP trusts are reviewed and limited to required scopes",
+      "scope": "virt.identity.group",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "federation" },
+      "params": { "review_frequency_days": "integer" },
+      "evidence_type": "config_read",
+      "rationale": "Tight trust reduces federation risk.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "rbac.role_assignment.approval_and_mfa_for_elevation",
+      "title": "Privilege elevation requires approval and MFA step‑up",
+      "scope": "virt.rbac.policy",
+      "subcat_ref": { "domain_key": "rbac", "subcat_id": "role_assignment" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Adds layered defenses for sensitive operations.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "secrets.secret_storage.access_audited_and_alerted",
+      "title": "Secret access is audited and anomalous access is alerted",
+      "scope": "virt.secrets.store",
+      "subcat_ref": { "domain_key": "secrets", "subcat_id": "secret_storage" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Detects misuse of sensitive credentials.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "crypto.certificate_management.trusted_ca_only",
+      "title": "Only certificates from trusted CAs are accepted",
+      "scope": "virt.mgmt.api_endpoint",
+      "subcat_ref": { "domain_key": "crypto", "subcat_id": "certificate_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents MITM with untrusted issuers.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "storage.datastore_security.no_anonymous_access",
+      "title": "Anonymous or guest access to datastores is disabled",
+      "scope": "virt.storage.datastore",
+      "subcat_ref": { "domain_key": "storage", "subcat_id": "datastore_security" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents unauthorized data access.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "storage.backup_recovery.encrypted_backups",
+      "title": "Backups are encrypted at rest and in transit",
+      "scope": "virt.storage.backup",
+      "subcat_ref": { "domain_key": "storage", "subcat_id": "backup_recovery" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Protects backup confidentiality.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "network.virtual_switching.mtu_and_storm_control_configured",
+      "title": "MTU and storm control settings are standardized and enforced",
+      "scope": "virt.network.switch",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "virtual_switching" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents instability and abuse.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "network.microsegmentation.app_tiers_isolated",
+      "title": "Application tiers are isolated via microsegmentation policies",
+      "scope": "virt.network.firewall",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "microsegmentation" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Reduces lateral movement between tiers.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "network.edge_services.egress_controls_configured",
+      "title": "Egress controls and FQDN allowlists are configured",
+      "scope": "virt.network.edge_gateway",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "edge_services" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Limits data exfiltration paths.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "network.dns_dhcp_security.dnssec_or_validating_resolvers",
+      "title": "DNSSEC/validating resolvers used for management plane",
+      "scope": "virt.dns.zone",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "dns_dhcp_security" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents DNS spoofing attacks.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "network.ddos_protection.ddos_profiles_applied",
+      "title": "DDoS/WAF profiles applied to exposed management services",
+      "scope": "virt.network.edge_gateway",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "ddos_protection" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Mitigates volumetric and L7 attacks.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "compute.host_hardening.shell_access_restricted",
+      "title": "Direct shell access to hosts is restricted and audited",
+      "scope": "virt.compute.host",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "host_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents bypass of management controls.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "compute.patch_management.maintenance_windows_defined",
+      "title": "Maintenance windows are defined for patching",
+      "scope": "virt.compute.cluster",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "patch_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Enables predictable updates with minimal impact.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "compute.vulnerability_management.exception_process_defined",
+      "title": "Vulnerability exception process with expiry is defined",
+      "scope": "virt.compute.host",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "vulnerability_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Controls risk from deferred fixes.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "mgmt.control_plane_hardening.ip_allowlists_for_admin",
+      "title": "Admin access restricted via IP allowlists or VPN",
+      "scope": "virt.mgmt.api_endpoint",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "control_plane_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Reduces exposure to broad networks.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "mgmt.configuration_drift.config_baseline_defined",
+      "title": "Approved configuration baseline is defined and versioned",
+      "scope": "virt.mgmt.control_plane",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "configuration_drift" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Enables reliable drift detection.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "mgmt.capacity_management.quota_alerts_configured",
+      "title": "Quota and capacity alerts are configured",
+      "scope": "virt.monitoring.alert",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "capacity_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents outages due to exhaustion.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "compute.baseline_hardening.secure_boot_enforced",
+      "title": "Secure Boot is enforced for supported VMs",
+      "scope": "virt.compute.vm",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "baseline_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents boot‑level tampering.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "compute.guest_isolation.time_sync_usb_cdrom_policies",
+      "title": "Time sync/USB/CD‑ROM access policies are restricted",
+      "scope": "virt.compute.vm",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "guest_isolation" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Limits device‑based attack vectors.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "compute.resource_controls.no_overcommit_for_critical",
+      "title": "Critical VMs are not overcommitted on CPU/memory",
+      "scope": "virt.compute.cluster",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "resource_controls" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Preserves performance and availability.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "compute.golden_images.minimal_software_footprint",
+      "title": "Golden images use minimal software footprint",
+      "scope": "virt.compute.template",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "golden_images" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Reduces vulnerabilities and attack surface.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "compute.image_scanning.secrets_scanning_enabled",
+      "title": "Templates are scanned for embedded secrets",
+      "scope": "virt.compute.image",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "image_scanning" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Prevents accidental key leakage.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "logging.monitoring_alerting.paging_on_critical",
+      "title": "Paging is configured for critical alerts",
+      "scope": "virt.monitoring.alert",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "monitoring_alerting" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Ensures timely response.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "logging.log_retention.immutability_lock_enabled",
+      "title": "Immutability lock enabled for security logs",
+      "scope": "virt.logging.store",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "log_retention" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents log tampering.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "backup.disaster_recovery.runbook_versioned_and_tested",
+      "title": "DR runbooks are versioned and tested",
+      "scope": "virt.dr.plan",
+      "subcat_ref": { "domain_key": "backup", "subcat_id": "disaster_recovery" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Improves recovery reliability.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "governance.resource_governance.mandatory_tags_enforced",
+      "title": "Mandatory tags/annotations are enforced on all resources",
+      "scope": "virt.governance.project",
+      "subcat_ref": { "domain_key": "governance", "subcat_id": "resource_governance" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Improves governance and reporting.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "compute.vulnerability_scanning.recurring_scans_on_images",
+      "title": "Recurring vulnerability scans are configured for templates/images",
+      "scope": "virt.compute.image",
+      "subcat_ref": { "domain_key": "compute", "subcat_id": "vulnerability_scanning" },
+      "params": { "scan_frequency_days": "integer" },
+      "evidence_type": "telemetry_read",
+      "rationale": "Keeps artifacts secure over time.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "mgmt.version_management.eol_tracking_enabled",
+      "title": "End‑of‑life tracking is enabled for platform versions",
+      "scope": "virt.mgmt.control_plane",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "version_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Enables proactive upgrades.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "monitoring.threat_detection_ops.suspicious_admin_activity_alerts",
+      "title": "Alerts exist for suspicious admin activities",
+      "scope": "virt.monitoring.alert",
+      "subcat_ref": { "domain_key": "monitoring", "subcat_id": "threat_detection_ops" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Detects insider threat and account takeover.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "identity.federation.idp_trust_min_scopes",
+      "title": "External IdP trusts are limited to minimum required scopes",
+      "scope": "virt.identity.idp",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "federation" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Limits blast radius from federation misconfigurations.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "identity.federation.idp_mfa_for_admin_portal",
+      "title": "IdP enforces MFA for admin portal access",
+      "scope": "virt.identity.idp",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "mfa" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Adds strong auth at identity perimeter.",
+      "severity": "high"
+    },
+
+    {
+      "assertion_id": "secrets.key_management.hsm_backing_for_root_keys",
+      "title": "Root KMS keys are backed by HSM modules",
+      "scope": "virt.crypto.hsm",
+      "subcat_ref": { "domain_key": "secrets", "subcat_id": "key_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Hardware protection reduces key extraction risk.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "secrets.key_management.hsm_high_availability_configured",
+      "title": "HSM high availability and quorum policies are configured",
+      "scope": "virt.crypto.hsm",
+      "subcat_ref": { "domain_key": "secrets", "subcat_id": "key_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Ensures resilience and prevents single‑operator abuse.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "storage.datastore_cluster.io_balancing_enabled",
+      "title": "Datastore cluster IO/capacity balancing is enabled",
+      "scope": "virt.storage.datastore_cluster",
+      "subcat_ref": { "domain_key": "storage", "subcat_id": "storage_guardrails" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Prevents performance hotspots and outages.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "storage.datastore_cluster.anti_affinity_for_critical_vms",
+      "title": "Anti‑affinity rules protect critical VMs across datastore clusters",
+      "scope": "virt.storage.datastore_cluster",
+      "subcat_ref": { "domain_key": "storage", "subcat_id": "datastore_security" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Improves resilience to datastore failures.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "backup_recovery.backup_vault.immutable_vault_enabled",
+      "title": "Immutable backup vault is enabled for ransomware resilience",
+      "scope": "virt.backup.vault",
+      "subcat_ref": { "domain_key": "backup", "subcat_id": "ransomware_protection" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents malicious backup alteration.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "backup_recovery.backup_vault.cross_domain_replication",
+      "title": "Backups replicated to secondary domain or site",
+      "scope": "virt.backup.vault",
+      "subcat_ref": { "domain_key": "backup", "subcat_id": "disaster_recovery" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Protects against site‑level failures.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "mgmt.resource_pool.quotas_enforced",
+      "title": "Resource pool quotas and reservations are enforced",
+      "scope": "virt.compute.resource_pool",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "capacity_management" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents noisy‑neighbor and starvation.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "mgmt.resource_pool.separation_of_tenants",
+      "title": "Tenants/workloads are separated by resource pools",
+      "scope": "virt.compute.resource_pool",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "control_plane_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Improves isolation and governance.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "mgmt.folder.access_policies_defined",
+      "title": "Access policies are defined on folders for least privilege",
+      "scope": "virt.compute.folder",
+      "subcat_ref": { "domain_key": "rbac", "subcat_id": "role_assignment" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Scopes admin access to inventory.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "mgmt.folder.change_audit_enabled",
+      "title": "Folder changes are audited and retained",
+      "scope": "virt.compute.folder",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "audit_logging" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents unauthorized segmentation changes.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "network.load_balancer.tls_termination_hardened",
+      "title": "Load balancer TLS termination uses strong ciphers and certificates",
+      "scope": "virt.network.load_balancer",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "edge_services" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Secures exposed endpoints.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "network.load_balancer.waf_or_app_firewall_enabled",
+      "title": "WAF/app firewall is enabled for internet‑facing VIPs",
+      "scope": "virt.network.load_balancer",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "ddos_protection" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Mitigates common web attacks.",
+      "severity": "high"
+    },
+
+    {
+      "assertion_id": "network.vpn.mutual_auth_and_strong_crypto",
+      "title": "VPN uses mutual auth and strong crypto suites",
+      "scope": "virt.network.vpn",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "edge_services" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Protects management connectivity.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "network.vpn.split_tunnel_policy_defined",
+      "title": "Split‑tunnel policy is defined and justified",
+      "scope": "virt.network.vpn",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "edge_services" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Reduces data leakage risk.",
+      "severity": "medium"
+    },
+
+    {
+      "assertion_id": "network.nat.egress_nat_controls",
+      "title": "Egress NAT is controlled with policy and logging",
+      "scope": "virt.network.nat",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "edge_services" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Improves accountability of outbound traffic.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "network.nat.no_inbound_static_nat_to_management",
+      "title": "No inbound static NAT to management interfaces",
+      "scope": "virt.network.nat",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "control_plane_hardening" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents direct exposure.",
+      "severity": "high"
+    },
+
+    {
+      "assertion_id": "network.address_group.standardized_address_groups",
+      "title": "Standardized address groups are defined for segmentation policies",
+      "scope": "virt.network.address_group",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "microsegmentation" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Consistency reduces policy errors.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "network.address_group.change_controlled",
+      "title": "Changes to address groups are change‑controlled and audited",
+      "scope": "virt.network.address_group",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "audit_logging" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Prevents unauthorized segmentation changes.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "network.dns_dhcp_security.secure_forwarders_configured",
+      "title": "DNS uses secure forwarders and blocks known malicious domains",
+      "scope": "virt.dns.zone",
+      "subcat_ref": { "domain_key": "network", "subcat_id": "dns_dhcp_security" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Reduces risk from DNS‑based threats.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "mgmt.resource_pool.drift_detection_enabled",
+      "title": "Drift detection is enabled for resource pool settings",
+      "scope": "virt.compute.resource_pool",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "configuration_drift" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Detects unauthorized or accidental changes.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "mgmt.resource_pool.mandatory_tags_applied",
+      "title": "Mandatory governance tags are applied to resource pools",
+      "scope": "virt.compute.resource_pool",
+      "subcat_ref": { "domain_key": "governance", "subcat_id": "resource_governance" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Improves ownership clarity and policy targeting.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "mgmt.folder.drift_detection_enabled",
+      "title": "Drift detection is enabled for folder permissions",
+      "scope": "virt.compute.folder",
+      "subcat_ref": { "domain_key": "mgmt", "subcat_id": "configuration_drift" },
+      "params": null,
+      "evidence_type": "telemetry_read",
+      "rationale": "Catches inadvertent permission changes.",
+      "severity": "medium"
+    },
+    {
+      "assertion_id": "mgmt.folder.mandatory_tags_applied",
+      "title": "Mandatory governance tags are applied to folders",
+      "scope": "virt.compute.folder",
+      "subcat_ref": { "domain_key": "governance", "subcat_id": "resource_governance" },
+      "params": null,
+      "evidence_type": "config_read",
+      "rationale": "Supports access scoping and reporting.",
+      "severity": "low"
+    },
+    {
+      "assertion_id": "identity.federation.idp_signing_algorithms_strong",
+      "title": "IdP uses strong signing algorithms for SSO assertions",
+      "scope": "virt.identity.idp",
+      "subcat_ref": { "domain_key": "identity", "subcat_id": "federation" },
+      "params": { "min_algorithm": "string" },
+      "evidence_type": "config_read",
+      "rationale": "Prevents token forgery via weak signatures.",
+      "severity": "high"
+    },
+    {
+      "assertion_id": "network.vpn.audit_logging_enabled",
+      "title": "VPN audit logging is enabled and retained",
+      "scope": "virt.network.vpn",
+      "subcat_ref": { "domain_key": "logging", "subcat_id": "audit_logging" },
+      "params": { "min_retention_days": "integer" },
+      "evidence_type": "config_read",
+      "rationale": "Provides traceability for remote access.",
+      "severity": "medium"
+    }
+  ],
+  "qa": {
+    "notes": [
+      "Scopes are prefixed with virt.* to distinguish private virtualization resources",
+      "Assertion IDs follow domain_key.subcat_id.concise_check naming",
+      "All subcat_ref values map to virtualization taxonomy domain/subcat IDs",
+      "Expanded with an initial batch of additional enterprise assertions"
+    ]
+  }
+}
