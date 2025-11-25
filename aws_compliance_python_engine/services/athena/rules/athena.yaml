@@ -1,45 +1,243 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: athena
 discovery:
-  discovery_id: aws.athena.resources
+- discovery_id: aws.athena.workgroup_encryptions
   calls:
-    - client: athena
-      action: describe_athenas
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: athena
+    action: list_work_groups
+    save_as: workgroup_encryption_list
+    on_error: continue
+    fields:
+    - Athenas
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: workgroup_encryption_list[]
+    as: workgroup_encryption
+    item:
+      id: '{{ workgroup_encryption.Id }}'
+      name: '{{ workgroup_encryption.Name }}'
+- discovery_id: aws.athena.workgroup_encryption_encryption
+  for_each: aws.athena.workgroup_encryptions
+  calls:
+  - client: athena
+    action: list_work_groups
+    params:
+      Workgroup_encryptionId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.athena.workgroup_encryption_logging
+  for_each: aws.athena.workgroup_encryptions
+  calls:
+  - client: athena
+    action: describe_workgroup_encryption_logging
+    params:
+      Workgroup_encryptionId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.athena.workgroup_logging
+  calls:
+  - client: athena
+    action: list_application_dpu_sizes
+    save_as: workgroup_logging
+    on_error: continue
+  emit:
+    items_for: workgroup_logging[]
+    as: workgroup_logging
+    item:
+      id: '{{ workgroup_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.athena.workgroups
+  for_each: aws.athena.workgroup
+  calls:
+  - client: athena
+    action: list_work_groups
+    save_as: workgroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.athena.workgroup_encryption
+  calls:
+  - client: athena
+    action: list_application_dpu_sizes
+    save_as: workgroup_encryption
+    on_error: continue
+  emit:
+    items_for: workgroup_encryption[]
+    as: workgroup_encryption
+    item:
+      id: '{{ workgroup_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.athena.resource_logging
+  calls:
+  - client: athena
+    action: list_application_dpu_sizes
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Anomaly Detection Enabled
-    severity: medium
-    rule_id: aws.athena.log_analysis.anomaly_detection_enabled
-    assertion_id: logging_monitoring.log_analysis.anomaly_detection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement anomaly detection enabled for athena"
-    references:
-      - "https://docs.aws.amazon.com/athena/"
-  - title: Correlation Analysis Enabled
-    severity: medium
-    rule_id: aws.athena.log_analysis.correlation_analysis_enabled
-    assertion_id: logging_monitoring.log_analysis.correlation_analysis_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement correlation analysis enabled for athena"
-    references:
-      - "https://docs.aws.amazon.com/athena/"
+- title: 'ATHENA resource: Workgroup Logging Enabled'
+  severity: medium
+  rule_id: aws.athena.resource.workgroup_logging_enabled
+  for_each:
+    discovery: aws.athena.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for athena resource:\n\n1. Open ATHENA console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws athena update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Analytics query monitoring and logging is enabled
+  severity: medium
+  rule_id: aws.athena.workgroup.admin_activity_logging_enabled
+  for_each:
+    discovery: aws.athena.workgroup_logging
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for athena workgroup:\n\n1. Open ATHENA console\n2. Select the workgroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws athena update-workgroup-logging --workgroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ATHENA workgroup: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.athena.workgroup.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.athena.workgroup_encryption
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for athena workgroup:\n\n1. Open ATHENA console\n2. Select the workgroup\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws athena modify-workgroup --workgroup-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ATHENA workgroup: Logs Retention Days Minimum'
+  severity: medium
+  rule_id: aws.athena.workgroup.logs_retention_days_minimum
+  for_each:
+    discovery: aws.athena.workgroup_logging
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for athena workgroup:\n\n1. Open ATHENA console\n2. Select the workgroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws athena update-workgroup-logging --workgroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Analytics query monitoring and logging is enabled
+  severity: medium
+  rule_id: aws.athena.workgroup.query_access_logging_enabled
+  for_each:
+    discovery: aws.athena.workgroup_logging
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for athena workgroup:\n\n1. Open ATHENA console\n2. Select the workgroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws athena update-workgroup-logging --workgroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ATHENA workgroup: Athena Allowed Data Sources Allowlist Configured'
+  severity: medium
+  rule_id: aws.athena.workgroup.athena_allowed_data_sources_allowlist_configured
+  for_each:
+    discovery: aws.athena.workgroups
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: workgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure athena workgroup for compliance:\n\nRequirement: Athena Allowed Data Sources Allowlist Configuration\n\
+    \nDescription: Verifies security configuration for AWS ATHENA workgroup to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ATHENA console\n2. Select the workgroup\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ATHENA workgroup: Query Result Encryption Enabled'
+  severity: high
+  rule_id: aws.athena.workgroup.query_result_encryption_enabled
+  for_each:
+    discovery: aws.athena.workgroup_encryption
+    as: workgroup
+    item: workgroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for athena workgroup:\n\n1. Open ATHENA console\n2. Select the workgroup\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws athena modify-workgroup --workgroup-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ATHENA workgroup encryption: At Rest Enabled'
+  severity: medium
+  rule_id: aws.athena.workgroup_encryption.at_rest_enabled
+  for_each:
+    discovery: aws.athena.workgroup_encryption_encryption
+    as: workgroup_encryption
+    item: workgroup_encryption
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for athena workgroup_encryption:\n\n1. Open ATHENA console\n2. Select the workgroup_encryption\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws athena modify-workgroup_encryption\
+    \ --workgroup_encryption-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

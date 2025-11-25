@@ -1,0 +1,181 @@
+version: '1.0'
+provider: aws
+service: networkfirewall
+discovery:
+- discovery_id: aws.networkfirewall.ins
+  calls:
+  - client: networkfirewall
+    action: list_networkfirewalls
+    save_as: in_list
+    on_error: continue
+    fields:
+    - Networkfirewalls
+  emit:
+    items_for: in_list[]
+    as: in
+    item:
+      id: '{{ in.Id }}'
+      name: '{{ in.Name }}'
+- discovery_id: aws.networkfirewall.in_logging
+  for_each: aws.networkfirewall.ins
+  calls:
+  - client: networkfirewall
+    action: describe_in_logging
+    params:
+      InId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.networkfirewall.resource_logging
+  calls:
+  - client: networkfirewall
+    action: describe_load_balancers
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.networkfirewall.firewalls
+  for_each: aws.networkfirewall.firewall
+  calls:
+  - client: networkfirewall
+    action: describe_firewalls
+    save_as: firewalls
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.networkfirewall.firewall_logging
+  calls:
+  - client: networkfirewall
+    action: list_firewall_logging
+    save_as: firewall_logging
+    on_error: continue
+  emit:
+    items_for: firewall_logging[]
+    as: firewall_logging
+    item:
+      id: '{{ firewall_logging.Id }}'
+      compliant: '{{ true }}'
+checks:
+- title: Intrusion detection system is enabled
+  severity: high
+  rule_id: aws.networkfirewall.firewall.logging_enabled
+  for_each:
+    discovery: aws.networkfirewall.firewall_logging
+    as: firewall
+    item: firewall
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for networkfirewall firewall:\n\n1. Open NETWORKFIREWALL console\n2. Select the firewall\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws networkfirewall\
+    \ update-firewall-logging --firewall-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'NETWORKFIREWALL firewall: Networkfirewall Multi Az Deployment Enabled'
+  severity: high
+  rule_id: aws.networkfirewall.firewall.networkfirewall_multi_az_deployment_enabled
+  for_each:
+    discovery: aws.networkfirewall.firewalls
+    as: firewall
+    item: firewall
+  conditions:
+    var: firewall.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for networkfirewall firewall:\n\n1. Ensure firewall is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'NETWORKFIREWALL firewall: Rule Groups Enabled'
+  severity: medium
+  rule_id: aws.networkfirewall.firewall.rule_groups_enabled
+  for_each:
+    discovery: aws.networkfirewall.firewalls
+    as: firewall
+    item: firewall
+  conditions:
+    var: firewall.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for networkfirewall firewall:\n\n1. Ensure firewall is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'NETWORKFIREWALL resource: Logging Enabled'
+  severity: medium
+  rule_id: aws.networkfirewall.resource.logging_enabled
+  for_each:
+    discovery: aws.networkfirewall.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for networkfirewall resource:\n\n1. Open NETWORKFIREWALL console\n2. Select the resource\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws networkfirewall\
+    \ update-resource-logging --resource-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'NETWORKFIREWALL firewall: Networkfirewall No Permit Any Configured'
+  severity: high
+  rule_id: aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured
+  for_each:
+    discovery: aws.networkfirewall.firewalls
+    as: firewall
+    item: firewall
+  conditions:
+    var: firewall.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for networkfirewall firewall:\n\n1. Ensure firewall is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'NETWORKFIREWALL in: All Vpc Configured'
+  severity: high
+  rule_id: aws.networkfirewall.in.all_vpc_configured
+  for_each:
+    discovery: aws.networkfirewall.ins
+    as: in
+    item: in
+  conditions:
+    var: in.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for networkfirewall in:\n\n1. Ensure in is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

@@ -1,129 +1,638 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: cloudfront
 discovery:
-  discovery_id: aws.cloudfront.resources
+- discovery_id: aws.cloudfront.distributions
   calls:
-    - client: cloudfront
-      action: describe_cloudfronts
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: cloudfront
+    action: list_distributions
+    save_as: distribution_list
+    on_error: continue
+    fields:
+    - Cloudfronts
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: distribution_list[]
+    as: distribution
+    item:
+      id: '{{ distribution.Id }}'
+      name: '{{ distribution.Name }}'
+- discovery_id: aws.cloudfront.distribution_encryption
+  for_each: aws.cloudfront.distributions
+  calls:
+  - client: cloudfront
+    action: list_distributions
+    params:
+      DistributionId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.cloudfront.distribution_logging
+  for_each: aws.cloudfront.distributions
+  calls:
+  - client: cloudfront
+    action: describe_function
+    params:
+      DistributionId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.cloudfront.origin_request_policys
+  for_each: aws.cloudfront.origin_request_policy
+  calls:
+  - client: cloudfront
+    action: describe_function
+    save_as: origin_request_policys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.distributions_logging
+  calls:
+  - client: cloudfront
+    action: list_anycast_ip_lists
+    save_as: distributions_logging
+    on_error: continue
+  emit:
+    items_for: distributions_logging[]
+    as: distributions_logging
+    item:
+      id: '{{ distributions_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.distributions_multiple_origin_failover_configureds
+  for_each: aws.cloudfront.distributions_multiple_origin_failover_configured
+  calls:
+  - client: cloudfront
+    action: describe_function
+    save_as: distributions_multiple_origin_failover_configureds
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.resource_logging
+  calls:
+  - client: cloudfront
+    action: list_anycast_ip_lists
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.distributionss
+  for_each: aws.cloudfront.distribution
+  calls:
+  - client: cloudfront
+    action: describe_function
+    save_as: distributionss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.cachepolicys
+  for_each: aws.cloudfront.cachepolicy
+  calls:
+  - client: cloudfront
+    action: describe_function
+    save_as: cachepolicys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.resources
+  for_each: aws.cloudfront.resource
+  calls:
+  - client: cloudfront
+    action: describe_function
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudfront.resource_encryption
+  calls:
+  - client: cloudfront
+    action: list_anycast_ip_lists
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Tls Enforced
-    severity: high
-    rule_id: aws.cloudfront.https_enforcement.tls_enforced
-    assertion_id: crypto_data_protection.encryption_in_transit.tls_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement tls enforced for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Mtls Enabled
-    severity: high
-    rule_id: aws.cloudfront.https_enforcement.mtls_enabled
-    assertion_id: crypto_data_protection.encryption_in_transit.mtls_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement mtls enabled for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Private Endpoints Used
-    severity: high
-    rule_id: aws.cloudfront.https_enforcement.private_endpoints_used
-    assertion_id: crypto_data_protection.encryption_in_transit.private_endpoints_used
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement private endpoints used for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Deny All Default
-    severity: low
-    rule_id: aws.cloudfront.waf_enabled.deny_all_default
-    assertion_id: network_perimeter.firewall_rules.deny_all_default
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement deny all default for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Ssh Rdp Restricted
-    severity: low
-    rule_id: aws.cloudfront.waf_enabled.ssh_rdp_restricted
-    assertion_id: network_perimeter.firewall_rules.ssh_rdp_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement ssh rdp restricted for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Waf Enabled
-    severity: low
-    rule_id: aws.cloudfront.waf_enabled.waf_enabled
-    assertion_id: network_perimeter.firewall_rules.waf_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement waf enabled for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Waf Enabled At Edge
-    severity: low
-    rule_id: aws.cloudfront.waf_enabled.waf_enabled_at_edge
-    assertion_id: network_perimeter.firewall_rules.waf_enabled_at_edge
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement waf enabled at edge for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
-  - title: Egress Filtering Enabled
-    severity: low
-    rule_id: aws.cloudfront.waf_enabled.egress_filtering_enabled
-    assertion_id: network_perimeter.firewall_rules.egress_filtering_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement egress filtering enabled for cloudfront"
-    references:
-      - "https://docs.aws.amazon.com/cloudfront/"
+- title: 'CLOUDFRONT resource: Distributions Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.resource.distributions_logging_enabled
+  for_each:
+    discovery: aws.cloudfront.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudfront resource:\n\n1. Open CLOUDFRONT console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudfront update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT origin request policy: Cloudfront Forward Querystrings Minimal Configured'
+  severity: medium
+  rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_querystrings_minimal_configured
+  for_each:
+    discovery: aws.cloudfront.origin_request_policys
+    as: origin_request_policy
+    item: origin_request_policy
+  conditions:
+    var: origin_request_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront origin_request_policy:\n\n1. Open CLOUDFRONT console\n2. Select the\
+    \ origin_request_policy\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distributions: Distribution Https Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distributions.distribution_https_enabled
+  for_each:
+    discovery: aws.cloudfront.distributionss
+    as: distributions
+    item: distributions
+  conditions:
+    var: distributions.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distributions for compliance:\n\nRequirement: Distribution Https Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS CLOUDFRONT distributions to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distributions\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT cachepolicy: Cache Allowlists Minimal Query Headers Cookies Configured'
+  severity: medium
+  rule_id: aws.cloudfront.cachepolicy.cache_allowlists_minimal_query_headers_cookies_configured
+  for_each:
+    discovery: aws.cloudfront.cachepolicys
+    as: cachepolicy
+    item: cachepolicy
+  conditions:
+    var: cachepolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront cachepolicy:\n\n1. Open CLOUDFRONT console\n2. Select the cachepolicy\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distributions multiple origin failover configured: Distributions Origin Failover Configured'
+  severity: medium
+  rule_id: aws.cloudfront.distributions_multiple_origin_failover_configured.distributions_origin_failover_configured
+  for_each:
+    discovery: aws.cloudfront.distributions_multiple_origin_failover_configureds
+    as: distributions_multiple_origin_failover_configured
+    item: distributions_multiple_origin_failover_configured
+  conditions:
+    var: distributions_multiple_origin_failover_configured.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distributions_multiple_origin_failover_configured for compliance:\n\nRequirement: Distributions\
+    \ Origin Failover Configuration\n\nDescription: Verifies security configuration for AWS CLOUDFRONT distributions multiple\
+    \ origin failover configured to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open CLOUDFRONT console\n2. Select the distributions_multiple_origin_failover_configured\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT origin request policy: Cloudfront No Secret Headers Forwarded Configured'
+  severity: medium
+  rule_id: aws.cloudfront.origin_request_policy.cloudfront_no_secret_headers_forwarded_configured
+  for_each:
+    discovery: aws.cloudfront.origin_request_policys
+    as: origin_request_policy
+    item: origin_request_policy
+  conditions:
+    var: origin_request_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront origin_request_policy:\n\n1. Open CLOUDFRONT console\n2. Select the\
+    \ origin_request_policy\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT origin request policy: Cloudfront Forward Cookies Minimal Configured'
+  severity: medium
+  rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_cookies_minimal_configured
+  for_each:
+    discovery: aws.cloudfront.origin_request_policys
+    as: origin_request_policy
+    item: origin_request_policy
+  conditions:
+    var: origin_request_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront origin_request_policy:\n\n1. Open CLOUDFRONT console\n2. Select the\
+    \ origin_request_policy\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distributions: Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distributions.logging_enabled
+  for_each:
+    discovery: aws.cloudfront.distributions_logging
+    as: distributions
+    item: distributions
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudfront distributions:\n\n1. Open CLOUDFRONT console\n2. Select the distributions\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudfront\
+    \ update-distributions-logging --distributions-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT resource: Distributions Origin Traffic Encrypted'
+  severity: high
+  rule_id: aws.cloudfront.resource.distributions_origin_traffic_encrypted
+  for_each:
+    discovery: aws.cloudfront.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudfront resource:\n\n1. Open CLOUDFRONT console\n2. Select the resource\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudfront modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Origin Access Restricted'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.origin_access_restricted
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront distribution:\n\n1. Open CLOUDFRONT console\n2. Select the distribution\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Hsts Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.hsts_enabled
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Hsts Enabled\n\nDescription: Verifies security\
+    \ configuration for AWS CLOUDFRONT distribution to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Cache Key Excludes Sensitive Headers Configured'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.cache_key_excludes_sensitive_headers_configured
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Cache Key Excludes Sensitive Headers Configuration\n\
+    \nDescription: Verifies security configuration for AWS CLOUDFRONT distribution to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Https Only Viewer Protocol Configured'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.https_only_viewer_protocol_configured
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Https Only Viewer Protocol Configuration\n\
+    \nDescription: Verifies security configuration for AWS CLOUDFRONT distribution to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Access Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.access_logging_enabled
+  for_each:
+    discovery: aws.cloudfront.distribution_logging
+    as: distribution
+    item: distribution
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudfront distribution:\n\n1. Open CLOUDFRONT console\n2. Select the distribution\n3.\
+    \ Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudfront update-distribution-logging\
+    \ --distribution-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Tls Min 1 2 Enforced'
+  severity: high
+  rule_id: aws.cloudfront.distribution.tls_min_1_2_enforced
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for cloudfront distribution:\n\n1. Ensure distribution is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distributions: Custom Ssl Certificate Configured'
+  severity: high
+  rule_id: aws.cloudfront.distributions.custom_ssl_certificate_configured
+  for_each:
+    discovery: aws.cloudfront.distributionss
+    as: distributions
+    item: distributions
+  conditions:
+    var: distributions.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for cloudfront distributions:\n\n1. Ensure distributions is deployed in VPC\n2.\
+    \ Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use\
+    \ least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n\
+    5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\
+    \u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement\
+    \ defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT cachepolicy: No Sensitive Headers Cached Configured'
+  severity: medium
+  rule_id: aws.cloudfront.cachepolicy.no_sensitive_headers_cached_configured
+  for_each:
+    discovery: aws.cloudfront.cachepolicys
+    as: cachepolicy
+    item: cachepolicy
+  conditions:
+    var: cachepolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront cachepolicy:\n\n1. Open CLOUDFRONT console\n2. Select the cachepolicy\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Valid Trusted Certificate Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.valid_trusted_certificate_enabled
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Valid Trusted Certificate Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS CLOUDFRONT distribution to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Cache Key Minimal Query And Cookie Variants Configured'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.cache_key_minimal_query_and_cookie_variants_configured
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Cache Key Minimal Query And Cookie Variants\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS CLOUDFRONT distribution to ensure alignment with\
+    \ AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains defense\
+    \ in depth, and supports overall security posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT resource: Distributions Field Level Encryption Enabled'
+  severity: high
+  rule_id: aws.cloudfront.resource.distributions_field_level_encryption_enabled
+  for_each:
+    discovery: aws.cloudfront.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudfront resource:\n\n1. Open CLOUDFRONT console\n2. Select the resource\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudfront modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Waf Web Acl Enabled'
+  severity: medium
+  rule_id: aws.cloudfront.distribution.waf_web_acl_enabled
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront distribution for compliance:\n\nRequirement: Waf Web Acl Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS CLOUDFRONT distribution to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the distribution\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distribution: Signed Urls Headers Required Private Content'
+  severity: high
+  rule_id: aws.cloudfront.distribution.signed_urls_headers_required_private_content
+  for_each:
+    discovery: aws.cloudfront.distributions
+    as: distribution
+    item: distribution
+  conditions:
+    var: distribution.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for cloudfront distribution:\n\n1. Ensure distribution is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT origin request policy: Cloudfront Forward Headers Minimal Configured'
+  severity: medium
+  rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_headers_minimal_configured
+  for_each:
+    discovery: aws.cloudfront.origin_request_policys
+    as: origin_request_policy
+    item: origin_request_policy
+  conditions:
+    var: origin_request_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront origin_request_policy:\n\n1. Open CLOUDFRONT console\n2. Select the\
+    \ origin_request_policy\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT resource: Cloudfront Https Required'
+  severity: medium
+  rule_id: aws.cloudfront.resource.cloudfront_https_required
+  for_each:
+    discovery: aws.cloudfront.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudfront resource for compliance:\n\nRequirement: Cloudfront Https Required\n\nDescription: Verifies\
+    \ security configuration for AWS CLOUDFRONT resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open CLOUDFRONT console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT distributions: Using Deprecated Ssl Protocols Configured'
+  severity: high
+  rule_id: aws.cloudfront.distributions.using_deprecated_ssl_protocols_configured
+  for_each:
+    discovery: aws.cloudfront.distributionss
+    as: distributions
+    item: distributions
+  conditions:
+    var: distributions.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for cloudfront distributions:\n\n1. Ensure distributions is deployed in VPC\n2.\
+    \ Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use\
+    \ least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n\
+    5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\
+    \u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement\
+    \ defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFRONT cachepolicy: Respects Cache Control No Store Private Configured'
+  severity: high
+  rule_id: aws.cloudfront.cachepolicy.respects_cache_control_no_store_private_configured
+  for_each:
+    discovery: aws.cloudfront.cachepolicys
+    as: cachepolicy
+    item: cachepolicy
+  conditions:
+    var: cachepolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cloudfront cachepolicy:\n\n1. Open CLOUDFRONT console\n2. Select the cachepolicy\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

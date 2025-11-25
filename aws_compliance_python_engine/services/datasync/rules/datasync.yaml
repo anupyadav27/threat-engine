@@ -1,59 +1,51 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: datasync
 discovery:
-  discovery_id: aws.datasync.resources
+- discovery_id: aws.datasync.resources
   calls:
-    - client: datasync
-      action: describe_datasyncs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: datasync
+    action: list_tasks
+    save_as: resource_list
+    on_error: continue
+    fields:
+    - Datasyncs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: resource_list[]
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
+- discovery_id: aws.datasync.resource_logging
+  for_each: aws.datasync.resources
+  calls:
+  - client: datasync
+    action: describe_agent
+    params:
+      ResourceId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
 checks:
-  - title: Tls Enforced
-    severity: high
-    rule_id: aws.datasync.task_encryption.tls_enforced
-    assertion_id: crypto_data_protection.encryption_in_transit.tls_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement tls enforced for datasync"
-    references:
-      - "https://docs.aws.amazon.com/datasync/"
-  - title: Mtls Enabled
-    severity: high
-    rule_id: aws.datasync.task_encryption.mtls_enabled
-    assertion_id: crypto_data_protection.encryption_in_transit.mtls_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement mtls enabled for datasync"
-    references:
-      - "https://docs.aws.amazon.com/datasync/"
-  - title: Private Endpoints Used
-    severity: high
-    rule_id: aws.datasync.task_encryption.private_endpoints_used
-    assertion_id: crypto_data_protection.encryption_in_transit.private_endpoints_used
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement private endpoints used for datasync"
-    references:
-      - "https://docs.aws.amazon.com/datasync/"
+- title: 'DATASYNC resource: Task Logging Enabled'
+  severity: medium
+  rule_id: aws.datasync.resource.task_logging_enabled
+  for_each:
+    discovery: aws.datasync.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for datasync resource:\n\n1. Open DATASYNC console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws datasync update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

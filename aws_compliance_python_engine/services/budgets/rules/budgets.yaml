@@ -1,73 +1,94 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: budgets
 discovery:
-  discovery_id: aws.budgets.resources
+- discovery_id: aws.budgets.budgets
   calls:
-    - client: budgets
-      action: describe_budgetss
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: budgets
+    action: describe_budgets
+    save_as: budget_list
+    on_error: continue
+    fields:
+    - Budgetss
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: budget_list[]
+    as: budget
+    item:
+      id: '{{ budget.Id }}'
+      name: '{{ budget.Name }}'
 checks:
-  - title: Cost Monitoring Enabled
-    severity: low
-    rule_id: aws.budgets.cost_governance.cost_monitoring_enabled
-    assertion_id: governance_compliance.cost_governance.cost_monitoring_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cost monitoring enabled for budgets"
-    references:
-      - "https://docs.aws.amazon.com/budgets/"
-  - title: Cost Monitoring Enabled
-    severity: low
-    rule_id: aws.budgets.cost_anomaly_detection.cost_monitoring_enabled
-    assertion_id: governance_compliance.cost_governance.cost_monitoring_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cost monitoring enabled for budgets"
-    references:
-      - "https://docs.aws.amazon.com/budgets/"
-  - title: Budget Alerts Configured
-    severity: low
-    rule_id: aws.budgets.cost_governance.budget_alerts_configured
-    assertion_id: governance_compliance.cost_governance.budget_alerts_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement budget alerts configured for budgets"
-    references:
-      - "https://docs.aws.amazon.com/budgets/"
-  - title: Budget Alerts Configured
-    severity: low
-    rule_id: aws.budgets.cost_anomaly_detection.budget_alerts_configured
-    assertion_id: governance_compliance.cost_governance.budget_alerts_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement budget alerts configured for budgets"
-    references:
-      - "https://docs.aws.amazon.com/budgets/"
+- title: 'BUDGETS budget: Budgets S Defined For Accounts Or Projects Configured'
+  severity: medium
+  rule_id: aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured
+  for_each:
+    discovery: aws.budgets.budgets
+    as: budget
+    item: budget
+  conditions:
+    var: budget.compliant
+    op: equals
+    value: true
+  remediation: "Configure budgets budget for compliance:\n\nRequirement: Budgets S Defined For Accounts Or Projects Configuration\n\
+    \nDescription: Verifies security configuration for AWS BUDGETS budget to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open BUDGETS console\n2. Select the budget\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BUDGETS budget: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.budgets.budget.alert_destinations_configured
+  for_each:
+    discovery: aws.budgets.budgets
+    as: budget
+    item: budget
+  conditions:
+    var: budget.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for budgets budget:\n\n1. Open CloudWatch console\n2. Create alarm for budget\n3. Configure\
+    \ metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BUDGETS budget: Alert Thresholds Configured'
+  severity: medium
+  rule_id: aws.budgets.budget.alert_thresholds_configured
+  for_each:
+    discovery: aws.budgets.budgets
+    as: budget
+    item: budget
+  conditions:
+    var: budget.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for budgets budget:\n\n1. Open CloudWatch console\n2. Create alarm for budget\n3. Configure\
+    \ metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BUDGETS budget: Modify Permissions Restricted'
+  severity: high
+  rule_id: aws.budgets.budget.modify_permissions_restricted
+  for_each:
+    discovery: aws.budgets.budgets
+    as: budget
+    item: budget
+  conditions:
+    var: budget.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for budgets budget:\n\n1. Open BUDGETS console\n2. Select the budget\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

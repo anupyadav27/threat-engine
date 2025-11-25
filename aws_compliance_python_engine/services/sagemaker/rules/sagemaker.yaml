@@ -1,73 +1,2063 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: sagemaker
 discovery:
-  discovery_id: aws.sagemaker.resources
+- discovery_id: aws.sagemaker.endpoints
   calls:
-    - client: sagemaker
-      action: describe_sagemakers
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: sagemaker
+    action: list_notebook_instances
+    save_as: endpoint_list
+    on_error: continue
+    fields:
+    - Sagemakers
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: endpoint_list[]
+    as: endpoint
+    item:
+      id: '{{ endpoint.Id }}'
+      name: '{{ endpoint.Name }}'
+- discovery_id: aws.sagemaker.endpoint_encryption
+  for_each: aws.sagemaker.endpoints
+  calls:
+  - client: sagemaker
+    action: list_notebook_instances
+    params:
+      EndpointId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.sagemaker.endpoint_logging
+  for_each: aws.sagemaker.endpoints
+  calls:
+  - client: sagemaker
+    action: describe_action
+    params:
+      EndpointId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.sagemaker.model_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: model_encryption
+    on_error: continue
+  emit:
+    items_for: model_encryption[]
+    as: model_encryption
+    item:
+      id: '{{ model_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.automljob_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: automljob_logging
+    on_error: continue
+  emit:
+    items_for: automljob_logging[]
+    as: automljob_logging
+    item:
+      id: '{{ automljob_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.pipelines
+  for_each: aws.sagemaker.pipeline
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: pipelines
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.endpoint_configuration_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: endpoint_configuration_encryption
+    on_error: continue
+  emit:
+    items_for: endpoint_configuration_encryption[]
+    as: endpoint_configuration_encryption
+    item:
+      id: '{{ endpoint_configuration_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.experiments
+  for_each: aws.sagemaker.experiment
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: experiments
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.transformjob_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: transformjob_logging
+    on_error: continue
+  emit:
+    items_for: transformjob_logging[]
+    as: transformjob_logging
+    item:
+      id: '{{ transformjob_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.trainingjob_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: trainingjob_logging
+    on_error: continue
+  emit:
+    items_for: trainingjob_logging[]
+    as: trainingjob_logging
+    item:
+      id: '{{ trainingjob_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.endpoint_configurations
+  for_each: aws.sagemaker.endpoint_configuration
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: endpoint_configurations
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.transformjobs
+  for_each: aws.sagemaker.transformjob
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: transformjobs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.experiment_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: experiment_encryption
+    on_error: continue
+  emit:
+    items_for: experiment_encryption[]
+    as: experiment_encryption
+    item:
+      id: '{{ experiment_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.featuregroup_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: featuregroup_encryption
+    on_error: continue
+  emit:
+    items_for: featuregroup_encryption[]
+    as: featuregroup_encryption
+    item:
+      id: '{{ featuregroup_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.notebooks
+  for_each: aws.sagemaker.notebook
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: notebooks
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.hyperparameter_tuning_jobs
+  for_each: aws.sagemaker.hyperparameter_tuning_job
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: hyperparameter_tuning_jobs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.instance_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: instance_encryption
+    on_error: continue
+  emit:
+    items_for: instance_encryption[]
+    as: instance_encryption
+    item:
+      id: '{{ instance_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.pipeline_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: pipeline_logging
+    on_error: continue
+  emit:
+    items_for: pipeline_logging[]
+    as: pipeline_logging
+    item:
+      id: '{{ pipeline_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.featuregroups
+  for_each: aws.sagemaker.featuregroup
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: featuregroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.models
+  for_each: aws.sagemaker.model
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: models
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.notebook_instances
+  for_each: aws.sagemaker.notebook_instance
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: notebook_instances
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.modelpackage_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: modelpackage_encryption
+    on_error: continue
+  emit:
+    items_for: modelpackage_encryption[]
+    as: modelpackage_encryption
+    item:
+      id: '{{ modelpackage_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.notebook_instance_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: notebook_instance_encryption
+    on_error: continue
+  emit:
+    items_for: notebook_instance_encryption[]
+    as: notebook_instance_encryption
+    item:
+      id: '{{ notebook_instance_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.pipeline_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: pipeline_encryption
+    on_error: continue
+  emit:
+    items_for: pipeline_encryption[]
+    as: pipeline_encryption
+    item:
+      id: '{{ pipeline_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.automljobs
+  for_each: aws.sagemaker.automljob
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: automljobs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.trainingjobs
+  for_each: aws.sagemaker.trainingjob
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: trainingjobs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.experiment_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: experiment_logging
+    on_error: continue
+  emit:
+    items_for: experiment_logging[]
+    as: experiment_logging
+    item:
+      id: '{{ experiment_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.models_vpc_settings_configureds
+  for_each: aws.sagemaker.models_vpc_settings_configured
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: models_vpc_settings_configureds
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.modelpackages
+  for_each: aws.sagemaker.modelpackage
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: modelpackages
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.resource_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.volume_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: volume_encryption
+    on_error: continue
+  emit:
+    items_for: volume_encryption[]
+    as: volume_encryption
+    item:
+      id: '{{ volume_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.notebook_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: notebook_encryption
+    on_error: continue
+  emit:
+    items_for: notebook_encryption[]
+    as: notebook_encryption
+    item:
+      id: '{{ notebook_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.transformjob_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: transformjob_encryption
+    on_error: continue
+  emit:
+    items_for: transformjob_encryption[]
+    as: transformjob_encryption
+    item:
+      id: '{{ transformjob_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.flowdefinition_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: flowdefinition_encryption
+    on_error: continue
+  emit:
+    items_for: flowdefinition_encryption[]
+    as: flowdefinition_encryption
+    item:
+      id: '{{ flowdefinition_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.trainingjob_encryption
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: trainingjob_encryption
+    on_error: continue
+  emit:
+    items_for: trainingjob_encryption[]
+    as: trainingjob_encryption
+    item:
+      id: '{{ trainingjob_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.instances
+  for_each: aws.sagemaker.instance
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: instances
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.model_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: model_logging
+    on_error: continue
+  emit:
+    items_for: model_logging[]
+    as: model_logging
+    item:
+      id: '{{ model_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.endpoint_config_prod_variant_instancess
+  for_each: aws.sagemaker.endpoint_config_prod_variant_instance
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: endpoint_config_prod_variant_instancess
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.endpoint_configuration_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: endpoint_configuration_logging
+    on_error: continue
+  emit:
+    items_for: endpoint_configuration_logging[]
+    as: endpoint_configuration_logging
+    item:
+      id: '{{ endpoint_configuration_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.training_jobs_vpc_settings_configureds
+  for_each: aws.sagemaker.training_jobs_vpc_settings_configured
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: training_jobs_vpc_settings_configureds
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.hyperparameter_tuning_job_logging
+  calls:
+  - client: sagemaker
+    action: list_actions
+    save_as: hyperparameter_tuning_job_logging
+    on_error: continue
+  emit:
+    items_for: hyperparameter_tuning_job_logging[]
+    as: hyperparameter_tuning_job_logging
+    item:
+      id: '{{ hyperparameter_tuning_job_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sagemaker.flowdefinitions
+  for_each: aws.sagemaker.flowdefinition
+  calls:
+  - client: sagemaker
+    action: describe_action
+    save_as: flowdefinitions
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Sensitivity Labels Applied
-    severity: low
-    rule_id: aws.sagemaker.data_encryption.sensitivity_labels_applied
-    assertion_id: data_protection_storage.data_classification.sensitivity_labels_applied
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement sensitivity labels applied for sagemaker"
-    references:
-      - "https://docs.aws.amazon.com/sagemaker/"
-  - title: Automatic Classification Enabled
-    severity: low
-    rule_id: aws.sagemaker.data_encryption.automatic_classification_enabled
-    assertion_id: data_protection_storage.data_classification.automatic_classification_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic classification enabled for sagemaker"
-    references:
-      - "https://docs.aws.amazon.com/sagemaker/"
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.sagemaker.model_security.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for sagemaker"
-    references:
-      - "https://docs.aws.amazon.com/sagemaker/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.sagemaker.model_security.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for sagemaker"
-    references:
-      - "https://docs.aws.amazon.com/sagemaker/"
+- title: 'SAGEMAKER endpoint: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.endpoint_logging
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-endpoint-logging --endpoint-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER flowdefinition: Workteam Access Rbac Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.flowdefinition.workteam_access_rbac_least_privilege
+  for_each:
+    discovery: aws.sagemaker.flowdefinitions
+    as: flowdefinition
+    item: flowdefinition
+  conditions:
+    var: flowdefinition.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker flowdefinition:\n\n1. Open SAGEMAKER console\n2. Select the flowdefinition\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Sagemaker Artifact Signed And Verified'
+  severity: medium
+  rule_id: aws.sagemaker.modelpackage.sagemaker_artifact_signed_and_verified
+  for_each:
+    discovery: aws.sagemaker.modelpackages
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: modelpackage.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker modelpackage for compliance:\n\nRequirement: Sagemaker Artifact Signed And Verified\n\n\
+    Description: Verifies security configuration for AWS SAGEMAKER modelpackage to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the modelpackage\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER volume: And Output Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.volume.and_output_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.volume_encryption
+    as: volume
+    item: volume
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker volume:\n\n1. Open SAGEMAKER console\n2. Select the volume\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-volume --volume-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.sagemaker.modelpackage.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.sagemaker.modelpackage_encryption
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker modelpackage:\n\n1. Open SAGEMAKER console\n2. Select the modelpackage\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-modelpackage\
+    \ --modelpackage-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Vpc Configured'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.vpc_configured
+  for_each:
+    discovery: aws.sagemaker.trainingjobs
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: trainingjob.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker trainingjob:\n\n1. Ensure trainingjob is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Output Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.output_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.trainingjob_encryption
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-trainingjob --trainingjob-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER featuregroup: Online Store Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.featuregroup.online_store_kms_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.featuregroup_encryption
+    as: featuregroup
+    item: featuregroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker featuregroup:\n\n1. Open SAGEMAKER console\n2. Select the featuregroup\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-featuregroup\
+    \ --featuregroup-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.model.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.models
+    as: model
+    item: model
+  conditions:
+    var: model.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Security Group Restrictive Configured'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.security_group_restrictive_configured
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker endpoint:\n\n1. Ensure endpoint is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint config prod variant instances: Endpoint Config Prod Variant Instances Configured'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint_config_prod_variant_instances.endpoint_config_prod_variant_instances_configured
+  for_each:
+    discovery: aws.sagemaker.endpoint_config_prod_variant_instancess
+    as: endpoint_config_prod_variant_instances
+    item: endpoint_config_prod_variant_instances
+  conditions:
+    var: endpoint_config_prod_variant_instances.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker endpoint_config_prod_variant_instances for compliance:\n\nRequirement: Endpoint Config\
+    \ Prod Variant Instances Configuration\n\nDescription: Verifies security configuration for AWS SAGEMAKER endpoint config\
+    \ prod variant instances to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open SAGEMAKER\
+    \ console\n2. Select the endpoint_config_prod_variant_instances\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER hyperparameter tuning job: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.hyperparameter_tuning_job.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.hyperparameter_tuning_job_logging
+    as: hyperparameter_tuning_job
+    item: hyperparameter_tuning_job
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker hyperparameter_tuning_job:\n\n1. Open SAGEMAKER console\n2. Select the hyperparameter_tuning_job\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker\
+    \ update-hyperparameter_tuning_job-logging --hyperparameter_tuning_job-id <id> --logging-enabled\n\nBest Practices:\n\u2022\
+    \ Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention\
+    \ periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Sagemaker Cross Account Sharing Restricted'
+  severity: medium
+  rule_id: aws.sagemaker.model.sagemaker_cross_account_sharing_restricted
+  for_each:
+    discovery: aws.sagemaker.models
+    as: model
+    item: model
+  conditions:
+    var: model.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker model for compliance:\n\nRequirement: Sagemaker Cross Account Sharing Restricted\n\nDescription:\
+    \ Verifies security configuration for AWS SAGEMAKER model to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the model\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER models vpc settings configured: Models Vpc Settings Configured Configured'
+  severity: high
+  rule_id: aws.sagemaker.models_vpc_settings_configured.models_vpc_settings_configured_configured
+  for_each:
+    discovery: aws.sagemaker.models_vpc_settings_configureds
+    as: models_vpc_settings_configured
+    item: models_vpc_settings_configured
+  conditions:
+    var: models_vpc_settings_configured.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker models_vpc_settings_configured:\n\n1. Ensure models_vpc_settings_configured\
+    \ is deployed in VPC\n2. Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source\
+    \ IP ranges\n   - Use least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for\
+    \ network monitoring\n5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork\
+    \ Security Best Practices:\n\u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet\
+    \ access\n\u2022 Implement defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Sagemaker Kms Cmk Used Configured'
+  severity: high
+  rule_id: aws.sagemaker.model.sagemaker_kms_cmk_used_configured
+  for_each:
+    discovery: aws.sagemaker.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-model --model-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER pipeline: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.pipeline.kms_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.pipeline_encryption
+    as: pipeline
+    item: pipeline
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker pipeline:\n\n1. Open SAGEMAKER console\n2. Select the pipeline\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-pipeline --pipeline-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER automljob: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.automljob.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.automljobs
+    as: automljob
+    item: automljob
+  conditions:
+    var: automljob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker automljob:\n\n1. Open SAGEMAKER console\n2. Select the automljob\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER instance: Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.instance.encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.instance_encryption
+    as: instance
+    item: instance
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker instance:\n\n1. Open SAGEMAKER console\n2. Select the instance\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-instance --instance-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Volume Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.volume_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.trainingjob_encryption
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-trainingjob --trainingjob-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook: Instance Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.notebook.instance_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.notebook_encryption
+    as: notebook
+    item: notebook
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker notebook:\n\n1. Open SAGEMAKER console\n2. Select the notebook\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-notebook --notebook-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER training jobs vpc settings configured: Training Jobs Vpc Settings Configured Configured'
+  severity: high
+  rule_id: aws.sagemaker.training_jobs_vpc_settings_configured.training_jobs_vpc_settings_configured_configured
+  for_each:
+    discovery: aws.sagemaker.training_jobs_vpc_settings_configureds
+    as: training_jobs_vpc_settings_configured
+    item: training_jobs_vpc_settings_configured
+  conditions:
+    var: training_jobs_vpc_settings_configured.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker training_jobs_vpc_settings_configured:\n\n1. Ensure training_jobs_vpc_settings_configured\
+    \ is deployed in VPC\n2. Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source\
+    \ IP ranges\n   - Use least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for\
+    \ network monitoring\n5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork\
+    \ Security Best Practices:\n\u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet\
+    \ access\n\u2022 Implement defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: In Vpc Configured'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.in_vpc_configured
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker endpoint:\n\n1. Ensure endpoint is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Kms Keys Restricted'
+  severity: high
+  rule_id: aws.sagemaker.endpoint_configuration.kms_keys_restricted
+  for_each:
+    discovery: aws.sagemaker.endpoint_configuration_encryption
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint_configuration:\n\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint_configuration\
+    \ --endpoint_configuration-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.notebook_instance.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.notebook_instances
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: notebook_instance.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker notebook_instance:\n\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER transformjob: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.transformjob.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.transformjob_logging
+    as: transformjob
+    item: transformjob
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker transformjob:\n\n1. Open SAGEMAKER console\n2. Select the transformjob\n3. Go\
+    \ to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-transformjob-logging\
+    \ --transformjob-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Authz Policies Enforced'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint.authz_policies_enforced
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker endpoint for compliance:\n\nRequirement: Authz Policies Enforcement\n\nDescription: Verifies\
+    \ security configuration for AWS SAGEMAKER endpoint to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.model.rbac_least_privilege
+  for_each:
+    discovery: aws.sagemaker.models
+    as: model
+    item: model
+  conditions:
+    var: model.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER instance: Without Direct Internet Access Configured'
+  severity: medium
+  rule_id: aws.sagemaker.instance.without_direct_internet_access_configured
+  for_each:
+    discovery: aws.sagemaker.instances
+    as: instance
+    item: instance
+  conditions:
+    var: instance.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker instance:\n\n1. Open SAGEMAKER console\n2. Select the instance\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.trainingjobs
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: trainingjob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.kms_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.endpoint_encryption
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint --endpoint-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER experiment: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.experiment.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.experiment_logging
+    as: experiment
+    item: experiment
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker experiment:\n\n1. Open SAGEMAKER console\n2. Select the experiment\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-experiment-logging\
+    \ --experiment-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Execution Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.model.execution_role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.models
+    as: model
+    item: model
+  conditions:
+    var: model.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.model.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.models
+    as: model
+    item: model
+  conditions:
+    var: model.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER resource: Training Jobs Intercontainer Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.resource.training_jobs_intercontainer_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker resource:\n\n1. Open SAGEMAKER console\n2. Select the resource\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Data Capture Bucket Encrypted Private'
+  severity: high
+  rule_id: aws.sagemaker.endpoint_configuration.data_capture_bucket_encrypted_private
+  for_each:
+    discovery: aws.sagemaker.endpoint_configuration_encryption
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint_configuration:\n\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint_configuration\
+    \ --endpoint_configuration-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER transformjob: Sagemaker Input Output Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.transformjob.sagemaker_input_output_encrypted
+  for_each:
+    discovery: aws.sagemaker.transformjob_encryption
+    as: transformjob
+    item: transformjob
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker transformjob:\n\n1. Open SAGEMAKER console\n2. Select the transformjob\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-transformjob\
+    \ --transformjob-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER automljob: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.automljob.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.automljobs
+    as: automljob
+    item: automljob
+  conditions:
+    var: automljob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker automljob:\n\n1. Open SAGEMAKER console\n2. Select the automljob\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER flowdefinition: Ui Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.flowdefinition.ui_private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.flowdefinitions
+    as: flowdefinition
+    item: flowdefinition
+  conditions:
+    var: flowdefinition.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker flowdefinition:\n\n1. Open SAGEMAKER console\n2. Select the flowdefinition\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: Execution Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.notebook_instance.execution_role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.notebook_instances
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: notebook_instance.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker notebook_instance:\n\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook: Instance Without Direct Internet Access Configured'
+  severity: medium
+  rule_id: aws.sagemaker.notebook.instance_without_direct_internet_access_configured
+  for_each:
+    discovery: aws.sagemaker.notebooks
+    as: notebook
+    item: notebook
+  conditions:
+    var: notebook.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker notebook:\n\n1. Open SAGEMAKER console\n2. Select the notebook\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.trainingjob.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.trainingjob_logging
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-trainingjob-logging\
+    \ --trainingjob-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER transformjob: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.transformjob.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.transformjobs
+    as: transformjob
+    item: transformjob
+  conditions:
+    var: transformjob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker transformjob:\n\n1. Open SAGEMAKER console\n2. Select the transformjob\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Sagemaker Artifact Encrypted At Rest'
+  severity: high
+  rule_id: aws.sagemaker.model.sagemaker_artifact_encrypted_at_rest
+  for_each:
+    discovery: aws.sagemaker.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-model --model-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: Iam Role Least Privileged Configured'
+  severity: high
+  rule_id: aws.sagemaker.notebook_instance.iam_role_least_privileged_configured
+  for_each:
+    discovery: aws.sagemaker.notebook_instances
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: notebook_instance.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker notebook_instance:\n\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint_configuration.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.endpoint_configuration_logging
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker endpoint_configuration:\n\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker\
+    \ update-endpoint_configuration-logging --endpoint_configuration-id <id> --logging-enabled\n\nBest Practices:\n\u2022\
+    \ Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention\
+    \ periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Sagemaker Content Type Whitelist Enforced'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint_configuration.sagemaker_content_type_whitelist_enforced
+  for_each:
+    discovery: aws.sagemaker.endpoint_configurations
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: endpoint_configuration.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker endpoint_configuration for compliance:\n\nRequirement: Sagemaker Content Type Whitelist\
+    \ Enforcement\n\nDescription: Verifies security configuration for AWS SAGEMAKER endpoint configuration to ensure alignment\
+    \ with AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains\
+    \ defense in depth, and supports overall security posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.sagemaker.notebook_instance.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.sagemaker.notebook_instance_encryption
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker notebook_instance:\n\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-notebook_instance\
+    \ --notebook_instance-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER experiment: Sagemaker Metadata Store Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.experiment.sagemaker_metadata_store_encrypted
+  for_each:
+    discovery: aws.sagemaker.experiment_encryption
+    as: experiment
+    item: experiment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker experiment:\n\n1. Open SAGEMAKER console\n2. Select the experiment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-experiment --experiment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Not Publicly Shared Configured'
+  severity: high
+  rule_id: aws.sagemaker.modelpackage.not_publicly_shared_configured
+  for_each:
+    discovery: aws.sagemaker.modelpackages
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: modelpackage.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker modelpackage:\n\n1. Open SAGEMAKER console\n2. Select the modelpackage\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.trainingjobs
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: trainingjob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Sagemaker Input Output Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.sagemaker_input_output_encrypted
+  for_each:
+    discovery: aws.sagemaker.trainingjob_encryption
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-trainingjob --trainingjob-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: No Public Access Configured'
+  severity: high
+  rule_id: aws.sagemaker.notebook_instance.no_public_access_configured
+  for_each:
+    discovery: aws.sagemaker.notebook_instances
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: notebook_instance.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker notebook_instance:\n\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Network Isolation Enabled'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.network_isolation_enabled
+  for_each:
+    discovery: aws.sagemaker.trainingjobs
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: trainingjob.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker trainingjob:\n\n1. Ensure trainingjob is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Sagemaker Capture Store Encrypted And Private'
+  severity: high
+  rule_id: aws.sagemaker.endpoint_configuration.sagemaker_capture_store_encrypted_and_private
+  for_each:
+    discovery: aws.sagemaker.endpoint_configuration_encryption
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint_configuration:\n\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint_configuration\
+    \ --endpoint_configuration-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Sagemaker Data Capture S3 Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.sagemaker_data_capture_s3_encrypted
+  for_each:
+    discovery: aws.sagemaker.endpoint_encryption
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint --endpoint-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Endpoint In Vpc Configured'
+  severity: high
+  rule_id: aws.sagemaker.endpoint_configuration.endpoint_in_vpc_configured
+  for_each:
+    discovery: aws.sagemaker.endpoint_configurations
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: endpoint_configuration.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker endpoint_configuration:\n\n1. Ensure endpoint_configuration is deployed\
+    \ in VPC\n2. Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n\
+    \   - Use least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n\
+    5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\
+    \u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement\
+    \ defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER flowdefinition: Sagemaker Artifacts Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.flowdefinition.sagemaker_artifacts_encrypted
+  for_each:
+    discovery: aws.sagemaker.flowdefinition_encryption
+    as: flowdefinition
+    item: flowdefinition
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker flowdefinition:\n\n1. Open SAGEMAKER console\n2. Select the flowdefinition\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-flowdefinition\
+    \ --flowdefinition-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER transformjob: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.transformjob.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.transformjobs
+    as: transformjob
+    item: transformjob
+  conditions:
+    var: transformjob.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker transformjob:\n\n1. Open SAGEMAKER console\n2. Select the transformjob\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint configuration: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.endpoint_configuration.kms_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.endpoint_configuration_encryption
+    as: endpoint_configuration
+    item: endpoint_configuration
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint_configuration:\n\n1. Open SAGEMAKER console\n2. Select the endpoint_configuration\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint_configuration\
+    \ --endpoint_configuration-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER trainingjob: Inter Container Traffic Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.trainingjob.inter_container_traffic_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.trainingjob_encryption
+    as: trainingjob
+    item: trainingjob
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker trainingjob:\n\n1. Open SAGEMAKER console\n2. Select the trainingjob\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-trainingjob --trainingjob-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER automljob: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.automljob.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.automljob_logging
+    as: automljob
+    item: automljob
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker automljob:\n\n1. Open SAGEMAKER console\n2. Select the automljob\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-automljob-logging --automljob-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER hyperparameter tuning job: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.hyperparameter_tuning_job.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.hyperparameter_tuning_jobs
+    as: hyperparameter_tuning_job
+    item: hyperparameter_tuning_job
+  conditions:
+    var: hyperparameter_tuning_job.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker hyperparameter_tuning_job:\n\n1. Open SAGEMAKER console\n2. Select the\
+    \ hyperparameter_tuning_job\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Sagemaker Image Scan Passed Configured'
+  severity: medium
+  rule_id: aws.sagemaker.model.sagemaker_image_scan_passed_configured
+  for_each:
+    discovery: aws.sagemaker.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-model --model-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Authn Required'
+  severity: medium
+  rule_id: aws.sagemaker.endpoint.authn_required
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker endpoint for compliance:\n\nRequirement: Authn Required\n\nDescription: Verifies security\
+    \ configuration for AWS SAGEMAKER endpoint to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER pipeline: Logging Enabled'
+  severity: medium
+  rule_id: aws.sagemaker.pipeline.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.pipeline_logging
+    as: pipeline
+    item: pipeline
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker pipeline:\n\n1. Open SAGEMAKER console\n2. Select the pipeline\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-pipeline-logging --pipeline-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER featuregroup: Sagemaker Offline Store S3 Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.featuregroup.sagemaker_offline_store_s3_encrypted
+  for_each:
+    discovery: aws.sagemaker.featuregroup_encryption
+    as: featuregroup
+    item: featuregroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker featuregroup:\n\n1. Open SAGEMAKER console\n2. Select the featuregroup\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-featuregroup\
+    \ --featuregroup-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER featuregroup: Offline Store Block Public Access Configured'
+  severity: high
+  rule_id: aws.sagemaker.featuregroup.offline_store_block_public_access_configured
+  for_each:
+    discovery: aws.sagemaker.featuregroups
+    as: featuregroup
+    item: featuregroup
+  conditions:
+    var: featuregroup.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker featuregroup:\n\n1. Open SAGEMAKER console\n2. Select the featuregroup\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: ML model versioning and tracking is enabled
+  severity: medium
+  rule_id: aws.sagemaker.model.logging_enabled
+  for_each:
+    discovery: aws.sagemaker.model_logging
+    as: model
+    item: model
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sagemaker update-model-logging --model-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER pipeline: Iam Role Least Privileged Configured'
+  severity: high
+  rule_id: aws.sagemaker.pipeline.iam_role_least_privileged_configured
+  for_each:
+    discovery: aws.sagemaker.pipelines
+    as: pipeline
+    item: pipeline
+  conditions:
+    var: pipeline.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker pipeline:\n\n1. Open SAGEMAKER console\n2. Select the pipeline\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER notebook instance: Sagemaker Idle Shutdown Configured'
+  severity: medium
+  rule_id: aws.sagemaker.notebook_instance.sagemaker_idle_shutdown_configured
+  for_each:
+    discovery: aws.sagemaker.notebook_instances
+    as: notebook_instance
+    item: notebook_instance
+  conditions:
+    var: notebook_instance.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker notebook_instance for compliance:\n\nRequirement: Sagemaker Idle Shutdown Configuration\n\
+    \nDescription: Verifies security configuration for AWS SAGEMAKER notebook instance to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the notebook_instance\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER pipeline: Sagemaker Artifacts Private And Encrypted'
+  severity: high
+  rule_id: aws.sagemaker.pipeline.sagemaker_artifacts_private_and_encrypted
+  for_each:
+    discovery: aws.sagemaker.pipeline_encryption
+    as: pipeline
+    item: pipeline
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker pipeline:\n\n1. Open SAGEMAKER console\n2. Select the pipeline\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-pipeline --pipeline-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Sagemaker Outputs Encrypted And Private'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.sagemaker_outputs_encrypted_and_private
+  for_each:
+    discovery: aws.sagemaker.endpoint_encryption
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-endpoint --endpoint-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER pipeline: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.pipeline.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.pipelines
+    as: pipeline
+    item: pipeline
+  conditions:
+    var: pipeline.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker pipeline:\n\n1. Open SAGEMAKER console\n2. Select the pipeline\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER experiment: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.experiment.rbac_least_privilege
+  for_each:
+    discovery: aws.sagemaker.experiments
+    as: experiment
+    item: experiment
+  conditions:
+    var: experiment.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker experiment:\n\n1. Open SAGEMAKER console\n2. Select the experiment\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.modelpackage.kms_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.modelpackage_encryption
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker modelpackage:\n\n1. Open SAGEMAKER console\n2. Select the modelpackage\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-modelpackage\
+    \ --modelpackage-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Sagemaker Outputs Encrypted And Private'
+  severity: high
+  rule_id: aws.sagemaker.model.sagemaker_outputs_encrypted_and_private
+  for_each:
+    discovery: aws.sagemaker.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-model --model-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Sagemaker Image Scan Passed Configured'
+  severity: medium
+  rule_id: aws.sagemaker.modelpackage.sagemaker_image_scan_passed_configured
+  for_each:
+    discovery: aws.sagemaker.modelpackage_encryption
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker modelpackage:\n\n1. Open SAGEMAKER console\n2. Select the modelpackage\n3.\
+    \ Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-modelpackage\
+    \ --modelpackage-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER hyperparameter tuning job: Role Least Privilege'
+  severity: high
+  rule_id: aws.sagemaker.hyperparameter_tuning_job.role_least_privilege
+  for_each:
+    discovery: aws.sagemaker.hyperparameter_tuning_jobs
+    as: hyperparameter_tuning_job
+    item: hyperparameter_tuning_job
+  conditions:
+    var: hyperparameter_tuning_job.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker hyperparameter_tuning_job:\n\n1. Open SAGEMAKER console\n2. Select the\
+    \ hyperparameter_tuning_job\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access\
+    \ grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n\
+    6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of\
+    \ access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022\
+    \ Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER instance: Vpc Settings Configured'
+  severity: high
+  rule_id: aws.sagemaker.instance.vpc_settings_configured
+  for_each:
+    discovery: aws.sagemaker.instances
+    as: instance
+    item: instance
+  conditions:
+    var: instance.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for sagemaker instance:\n\n1. Ensure instance is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER modelpackage: Sagemaker Package Approved Configured'
+  severity: medium
+  rule_id: aws.sagemaker.modelpackage.sagemaker_package_approved_configured
+  for_each:
+    discovery: aws.sagemaker.modelpackages
+    as: modelpackage
+    item: modelpackage
+  conditions:
+    var: modelpackage.compliant
+    op: equals
+    value: true
+  remediation: "Configure sagemaker modelpackage for compliance:\n\nRequirement: Sagemaker Package Approved Configuration\n\
+    \nDescription: Verifies security configuration for AWS SAGEMAKER modelpackage to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open SAGEMAKER console\n2. Select the modelpackage\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER model: Artifact Encryption Enabled'
+  severity: high
+  rule_id: aws.sagemaker.model.artifact_encryption_enabled
+  for_each:
+    discovery: aws.sagemaker.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sagemaker model:\n\n1. Open SAGEMAKER console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sagemaker modify-model --model-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SAGEMAKER endpoint: Private Networking Enforced'
+  severity: high
+  rule_id: aws.sagemaker.endpoint.private_networking_enforced
+  for_each:
+    discovery: aws.sagemaker.endpoints
+    as: endpoint
+    item: endpoint
+  conditions:
+    var: endpoint.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sagemaker endpoint:\n\n1. Open SAGEMAKER console\n2. Select the endpoint\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

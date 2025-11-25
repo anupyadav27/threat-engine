@@ -1,185 +1,355 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: securityhub
 discovery:
-  discovery_id: aws.securityhub.findings
+- discovery_id: aws.securityhub.actions
   calls:
-    - client: securityhub
-      action: get_findings
-      paginate: true
-  fields:
-    - name: Id
-      save_as: finding_id
+  - client: securityhub
+    action: describe_hub
+    save_as: action_list
+    on_error: continue
+    fields:
+    - Securityhubs
   emit:
-    items_for:
-      as: resource
-      item: finding_id
+    items_for: action_list[]
+    as: action
+    item:
+      id: '{{ action.Id }}'
+      name: '{{ action.Name }}'
+- discovery_id: aws.securityhub.action_encryption
+  for_each: aws.securityhub.actions
+  calls:
+  - client: securityhub
+    action: describe_hub
+    params:
+      ActionId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.securityhub.hubs
+  for_each: aws.securityhub.hub
+  calls:
+  - client: securityhub
+    action: describe_action_targets
+    save_as: hubs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.securityhub.finding_encryption
+  calls:
+  - client: securityhub
+    action: list_aggregators_v2
+    save_as: finding_encryption
+    on_error: continue
+  emit:
+    items_for: finding_encryption[]
+    as: finding_encryption
+    item:
+      id: '{{ finding_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.securityhub.findings
+  for_each: aws.securityhub.finding
+  calls:
+  - client: securityhub
+    action: describe_action_targets
+    save_as: findings
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.securityhub.hub_encryption
+  calls:
+  - client: securityhub
+    action: list_aggregators_v2
+    save_as: hub_encryption
+    on_error: continue
+  emit:
+    items_for: hub_encryption[]
+    as: hub_encryption
+    item:
+      id: '{{ hub_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.securityhub.resources
+  for_each: aws.securityhub.resource
+  calls:
+  - client: securityhub
+    action: describe_action_targets
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.securityhub.threat_intel.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.securityhub.findings.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.securityhub.threat_intel.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.securityhub.findings.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Baseline Compliance Checked
-    severity: medium
-    rule_id: aws.securityhub.findings.baseline_compliance_checked
-    assertion_id: compute_host_security.compliance_monitoring.baseline_compliance_checked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement baseline compliance checked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Baseline Compliance Checked
-    severity: medium
-    rule_id: aws.securityhub.compliance_standards.baseline_compliance_checked
-    assertion_id: compute_host_security.compliance_monitoring.baseline_compliance_checked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement baseline compliance checked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Baseline Compliance Checked
-    severity: medium
-    rule_id: aws.securityhub.standards.baseline_compliance_checked
-    assertion_id: compute_host_security.compliance_monitoring.baseline_compliance_checked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement baseline compliance checked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Continuous Scanning Enabled
-    severity: low
-    rule_id: aws.securityhub.vulnerability_findings.continuous_scanning_enabled
-    assertion_id: supply_chain_registries.vulnerability_scanning.continuous_scanning_enabled
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement continuous scanning enabled for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Critical Vulnerabilities Blocked
-    severity: low
-    rule_id: aws.securityhub.vulnerability_findings.critical_vulnerabilities_blocked
-    assertion_id: supply_chain_registries.vulnerability_scanning.critical_vulnerabilities_blocked
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement critical vulnerabilities blocked for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Regulatory Requirements Mapped
-    severity: low
-    rule_id: aws.securityhub.compliance_frameworks.regulatory_requirements_mapped
-    assertion_id: governance_compliance.compliance_framework.regulatory_requirements_mapped
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement regulatory requirements mapped for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Compliance Reporting Enabled
-    severity: low
-    rule_id: aws.securityhub.compliance_frameworks.compliance_reporting_enabled
-    assertion_id: governance_compliance.compliance_framework.compliance_reporting_enabled
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance reporting enabled for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
-  - title: Audit Trail Maintained
-    severity: low
-    rule_id: aws.securityhub.compliance_frameworks.audit_trail_maintained
-    assertion_id: governance_compliance.compliance_framework.audit_trail_maintained
-    for_each:
-      as: resource
-      item: finding_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement audit trail maintained for securityhub"
-    references:
-      - "https://docs.aws.amazon.com/securityhub/"
+- title: 'SECURITYHUB finding: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.securityhub.finding.alert_destinations_configured
+  for_each:
+    discovery: aws.securityhub.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for securityhub finding:\n\n1. Open CloudWatch console\n2. Create alarm for finding\n3.\
+    \ Configure metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring\
+    \ (if available)\n7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant\
+    \ metrics\n\u2022 Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022\
+    \ Implement automated remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB finding: Securityhub Suppression Rules Documented And Scoped Configured'
+  severity: medium
+  rule_id: aws.securityhub.finding.securityhub_suppression_rules_documented_and_scoped_configured
+  for_each:
+    discovery: aws.securityhub.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub finding for compliance:\n\nRequirement: Securityhub Suppression Rules Documented And\
+    \ Scoped Configuration\n\nDescription: Verifies security configuration for AWS Security Hub finding to ensure alignment\
+    \ with AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains\
+    \ defense in depth, and supports overall security posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the finding\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Detectors Enabled'
+  severity: medium
+  rule_id: aws.securityhub.hub.securityhub_detectors_enabled
+  for_each:
+    discovery: aws.securityhub.hubs
+    as: hub
+    item: hub
+  conditions:
+    var: hub.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub hub for compliance:\n\nRequirement: Securityhub Detectors Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS Security Hub hub to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the hub\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB finding: Securityhub Archival Export Encrypted'
+  severity: high
+  rule_id: aws.securityhub.finding.securityhub_archival_export_encrypted
+  for_each:
+    discovery: aws.securityhub.finding_encryption
+    as: finding
+    item: finding
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for securityhub finding:\n\n1. Open SECURITYHUB console\n2. Select the finding\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws securityhub modify-finding --finding-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB resource: Securityhub Resource Enabled'
+  severity: medium
+  rule_id: aws.securityhub.resource.securityhub_resource_enabled
+  for_each:
+    discovery: aws.securityhub.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub resource for compliance:\n\nRequirement: Securityhub Resource Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS Security Hub resource to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the resource\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB action: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.securityhub.action.rbac_least_privilege
+  for_each:
+    discovery: aws.securityhub.actions
+    as: action
+    item: action
+  conditions:
+    var: action.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for securityhub action:\n\n1. Open SECURITYHUB console\n2. Select the action\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Enabled In All Regions'
+  severity: medium
+  rule_id: aws.securityhub.hub.securityhub_enabled_in_all_regions
+  for_each:
+    discovery: aws.securityhub.hubs
+    as: hub
+    item: hub
+  conditions:
+    var: hub.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub hub for compliance:\n\nRequirement: Securityhub Enabled In All Regions\n\nDescription:\
+    \ Verifies security configuration for AWS Security Hub hub to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the hub\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB action: Versioning And Immutability Enabled'
+  severity: low
+  rule_id: aws.securityhub.action.versioning_and_immutability_enabled
+  for_each:
+    discovery: aws.securityhub.actions
+    as: action
+    item: action
+  conditions:
+    var: action.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for securityhub action:\n\n1. Open SECURITYHUB console\n2. Select the action\n3. Go to Properties\
+    \ > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\
+    \nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail\
+    \ of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Master Member Configured'
+  severity: medium
+  rule_id: aws.securityhub.hub.securityhub_master_member_configured
+  for_each:
+    discovery: aws.securityhub.hubs
+    as: hub
+    item: hub
+  conditions:
+    var: hub.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub hub for compliance:\n\nRequirement: Securityhub Master Member Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS Security Hub hub to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the hub\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Finding Export Encrypted Destination'
+  severity: high
+  rule_id: aws.securityhub.hub.securityhub_finding_export_encrypted_destination
+  for_each:
+    discovery: aws.securityhub.hub_encryption
+    as: hub
+    item: hub
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for securityhub hub:\n\n1. Open SECURITYHUB console\n2. Select the hub\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws securityhub modify-hub --hub-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Destinations Encrypted'
+  severity: high
+  rule_id: aws.securityhub.hub.securityhub_destinations_encrypted
+  for_each:
+    discovery: aws.securityhub.hub_encryption
+    as: hub
+    item: hub
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for securityhub hub:\n\n1. Open SECURITYHUB console\n2. Select the hub\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws securityhub modify-hub --hub-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB hub: Securityhub Auto Enroll New Accounts Configured'
+  severity: medium
+  rule_id: aws.securityhub.hub.securityhub_auto_enroll_new_accounts_configured
+  for_each:
+    discovery: aws.securityhub.hubs
+    as: hub
+    item: hub
+  conditions:
+    var: hub.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub hub for compliance:\n\nRequirement: Securityhub Auto Enroll New Accounts Configuration\n\
+    \nDescription: Verifies security configuration for AWS Security Hub hub to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the hub\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB action: Securityhub Storage Encrypted And Private'
+  severity: high
+  rule_id: aws.securityhub.action.securityhub_storage_encrypted_and_private
+  for_each:
+    discovery: aws.securityhub.action_encryption
+    as: action
+    item: action
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for securityhub action:\n\n1. Open SECURITYHUB console\n2. Select the action\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws securityhub modify-action --action-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SECURITYHUB resource: Securityhub Hub Enabled In All Regions'
+  severity: medium
+  rule_id: aws.securityhub.resource.securityhub_hub_enabled_in_all_regions
+  for_each:
+    discovery: aws.securityhub.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure securityhub resource for compliance:\n\nRequirement: Securityhub Hub Enabled In All Regions\n\n\
+    Description: Verifies security configuration for AWS Security Hub resource to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open SECURITYHUB console\n2. Select the resource\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

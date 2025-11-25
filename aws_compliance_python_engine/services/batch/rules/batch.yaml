@@ -1,73 +1,208 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: batch
 discovery:
-  discovery_id: aws.batch.resources
+- discovery_id: aws.batch.jobqueues
   calls:
-    - client: batch
-      action: describe_batchs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: batch
+    action: describe_job_queues
+    save_as: jobqueue_list
+    on_error: continue
+    fields:
+    - Batchs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: jobqueue_list[]
+    as: jobqueue
+    item:
+      id: '{{ jobqueue.Id }}'
+      name: '{{ jobqueue.Name }}'
+- discovery_id: aws.batch.jobqueue_encryption
+  for_each: aws.batch.jobqueues
+  calls:
+  - client: batch
+    action: describe_job_queues
+    params:
+      JobqueueId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.batch.compute_environments
+  for_each: aws.batch.compute_environment
+  calls:
+  - client: batch
+    action: describe_compute_environments
+    save_as: compute_environments
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.batch.compute_environment_encryption
+  calls:
+  - client: batch
+    action: list_consumable_resources
+    save_as: compute_environment_encryption
+    on_error: continue
+  emit:
+    items_for: compute_environment_encryption[]
+    as: compute_environment_encryption
+    item:
+      id: '{{ compute_environment_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Antimalware Enabled
-    severity: low
-    rule_id: aws.batch.batch.antimalware_enabled
-    assertion_id: compute_host_security.endpoint_protection.antimalware_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement antimalware enabled for batch"
-    references:
-      - "https://docs.aws.amazon.com/batch/"
-  - title: Intrusion Detection Enabled
-    severity: low
-    rule_id: aws.batch.batch.intrusion_detection_enabled
-    assertion_id: compute_host_security.endpoint_protection.intrusion_detection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement intrusion detection enabled for batch"
-    references:
-      - "https://docs.aws.amazon.com/batch/"
-  - title: Platform Hardening Enabled
-    severity: low
-    rule_id: aws.batch.batch.platform_hardening_enabled
-    assertion_id: serverless_paas.paas_security.platform_hardening_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement platform hardening enabled for batch"
-    references:
-      - "https://docs.aws.amazon.com/batch/"
-  - title: Secure Configuration Enforced
-    severity: low
-    rule_id: aws.batch.batch.secure_configuration_enforced
-    assertion_id: serverless_paas.paas_security.secure_configuration_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement secure configuration enforced for batch"
-    references:
-      - "https://docs.aws.amazon.com/batch/"
+- title: 'BATCH jobqueue: Volumes Encrypted'
+  severity: high
+  rule_id: aws.batch.jobqueue.volumes_encrypted
+  for_each:
+    discovery: aws.batch.jobqueue_encryption
+    as: jobqueue
+    item: jobqueue
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for batch jobqueue:\n\n1. Open BATCH console\n2. Select the jobqueue\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws batch modify-jobqueue --jobqueue-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH compute environment: Volumes Encrypted'
+  severity: high
+  rule_id: aws.batch.compute_environment.volumes_encrypted
+  for_each:
+    discovery: aws.batch.compute_environment_encryption
+    as: compute_environment
+    item: compute_environment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for batch compute_environment:\n\n1. Open BATCH console\n2. Select the compute_environment\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws batch modify-compute_environment\
+    \ --compute_environment-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH jobqueue: No Public Ip Assigned Configured'
+  severity: high
+  rule_id: aws.batch.jobqueue.no_public_ip_assigned_configured
+  for_each:
+    discovery: aws.batch.jobqueues
+    as: jobqueue
+    item: jobqueue
+  conditions:
+    var: jobqueue.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for batch jobqueue:\n\n1. Open BATCH console\n2. Select the jobqueue\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH compute environment: Instance Profile Least Privilege'
+  severity: high
+  rule_id: aws.batch.compute_environment.instance_profile_least_privilege
+  for_each:
+    discovery: aws.batch.compute_environments
+    as: compute_environment
+    item: compute_environment
+  conditions:
+    var: compute_environment.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for batch compute_environment:\n\n1. Open BATCH console\n2. Select the compute_environment\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH compute environment: Batch Uses Approved Launch Template Configured'
+  severity: medium
+  rule_id: aws.batch.compute_environment.batch_uses_approved_launch_template_configured
+  for_each:
+    discovery: aws.batch.compute_environments
+    as: compute_environment
+    item: compute_environment
+  conditions:
+    var: compute_environment.compliant
+    op: equals
+    value: true
+  remediation: "Configure batch compute_environment for compliance:\n\nRequirement: Batch Uses Approved Launch Template Configuration\n\
+    \nDescription: Verifies security configuration for AWS BATCH compute environment to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open BATCH console\n2. Select the compute_environment\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH jobqueue: Instance Profile Least Privilege'
+  severity: high
+  rule_id: aws.batch.jobqueue.instance_profile_least_privilege
+  for_each:
+    discovery: aws.batch.jobqueues
+    as: jobqueue
+    item: jobqueue
+  conditions:
+    var: jobqueue.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for batch jobqueue:\n\n1. Open BATCH console\n2. Select the jobqueue\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH compute environment: No Public Ip Assigned Configured'
+  severity: high
+  rule_id: aws.batch.compute_environment.no_public_ip_assigned_configured
+  for_each:
+    discovery: aws.batch.compute_environments
+    as: compute_environment
+    item: compute_environment
+  conditions:
+    var: compute_environment.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for batch compute_environment:\n\n1. Open BATCH console\n2. Select the compute_environment\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BATCH jobqueue: Batch Uses Approved Launch Template Configured'
+  severity: medium
+  rule_id: aws.batch.jobqueue.batch_uses_approved_launch_template_configured
+  for_each:
+    discovery: aws.batch.jobqueues
+    as: jobqueue
+    item: jobqueue
+  conditions:
+    var: jobqueue.compliant
+    op: equals
+    value: true
+  remediation: "Configure batch jobqueue for compliance:\n\nRequirement: Batch Uses Approved Launch Template Configuration\n\
+    \nDescription: Verifies security configuration for AWS BATCH jobqueue to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open BATCH console\n2. Select the jobqueue\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

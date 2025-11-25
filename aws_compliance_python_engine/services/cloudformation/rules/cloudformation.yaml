@@ -1,101 +1,102 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: cloudformation
 discovery:
-  discovery_id: aws.cloudformation.resources
+- discovery_id: aws.cloudformation.stacks
   calls:
-    - client: cloudformation
-      action: describe_cloudformations
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: cloudformation
+    action: list_stacks
+    save_as: stack_list
+    on_error: continue
+    fields:
+    - Cloudformations
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: stack_list[]
+    as: stack
+    item:
+      id: '{{ stack.Id }}'
+      name: '{{ stack.Name }}'
+- discovery_id: aws.cloudformation.stack_encryption
+  for_each: aws.cloudformation.stacks
+  calls:
+  - client: cloudformation
+    action: list_stacks
+    params:
+      StackId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.cloudformation.stack_logging
+  for_each: aws.cloudformation.stacks
+  calls:
+  - client: cloudformation
+    action: describe_account_limits
+    params:
+      StackId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
 checks:
-  - title: Security Policies Defined
-    severity: low
-    rule_id: aws.cloudformation.stack_drift.security_policies_defined
-    assertion_id: governance_compliance.policy_management.security_policies_defined
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies defined for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
-  - title: Security Policies Defined
-    severity: low
-    rule_id: aws.cloudformation.template_validation.security_policies_defined
-    assertion_id: governance_compliance.policy_management.security_policies_defined
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies defined for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
-  - title: Policy Compliance Monitored
-    severity: low
-    rule_id: aws.cloudformation.stack_drift.policy_compliance_monitored
-    assertion_id: governance_compliance.policy_management.policy_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy compliance monitored for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
-  - title: Policy Compliance Monitored
-    severity: low
-    rule_id: aws.cloudformation.template_validation.policy_compliance_monitored
-    assertion_id: governance_compliance.policy_management.policy_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy compliance monitored for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
-  - title: Policy Exceptions Managed
-    severity: low
-    rule_id: aws.cloudformation.stack_drift.policy_exceptions_managed
-    assertion_id: governance_compliance.policy_management.policy_exceptions_managed
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy exceptions managed for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
-  - title: Policy Exceptions Managed
-    severity: low
-    rule_id: aws.cloudformation.template_validation.policy_exceptions_managed
-    assertion_id: governance_compliance.policy_management.policy_exceptions_managed
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy exceptions managed for cloudformation"
-    references:
-      - "https://docs.aws.amazon.com/cloudformation/"
+- title: 'CLOUDFORMATION stack: Cloudformation Approvals Required For Changes'
+  severity: medium
+  rule_id: aws.cloudformation.stack.cloudformation_approvals_required_for_changes
+  for_each:
+    discovery: aws.cloudformation.stacks
+    as: stack
+    item: stack
+  conditions:
+    var: stack.compliant
+    op: equals
+    value: true
+  remediation: "Configure cloudformation stack for compliance:\n\nRequirement: Cloudformation Approvals Required For Changes\n\
+    \nDescription: Verifies security configuration for AWS CloudFormation stack to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open CLOUDFORMATION console\n2. Select the stack\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDFORMATION stack: Cloudformation Storage Encrypted And Private'
+  severity: high
+  rule_id: aws.cloudformation.stack.cloudformation_storage_encrypted_and_private
+  for_each:
+    discovery: aws.cloudformation.stack_encryption
+    as: stack
+    item: stack
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudformation stack:\n\n1. Open CLOUDFORMATION console\n2. Select the stack\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudformation modify-stack --stack-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: RTO and RPO are defined and monitored
+  severity: low
+  rule_id: aws.cloudformation.stack.change_audit_logging_enabled
+  for_each:
+    discovery: aws.cloudformation.stack_logging
+    as: stack
+    item: stack
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudformation stack:\n\n1. Open CLOUDFORMATION console\n2. Select the stack\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudformation update-stack-logging\
+    \ --stack-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs\
+    \ to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set\
+    \ up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

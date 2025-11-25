@@ -1,255 +1,2226 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: cloudwatch
 discovery:
-  discovery_id: aws.cloudwatch.alarms
+- discovery_id: aws.cloudwatch.buckets
   calls:
-    - client: cloudwatch
-      action: describe_alarms
-      paginate: true
-  fields:
-    - name: AlarmName
-      save_as: alarm_name
+  - client: cloudwatch
+    action: describe_alarms
+    save_as: bucket_list
+    on_error: continue
+    fields:
+    - MetricAlarms
   emit:
-    items_for:
-      as: resource
-      item: alarm_name
+    items_for: bucket_list[]
+    as: bucket
+    item:
+      id: '{{ bucket.AlarmName }}'
+      name: '{{ bucket.AlarmName }}'
+- discovery_id: aws.cloudwatch.bucket_encryption
+  for_each: aws.cloudwatch.buckets
+  calls:
+  - client: cloudwatch
+    action: describe_alarms
+    params:
+      BucketId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.cloudwatch.bucket_logging
+  for_each: aws.cloudwatch.buckets
+  calls:
+  - client: cloudwatch
+    action: describe_alarm_contributors
+    params:
+      BucketId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.cloudwatch.changes_to_vpcs_alarm_configured_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: changes_to_vpcs_alarm_configured_logging
+    on_error: continue
+  emit:
+    items_for: changes_to_vpcs_alarm_configured_logging[]
+    as: changes_to_vpcs_alarm_configured_logging
+    item:
+      id: '{{ changes_to_vpcs_alarm_configured_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.resource_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.metric_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: metric_logging
+    on_error: continue
+  emit:
+    items_for: metric_logging[]
+    as: metric_logging
+    item:
+      id: '{{ metric_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.alarm_cpu_utilization_configured_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: alarm_cpu_utilization_configured_logging
+    on_error: continue
+  emit:
+    items_for: alarm_cpu_utilization_configured_logging[]
+    as: alarm_cpu_utilization_configured_logging
+    item:
+      id: '{{ alarm_cpu_utilization_configured_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_root_usage_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_root_usage_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_root_usage_logging[]
+    as: log_metric_filter_root_usage_logging
+    item:
+      id: '{{ log_metric_filter_root_usage_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.dashboard_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: dashboard_logging
+    on_error: continue
+  emit:
+    items_for: dashboard_logging[]
+    as: dashboard_logging
+    item:
+      id: '{{ dashboard_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.insightsquery_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: insightsquery_encryption
+    on_error: continue
+  emit:
+    items_for: insightsquery_encryption[]
+    as: insightsquery_encryption
+    item:
+      id: '{{ insightsquery_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.network_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: network_logging
+    on_error: continue
+  emit:
+    items_for: network_logging[]
+    as: network_logging
+    item:
+      id: '{{ network_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_sign_in_without_mfa_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_sign_in_without_mfa_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_sign_in_without_mfa_logging[]
+    as: log_metric_filter_sign_in_without_mfa_logging
+    item:
+      id: '{{ log_metric_filter_sign_in_without_mfa_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.group_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: group_logging
+    on_error: continue
+  emit:
+    items_for: group_logging[]
+    as: group_logging
+    item:
+      id: '{{ group_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.group_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: group_encryption
+    on_error: continue
+  emit:
+    items_for: group_encryption[]
+    as: group_encryption
+    item:
+      id: '{{ group_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.insightsquery_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: insightsquery_logging
+    on_error: continue
+  emit:
+    items_for: insightsquery_logging[]
+    as: insightsquery_logging
+    item:
+      id: '{{ insightsquery_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.loggroup_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: loggroup_logging
+    on_error: continue
+  emit:
+    items_for: loggroup_logging[]
+    as: loggroup_logging
+    item:
+      id: '{{ loggroup_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_logging
+    on_error: continue
+  emit:
+    items_for: log_logging[]
+    as: log_logging
+    item:
+      id: '{{ log_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.changes_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: changes_logging
+    on_error: continue
+  emit:
+    items_for: changes_logging[]
+    as: changes_logging
+    item:
+      id: '{{ changes_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_encryption
+    on_error: continue
+  emit:
+    items_for: log_encryption[]
+    as: log_encryption
+    item:
+      id: '{{ log_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.alarmconfigured_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: alarmconfigured_logging
+    on_error: continue
+  emit:
+    items_for: alarmconfigured_logging[]
+    as: alarmconfigured_logging
+    item:
+      id: '{{ alarmconfigured_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.loggroup_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: loggroup_encryption
+    on_error: continue
+  emit:
+    items_for: loggroup_encryption[]
+    as: loggroup_encryption
+    item:
+      id: '{{ loggroup_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.logstream_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: logstream_logging
+    on_error: continue
+  emit:
+    items_for: logstream_logging[]
+    as: logstream_logging
+    item:
+      id: '{{ logstream_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_aws_organizations_changes_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_aws_organizations_changes_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_aws_organizations_changes_logging[]
+    as: log_metric_filter_aws_organizations_changes_logging
+    item:
+      id: '{{ log_metric_filter_aws_organizations_changes_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.alarm_memory_utilization_configured_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: alarm_memory_utilization_configured_logging
+    on_error: continue
+  emit:
+    items_for: alarm_memory_utilization_configured_logging[]
+    as: alarm_memory_utilization_configured_logging
+    item:
+      id: '{{ alarm_memory_utilization_configured_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_alarm_configured_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_alarm_configured_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_alarm_configured_logging[]
+    as: log_metric_filter_alarm_configured_logging
+    item:
+      id: '{{ log_metric_filter_alarm_configured_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_authentication_failures_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_authentication_failures_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_authentication_failures_logging[]
+    as: log_metric_filter_authentication_failures_logging
+    item:
+      id: '{{ log_metric_filter_authentication_failures_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.destination_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: destination_logging
+    on_error: continue
+  emit:
+    items_for: destination_logging[]
+    as: destination_logging
+    item:
+      id: '{{ destination_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.anomalydetector_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: anomalydetector_logging
+    on_error: continue
+  emit:
+    items_for: anomalydetector_logging[]
+    as: anomalydetector_logging
+    item:
+      id: '{{ anomalydetector_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.logstream_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: logstream_encryption
+    on_error: continue
+  emit:
+    items_for: logstream_encryption[]
+    as: logstream_encryption
+    item:
+      id: '{{ logstream_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.metricfilter_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: metricfilter_logging
+    on_error: continue
+  emit:
+    items_for: metricfilter_logging[]
+    as: metricfilter_logging
+    item:
+      id: '{{ metricfilter_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.policy_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: policy_logging
+    on_error: continue
+  emit:
+    items_for: policy_logging[]
+    as: policy_logging
+    item:
+      id: '{{ policy_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.metricfilter_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: metricfilter_encryption
+    on_error: continue
+  emit:
+    items_for: metricfilter_encryption[]
+    as: metricfilter_encryption
+    item:
+      id: '{{ metricfilter_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.alarm_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: alarm_logging
+    on_error: continue
+  emit:
+    items_for: alarm_logging[]
+    as: alarm_logging
+    item:
+      id: '{{ alarm_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption[]
+    as: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption
+    item:
+      id: '{{ log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudwatch.log_metric_filter_unauthorized_api_calls_logging
+  calls:
+  - client: cloudwatch
+    action: list_dashboards
+    save_as: log_metric_filter_unauthorized_api_calls_logging
+    on_error: continue
+  emit:
+    items_for: log_metric_filter_unauthorized_api_calls_logging[]
+    as: log_metric_filter_unauthorized_api_calls_logging
+    item:
+      id: '{{ log_metric_filter_unauthorized_api_calls_logging.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Centralized Logging Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.log_collection.centralized_logging_enabled
-    assertion_id: logging_monitoring.log_collection.centralized_logging_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement centralized logging enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Log Integrity Protected
-    severity: medium
-    rule_id: aws.cloudwatch.log_collection.log_integrity_protected
-    assertion_id: logging_monitoring.log_collection.log_integrity_protected
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement log integrity protected for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Structured Logging Enforced
-    severity: medium
-    rule_id: aws.cloudwatch.log_collection.structured_logging_enforced
-    assertion_id: logging_monitoring.log_collection.structured_logging_enforced
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement structured logging enforced for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Real Time Monitoring Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.alarms.real_time_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.real_time_monitoring_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement real time monitoring enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Real Time Monitoring Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.dashboards.real_time_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.real_time_monitoring_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement real time monitoring enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Alerting Rules Configured
-    severity: medium
-    rule_id: aws.cloudwatch.alarms.alerting_rules_configured
-    assertion_id: logging_monitoring.monitoring_alerting.alerting_rules_configured
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement alerting rules configured for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Alerting Rules Configured
-    severity: medium
-    rule_id: aws.cloudwatch.dashboards.alerting_rules_configured
-    assertion_id: logging_monitoring.monitoring_alerting.alerting_rules_configured
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement alerting rules configured for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Performance Monitoring Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.alarms.performance_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.performance_monitoring_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement performance monitoring enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Performance Monitoring Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.dashboards.performance_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.performance_monitoring_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement performance monitoring enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Retention Policies Enforced
-    severity: medium
-    rule_id: aws.cloudwatch.log_retention.retention_policies_enforced
-    assertion_id: logging_monitoring.log_retention.retention_policies_enforced
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement retention policies enforced for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Secure Deletion Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.log_retention.secure_deletion_enabled
-    assertion_id: logging_monitoring.log_retention.secure_deletion_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement secure deletion enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Anomaly Detection Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.insights_queries.anomaly_detection_enabled
-    assertion_id: logging_monitoring.log_analysis.anomaly_detection_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement anomaly detection enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Correlation Analysis Enabled
-    severity: medium
-    rule_id: aws.cloudwatch.insights_queries.correlation_analysis_enabled
-    assertion_id: logging_monitoring.log_analysis.correlation_analysis_enabled
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement correlation analysis enabled for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Platform Health Monitored
-    severity: medium
-    rule_id: aws.cloudwatch.platform_monitoring.platform_health_monitored
-    assertion_id: platform_surfaces_versions.platform_monitoring.platform_health_monitored
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement platform health monitored for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Platform Health Monitored
-    severity: medium
-    rule_id: aws.cloudwatch.platform_dashboards.platform_health_monitored
-    assertion_id: platform_surfaces_versions.platform_monitoring.platform_health_monitored
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement platform health monitored for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Service Availability Tracked
-    severity: medium
-    rule_id: aws.cloudwatch.platform_monitoring.service_availability_tracked
-    assertion_id: platform_surfaces_versions.platform_monitoring.service_availability_tracked
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service availability tracked for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
-  - title: Service Availability Tracked
-    severity: medium
-    rule_id: aws.cloudwatch.platform_dashboards.service_availability_tracked
-    assertion_id: platform_surfaces_versions.platform_monitoring.service_availability_tracked
-    for_each:
-      as: resource
-      item: alarm_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service availability tracked for cloudwatch"
-    references:
-      - "https://docs.aws.amazon.com/cloudwatch/"
+- title: 'CLOUDWATCH log metric filter sign in without mfa: Log Metric Filter Sign In Without Mfa Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_sign_in_without_mfa.log_metric_filter_sign_in_without_mfa_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_sign_in_without_mfa_logging
+    as: log_metric_filter_sign_in_without_mfa
+    item: log_metric_filter_sign_in_without_mfa
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_sign_in_without_mfa:\n\n1. Open CLOUDWATCH console\n2. Select\
+    \ the log_metric_filter_sign_in_without_mfa\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log\
+    \ destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudwatch update-log_metric_filter_sign_in_without_mfa-logging --log_metric_filter_sign_in_without_mfa-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Cloudwatch Log Edr Log Delivery Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured
+  for_each:
+    discovery: aws.cloudwatch.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metricfilter: Metric Log Console Root Login Detected Filter Present'
+  severity: medium
+  rule_id: aws.cloudwatch.metricfilter.metric_log_console_root_login_detected_filter_present
+  for_each:
+    discovery: aws.cloudwatch.metricfilter_logging
+    as: metricfilter
+    item: metricfilter
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metricfilter:\n\n1. Open CLOUDWATCH console\n2. Select the metricfilter\n3.\
+    \ Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metricfilter-logging\
+    \ --metricfilter-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter unauthorized api calls: Log Metric Filter Unauthorized Api Calls Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_unauthorized_api_calls.log_metric_filter_unauthorized_api_calls_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_unauthorized_api_calls_logging
+    as: log_metric_filter_unauthorized_api_calls
+    item: log_metric_filter_unauthorized_api_calls
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_unauthorized_api_calls:\n\n1. Open CLOUDWATCH console\n2.\
+    \ Select the log_metric_filter_unauthorized_api_calls\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure\
+    \ log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudwatch update-log_metric_filter_unauthorized_api_calls-logging --log_metric_filter_unauthorized_api_calls-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter alarm configured: Log Metric Log Metric Filter Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_alarm_configured_logging
+    as: log_metric_filter_alarm_configured
+    item: log_metric_filter_alarm_configured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_alarm_configured:\n\n1. Open CLOUDWATCH console\n2. Select\
+    \ the log_metric_filter_alarm_configured\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudwatch update-log_metric_filter_alarm_configured-logging --log_metric_filter_alarm_configured-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter For S3 Bucket Policy Changes Configured'
+  severity: high
+  rule_id: aws.cloudwatch.log.metric_filter_for_s3_bucket_policy_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH bucket: Policy Changes Configured'
+  severity: high
+  rule_id: aws.cloudwatch.bucket.policy_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.bucket_logging
+    as: bucket
+    item: bucket
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch bucket:\n\n1. Open CLOUDWATCH console\n2. Select the bucket\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-bucket-logging --bucket-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Alarm Kms Cmk Deletion Configured'
+  severity: high
+  rule_id: aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured
+  for_each:
+    discovery: aws.cloudwatch.log_encryption
+    as: log
+    item: log
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-log --log-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.cloudwatch.group.kms_encryption_enabled
+  for_each:
+    discovery: aws.cloudwatch.group_encryption
+    as: group
+    item: group
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-group --group-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/encrypt-log-data-kms.html
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+- title: 'CLOUDWATCH alarmconfigured: Alarm Cloudwatch Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.alarmconfigured_logging
+    as: alarmconfigured
+    item: alarmconfigured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarmconfigured:\n\n1. Open CLOUDWATCH console\n2. Select the alarmconfigured\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-alarmconfigured-logging --alarmconfigured-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: API logging and monitoring are enabled
+  severity: high
+  rule_id: aws.cloudwatch.metric.query_access_logging_enabled
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter aws organizations changes: Log Metric Log Metric Filter Aws Organizations Changes Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_aws_organizations_changes.log_metric_log_metric_filter_aws_organizations_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_aws_organizations_changes_logging
+    as: log_metric_filter_aws_organizations_changes
+    item: log_metric_filter_aws_organizations_changes
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_aws_organizations_changes:\n\n1. Open CLOUDWATCH console\n\
+    2. Select the log_metric_filter_aws_organizations_changes\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5.\
+    \ Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO,\
+    \ DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log_metric_filter_aws_organizations_changes-logging\
+    \ --log_metric_filter_aws_organizations_changes-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Cloudwatch Alarm Critical S Enabled'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_critical_s_enabled
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: API logging and monitoring are enabled
+  severity: high
+  rule_id: aws.cloudwatch.metric.flow_logging_enabled
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Api Logs Retention Days Minimum'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.api_logs_retention_days_minimum
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm cpu utilization configured: Alarm Cloudwatch Alarm Cpu Utilization Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm_cpu_utilization_configured.alarm_cloudwatch_alarm_cpu_utilization_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_cpu_utilization_configured_logging
+    as: alarm_cpu_utilization_configured
+    item: alarm_cpu_utilization_configured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm_cpu_utilization_configured:\n\n1. Open CLOUDWATCH console\n2. Select the\
+    \ alarm_cpu_utilization_configured\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudwatch update-alarm_cpu_utilization_configured-logging --alarm_cpu_utilization_configured-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: API logging and monitoring are enabled
+  severity: high
+  rule_id: aws.cloudwatch.metric.admin_activity_logging_enabled
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH anomalydetector: Alerts Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.anomalydetector.alerts_configured
+  for_each:
+    discovery: aws.cloudwatch.anomalydetector_logging
+    as: anomalydetector
+    item: anomalydetector
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch anomalydetector:\n\n1. Open CLOUDWATCH console\n2. Select the anomalydetector\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-anomalydetector-logging --anomalydetector-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH dashboard: Public Embeds Disabled'
+  severity: high
+  rule_id: aws.cloudwatch.dashboard.public_embeds_disabled
+  for_each:
+    discovery: aws.cloudwatch.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch dashboard:\n\n1. Open CLOUDWATCH console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH insightsquery: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.cloudwatch.insightsquery.rbac_least_privilege
+  for_each:
+    discovery: aws.cloudwatch.insightsquery_logging
+    as: insightsquery
+    item: insightsquery
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch insightsquery:\n\n1. Open CLOUDWATCH console\n2. Select the insightsquery\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-insightsquery-logging --insightsquery-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH resource: Log Cloudwatch Log Analysis Enabled'
+  severity: medium
+  rule_id: aws.cloudwatch.resource.log_cloudwatch_log_analysis_enabled
+  for_each:
+    discovery: aws.cloudwatch.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch resource:\n\n1. Open CLOUDWATCH console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Log Metric Filter Root Usage Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log.metric_log_metric_filter_root_usage_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH destination: Endpoint Private Networking Configured'
+  severity: high
+  rule_id: aws.cloudwatch.destination.endpoint_private_networking_configured
+  for_each:
+    discovery: aws.cloudwatch.destination_logging
+    as: destination
+    item: destination
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch destination:\n\n1. Open CLOUDWATCH console\n2. Select the destination\n3. Go\
+    \ to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-destination-logging\
+    \ --destination-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.cloudwatch.loggroup.rbac_least_privilege
+  for_each:
+    discovery: aws.cloudwatch.loggroup_logging
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-loggroup-logging --loggroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Log Destination Least Privilege'
+  severity: medium
+  rule_id: aws.cloudwatch.loggroup.log_destination_least_privilege
+  for_each:
+    discovery: aws.cloudwatch.loggroup_logging
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-loggroup-logging --loggroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Alerts For Anomalies Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.alerts_for_anomalies_configured
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Cloudwatch Configuration Changes Monitored'
+  severity: medium
+  rule_id: aws.cloudwatch.group.cloudwatch_configuration_changes_monitored
+  for_each:
+    discovery: aws.cloudwatch.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Alerting rules are properly configured
+  severity: low
+  rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Log Destination Encrypted'
+  severity: high
+  rule_id: aws.cloudwatch.loggroup.log_destination_encrypted
+  for_each:
+    discovery: aws.cloudwatch.loggroup_encryption
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-loggroup --loggroup-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metricfilter: Network Acl Or Sg Change Detected Filter Present'
+  severity: high
+  rule_id: aws.cloudwatch.metricfilter.network_acl_or_sg_change_detected_filter_present
+  for_each:
+    discovery: aws.cloudwatch.metricfilter_logging
+    as: metricfilter
+    item: metricfilter
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metricfilter:\n\n1. Open CLOUDWATCH console\n2. Select the metricfilter\n3.\
+    \ Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metricfilter-logging\
+    \ --metricfilter-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter Security Group Changes Configured'
+  severity: high
+  rule_id: aws.cloudwatch.log.metric_filter_security_group_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH changes: To Vpcs Alarm Configured'
+  severity: high
+  rule_id: aws.cloudwatch.changes.to_vpcs_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.changes_logging
+    as: changes
+    item: changes
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch changes:\n\n1. Open CLOUDWATCH console\n2. Select the changes\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-changes-logging --changes-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH insightsquery: Cloudwatch Storage Encrypted'
+  severity: high
+  rule_id: aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted
+  for_each:
+    discovery: aws.cloudwatch.insightsquery_encryption
+    as: insightsquery
+    item: insightsquery
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch insightsquery:\n\n1. Open CLOUDWATCH console\n2. Select the insightsquery\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-insightsquery\
+    \ --insightsquery-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH logstream: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.cloudwatch.logstream.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.cloudwatch.logstream_encryption
+    as: logstream
+    item: logstream
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-logstream --logstream-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/encrypt-log-data-kms.html
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+- title: 'CLOUDWATCH logstream: Log Cross Account Destinations Restricted'
+  severity: medium
+  rule_id: aws.cloudwatch.logstream.log_cross_account_destinations_restricted
+  for_each:
+    discovery: aws.cloudwatch.logstream_logging
+    as: logstream
+    item: logstream
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-logstream-logging\
+    \ --logstream-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.cloudwatch.group.not_publicly_accessible_configured
+  for_each:
+    discovery: aws.cloudwatch.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: API logging and monitoring are enabled
+  severity: high
+  rule_id: aws.cloudwatch.metric.api_access_logging_enabled
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Destinations Authenticated Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.destinations_authenticated_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter Policy Changes Configured'
+  severity: high
+  rule_id: aws.cloudwatch.log.metric_filter_policy_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH changes: To Network Route Tables Alarm Configured'
+  severity: high
+  rule_id: aws.cloudwatch.changes.to_network_route_tables_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.changes_logging
+    as: changes
+    item: changes
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch changes:\n\n1. Open CLOUDWATCH console\n2. Select the changes\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-changes-logging --changes-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH destination: Tls Min 1 2 Enforced'
+  severity: high
+  rule_id: aws.cloudwatch.destination.tls_min_1_2_enforced
+  for_each:
+    discovery: aws.cloudwatch.destination_logging
+    as: destination
+    item: destination
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch destination:\n\n1. Open CLOUDWATCH console\n2. Select the destination\n3. Go\
+    \ to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-destination-logging\
+    \ --destination-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH changes: To Network Gateways Alarm Configured'
+  severity: high
+  rule_id: aws.cloudwatch.changes.to_network_gateways_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.changes_logging
+    as: changes
+    item: changes
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch changes:\n\n1. Open CLOUDWATCH console\n2. Select the changes\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-changes-logging --changes-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH dashboard: Cloudwatch Sso Required'
+  severity: medium
+  rule_id: aws.cloudwatch.dashboard.cloudwatch_sso_required
+  for_each:
+    discovery: aws.cloudwatch.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch dashboard:\n\n1. Open CLOUDWATCH console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH resource: Metric Alarm Metric Alarm Cloudtrail Configuration Changes Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch resource:\n\n1. Open CLOUDWATCH console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH logstream: Log Destination Least Privilege'
+  severity: medium
+  rule_id: aws.cloudwatch.logstream.log_destination_least_privilege
+  for_each:
+    discovery: aws.cloudwatch.logstream_logging
+    as: logstream
+    item: logstream
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-logstream-logging\
+    \ --logstream-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Alerts For Replication Lag Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.alerts_for_replication_lag_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Log Cross Account Destinations Restricted'
+  severity: medium
+  rule_id: aws.cloudwatch.loggroup.log_cross_account_destinations_restricted
+  for_each:
+    discovery: aws.cloudwatch.loggroup_logging
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-loggroup-logging --loggroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter Sign In Without Mfa Configured'
+  severity: critical
+  rule_id: aws.cloudwatch.log.metric_filter_sign_in_without_mfa_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH network: Cloudwatch Alarm Acls Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.network_logging
+    as: network
+    item: network
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch network:\n\n1. Open CLOUDWATCH console\n2. Select the network\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-network-logging --network-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter Unauthorized Api Calls Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log.metric_filter_unauthorized_api_calls_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Retention Days Minimum'
+  severity: low
+  rule_id: aws.cloudwatch.loggroup.retention_days_minimum
+  for_each:
+    discovery: aws.cloudwatch.loggroup_logging
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-loggroup-logging --loggroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH logstream: Ingestion Auth Required'
+  severity: medium
+  rule_id: aws.cloudwatch.logstream.ingestion_auth_required
+  for_each:
+    discovery: aws.cloudwatch.logstream_logging
+    as: logstream
+    item: logstream
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-logstream-logging\
+    \ --logstream-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH network: Gateways Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.network.gateways_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.network_logging
+    as: network
+    item: network
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch network:\n\n1. Open CLOUDWATCH console\n2. Select the network\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-network-logging --network-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH logstream: Log Destination Encrypted'
+  severity: high
+  rule_id: aws.cloudwatch.logstream.log_destination_encrypted
+  for_each:
+    discovery: aws.cloudwatch.logstream_encryption
+    as: logstream
+    item: logstream
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-logstream --logstream-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metricfilter: Iam Policy Change Detected Filter Present'
+  severity: high
+  rule_id: aws.cloudwatch.metricfilter.iam_policy_change_detected_filter_present
+  for_each:
+    discovery: aws.cloudwatch.metricfilter_logging
+    as: metricfilter
+    item: metricfilter
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metricfilter:\n\n1. Open CLOUDWATCH console\n2. Select the metricfilter\n3.\
+    \ Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metricfilter-logging\
+    \ --metricfilter-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metricfilter: Kms Key Deletion Disable Detected Filter Present'
+  severity: high
+  rule_id: aws.cloudwatch.metricfilter.kms_key_deletion_disable_detected_filter_present
+  for_each:
+    discovery: aws.cloudwatch.metricfilter_encryption
+    as: metricfilter
+    item: metricfilter
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch metricfilter:\n\n1. Open CLOUDWATCH console\n2. Select the metricfilter\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-metricfilter\
+    \ --metricfilter-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS\
+    \ keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit\
+    \ key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH resource: Metric Alarm Metric Alarm Aws Config Configuration Changes Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_aws_config_configuration_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch resource:\n\n1. Open CLOUDWATCH console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH loggroup: Log Immutability Or Object Lock If Supported'
+  severity: medium
+  rule_id: aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported
+  for_each:
+    discovery: aws.cloudwatch.loggroup_logging
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-loggroup-logging --loggroup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Api Access Log Fields Identity Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.api_access_log_fields_identity_configured
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Alerts For Rpo Rto Breach Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.alerts_for_rpo_rto_breach_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH dashboard: Cloudwatch Sharing Restricted To Org Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured
+  for_each:
+    discovery: aws.cloudwatch.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch dashboard:\n\n1. Open CLOUDWATCH console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Alerts For Backup Failures Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.alerts_for_backup_failures_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH destination: Iam Policy Least Privilege'
+  severity: high
+  rule_id: aws.cloudwatch.destination.iam_policy_least_privilege
+  for_each:
+    discovery: aws.cloudwatch.destination_logging
+    as: destination
+    item: destination
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch destination:\n\n1. Open CLOUDWATCH console\n2. Select the destination\n3. Go\
+    \ to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-destination-logging\
+    \ --destination-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH network: Route Tables Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.network.route_tables_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.network_logging
+    as: network
+    item: network
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch network:\n\n1. Open CLOUDWATCH console\n2. Select the network\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-network-logging --network-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Group Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.cloudwatch.log.group_kms_encryption_enabled
+  for_each:
+    discovery: aws.cloudwatch.log_encryption
+    as: log
+    item: log
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-log --log-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/encrypt-log-data-kms.html
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+- title: 'CLOUDWATCH loggroup: Encryption At Rest Cmek Configured'
+  severity: high
+  rule_id: aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured
+  for_each:
+    discovery: aws.cloudwatch.loggroup_encryption
+    as: loggroup
+    item: loggroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch loggroup:\n\n1. Open CLOUDWATCH console\n2. Select the loggroup\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-loggroup --loggroup-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/encrypt-log-data-kms.html
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+- title: 'CLOUDWATCH alarm memory utilization configured: Alarm Cloudwatch Alarm Memory Utilization Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm_memory_utilization_configured.alarm_cloudwatch_alarm_memory_utilization_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_memory_utilization_configured_logging
+    as: alarm_memory_utilization_configured
+    item: alarm_memory_utilization_configured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm_memory_utilization_configured:\n\n1. Open CLOUDWATCH console\n2. Select\
+    \ the alarm_memory_utilization_configured\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudwatch update-alarm_memory_utilization_configured-logging --alarm_memory_utilization_configured-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter root usage: Log Metric Log Metric Filter Root Usage Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_root_usage.log_metric_log_metric_filter_root_usage_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_root_usage_logging
+    as: log_metric_filter_root_usage
+    item: log_metric_filter_root_usage
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_root_usage:\n\n1. Open CLOUDWATCH console\n2. Select the log_metric_filter_root_usage\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-log_metric_filter_root_usage-logging --log_metric_filter_root_usage-id <id> --logging-enabled\n\nBest Practices:\n\
+    \u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate\
+    \ retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH alarm: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.alarm.alert_destinations_configured
+  for_each:
+    discovery: aws.cloudwatch.alarm_logging
+    as: alarm
+    item: alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch alarm:\n\n1. Open CLOUDWATCH console\n2. Select the alarm\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-alarm-logging --alarm-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH anomalydetector: Cloudwatch Training Data Sources Approved Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured
+  for_each:
+    discovery: aws.cloudwatch.anomalydetector_logging
+    as: anomalydetector
+    item: anomalydetector
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch anomalydetector:\n\n1. Open CLOUDWATCH console\n2. Select the anomalydetector\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-anomalydetector-logging --anomalydetector-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Api Execution Logging Level Minimum Error Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.api_execution_logging_level_minimum_error_configured
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Logs Retention Days Minimum'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.logs_retention_days_minimum
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Log Metric Alarm Cloudtrail Configuration Changes Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log.metric_log_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Log Metric Alarm Aws Config Configuration Changes Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log.metric_log_metric_alarm_aws_config_configuration_changes_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter disable or scheduled deletion of kms cmk: Metric Alarm Kms Cmk Deletion Configured'
+  severity: high
+  rule_id: aws.cloudwatch.log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk.metric_alarm_kms_cmk_deletion_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk_encryption
+    as: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk
+    item: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudwatch log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk:\n\n1. Open CLOUDWATCH\
+    \ console\n2. Select the log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudwatch modify-log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk\
+    \ --log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best\
+    \ Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement\
+    \ proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH anomalydetector: Cloudwatch Detectors Enabled'
+  severity: medium
+  rule_id: aws.cloudwatch.anomalydetector.cloudwatch_detectors_enabled
+  for_each:
+    discovery: aws.cloudwatch.anomalydetector_logging
+    as: anomalydetector
+    item: anomalydetector
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch anomalydetector:\n\n1. Open CLOUDWATCH console\n2. Select the anomalydetector\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch\
+    \ update-anomalydetector-logging --anomalydetector-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH logstream: Retention Days Minimum'
+  severity: low
+  rule_id: aws.cloudwatch.logstream.retention_days_minimum
+  for_each:
+    discovery: aws.cloudwatch.logstream_logging
+    as: logstream
+    item: logstream
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch logstream:\n\n1. Open CLOUDWATCH console\n2. Select the logstream\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-logstream-logging\
+    \ --logstream-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Metric Filter Authentication Failures Configured'
+  severity: critical
+  rule_id: aws.cloudwatch.log.metric_filter_authentication_failures_configured
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log metric filter authentication failures: Log Metric Filter Authentication Failures Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.log_metric_filter_authentication_failures.log_metric_filter_authentication_failures_configured
+  for_each:
+    discovery: aws.cloudwatch.log_metric_filter_authentication_failures_logging
+    as: log_metric_filter_authentication_failures
+    item: log_metric_filter_authentication_failures
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log_metric_filter_authentication_failures:\n\n1. Open CLOUDWATCH console\n2.\
+    \ Select the log_metric_filter_authentication_failures\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure\
+    \ log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudwatch update-log_metric_filter_authentication_failures-logging --log_metric_filter_authentication_failures-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Retention Policy Configured'
+  severity: high
+  rule_id: aws.cloudwatch.group.retention_policy_configured
+  for_each:
+    discovery: aws.cloudwatch.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH changes to vpcs alarm configured: Changes To Vpcs Alarm Configured Configured'
+  severity: high
+  rule_id: aws.cloudwatch.changes_to_vpcs_alarm_configured.changes_to_vpcs_alarm_configured_configured
+  for_each:
+    discovery: aws.cloudwatch.changes_to_vpcs_alarm_configured_logging
+    as: changes_to_vpcs_alarm_configured
+    item: changes_to_vpcs_alarm_configured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch changes_to_vpcs_alarm_configured:\n\n1. Open CLOUDWATCH console\n2. Select the\
+    \ changes_to_vpcs_alarm_configured\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudwatch update-changes_to_vpcs_alarm_configured-logging --changes_to_vpcs_alarm_configured-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH log: Group Retention Policy Specific Days Enabled'
+  severity: high
+  rule_id: aws.cloudwatch.log.group_retention_policy_specific_days_enabled
+  for_each:
+    discovery: aws.cloudwatch.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch log:\n\n1. Open CLOUDWATCH console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH metric: Api Access Log Sink Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.metric.api_access_log_sink_configured
+  for_each:
+    discovery: aws.cloudwatch.metric_logging
+    as: metric
+    item: metric
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch metric:\n\n1. Open CLOUDWATCH console\n2. Select the metric\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-metric-logging --metric-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH changes: To Network Acls Alarm Configured'
+  severity: high
+  rule_id: aws.cloudwatch.changes.to_network_acls_alarm_configured
+  for_each:
+    discovery: aws.cloudwatch.changes_logging
+    as: changes
+    item: changes
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch changes:\n\n1. Open CLOUDWATCH console\n2. Select the changes\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-changes-logging --changes-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH policy: Cloudwatch Configuration Changes Monitored'
+  severity: medium
+  rule_id: aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored
+  for_each:
+    discovery: aws.cloudwatch.policy_logging
+    as: policy
+    item: policy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch policy:\n\n1. Open CLOUDWATCH console\n2. Select the policy\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-policy-logging --policy-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDWATCH group: Cloudwatch Log No Secrets In Logs Configured'
+  severity: medium
+  rule_id: aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured
+  for_each:
+    discovery: aws.cloudwatch.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudwatch group:\n\n1. Open CLOUDWATCH console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudwatch update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Best_Practice_Recommended_Alarms_AWS_Services.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

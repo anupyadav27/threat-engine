@@ -1,45 +1,292 @@
-version: 1.0
+version: '1.0'
 provider: aws
-service: ebs
+service: ec2
 discovery:
-  discovery_id: aws.ebs.resources
+- discovery_id: aws.ebs.volumes
   calls:
-    - client: ec2
-      action: describe_volumes
-      paginate: true
-  fields:
-    - name: VolumeId
-      save_as: volume_id
+  - client: ec2
+    action: describe_volumes
+    save_as: volume_list
+    on_error: continue
+    fields:
+    - Ebss
   emit:
-    items_for:
-      as: resource
-      item: volume_id
+    items_for: volume_list[]
+    as: volume
+    item:
+      id: '{{ volume.Id }}'
+      name: '{{ volume.Name }}'
+- discovery_id: aws.ebs.volume_encryption
+  for_each: aws.ebs.volumes
+  calls:
+  - client: ec2
+    action: describe_volumes
+    params:
+      VolumeId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.ebs.snapshots
+  for_each: aws.ebs.snapshot
+  calls:
+  - client: ec2
+    action: describe_snapshots
+    save_as: snapshots
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ebs.snapshot_encryption
+  calls:
+  - client: ec2
+    action: describe_volumes
+    save_as: snapshot_encryption
+    on_error: continue
+  emit:
+    items_for: snapshot_encryption[]
+    as: snapshot_encryption
+    item:
+      id: '{{ snapshot_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Backup Encryption Enabled
-    severity: low
-    rule_id: aws.ebs.snapshots.backup_encryption_enabled
-    assertion_id: data_protection_storage.backup_recovery.backup_encryption_enabled
-    for_each:
-      as: resource
-      item: volume_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement backup encryption enabled for ebs"
-    references:
-      - "https://docs.aws.amazon.com/ebs/"
-  - title: Backup Retention Configured
-    severity: low
-    rule_id: aws.ebs.snapshots.backup_retention_configured
-    assertion_id: data_protection_storage.backup_recovery.backup_retention_configured
-    for_each:
-      as: resource
-      item: volume_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement backup retention configured for ebs"
-    references:
-      - "https://docs.aws.amazon.com/ebs/"
+- title: 'EBS volume: Snapshots Not Public Configured'
+  severity: high
+  rule_id: aws.ebs.volume.snapshots_not_public_configured
+  for_each:
+    discovery: aws.ebs.volumes
+    as: volume
+    item: volume
+  conditions:
+    var: volume.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ebs volume:\n\n1. Open EBS console\n2. Select the volume\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS volume: Backup Configured'
+  severity: medium
+  rule_id: aws.ebs.volume.backup_configured
+  for_each:
+    discovery: aws.ebs.volumes
+    as: volume
+    item: volume
+  conditions:
+    var: volume.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for ebs volume:\n\n1. Open EBS console\n2. Select the volume\n3. Go to Properties > Versioning\n\
+    4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\nBenefits:\n\
+    \u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail of changes\n\
+    \u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS volume: Snapshots Encrypted'
+  severity: high
+  rule_id: aws.ebs.volume.snapshots_encrypted
+  for_each:
+    discovery: aws.ebs.volume_encryption
+    as: volume
+    item: volume
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs volume:\n\n1. Open EBS console\n2. Select the volume\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-volume --volume-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Ebs Cmk Cmek Configured'
+  severity: medium
+  rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
+  for_each:
+    discovery: aws.ebs.snapshot_encryption
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-snapshot --snapshot-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS volume: Ebs Cmk Cmek Configured'
+  severity: medium
+  rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
+  for_each:
+    discovery: aws.ebs.volume_encryption
+    as: volume
+    item: volume
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs volume:\n\n1. Open EBS console\n2. Select the volume\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-volume --volume-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Not Public Configured'
+  severity: high
+  rule_id: aws.ebs.snapshot.not_public_configured
+  for_each:
+    discovery: aws.ebs.snapshots
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: snapshot.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.ebs.snapshot_encryption
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-snapshot --snapshot-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Ebs S Encrypted'
+  severity: high
+  rule_id: aws.ebs.snapshot.ebs_s_encrypted
+  for_each:
+    discovery: aws.ebs.snapshot_encryption
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-snapshot --snapshot-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: S Not Public Configured'
+  severity: high
+  rule_id: aws.ebs.snapshot.s_not_public_configured
+  for_each:
+    discovery: aws.ebs.snapshots
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: snapshot.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Snapshots Not Public Configured'
+  severity: high
+  rule_id: aws.ebs.snapshot.snapshots_not_public_configured
+  for_each:
+    discovery: aws.ebs.snapshots
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: snapshot.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Snapshots Encrypted'
+  severity: high
+  rule_id: aws.ebs.snapshot.snapshots_encrypted
+  for_each:
+    discovery: aws.ebs.snapshot_encryption
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-snapshot --snapshot-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS snapshot: Ebs Cross Region Copy Encrypted'
+  severity: high
+  rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
+  for_each:
+    discovery: aws.ebs.snapshot_encryption
+    as: snapshot
+    item: snapshot
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs snapshot:\n\n1. Open EBS console\n2. Select the snapshot\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-snapshot --snapshot-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EBS volume: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.ebs.volume.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.ebs.volume_encryption
+    as: volume
+    item: volume
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ebs volume:\n\n1. Open EBS console\n2. Select the volume\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ebs modify-volume --volume-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

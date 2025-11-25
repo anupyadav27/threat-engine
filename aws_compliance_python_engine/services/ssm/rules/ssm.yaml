@@ -1,269 +1,627 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: ssm
 discovery:
-  discovery_id: aws.ssm.resources
+- discovery_id: aws.ssm.documents
   calls:
-    - client: ssm
-      action: describe_ssms
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: ssm
+    action: describe_instance_information
+    save_as: document_list
+    on_error: continue
+    fields:
+    - Ssms
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: document_list[]
+    as: document
+    item:
+      id: '{{ document.Id }}'
+      name: '{{ document.Name }}'
+- discovery_id: aws.ssm.document_encryption
+  for_each: aws.ssm.documents
+  calls:
+  - client: ssm
+    action: describe_instance_information
+    params:
+      DocumentId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.ssm.document_logging
+  for_each: aws.ssm.documents
+  calls:
+  - client: ssm
+    action: describe_activations
+    params:
+      DocumentId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.ssm.automation_encryption
+  calls:
+  - client: ssm
+    action: list_association_versions
+    save_as: automation_encryption
+    on_error: continue
+  emit:
+    items_for: automation_encryption[]
+    as: automation_encryption
+    item:
+      id: '{{ automation_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.manageds
+  for_each: aws.ssm.managed
+  calls:
+  - client: ssm
+    action: describe_activations
+    save_as: manageds
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.baselines
+  for_each: aws.ssm.baseline
+  calls:
+  - client: ssm
+    action: describe_activations
+    save_as: baselines
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.restapis
+  for_each: aws.ssm.restapi
+  calls:
+  - client: ssm
+    action: describe_activations
+    save_as: restapis
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.automation_logging
+  calls:
+  - client: ssm
+    action: list_association_versions
+    save_as: automation_logging
+    on_error: continue
+  emit:
+    items_for: automation_logging[]
+    as: automation_logging
+    item:
+      id: '{{ automation_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.maintenance_windows
+  for_each: aws.ssm.maintenance_window
+  calls:
+  - client: ssm
+    action: describe_maintenance_windows
+    save_as: maintenance_windows
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.automations
+  for_each: aws.ssm.automation
+  calls:
+  - client: ssm
+    action: describe_automation_step_executions
+    save_as: automations
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.patchgroups
+  for_each: aws.ssm.patchgroup
+  calls:
+  - client: ssm
+    action: describe_patch_group_state
+    save_as: patchgroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ssm.patchbaselines
+  for_each: aws.ssm.patchbaseline
+  calls:
+  - client: ssm
+    action: describe_patch_baselines
+    save_as: patchbaselines
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Encrypted Storage Enabled
-    severity: high
-    rule_id: aws.ssm.parameter_storage.encrypted_storage_enabled
-    assertion_id: secrets_key_mgmt.secret_storage.encrypted_storage_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement encrypted storage enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Access Controlled
-    severity: high
-    rule_id: aws.ssm.parameter_storage.access_controlled
-    assertion_id: secrets_key_mgmt.secret_storage.access_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access controlled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Hsm Protection Enabled
-    severity: high
-    rule_id: aws.ssm.store.hsm_protection_enabled
-    assertion_id: secrets_key_mgmt.key_protection.hsm_protection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hsm protection enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Key Access Logged
-    severity: high
-    rule_id: aws.ssm.store.key_access_logged
-    assertion_id: secrets_key_mgmt.key_protection.key_access_logged
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement key access logged for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Secure Injection Enabled
-    severity: high
-    rule_id: aws.ssm.parameter_retrieval.secure_injection_enabled
-    assertion_id: secrets_key_mgmt.secret_retrieval.secure_injection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement secure injection enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Workload Identity Used
-    severity: high
-    rule_id: aws.ssm.parameter_retrieval.workload_identity_used
-    assertion_id: secrets_key_mgmt.secret_retrieval.workload_identity_used
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement workload identity used for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Patching Enabled
-    severity: low
-    rule_id: aws.ssm.patch_management.automatic_patching_enabled
-    assertion_id: compute_host_security.patch_management.automatic_patching_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic patching enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Patching Enabled
-    severity: low
-    rule_id: aws.ssm.patch_groups.automatic_patching_enabled
-    assertion_id: compute_host_security.patch_management.automatic_patching_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic patching enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Patching Enabled
-    severity: low
-    rule_id: aws.ssm.maintenance_windows.automatic_patching_enabled
-    assertion_id: compute_host_security.patch_management.automatic_patching_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic patching enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Patch Compliance Monitored
-    severity: low
-    rule_id: aws.ssm.patch_management.patch_compliance_monitored
-    assertion_id: compute_host_security.patch_management.patch_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement patch compliance monitored for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Patch Compliance Monitored
-    severity: low
-    rule_id: aws.ssm.patch_groups.patch_compliance_monitored
-    assertion_id: compute_host_security.patch_management.patch_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement patch compliance monitored for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Patch Compliance Monitored
-    severity: low
-    rule_id: aws.ssm.maintenance_windows.patch_compliance_monitored
-    assertion_id: compute_host_security.patch_management.patch_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement patch compliance monitored for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Updates Enabled
-    severity: low
-    rule_id: aws.ssm.security_updates.automatic_updates_enabled
-    assertion_id: platform_surfaces_versions.security_updates.automatic_updates_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic updates enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Updates Enabled
-    severity: low
-    rule_id: aws.ssm.patch_deployment.automatic_updates_enabled
-    assertion_id: platform_surfaces_versions.security_updates.automatic_updates_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic updates enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Automatic Updates Enabled
-    severity: low
-    rule_id: aws.ssm.automated_patching.automatic_updates_enabled
-    assertion_id: platform_surfaces_versions.security_updates.automatic_updates_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic updates enabled for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Update Testing Conducted
-    severity: low
-    rule_id: aws.ssm.security_updates.update_testing_conducted
-    assertion_id: platform_surfaces_versions.security_updates.update_testing_conducted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement update testing conducted for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Update Testing Conducted
-    severity: low
-    rule_id: aws.ssm.patch_deployment.update_testing_conducted
-    assertion_id: platform_surfaces_versions.security_updates.update_testing_conducted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement update testing conducted for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
-  - title: Update Testing Conducted
-    severity: low
-    rule_id: aws.ssm.automated_patching.update_testing_conducted
-    assertion_id: platform_surfaces_versions.security_updates.update_testing_conducted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement update testing conducted for ssm"
-    references:
-      - "https://docs.aws.amazon.com/ssm/"
+- title: 'SSM managed: Ssm Compliant Patching Configured'
+  severity: medium
+  rule_id: aws.ssm.managed.ssm_compliant_patching_configured
+  for_each:
+    discovery: aws.ssm.manageds
+    as: managed
+    item: managed
+  conditions:
+    var: managed.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm managed for compliance:\n\nRequirement: Ssm Compliant Patching Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM managed to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the managed\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchbaseline: Ssm Required Controls Present'
+  severity: medium
+  rule_id: aws.ssm.patchbaseline.ssm_required_controls_present
+  for_each:
+    discovery: aws.ssm.patchbaselines
+    as: patchbaseline
+    item: patchbaseline
+  conditions:
+    var: patchbaseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchbaseline for compliance:\n\nRequirement: Ssm Required Controls Present\n\nDescription:\
+    \ Verifies security configuration for AWS SSM patchbaseline to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchbaseline\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchbaseline: Ssm Approval Rules Configured'
+  severity: medium
+  rule_id: aws.ssm.patchbaseline.ssm_approval_rules_configured
+  for_each:
+    discovery: aws.ssm.patchbaselines
+    as: patchbaseline
+    item: patchbaseline
+  conditions:
+    var: patchbaseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchbaseline for compliance:\n\nRequirement: Ssm Approval Rules Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM patchbaseline to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchbaseline\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchbaseline: Ssm Baseline Defined For Os Families Configured'
+  severity: medium
+  rule_id: aws.ssm.patchbaseline.ssm_baseline_defined_for_os_families_configured
+  for_each:
+    discovery: aws.ssm.patchbaselines
+    as: patchbaseline
+    item: patchbaseline
+  conditions:
+    var: patchbaseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchbaseline for compliance:\n\nRequirement: Ssm Baseline Defined For Os Families Configuration\n\
+    \nDescription: Verifies security configuration for AWS SSM patchbaseline to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchbaseline\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM maintenance window: Ssm Window Configured'
+  severity: medium
+  rule_id: aws.ssm.maintenance_window.ssm_window_configured
+  for_each:
+    discovery: aws.ssm.maintenance_windows
+    as: maintenance_window
+    item: maintenance_window
+  conditions:
+    var: maintenance_window.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm maintenance_window for compliance:\n\nRequirement: Ssm Window Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM maintenance window to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SSM console\n2. Select the maintenance_window\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchgroup: Ssm Approval Rules Configured'
+  severity: medium
+  rule_id: aws.ssm.patchgroup.ssm_approval_rules_configured
+  for_each:
+    discovery: aws.ssm.patchgroups
+    as: patchgroup
+    item: patchgroup
+  conditions:
+    var: patchgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchgroup for compliance:\n\nRequirement: Ssm Approval Rules Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM patchgroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchgroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM restapi: Public Access Restricted'
+  severity: high
+  rule_id: aws.ssm.restapi.public_access_restricted
+  for_each:
+    discovery: aws.ssm.restapis
+    as: restapi
+    item: restapi
+  conditions:
+    var: restapi.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm restapi:\n\n1. Open SSM console\n2. Select the restapi\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchbaseline: Ssm Exemptions Have Expiry And Owner Configured'
+  severity: medium
+  rule_id: aws.ssm.patchbaseline.ssm_exemptions_have_expiry_and_owner_configured
+  for_each:
+    discovery: aws.ssm.patchbaselines
+    as: patchbaseline
+    item: patchbaseline
+  conditions:
+    var: patchbaseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchbaseline for compliance:\n\nRequirement: Ssm Exemptions Have Expiry And Owner Configuration\n\
+    \nDescription: Verifies security configuration for AWS SSM patchbaseline to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchbaseline\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM maintenance window: Execution Roles Least Privilege'
+  severity: high
+  rule_id: aws.ssm.maintenance_window.execution_roles_least_privilege
+  for_each:
+    discovery: aws.ssm.maintenance_windows
+    as: maintenance_window
+    item: maintenance_window
+  conditions:
+    var: maintenance_window.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm maintenance_window:\n\n1. Open SSM console\n2. Select the maintenance_window\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM baseline: Ssm Conformance Pack Deployed Configured'
+  severity: medium
+  rule_id: aws.ssm.baseline.ssm_conformance_pack_deployed_configured
+  for_each:
+    discovery: aws.ssm.baselines
+    as: baseline
+    item: baseline
+  conditions:
+    var: baseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm baseline for compliance:\n\nRequirement: Ssm Conformance Pack Deployed Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM baseline to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the baseline\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Ssm Storage Encrypted And Private'
+  severity: high
+  rule_id: aws.ssm.automation.ssm_storage_encrypted_and_private
+  for_each:
+    discovery: aws.ssm.automation_encryption
+    as: automation
+    item: automation
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ssm modify-automation --automation-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM document: Ssm Storage Encrypted And Private'
+  severity: high
+  rule_id: aws.ssm.document.ssm_storage_encrypted_and_private
+  for_each:
+    discovery: aws.ssm.document_encryption
+    as: document
+    item: document
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ssm document:\n\n1. Open SSM console\n2. Select the document\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ssm modify-document --document-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Remediation Roles Least Privilege'
+  severity: high
+  rule_id: aws.ssm.automation.remediation_roles_least_privilege
+  for_each:
+    discovery: aws.ssm.automations
+    as: automation
+    item: automation
+  conditions:
+    var: automation.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Ssm Artifacts Encrypted And Private'
+  severity: high
+  rule_id: aws.ssm.automation.ssm_artifacts_encrypted_and_private
+  for_each:
+    discovery: aws.ssm.automation_encryption
+    as: automation
+    item: automation
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ssm modify-automation --automation-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Change Audit Logging Enabled'
+  severity: medium
+  rule_id: aws.ssm.automation.change_audit_logging_enabled
+  for_each:
+    discovery: aws.ssm.automation_logging
+    as: automation
+    item: automation
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws ssm update-automation-logging --automation-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM document: Change Audit Logging Enabled'
+  severity: medium
+  rule_id: aws.ssm.document.change_audit_logging_enabled
+  for_each:
+    discovery: aws.ssm.document_logging
+    as: document
+    item: document
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for ssm document:\n\n1. Open SSM console\n2. Select the document\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws ssm update-document-logging --document-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchbaseline: Ssm Maintenance Windows Configured'
+  severity: medium
+  rule_id: aws.ssm.patchbaseline.ssm_maintenance_windows_configured
+  for_each:
+    discovery: aws.ssm.patchbaselines
+    as: patchbaseline
+    item: patchbaseline
+  conditions:
+    var: patchbaseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchbaseline for compliance:\n\nRequirement: Ssm Maintenance Windows Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM patchbaseline to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchbaseline\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Execution Roles Least Privilege'
+  severity: high
+  rule_id: aws.ssm.automation.execution_roles_least_privilege
+  for_each:
+    discovery: aws.ssm.automations
+    as: automation
+    item: automation
+  conditions:
+    var: automation.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM document: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.ssm.document.rbac_least_privilege
+  for_each:
+    discovery: aws.ssm.documents
+    as: document
+    item: document
+  conditions:
+    var: document.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm document:\n\n1. Open SSM console\n2. Select the document\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Versioning And Immutability Enabled'
+  severity: low
+  rule_id: aws.ssm.automation.versioning_and_immutability_enabled
+  for_each:
+    discovery: aws.ssm.automations
+    as: automation
+    item: automation
+  conditions:
+    var: automation.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Go to Properties\
+    \ > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\
+    \nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail\
+    \ of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM automation: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.ssm.automation.rbac_least_privilege
+  for_each:
+    discovery: aws.ssm.automations
+    as: automation
+    item: automation
+  conditions:
+    var: automation.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ssm automation:\n\n1. Open SSM console\n2. Select the automation\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchgroup: Ssm Baseline Defined For Os Families Configured'
+  severity: medium
+  rule_id: aws.ssm.patchgroup.ssm_baseline_defined_for_os_families_configured
+  for_each:
+    discovery: aws.ssm.patchgroups
+    as: patchgroup
+    item: patchgroup
+  conditions:
+    var: patchgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchgroup for compliance:\n\nRequirement: Ssm Baseline Defined For Os Families Configuration\n\
+    \nDescription: Verifies security configuration for AWS SSM patchgroup to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchgroup\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM patchgroup: Ssm Maintenance Windows Configured'
+  severity: medium
+  rule_id: aws.ssm.patchgroup.ssm_maintenance_windows_configured
+  for_each:
+    discovery: aws.ssm.patchgroups
+    as: patchgroup
+    item: patchgroup
+  conditions:
+    var: patchgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm patchgroup for compliance:\n\nRequirement: Ssm Maintenance Windows Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS SSM patchgroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SSM console\n2. Select the patchgroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM baseline: Ssm Parameters Configured'
+  severity: medium
+  rule_id: aws.ssm.baseline.ssm_parameters_configured
+  for_each:
+    discovery: aws.ssm.baselines
+    as: baseline
+    item: baseline
+  conditions:
+    var: baseline.compliant
+    op: equals
+    value: true
+  remediation: "Configure ssm baseline for compliance:\n\nRequirement: Ssm Parameters Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS SSM baseline to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open SSM console\n2. Select the baseline\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SSM document: Ssm Secrets Encrypted'
+  severity: high
+  rule_id: aws.ssm.document.ssm_secrets_encrypted
+  for_each:
+    discovery: aws.ssm.document_encryption
+    as: document
+    item: document
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ssm document:\n\n1. Open SSM console\n2. Select the document\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ssm modify-document --document-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

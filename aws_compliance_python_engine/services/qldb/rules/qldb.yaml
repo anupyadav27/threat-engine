@@ -1,101 +1,186 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: qldb
 discovery:
-  discovery_id: aws.qldb.resources
+- discovery_id: aws.qldb.networks
   calls:
-    - client: qldb
-      action: describe_qldbs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: qldb
+    action: list_journal_kinesis_streams_for_ledger
+    save_as: network_list
+    on_error: continue
+    fields:
+    - Qldbs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: network_list[]
+    as: network
+    item:
+      id: '{{ network.Id }}'
+      name: '{{ network.Name }}'
+- discovery_id: aws.qldb.network_encryption
+  for_each: aws.qldb.networks
+  calls:
+  - client: qldb
+    action: list_journal_kinesis_streams_for_ledger
+    params:
+      NetworkId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.qldb.network_logging
+  for_each: aws.qldb.networks
+  calls:
+  - client: qldb
+    action: describe_journal_kinesis_stream
+    params:
+      NetworkId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.qldb.resources
+  for_each: aws.qldb.resource
+  calls:
+  - client: qldb
+    action: describe_journal_kinesis_stream
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.qldb.resource_encryption
+  calls:
+  - client: qldb
+    action: list_journal_kinesis_streams_for_ledger
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.qldb.ledgers
+  for_each: aws.qldb.ledger
+  calls:
+  - client: qldb
+    action: describe_journal_kinesis_stream
+    save_as: ledgers
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.qldb.resource_logging
+  calls:
+  - client: qldb
+    action: list_journal_kinesis_streams_for_ledger
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Default Encryption Enabled
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.default_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.default_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement default encryption enabled for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
-  - title: Customer Managed Keys Used Buckets
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.customer_managed_keys_used_buckets
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_buckets
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used buckets for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
-  - title: Customer Managed Keys Used Databases
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.customer_managed_keys_used_databases
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_databases
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used databases for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
-  - title: Customer Managed Keys Used Disks
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.customer_managed_keys_used_disks
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_disks
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used disks for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
-  - title: Database Encryption Enabled
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.database_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.database_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement database encryption enabled for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
-  - title: Volume Encryption Enabled
-    severity: high
-    rule_id: aws.qldb.ledger_encryption.volume_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.volume_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement volume encryption enabled for qldb"
-    references:
-      - "https://docs.aws.amazon.com/qldb/"
+- title: 'QLDB resource: Ledger Iam Access Control Enforced'
+  severity: high
+  rule_id: aws.qldb.resource.ledger_iam_access_control_enforced
+  for_each:
+    discovery: aws.qldb.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for qldb resource:\n\n1. Open QLDB console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QLDB network: Access Secure Configuration Configured'
+  severity: medium
+  rule_id: aws.qldb.network.access_secure_configuration_configured
+  for_each:
+    discovery: aws.qldb.networks
+    as: network
+    item: network
+  conditions:
+    var: network.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for qldb network:\n\n1. Open QLDB console\n2. Select the network\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QLDB resource: Ledger Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.qldb.resource.ledger_encryption_at_rest_enabled
+  for_each:
+    discovery: aws.qldb.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for qldb resource:\n\n1. Open QLDB console\n2. Select the resource\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws qldb modify-resource --resource-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QLDB ledger: Qldb Journal Export Configured'
+  severity: medium
+  rule_id: aws.qldb.ledger.qldb_journal_export_configured
+  for_each:
+    discovery: aws.qldb.ledgers
+    as: ledger
+    item: ledger
+  conditions:
+    var: ledger.compliant
+    op: equals
+    value: true
+  remediation: "Configure qldb ledger for compliance:\n\nRequirement: Qldb Journal Export Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS QLDB ledger to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open QLDB console\n2. Select the ledger\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QLDB resource: Logging And Monitoring Compliance Configured'
+  severity: medium
+  rule_id: aws.qldb.resource.logging_and_monitoring_compliance_configured
+  for_each:
+    discovery: aws.qldb.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for qldb resource:\n\n1. Open QLDB console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws qldb update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

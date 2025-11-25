@@ -1,73 +1,169 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: xray
 discovery:
-  discovery_id: aws.xray.resources
+- discovery_id: aws.xray.traces
   calls:
-    - client: xray
-      action: describe_xrays
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: xray
+    action: get_service_graph
+    save_as: trace_list
+    on_error: continue
+    fields:
+    - Xrays
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: trace_list[]
+    as: trace
+    item:
+      id: '{{ trace.Id }}'
+      name: '{{ trace.Name }}'
+- discovery_id: aws.xray.trace_encryption
+  for_each: aws.xray.traces
+  calls:
+  - client: xray
+    action: get_service_graph
+    params:
+      TraceId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.xray.samplingrules
+  for_each: aws.xray.samplingrule
+  calls:
+  - client: xray
+    action: get_sampling_rules
+    save_as: samplingrules
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.xray.samplingrule_encryption
+  calls:
+  - client: xray
+    action: list_resource_policies
+    save_as: samplingrule_encryption
+    on_error: continue
+  emit:
+    items_for: samplingrule_encryption[]
+    as: samplingrule_encryption
+    item:
+      id: '{{ samplingrule_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Anomaly Detection Enabled
-    severity: medium
-    rule_id: aws.xray.ray.anomaly_detection_enabled
-    assertion_id: logging_monitoring.log_analysis.anomaly_detection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement anomaly detection enabled for xray"
-    references:
-      - "https://docs.aws.amazon.com/xray/"
-  - title: Correlation Analysis Enabled
-    severity: medium
-    rule_id: aws.xray.ray.correlation_analysis_enabled
-    assertion_id: logging_monitoring.log_analysis.correlation_analysis_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement correlation analysis enabled for xray"
-    references:
-      - "https://docs.aws.amazon.com/xray/"
-  - title: Platform Health Monitored
-    severity: medium
-    rule_id: aws.xray.platform_tracing.platform_health_monitored
-    assertion_id: platform_surfaces_versions.platform_monitoring.platform_health_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement platform health monitored for xray"
-    references:
-      - "https://docs.aws.amazon.com/xray/"
-  - title: Service Availability Tracked
-    severity: medium
-    rule_id: aws.xray.platform_tracing.service_availability_tracked
-    assertion_id: platform_surfaces_versions.platform_monitoring.service_availability_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service availability tracked for xray"
-    references:
-      - "https://docs.aws.amazon.com/xray/"
+- title: 'XRAY trace: Xray Store Encrypted'
+  severity: high
+  rule_id: aws.xray.trace.xray_store_encrypted
+  for_each:
+    discovery: aws.xray.trace_encryption
+    as: trace
+    item: trace
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for xray trace:\n\n1. Open XRAY console\n2. Select the trace\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws xray modify-trace --trace-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'XRAY samplingrule: Xray Rules Present'
+  severity: medium
+  rule_id: aws.xray.samplingrule.xray_rules_present
+  for_each:
+    discovery: aws.xray.samplingrules
+    as: samplingrule
+    item: samplingrule
+  conditions:
+    var: samplingrule.compliant
+    op: equals
+    value: true
+  remediation: "Configure xray samplingrule for compliance:\n\nRequirement: Xray Rules Present\n\nDescription: Verifies security\
+    \ configuration for AWS XRAY samplingrule to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open XRAY console\n2. Select the samplingrule\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'XRAY samplingrule: Xray Storage Encrypted'
+  severity: high
+  rule_id: aws.xray.samplingrule.xray_storage_encrypted
+  for_each:
+    discovery: aws.xray.samplingrule_encryption
+    as: samplingrule
+    item: samplingrule
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for xray samplingrule:\n\n1. Open XRAY console\n2. Select the samplingrule\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws xray modify-samplingrule --samplingrule-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'XRAY trace: Retention Days Minimum'
+  severity: low
+  rule_id: aws.xray.trace.retention_days_minimum
+  for_each:
+    discovery: aws.xray.traces
+    as: trace
+    item: trace
+  conditions:
+    var: trace.compliant
+    op: equals
+    value: true
+  remediation: "Configure xray trace for compliance:\n\nRequirement: Retention Days Minimum\n\nDescription: Verifies security\
+    \ configuration for AWS XRAY trace to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open XRAY console\n2. Select the trace\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'XRAY trace: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.xray.trace.rbac_least_privilege
+  for_each:
+    discovery: aws.xray.traces
+    as: trace
+    item: trace
+  conditions:
+    var: trace.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for xray trace:\n\n1. Open XRAY console\n2. Select the trace\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'XRAY samplingrule: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.xray.samplingrule.rbac_least_privilege
+  for_each:
+    discovery: aws.xray.samplingrules
+    as: samplingrule
+    item: samplingrule
+  conditions:
+    var: samplingrule.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for xray samplingrule:\n\n1. Open XRAY console\n2. Select the samplingrule\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

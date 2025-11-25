@@ -1,0 +1,160 @@
+version: '1.0'
+provider: aws
+service: firehose
+discovery:
+- discovery_id: aws.kinesisfirehose.deliverystreams
+  calls:
+  - client: firehose
+    action: list_delivery_streams
+    save_as: deliverystream_list
+    on_error: continue
+    fields:
+    - Kinesisfirehoses
+  emit:
+    items_for: deliverystream_list[]
+    as: deliverystream
+    item:
+      id: '{{ deliverystream.Id }}'
+      name: '{{ deliverystream.Name }}'
+- discovery_id: aws.kinesisfirehose.deliverystream_encryption
+  for_each: aws.kinesisfirehose.deliverystreams
+  calls:
+  - client: firehose
+    action: list_delivery_streams
+    params:
+      DeliverystreamId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.kinesisfirehose.deliverystream_logging
+  for_each: aws.kinesisfirehose.deliverystreams
+  calls:
+  - client: firehose
+    action: describe_deliverystream_logging
+    params:
+      DeliverystreamId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+checks:
+- title: 'KINESISFIREHOSE deliverystream: Consumer Auth Required'
+  severity: medium
+  rule_id: aws.kinesisfirehose.deliverystream.consumer_auth_required
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystreams
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: deliverystream.compliant
+    op: equals
+    value: true
+  remediation: "Configure kinesisfirehose deliverystream for compliance:\n\nRequirement: Consumer Auth Required\n\nDescription:\
+    \ Verifies security configuration for AWS KINESISFIREHOSE deliverystream to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open KINESISFIREHOSE console\n2. Select the deliverystream\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KINESISFIREHOSE deliverystream: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.kinesisfirehose.deliverystream.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystream_encryption
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kinesisfirehose deliverystream:\n\n1. Open KINESISFIREHOSE console\n2. Select the deliverystream\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kinesisfirehose\
+    \ modify-deliverystream --deliverystream-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022\
+    \ Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key\
+    \ access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KINESISFIREHOSE deliverystream: Kinesisfirehose Destination Least Privilege'
+  severity: high
+  rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystreams
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: deliverystream.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for kinesisfirehose deliverystream:\n\n1. Open KINESISFIREHOSE console\n2. Select the\
+    \ deliverystream\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n\
+    \   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable\
+    \ resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access\
+    \ keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly\
+    \ audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KINESISFIREHOSE deliverystream: Logging Enabled'
+  severity: medium
+  rule_id: aws.kinesisfirehose.deliverystream.logging_enabled
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystream_logging
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for kinesisfirehose deliverystream:\n\n1. Open KINESISFIREHOSE console\n2. Select the deliverystream\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws kinesisfirehose\
+    \ update-deliverystream-logging --deliverystream-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KINESISFIREHOSE deliverystream: Private Network Only If Supported'
+  severity: high
+  rule_id: aws.kinesisfirehose.deliverystream.private_network_only_if_supported
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystreams
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: deliverystream.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for kinesisfirehose deliverystream:\n\n1. Open KINESISFIREHOSE console\n2. Select the\
+    \ deliverystream\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n\
+    \   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable\
+    \ resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access\
+    \ keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly\
+    \ audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KINESISFIREHOSE deliverystream: Kinesisfirehose Destination Encrypted'
+  severity: high
+  rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_encrypted
+  for_each:
+    discovery: aws.kinesisfirehose.deliverystream_encryption
+    as: deliverystream
+    item: deliverystream
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kinesisfirehose deliverystream:\n\n1. Open KINESISFIREHOSE console\n2. Select the deliverystream\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kinesisfirehose\
+    \ modify-deliverystream --deliverystream-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022\
+    \ Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key\
+    \ access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

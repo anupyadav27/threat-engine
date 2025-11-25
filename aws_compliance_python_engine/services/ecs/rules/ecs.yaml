@@ -1,129 +1,250 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: ecs
 discovery:
-  discovery_id: aws.ecs.resources
+- discovery_id: aws.ecs.task_definitions_logging_block_modes
   calls:
-    - client: ecs
-      action: describe_ecss
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: ecs
+    action: list_clusters
+    save_as: task_definitions_logging_block_mode_list
+    on_error: continue
+    fields:
+    - Ecss
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: task_definitions_logging_block_mode_list[]
+    as: task_definitions_logging_block_mode
+    item:
+      id: '{{ task_definitions_logging_block_mode.Id }}'
+      name: '{{ task_definitions_logging_block_mode.Name }}'
+- discovery_id: aws.ecs.task_definitions_logging_block_mode_logging
+  for_each: aws.ecs.task_definitions_logging_block_modes
+  calls:
+  - client: ecs
+    action: describe_capacity_providers
+    params:
+      Task_definitions_logging_block_modeId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.ecs.resources
+  for_each: aws.ecs.resource
+  calls:
+  - client: ecs
+    action: describe_capacity_providers
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecs.container_instances
+  for_each: aws.ecs.container_instance
+  calls:
+  - client: ecs
+    action: describe_container_instances
+    save_as: container_instances
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecs.resource_logging
+  calls:
+  - client: ecs
+    action: list_account_settings
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecs.task_definition_image_source_verifications
+  for_each: aws.ecs.task_definition_image_source_verification
+  calls:
+  - client: ecs
+    action: describe_capacity_providers
+    save_as: task_definition_image_source_verifications
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.ecs.vulnerability_scanning.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.ecs.vulnerability_scanning.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Runtime Protection Enabled
-    severity: low
-    rule_id: aws.ecs.task_definition.runtime_protection_enabled
-    assertion_id: containers_kubernetes.runtime_security.runtime_protection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime protection enabled for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Runtime Protection Enabled
-    severity: low
-    rule_id: aws.ecs.service_configuration.runtime_protection_enabled
-    assertion_id: containers_kubernetes.runtime_security.runtime_protection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime protection enabled for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Privileged Containers Restricted
-    severity: low
-    rule_id: aws.ecs.task_definition.privileged_containers_restricted
-    assertion_id: containers_kubernetes.runtime_security.privileged_containers_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement privileged containers restricted for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Privileged Containers Restricted
-    severity: low
-    rule_id: aws.ecs.service_configuration.privileged_containers_restricted
-    assertion_id: containers_kubernetes.runtime_security.privileged_containers_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement privileged containers restricted for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Resource Limits Enforced
-    severity: low
-    rule_id: aws.ecs.task_definition.resource_limits_enforced
-    assertion_id: containers_kubernetes.runtime_security.resource_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource limits enforced for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
-  - title: Resource Limits Enforced
-    severity: low
-    rule_id: aws.ecs.service_configuration.resource_limits_enforced
-    assertion_id: containers_kubernetes.runtime_security.resource_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource limits enforced for ecs"
-    references:
-      - "https://docs.aws.amazon.com/ecs/"
+- title: 'ECS container instance: Container Read Only Root Filesystem Configured'
+  severity: medium
+  rule_id: aws.ecs.container_instance.container_read_only_root_filesystem_configured
+  for_each:
+    discovery: aws.ecs.container_instances
+    as: container_instance
+    item: container_instance
+  conditions:
+    var: container_instance.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecs container_instance for compliance:\n\nRequirement: Container Read Only Root Filesystem Configuration\n\
+    \nDescription: Verifies security configuration for Amazon ECS container instance to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open ECS console\n2. Select the container_instance\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS container instance: No Privileged Containers Configured'
+  severity: high
+  rule_id: aws.ecs.container_instance.no_privileged_containers_configured
+  for_each:
+    discovery: aws.ecs.container_instances
+    as: container_instance
+    item: container_instance
+  conditions:
+    var: container_instance.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecs container_instance for compliance:\n\nRequirement: No Privileged Containers Configuration\n\n\
+    Description: Checks high-priority security configuration for Amazon ECS container instance to mitigate significant security\
+    \ risks. This control addresses vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance\
+    \ if exploited.\n\nSteps:\n1. Open ECS console\n2. Select the container_instance\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS task definition image source verification: Task Ecs Task Definition Image Source Verification Configured'
+  severity: medium
+  rule_id: aws.ecs.task_definition_image_source_verification.task_ecs_task_definition_image_source_verification_configured
+  for_each:
+    discovery: aws.ecs.task_definition_image_source_verifications
+    as: task_definition_image_source_verification
+    item: task_definition_image_source_verification
+  conditions:
+    var: task_definition_image_source_verification.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecs task_definition_image_source_verification for compliance:\n\nRequirement: Task Ecs Task Definition\
+    \ Image Source Verification Configuration\n\nDescription: Verifies security configuration for Amazon ECS task definition\
+    \ image source verification to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open ECS console\n\
+    2. Select the task_definition_image_source_verification\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS resource: Task Sets Assign Public Ip Disabled'
+  severity: high
+  rule_id: aws.ecs.resource.task_sets_assign_public_ip_disabled
+  for_each:
+    discovery: aws.ecs.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecs resource:\n\n1. Open ECS console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS resource: Task Definition Logging Enabled'
+  severity: medium
+  rule_id: aws.ecs.resource.task_definition_logging_enabled
+  for_each:
+    discovery: aws.ecs.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for ecs resource:\n\n1. Open ECS console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws ecs update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS container instance: Container Env No Plaintext Secrets Configured'
+  severity: medium
+  rule_id: aws.ecs.container_instance.container_env_no_plaintext_secrets_configured
+  for_each:
+    discovery: aws.ecs.container_instances
+    as: container_instance
+    item: container_instance
+  conditions:
+    var: container_instance.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecs container_instance for compliance:\n\nRequirement: Container Env No Plaintext Secrets Configuration\n\
+    \nDescription: Verifies security configuration for Amazon ECS container instance to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open ECS console\n2. Select the container_instance\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS task definitions logging block mode: Task Definitions Logging Block Mode Configured'
+  severity: medium
+  rule_id: aws.ecs.task_definitions_logging_block_mode.task_definitions_logging_block_mode_configured
+  for_each:
+    discovery: aws.ecs.task_definitions_logging_block_mode_logging
+    as: task_definitions_logging_block_mode
+    item: task_definitions_logging_block_mode
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for ecs task_definitions_logging_block_mode:\n\n1. Open ECS console\n2. Select the task_definitions_logging_block_mode\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws ecs update-task_definitions_logging_block_mode-logging\
+    \ --task_definitions_logging_block_mode-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECS resource: Task Definitions Logging Enabled'
+  severity: medium
+  rule_id: aws.ecs.resource.task_definitions_logging_enabled
+  for_each:
+    discovery: aws.ecs.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for ecs resource:\n\n1. Open ECS console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws ecs update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/security-best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/ecs-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

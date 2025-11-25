@@ -1,0 +1,141 @@
+version: '1.0'
+provider: aws
+service: account
+discovery:
+- discovery_id: aws.account.securitys
+  calls:
+  - client: account
+    action: list_regions
+    save_as: security_list
+    on_error: continue
+    fields:
+    - Accounts
+  emit:
+    items_for: security_list[]
+    as: security
+    item:
+      id: '{{ security.Id }}'
+      name: '{{ security.Name }}'
+- discovery_id: aws.account.contacts
+  for_each: aws.account.contact
+  calls:
+  - client: account
+    action: get_alternate_contact
+    save_as: contacts
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.account.resources
+  for_each: aws.account.resource
+  calls:
+  - client: account
+    action: describe_resources
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+checks:
+- title: 'ACCOUNT contact: Details Separate Security Billing Operations Configured'
+  severity: medium
+  rule_id: aws.account.contact.details_separate_security_billing_operations_configured
+  for_each:
+    discovery: aws.account.contacts
+    as: contact
+    item: contact
+  conditions:
+    var: contact.compliant
+    op: equals
+    value: true
+  remediation: "Configure account contact for compliance:\n\nRequirement: Details Separate Security Billing Operations Configuration\n\
+    \nDescription: Verifies security configuration for AWS ACCOUNT contact to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ACCOUNT console\n2. Select the contact\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ACCOUNT security: Contact Information Configured'
+  severity: medium
+  rule_id: aws.account.security.contact_information_configured
+  for_each:
+    discovery: aws.account.securitys
+    as: security
+    item: security
+  conditions:
+    var: security.compliant
+    op: equals
+    value: true
+  remediation: "Configure account security for compliance:\n\nRequirement: Contact Information Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS ACCOUNT security to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ACCOUNT console\n2. Select the security\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ACCOUNT contact: Current Details Configured'
+  severity: medium
+  rule_id: aws.account.contact.current_details_configured
+  for_each:
+    discovery: aws.account.contacts
+    as: contact
+    item: contact
+  conditions:
+    var: contact.compliant
+    op: equals
+    value: true
+  remediation: "Configure account contact for compliance:\n\nRequirement: Current Details Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS ACCOUNT contact to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open ACCOUNT console\n2. Select the contact\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ACCOUNT resource: Security Contact Complete'
+  severity: medium
+  rule_id: aws.account.resource.security_contact_complete
+  for_each:
+    discovery: aws.account.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure account resource for compliance:\n\nRequirement: Security Contact Complete\n\nDescription: Verifies\
+    \ security configuration for AWS ACCOUNT resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ACCOUNT console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ACCOUNT resource: Security Contact Configured'
+  severity: medium
+  rule_id: aws.account.resource.security_contact_configured
+  for_each:
+    discovery: aws.account.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure account resource for compliance:\n\nRequirement: Security Contact Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS ACCOUNT resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ACCOUNT console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

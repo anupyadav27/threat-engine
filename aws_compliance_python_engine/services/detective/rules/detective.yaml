@@ -1,59 +1,131 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: detective
 discovery:
-  discovery_id: aws.detective.resources
+- discovery_id: aws.detective.graphs
   calls:
-    - client: detective
-      action: describe_detectives
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: detective
+    action: list_graphs
+    save_as: graph_list
+    on_error: continue
+    fields:
+    - Detectives
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: graph_list[]
+    as: graph
+    item:
+      id: '{{ graph.Id }}'
+      name: '{{ graph.Name }}'
+- discovery_id: aws.detective.graph_encryption
+  for_each: aws.detective.graphs
+  calls:
+  - client: detective
+    action: list_graphs
+    params:
+      GraphId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.detective.members
+  for_each: aws.detective.member
+  calls:
+  - client: detective
+    action: describe_organization_configuration
+    save_as: members
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.detective.member_encryption
+  calls:
+  - client: detective
+    action: list_datasource_packages
+    save_as: member_encryption
+    on_error: continue
+  emit:
+    items_for: member_encryption[]
+    as: member_encryption
+    item:
+      id: '{{ member_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.detective.findings.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for detective"
-    references:
-      - "https://docs.aws.amazon.com/detective/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.detective.findings.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for detective"
-    references:
-      - "https://docs.aws.amazon.com/detective/"
-  - title: Baseline Compliance Checked
-    severity: medium
-    rule_id: aws.detective.graph_enabled.baseline_compliance_checked
-    assertion_id: compute_host_security.compliance_monitoring.baseline_compliance_checked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement baseline compliance checked for detective"
-    references:
-      - "https://docs.aws.amazon.com/detective/"
+- title: 'DETECTIVE member: Detective Enabled In All Regions'
+  severity: medium
+  rule_id: aws.detective.member.detective_enabled_in_all_regions
+  for_each:
+    discovery: aws.detective.members
+    as: member
+    item: member
+  conditions:
+    var: member.compliant
+    op: equals
+    value: true
+  remediation: "Configure detective member for compliance:\n\nRequirement: Detective Enabled In All Regions\n\nDescription:\
+    \ Verifies security configuration for AWS DETECTIVE member to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open DETECTIVE console\n2. Select the member\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DETECTIVE graph: Detective Finding Export Encrypted Destination'
+  severity: high
+  rule_id: aws.detective.graph.detective_finding_export_encrypted_destination
+  for_each:
+    discovery: aws.detective.graph_encryption
+    as: graph
+    item: graph
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for detective graph:\n\n1. Open DETECTIVE console\n2. Select the graph\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws detective modify-graph --graph-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DETECTIVE graph: Detective Enabled In All Regions'
+  severity: medium
+  rule_id: aws.detective.graph.detective_enabled_in_all_regions
+  for_each:
+    discovery: aws.detective.graphs
+    as: graph
+    item: graph
+  conditions:
+    var: graph.compliant
+    op: equals
+    value: true
+  remediation: "Configure detective graph for compliance:\n\nRequirement: Detective Enabled In All Regions\n\nDescription:\
+    \ Verifies security configuration for AWS DETECTIVE graph to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open DETECTIVE console\n2. Select the graph\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DETECTIVE member: Detective Finding Export Encrypted Destination'
+  severity: high
+  rule_id: aws.detective.member.detective_finding_export_encrypted_destination
+  for_each:
+    discovery: aws.detective.member_encryption
+    as: member
+    item: member
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for detective member:\n\n1. Open DETECTIVE console\n2. Select the member\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws detective modify-member --member-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

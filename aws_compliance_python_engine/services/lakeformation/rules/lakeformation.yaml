@@ -1,0 +1,91 @@
+version: '1.0'
+provider: aws
+service: lakeformation
+discovery:
+- discovery_id: aws.lakeformation.data_lake_settingss
+  calls:
+  - client: lakeformation
+    action: list_data_cells_filter
+    save_as: data_lake_settings_list
+    on_error: continue
+    fields:
+    - Lakeformations
+  emit:
+    items_for: data_lake_settings_list[]
+    as: data_lake_settings
+    item:
+      id: '{{ data_lake_settings.Id }}'
+      name: '{{ data_lake_settings.Name }}'
+- discovery_id: aws.lakeformation.data_lake_settings_logging
+  for_each: aws.lakeformation.data_lake_settingss
+  calls:
+  - client: lakeformation
+    action: describe_lake_formation_identity_center_configuration
+    params:
+      Data_lake_settingsId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+checks:
+- title: 'LAKEFORMATION data lake settings: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.lakeformation.data_lake_settings.rbac_least_privilege
+  for_each:
+    discovery: aws.lakeformation.data_lake_settingss
+    as: data_lake_settings
+    item: data_lake_settings
+  conditions:
+    var: data_lake_settings.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lakeformation data_lake_settings:\n\n1. Open LAKEFORMATION console\n2. Select the\
+    \ data_lake_settings\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n\
+    \   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable\
+    \ resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access\
+    \ keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly\
+    \ audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAKEFORMATION data lake settings: Change Audit Logging Enabled'
+  severity: medium
+  rule_id: aws.lakeformation.data_lake_settings.change_audit_logging_enabled
+  for_each:
+    discovery: aws.lakeformation.data_lake_settings_logging
+    as: data_lake_settings
+    item: data_lake_settings
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for lakeformation data_lake_settings:\n\n1. Open LAKEFORMATION console\n2. Select the data_lake_settings\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws lakeformation\
+    \ update-data_lake_settings-logging --data_lake_settings-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all\
+    \ security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\
+    \u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAKEFORMATION data lake settings: Mfa Required'
+  severity: critical
+  rule_id: aws.lakeformation.data_lake_settings.mfa_required
+  for_each:
+    discovery: aws.lakeformation.data_lake_settingss
+    as: data_lake_settings
+    item: data_lake_settings
+  conditions:
+    var: data_lake_settings.compliant
+    op: equals
+    value: true
+  remediation: "Configure lakeformation data_lake_settings for compliance:\n\nRequirement: Multi-Factor Authentication\n\n\
+    Description: Checks that AWS LAKEFORMATION data lake settings requires multi-factor authentication (MFA) for access, combining\
+    \ something you know (password) with something you have (token/device). MFA significantly reduces account compromise risk\
+    \ from phishing, credential stuffing, and password reuse attacks.\n\nSteps:\n1. Open LAKEFORMATION console\n2. Select\
+    \ the data_lake_settings\n3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify\
+    \ compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022\
+    \ Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular\
+    \ security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

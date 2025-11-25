@@ -1,45 +1,181 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: sqs
 discovery:
-  discovery_id: aws.sqs.resources
+- discovery_id: aws.sqs.queues_not_publicly_accessibles
   calls:
-    - client: sqs
-      action: describe_sqss
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: sqs
+    action: list_queues
+    save_as: queues_not_publicly_accessible_list
+    on_error: continue
+    fields:
+    - QueueUrls
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: queues_not_publicly_accessible_list[]
+    as: queues_not_publicly_accessible
+    item:
+      id: '{{ queues_not_publicly_accessible.QueueUrl }}'
+      name: '{{ queues_not_publicly_accessible.QueueUrl }}'
+- discovery_id: aws.sqs.queues_not_publicly_accessible_encryption
+  for_each: aws.sqs.queues_not_publicly_accessibles
+  calls:
+  - client: sqs
+    action: list_queues
+    params:
+      Queues_not_publicly_accessibleId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.sqs.queues
+  for_each: aws.sqs.queue
+  calls:
+  - client: sqs
+    action: list_queues
+    save_as: queues
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sqs.resource_encryption
+  calls:
+  - client: sqs
+    action: list_dead_letter_source_queues
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sqs.queue_encryption
+  calls:
+  - client: sqs
+    action: list_dead_letter_source_queues
+    save_as: queue_encryption
+    on_error: continue
+  emit:
+    items_for: queue_encryption[]
+    as: queue_encryption
+    item:
+      id: '{{ queue_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Event Encryption Enabled
-    severity: low
-    rule_id: aws.sqs.queue_security.event_encryption_enabled
-    assertion_id: serverless_paas.event_security.event_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement event encryption enabled for sqs"
-    references:
-      - "https://docs.aws.amazon.com/sqs/"
-  - title: Event Validation Enabled
-    severity: low
-    rule_id: aws.sqs.queue_security.event_validation_enabled
-    assertion_id: serverless_paas.event_security.event_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement event validation enabled for sqs"
-    references:
-      - "https://docs.aws.amazon.com/sqs/"
+- title: 'SQS queue: Private Network Only If Supported'
+  severity: high
+  rule_id: aws.sqs.queue.private_network_only_if_supported
+  for_each:
+    discovery: aws.sqs.queues
+    as: queue
+    item: queue
+  conditions:
+    var: queue.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sqs queue:\n\n1. Open SQS console\n2. Select the queue\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SQS queue: Cross Account Send Receive Restricted'
+  severity: medium
+  rule_id: aws.sqs.queue.cross_account_send_receive_restricted
+  for_each:
+    discovery: aws.sqs.queues
+    as: queue
+    item: queue
+  conditions:
+    var: queue.compliant
+    op: equals
+    value: true
+  remediation: "Configure sqs queue for compliance:\n\nRequirement: Cross Account Send Receive Restricted\n\nDescription:\
+    \ Verifies security configuration for Amazon SQS queue to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SQS console\n2. Select the queue\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SQS queues not publicly accessible: Queues Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.sqs.queues_not_publicly_accessible.queues_not_publicly_accessible_configured
+  for_each:
+    discovery: aws.sqs.queues_not_publicly_accessibles
+    as: queues_not_publicly_accessible
+    item: queues_not_publicly_accessible
+  conditions:
+    var: queues_not_publicly_accessible.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sqs queues_not_publicly_accessible:\n\n1. Open SQS console\n2. Select the queues_not_publicly_accessible\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SQS queue: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.sqs.queue.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.sqs.queue_encryption
+    as: queue
+    item: queue
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sqs queue:\n\n1. Open SQS console\n2. Select the queue\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sqs modify-queue --queue-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SQS queue: Auth Required'
+  severity: medium
+  rule_id: aws.sqs.queue.auth_required
+  for_each:
+    discovery: aws.sqs.queues
+    as: queue
+    item: queue
+  conditions:
+    var: queue.compliant
+    op: equals
+    value: true
+  remediation: "Configure sqs queue for compliance:\n\nRequirement: Auth Required\n\nDescription: Verifies security configuration\
+    \ for Amazon SQS queue to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open SQS console\n\
+    2. Select the queue\n3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify\
+    \ compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022\
+    \ Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular\
+    \ security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SQS resource: Queues Server Side Encryption Enabled'
+  severity: high
+  rule_id: aws.sqs.resource.queues_server_side_encryption_enabled
+  for_each:
+    discovery: aws.sqs.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sqs resource:\n\n1. Open SQS console\n2. Select the resource\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sqs modify-resource --resource-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

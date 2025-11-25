@@ -1,45 +1,99 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: autoscaling
 discovery:
-  discovery_id: aws.autoscaling.resources
+- discovery_id: aws.autoscaling.groups
   calls:
-    - client: autoscaling
-      action: describe_autoscalings
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: autoscaling
+    action: describe_auto_scaling_groups
+    save_as: group_list
+    on_error: continue
+    fields:
+    - Autoscalings
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: group_list[]
+    as: group
+    item:
+      id: '{{ group.Id }}'
+      name: '{{ group.Name }}'
 checks:
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.autoscaling.launch_template_security.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for autoscaling"
-    references:
-      - "https://docs.aws.amazon.com/autoscaling/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.autoscaling.launch_template_security.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for autoscaling"
-    references:
-      - "https://docs.aws.amazon.com/autoscaling/"
+- title: 'AUTOSCALING group: Autoscaling Multiple Az Configured'
+  severity: medium
+  rule_id: aws.autoscaling.group.autoscaling_multiple_az_configured
+  for_each:
+    discovery: aws.autoscaling.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure autoscaling group for compliance:\n\nRequirement: Autoscaling Multiple Az Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS AUTOSCALING group to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open AUTOSCALING console\n2. Select the group\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'AUTOSCALING group: Autoscaling Capacity Rebalance Enabled'
+  severity: medium
+  rule_id: aws.autoscaling.group.autoscaling_capacity_rebalance_enabled
+  for_each:
+    discovery: aws.autoscaling.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure autoscaling group for compliance:\n\nRequirement: Autoscaling Capacity Rebalance Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS AUTOSCALING group to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open AUTOSCALING console\n2. Select the group\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'AUTOSCALING group: Security Check Health Check Enabled'
+  severity: medium
+  rule_id: aws.autoscaling.group.security_check_health_check_enabled
+  for_each:
+    discovery: aws.autoscaling.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure autoscaling group for compliance:\n\nRequirement: Security Check Health Check Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS AUTOSCALING group to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open AUTOSCALING console\n2. Select the group\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'AUTOSCALING group: Auto Scaling Group Configured'
+  severity: medium
+  rule_id: aws.autoscaling.group.auto_scaling_group_configured
+  for_each:
+    discovery: aws.autoscaling.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure autoscaling group for compliance:\n\nRequirement: Auto Scaling Group Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS AUTOSCALING group to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open AUTOSCALING console\n2. Select the group\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

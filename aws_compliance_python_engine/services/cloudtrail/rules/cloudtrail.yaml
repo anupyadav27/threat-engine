@@ -1,171 +1,1242 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: cloudtrail
 discovery:
-  discovery_id: aws.cloudtrail.trails
+- discovery_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitorings
   calls:
-    - client: cloudtrail
-      action: describe_trails
-      paginate: true
-  fields:
-    - name: Name
-      save_as: trail_name
+  - client: cloudtrail
+    action: list_trails
+    save_as: route_table_changes_metric_filter_alarm_monitoring_list
+    on_error: continue
+    fields:
+    - Cloudtrails
   emit:
-    items_for:
-      as: resource
-      item: trail_name
+    items_for: route_table_changes_metric_filter_alarm_monitoring_list[]
+    as: route_table_changes_metric_filter_alarm_monitoring
+    item:
+      id: '{{ route_table_changes_metric_filter_alarm_monitoring.Id }}'
+      name: '{{ route_table_changes_metric_filter_alarm_monitoring.Name }}'
+- discovery_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring_encryption
+  for_each: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitorings
+  calls:
+  - client: cloudtrail
+    action: list_trails
+    params:
+      Route_table_changes_metric_filter_alarm_monitoringId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring_logging
+  for_each: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitorings
+  calls:
+  - client: cloudtrail
+    action: describe_query
+    params:
+      Route_table_changes_metric_filter_alarm_monitoringId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.cloudtrail.account_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: account_logging
+    on_error: continue
+  emit:
+    items_for: account_logging[]
+    as: account_logging
+    item:
+      id: '{{ account_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.log_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: log_logging
+    on_error: continue
+  emit:
+    items_for: log_logging[]
+    as: log_logging
+    item:
+      id: '{{ log_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.trail_encryption
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: trail_encryption
+    on_error: continue
+  emit:
+    items_for: trail_encryption[]
+    as: trail_encryption
+    item:
+      id: '{{ trail_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.organizations_changes_monitoring_setup_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: organizations_changes_monitoring_setup_logging
+    on_error: continue
+  emit:
+    items_for: organizations_changes_monitoring_setup_logging[]
+    as: organizations_changes_monitoring_setup_logging
+    item:
+      id: '{{ organizations_changes_monitoring_setup_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.network_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: network_logging
+    on_error: continue
+  emit:
+    items_for: network_logging[]
+    as: network_logging
+    item:
+      id: '{{ network_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.threat_detection_privilege_escalation_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: threat_detection_privilege_escalation_logging
+    on_error: continue
+  emit:
+    items_for: threat_detection_privilege_escalation_logging[]
+    as: threat_detection_privilege_escalation_logging
+    item:
+      id: '{{ threat_detection_privilege_escalation_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.monitor_organizations_changes_metric_filter_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: monitor_organizations_changes_metric_filter_logging
+    on_error: continue
+  emit:
+    items_for: monitor_organizations_changes_metric_filter_logging[]
+    as: monitor_organizations_changes_metric_filter_logging
+    item:
+      id: '{{ monitor_organizations_changes_metric_filter_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.s3_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: s3_logging
+    on_error: continue
+  emit:
+    items_for: s3_logging[]
+    as: s3_logging
+    item:
+      id: '{{ s3_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.logs_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: logs_logging
+    on_error: continue
+  emit:
+    items_for: logs_logging[]
+    as: logs_logging
+    item:
+      id: '{{ logs_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.cloudwatch_monitor_no_mfa_console_signin_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: cloudwatch_monitor_no_mfa_console_signin_logging
+    on_error: continue
+  emit:
+    items_for: cloudwatch_monitor_no_mfa_console_signin_logging[]
+    as: cloudwatch_monitor_no_mfa_console_signin_logging
+    item:
+      id: '{{ cloudwatch_monitor_no_mfa_console_signin_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.threat_detection_enumeration_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: threat_detection_enumeration_logging
+    on_error: continue
+  emit:
+    items_for: threat_detection_enumeration_logging[]
+    as: threat_detection_enumeration_logging
+    item:
+      id: '{{ threat_detection_enumeration_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.bucket_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: bucket_logging
+    on_error: continue
+  emit:
+    items_for: bucket_logging[]
+    as: bucket_logging
+    item:
+      id: '{{ bucket_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.resource_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.config_changes_monitoring_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: config_changes_monitoring_logging
+    on_error: continue
+  emit:
+    items_for: config_changes_monitoring_logging[]
+    as: config_changes_monitoring_logging
+    item:
+      id: '{{ config_changes_monitoring_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.trail_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: trail_logging
+    on_error: continue
+  emit:
+    items_for: trail_logging[]
+    as: trail_logging
+    item:
+      id: '{{ trail_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.console_auth_failures_monitoring_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: console_auth_failures_monitoring_logging
+    on_error: continue
+  emit:
+    items_for: console_auth_failures_monitoring_logging[]
+    as: console_auth_failures_monitoring_logging
+    item:
+      id: '{{ console_auth_failures_monitoring_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.kms_encryption
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: kms_encryption
+    on_error: continue
+  emit:
+    items_for: kms_encryption[]
+    as: kms_encryption
+    item:
+      id: '{{ kms_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.threat_detection_llm_jacking_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: threat_detection_llm_jacking_logging
+    on_error: continue
+  emit:
+    items_for: threat_detection_llm_jacking_logging[]
+    as: threat_detection_llm_jacking_logging
+    item:
+      id: '{{ threat_detection_llm_jacking_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.cloudwatch_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: cloudwatch_logging
+    on_error: continue
+  emit:
+    items_for: cloudwatch_logging[]
+    as: cloudwatch_logging
+    item:
+      id: '{{ cloudwatch_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.resource_encryption
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.policy_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: policy_logging
+    on_error: continue
+  emit:
+    items_for: policy_logging[]
+    as: policy_logging
+    item:
+      id: '{{ policy_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.multi_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: multi_logging
+    on_error: continue
+  emit:
+    items_for: multi_logging[]
+    as: multi_logging
+    item:
+      id: '{{ multi_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.nacl_event_selectors_monitoring_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: nacl_event_selectors_monitoring_logging
+    on_error: continue
+  emit:
+    items_for: nacl_event_selectors_monitoring_logging[]
+    as: nacl_event_selectors_monitoring_logging
+    item:
+      id: '{{ nacl_event_selectors_monitoring_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: route_table_changes_metric_filter_alarm_logging
+    on_error: continue
+  emit:
+    items_for: route_table_changes_metric_filter_alarm_logging[]
+    as: route_table_changes_metric_filter_alarm_logging
+    item:
+      id: '{{ route_table_changes_metric_filter_alarm_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.group_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: group_logging
+    on_error: continue
+  emit:
+    items_for: group_logging[]
+    as: group_logging
+    item:
+      id: '{{ group_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.cloudtrail.unauthorized_api_calls_monitoring_configured_logging
+  calls:
+  - client: cloudtrail
+    action: list_channels
+    save_as: unauthorized_api_calls_monitoring_configured_logging
+    on_error: continue
+  emit:
+    items_for: unauthorized_api_calls_monitoring_configured_logging[]
+    as: unauthorized_api_calls_monitoring_configured_logging
+    item:
+      id: '{{ unauthorized_api_calls_monitoring_configured_logging.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Centralized Logging Enabled
-    severity: medium
-    rule_id: aws.cloudtrail.log_collection.centralized_logging_enabled
-    assertion_id: logging_monitoring.log_collection.centralized_logging_enabled
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement centralized logging enabled for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Log Integrity Protected
-    severity: medium
-    rule_id: aws.cloudtrail.log_collection.log_integrity_protected
-    assertion_id: logging_monitoring.log_collection.log_integrity_protected
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement log integrity protected for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Structured Logging Enforced
-    severity: medium
-    rule_id: aws.cloudtrail.log_collection.structured_logging_enforced
-    assertion_id: logging_monitoring.log_collection.structured_logging_enforced
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement structured logging enforced for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Security Events Logged
-    severity: medium
-    rule_id: aws.cloudtrail.audit_logging.security_events_logged
-    assertion_id: logging_monitoring.audit_logging.security_events_logged
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security events logged for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Security Events Logged
-    severity: medium
-    rule_id: aws.cloudtrail.insights.security_events_logged
-    assertion_id: logging_monitoring.audit_logging.security_events_logged
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security events logged for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Audit Trail Integrity Maintained
-    severity: medium
-    rule_id: aws.cloudtrail.audit_logging.audit_trail_integrity_maintained
-    assertion_id: logging_monitoring.audit_logging.audit_trail_integrity_maintained
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement audit trail integrity maintained for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Audit Trail Integrity Maintained
-    severity: medium
-    rule_id: aws.cloudtrail.insights.audit_trail_integrity_maintained
-    assertion_id: logging_monitoring.audit_logging.audit_trail_integrity_maintained
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement audit trail integrity maintained for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Compliance Logging Enabled
-    severity: medium
-    rule_id: aws.cloudtrail.audit_logging.compliance_logging_enabled
-    assertion_id: logging_monitoring.audit_logging.compliance_logging_enabled
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance logging enabled for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Compliance Logging Enabled
-    severity: medium
-    rule_id: aws.cloudtrail.insights.compliance_logging_enabled
-    assertion_id: logging_monitoring.audit_logging.compliance_logging_enabled
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance logging enabled for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Retention Policies Enforced
-    severity: medium
-    rule_id: aws.cloudtrail.log_retention.retention_policies_enforced
-    assertion_id: logging_monitoring.log_retention.retention_policies_enforced
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement retention policies enforced for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
-  - title: Secure Deletion Enabled
-    severity: medium
-    rule_id: aws.cloudtrail.log_retention.secure_deletion_enabled
-    assertion_id: logging_monitoring.log_retention.secure_deletion_enabled
-    for_each:
-      as: resource
-      item: trail_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement secure deletion enabled for cloudtrail"
-    references:
-      - "https://docs.aws.amazon.com/cloudtrail/"
+- title: 'CLOUDTRAIL trail: Alerts For Anomalies Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.trail.alerts_for_anomalies_configured
+  for_each:
+    discovery: aws.cloudtrail.trail_logging
+    as: trail
+    item: trail
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-trail-logging --trail-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL nacl event selectors monitoring: Nacl Event Selectors Monitoring Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.nacl_event_selectors_monitoring.nacl_event_selectors_monitoring_configured
+  for_each:
+    discovery: aws.cloudtrail.nacl_event_selectors_monitoring_logging
+    as: nacl_event_selectors_monitoring
+    item: nacl_event_selectors_monitoring
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail nacl_event_selectors_monitoring:\n\n1. Open CLOUDTRAIL console\n2. Select the\
+    \ nacl_event_selectors_monitoring\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudtrail update-nacl_event_selectors_monitoring-logging --nacl_event_selectors_monitoring-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL group: Trail Cloudtrail Configuration Changes Monitored'
+  severity: medium
+  rule_id: aws.cloudtrail.group.trail_cloudtrail_configuration_changes_monitored
+  for_each:
+    discovery: aws.cloudtrail.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail group:\n\n1. Open CLOUDTRAIL console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL config changes monitoring: Config Changes Monitoring Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.config_changes_monitoring.config_changes_monitoring_configured
+  for_each:
+    discovery: aws.cloudtrail.config_changes_monitoring_logging
+    as: config_changes_monitoring
+    item: config_changes_monitoring
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail config_changes_monitoring:\n\n1. Open CLOUDTRAIL console\n2. Select the config_changes_monitoring\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail\
+    \ update-config_changes_monitoring-logging --config_changes_monitoring-id <id> --logging-enabled\n\nBest Practices:\n\u2022\
+    \ Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention\
+    \ periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL monitor organizations changes metric filter: Trail Cloudtrail Monitor Organizations Changes Metric Filter
+    Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.monitor_organizations_changes_metric_filter.trail_cloudtrail_monitor_organizations_changes_metric_filter_configured
+  for_each:
+    discovery: aws.cloudtrail.monitor_organizations_changes_metric_filter_logging
+    as: monitor_organizations_changes_metric_filter
+    item: monitor_organizations_changes_metric_filter
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail monitor_organizations_changes_metric_filter:\n\n1. Open CLOUDTRAIL console\n\
+    2. Select the monitor_organizations_changes_metric_filter\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5.\
+    \ Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO,\
+    \ DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-monitor_organizations_changes_metric_filter-logging\
+    \ --monitor_organizations_changes_metric_filter-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL network: Gateway Changes Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.network.gateway_changes_configured
+  for_each:
+    discovery: aws.cloudtrail.network_logging
+    as: network
+    item: network
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail network:\n\n1. Open CLOUDTRAIL console\n2. Select the network\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-network-logging --network-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL threat detection privilege escalation: Trail Cloudtrail Threat Detection Privilege Escalation Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.threat_detection_privilege_escalation.trail_cloudtrail_threat_detection_privilege_escalation_configured
+  for_each:
+    discovery: aws.cloudtrail.threat_detection_privilege_escalation_logging
+    as: threat_detection_privilege_escalation
+    item: threat_detection_privilege_escalation
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail threat_detection_privilege_escalation:\n\n1. Open CLOUDTRAIL console\n2. Select\
+    \ the threat_detection_privilege_escalation\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log\
+    \ destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudtrail update-threat_detection_privilege_escalation-logging --threat_detection_privilege_escalation-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Network traffic analysis and monitoring is enabled
+  severity: high
+  rule_id: aws.cloudtrail.trail.flow_logging_enabled
+  for_each:
+    discovery: aws.cloudtrail.trail_logging
+    as: trail
+    item: trail
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-trail-logging --trail-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Cloudwatch Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.cloudwatch_logging_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL unauthorized api calls monitoring configured: Unauthorized Api Calls Monitoring Configured Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.unauthorized_api_calls_monitoring_configured.unauthorized_api_calls_monitoring_configured_configured
+  for_each:
+    discovery: aws.cloudtrail.unauthorized_api_calls_monitoring_configured_logging
+    as: unauthorized_api_calls_monitoring_configured
+    item: unauthorized_api_calls_monitoring_configured
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail unauthorized_api_calls_monitoring_configured:\n\n1. Open CLOUDTRAIL console\n\
+    2. Select the unauthorized_api_calls_monitoring_configured\n3. Go to Logging/Monitoring settings\n4. Enable logging\n\
+    5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO,\
+    \ DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-unauthorized_api_calls_monitoring_configured-logging\
+    \ --unauthorized_api_calls_monitoring_configured-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL network: Gateway Change Monitoring Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.network.gateway_change_monitoring_configured
+  for_each:
+    discovery: aws.cloudtrail.network_logging
+    as: network
+    item: network
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail network:\n\n1. Open CLOUDTRAIL console\n2. Select the network\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-network-logging --network-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Vpc Changes Monitoring Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.vpc_changes_monitoring_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL threat detection llm jacking: Trail Cloudtrail Threat Detection Llm Jacking Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.threat_detection_llm_jacking.trail_cloudtrail_threat_detection_llm_jacking_configured
+  for_each:
+    discovery: aws.cloudtrail.threat_detection_llm_jacking_logging
+    as: threat_detection_llm_jacking
+    item: threat_detection_llm_jacking
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail threat_detection_llm_jacking:\n\n1. Open CLOUDTRAIL console\n2. Select the threat_detection_llm_jacking\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail\
+    \ update-threat_detection_llm_jacking-logging --threat_detection_llm_jacking-id <id> --logging-enabled\n\nBest Practices:\n\
+    \u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate\
+    \ retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL bucket: Is Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.cloudtrail.bucket.is_not_publicly_accessible_configured
+  for_each:
+    discovery: aws.cloudtrail.bucket_logging
+    as: bucket
+    item: bucket
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail bucket:\n\n1. Open CLOUDTRAIL console\n2. Select the bucket\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-bucket-logging --bucket-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL logs: S3 Bucket Access Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.logs.s3_bucket_access_logging_enabled
+  for_each:
+    discovery: aws.cloudtrail.logs_logging
+    as: logs
+    item: logs
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail logs:\n\n1. Open CLOUDTRAIL console\n2. Select the logs\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-logs-logging --logs-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL threat detection enumeration: Trail Cloudtrail Threat Detection Enumeration Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.threat_detection_enumeration.trail_cloudtrail_threat_detection_enumeration_configured
+  for_each:
+    discovery: aws.cloudtrail.threat_detection_enumeration_logging
+    as: threat_detection_enumeration
+    item: threat_detection_enumeration
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail threat_detection_enumeration:\n\n1. Open CLOUDTRAIL console\n2. Select the threat_detection_enumeration\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail\
+    \ update-threat_detection_enumeration-logging --threat_detection_enumeration-id <id> --logging-enabled\n\nBest Practices:\n\
+    \u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate\
+    \ retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL trail: Retention Days Minimum'
+  severity: low
+  rule_id: aws.cloudtrail.trail.retention_days_minimum
+  for_each:
+    discovery: aws.cloudtrail.trail_logging
+    as: trail
+    item: trail
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-trail-logging --trail-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Trail Cloudtrail Log File Validation Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.trail_cloudtrail_log_file_validation_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL route table changes metric filter alarm: Route Table Changes Metric Filter Alarm Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm.route_table_changes_metric_filter_alarm_configured
+  for_each:
+    discovery: aws.cloudtrail.route_table_changes_metric_filter_alarm_logging
+    as: route_table_changes_metric_filter_alarm
+    item: route_table_changes_metric_filter_alarm
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail route_table_changes_metric_filter_alarm:\n\n1. Open CLOUDTRAIL console\n2. Select\
+    \ the route_table_changes_metric_filter_alarm\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log\
+    \ destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudtrail update-route_table_changes_metric_filter_alarm-logging --route_table_changes_metric_filter_alarm-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL account: Usage Monitoring Config Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.account.usage_monitoring_config_configured
+  for_each:
+    discovery: aws.cloudtrail.account_logging
+    as: account
+    item: account
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail account:\n\n1. Open CLOUDTRAIL console\n2. Select the account\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-account-logging --account-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Trail Cloudtrail Multi Region Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.trail_cloudtrail_multi_region_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL trail: Cloudtrail Trail Ids Ips Enabled If Supported'
+  severity: medium
+  rule_id: aws.cloudtrail.trail.cloudtrail_trail_ids_ips_enabled_if_supported
+  for_each:
+    discovery: aws.cloudtrail.trail_logging
+    as: trail
+    item: trail
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-trail-logging --trail-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.cloudtrail.resource.kms_encryption_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudtrail modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/encrypting-cloudtrail-log-files-with-aws-kms.html
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+- title: 'CLOUDTRAIL kms: Encryption Enabled'
+  severity: high
+  rule_id: aws.cloudtrail.kms.encryption_enabled
+  for_each:
+    discovery: aws.cloudtrail.kms_encryption
+    as: kms
+    item: kms
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudtrail kms:\n\n1. Open CLOUDTRAIL console\n2. Select the kms\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudtrail modify-kms --kms-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/encrypting-cloudtrail-log-files-with-aws-kms.html
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+- title: 'CLOUDTRAIL console auth failures monitoring: Console Auth Failures Monitoring Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.console_auth_failures_monitoring.console_auth_failures_monitoring_configured
+  for_each:
+    discovery: aws.cloudtrail.console_auth_failures_monitoring_logging
+    as: console_auth_failures_monitoring
+    item: console_auth_failures_monitoring
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail console_auth_failures_monitoring:\n\n1. Open CLOUDTRAIL console\n2. Select the\
+    \ console_auth_failures_monitoring\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n\
+    \   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\
+    \nAWS CLI:\naws cloudtrail update-console_auth_failures_monitoring-logging --console_auth_failures_monitoring-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL policy: Change Monitoring Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.policy.change_monitoring_configured
+  for_each:
+    discovery: aws.cloudtrail.policy_logging
+    as: policy
+    item: policy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail policy:\n\n1. Open CLOUDTRAIL console\n2. Select the policy\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-policy-logging --policy-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Trail Cloudtrail S3 Dataevents Write Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.trail_cloudtrail_s3_dataevents_write_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL cloudwatch monitor no mfa console signin: Cloudwatch Monitor No Mfa Console Signin Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.cloudwatch_monitor_no_mfa_console_signin.cloudwatch_monitor_no_mfa_console_signin_configured
+  for_each:
+    discovery: aws.cloudtrail.cloudwatch_monitor_no_mfa_console_signin_logging
+    as: cloudwatch_monitor_no_mfa_console_signin
+    item: cloudwatch_monitor_no_mfa_console_signin
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail cloudwatch_monitor_no_mfa_console_signin:\n\n1. Open CLOUDTRAIL console\n2.\
+    \ Select the cloudwatch_monitor_no_mfa_console_signin\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure\
+    \ log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudtrail update-cloudwatch_monitor_no_mfa_console_signin-logging --cloudwatch_monitor_no_mfa_console_signin-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL group: Change Alerts Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.group.change_alerts_configured
+  for_each:
+    discovery: aws.cloudtrail.group_logging
+    as: group
+    item: group
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail group:\n\n1. Open CLOUDTRAIL console\n2. Select the group\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-group-logging --group-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL s3: Trail Cloudtrail Dataevents Read Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_read_enabled
+  for_each:
+    discovery: aws.cloudtrail.s3_logging
+    as: s3
+    item: s3
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail s3:\n\n1. Open CLOUDTRAIL console\n2. Select the s3\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-s3-logging --s3-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Trail Cloudtrail S3 Dataevents Read Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.trail_cloudtrail_s3_dataevents_read_enabled
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL trail: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.trail.alert_destinations_configured
+  for_each:
+    discovery: aws.cloudtrail.trail_logging
+    as: trail
+    item: trail
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-trail-logging --trail-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL bucket: Access Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.bucket.access_logging_enabled
+  for_each:
+    discovery: aws.cloudtrail.bucket_logging
+    as: bucket
+    item: bucket
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail bucket:\n\n1. Open CLOUDTRAIL console\n2. Select the bucket\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-bucket-logging --bucket-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL resource: Nacl Change Monitoring Configuration Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.resource.nacl_change_monitoring_configuration_configured
+  for_each:
+    discovery: aws.cloudtrail.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail resource:\n\n1. Open CLOUDTRAIL console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL logs: S3 Bucket Is Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.cloudtrail.logs.s3_bucket_is_not_publicly_accessible_configured
+  for_each:
+    discovery: aws.cloudtrail.logs_logging
+    as: logs
+    item: logs
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail logs:\n\n1. Open CLOUDTRAIL console\n2. Select the logs\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-logs-logging --logs-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL s3: Trail Cloudtrail Dataevents Write Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_write_enabled
+  for_each:
+    discovery: aws.cloudtrail.s3_logging
+    as: s3
+    item: s3
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail s3:\n\n1. Open CLOUDTRAIL console\n2. Select the s3\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-s3-logging --s3-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL cloudwatch: Logging Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.cloudwatch.logging_enabled
+  for_each:
+    discovery: aws.cloudtrail.cloudwatch_logging
+    as: cloudwatch
+    item: cloudwatch
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail cloudwatch:\n\n1. Open CLOUDTRAIL console\n2. Select the cloudwatch\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-cloudwatch-logging\
+    \ --cloudwatch-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL log: File Validation Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.log.file_validation_enabled
+  for_each:
+    discovery: aws.cloudtrail.log_logging
+    as: log
+    item: log
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail log:\n\n1. Open CLOUDTRAIL console\n2. Select the log\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-log-logging --log-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL route table changes metric filter alarm monitoring: Route Table Changes Monitored'
+  severity: medium
+  rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring.route_table_changes_monitored
+  for_each:
+    discovery: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring_logging
+    as: route_table_changes_metric_filter_alarm_monitoring
+    item: route_table_changes_metric_filter_alarm_monitoring
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail route_table_changes_metric_filter_alarm_monitoring:\n\n1. Open CLOUDTRAIL console\n\
+    2. Select the route_table_changes_metric_filter_alarm_monitoring\n3. Go to Logging/Monitoring settings\n4. Enable logging\n\
+    5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO,\
+    \ DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-route_table_changes_metric_filter_alarm_monitoring-logging\
+    \ --route_table_changes_metric_filter_alarm_monitoring-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all\
+    \ security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\
+    \u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL trail: Log Trail Logs Centralized And Encrypted'
+  severity: high
+  rule_id: aws.cloudtrail.trail.log_trail_logs_centralized_and_encrypted
+  for_each:
+    discovery: aws.cloudtrail.trail_encryption
+    as: trail
+    item: trail
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cloudtrail trail:\n\n1. Open CLOUDTRAIL console\n2. Select the trail\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cloudtrail modify-trail --trail-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL multi: Trail Cloudtrail Region Enabled'
+  severity: medium
+  rule_id: aws.cloudtrail.multi.trail_cloudtrail_region_enabled
+  for_each:
+    discovery: aws.cloudtrail.multi_logging
+    as: multi
+    item: multi
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail multi:\n\n1. Open CLOUDTRAIL console\n2. Select the multi\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws cloudtrail update-multi-logging --multi-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'CLOUDTRAIL organizations changes monitoring setup: Organizations Changes Monitoring Setup Configured'
+  severity: medium
+  rule_id: aws.cloudtrail.organizations_changes_monitoring_setup.organizations_changes_monitoring_setup_configured
+  for_each:
+    discovery: aws.cloudtrail.organizations_changes_monitoring_setup_logging
+    as: organizations_changes_monitoring_setup
+    item: organizations_changes_monitoring_setup
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for cloudtrail organizations_changes_monitoring_setup:\n\n1. Open CLOUDTRAIL console\n2. Select\
+    \ the organizations_changes_monitoring_setup\n3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log\
+    \ destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n\
+    7. Save changes\n\nAWS CLI:\naws cloudtrail update-organizations_changes_monitoring_setup-logging --organizations_changes_monitoring_setup-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/best-practices-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/cloudtrail-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

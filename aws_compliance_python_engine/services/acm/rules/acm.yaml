@@ -1,101 +1,336 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: acm
 discovery:
-  discovery_id: aws.acm.resources
+- discovery_id: aws.acm.certificates
   calls:
-    - client: acm
-      action: describe_acms
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: acm
+    action: list_certificates
+    save_as: certificate_list
+    on_error: continue
+    fields:
+    - Acms
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: certificate_list[]
+    as: certificate
+    item:
+      id: '{{ certificate.Id }}'
+      name: '{{ certificate.Name }}'
+- discovery_id: aws.acm.privatecas
+  for_each: aws.acm.privateca
+  calls:
+  - client: acm
+    action: describe_certificate
+    save_as: privatecas
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.acm.certificatess
+  for_each: aws.acm.certificate
+  calls:
+  - client: acm
+    action: describe_certificate
+    save_as: certificatess
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Auto Renewal Enabled
-    severity: low
-    rule_id: aws.acm.certificate_management.auto_renewal_enabled
-    assertion_id: crypto_data_protection.certificate_management.auto_renewal_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement auto renewal enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
-  - title: Auto Renewal Enabled
-    severity: low
-    rule_id: aws.acm.private_ca.auto_renewal_enabled
-    assertion_id: crypto_data_protection.certificate_management.auto_renewal_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement auto renewal enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
-  - title: Auto Renewal Enabled
-    severity: low
-    rule_id: aws.acm.certificate_authority.auto_renewal_enabled
-    assertion_id: crypto_data_protection.certificate_management.auto_renewal_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement auto renewal enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
-  - title: Certificate Validation Enabled
-    severity: low
-    rule_id: aws.acm.certificate_management.certificate_validation_enabled
-    assertion_id: crypto_data_protection.certificate_management.certificate_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement certificate validation enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
-  - title: Certificate Validation Enabled
-    severity: low
-    rule_id: aws.acm.private_ca.certificate_validation_enabled
-    assertion_id: crypto_data_protection.certificate_management.certificate_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement certificate validation enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
-  - title: Certificate Validation Enabled
-    severity: low
-    rule_id: aws.acm.certificate_authority.certificate_validation_enabled
-    assertion_id: crypto_data_protection.certificate_management.certificate_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement certificate validation enabled for acm"
-    references:
-      - "https://docs.aws.amazon.com/acm/"
+- title: 'ACM privateca: Ca Certificate Crl Or Ocsp Configured'
+  severity: medium
+  rule_id: aws.acm.privateca.ca_certificate_crl_or_ocsp_configured
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificate: Key Length Minimum'
+  severity: medium
+  rule_id: aws.acm.certificate.key_length_minimum
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.compliant
+    op: equals
+    value: true
+  remediation: "Configure acm certificate for compliance:\n\nRequirement: Key Length Minimum\n\nDescription: Verifies security\
+    \ configuration for AWS Certificate Manager certificate to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ACM console\n2. Select the certificate\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Ca Certificate Path Length Constraints Configured'
+  severity: medium
+  rule_id: aws.acm.privateca.ca_certificate_path_length_constraints_configured
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Ca Key In Hsm Enabled If Supported'
+  severity: medium
+  rule_id: aws.acm.privateca.ca_key_in_hsm_enabled_if_supported
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificate: Expiration Monitored'
+  severity: medium
+  rule_id: aws.acm.certificate.expiration_monitored
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for acm certificate:\n\n1. Open CloudWatch console\n2. Create alarm for certificate\n3.\
+    \ Configure metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring\
+    \ (if available)\n7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant\
+    \ metrics\n\u2022 Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022\
+    \ Implement automated remediation"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Ca Access Rbac Least Privilege'
+  severity: high
+  rule_id: aws.acm.privateca.ca_access_rbac_least_privilege
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for acm privateca:\n\n1. Open ACM console\n2. Select the privateca\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ACM certificate: Mtls Required For Internal Services If Supported'
+  severity: high
+  rule_id: aws.acm.certificate.mtls_required_for_internal_services_if_supported
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm certificate:\n\n1. Ensure certificate is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificate: Trusted Issuer Verified'
+  severity: medium
+  rule_id: aws.acm.certificate.trusted_issuer_verified
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.compliant
+    op: equals
+    value: true
+  remediation: "Configure acm certificate for compliance:\n\nRequirement: Trusted Issuer Verified\n\nDescription: Verifies\
+    \ security configuration for AWS Certificate Manager certificate to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ACM console\n2. Select the certificate\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificates: Certificate Expiration Monitored'
+  severity: medium
+  rule_id: aws.acm.certificates.certificate_expiration_monitored
+  for_each:
+    discovery: aws.acm.certificatess
+    as: certificates
+    item: certificates
+  conditions:
+    var: certificates.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for acm certificates:\n\n1. Open CloudWatch console\n2. Create alarm for certificates\n\
+    3. Configure metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring\
+    \ (if available)\n7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant\
+    \ metrics\n\u2022 Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022\
+    \ Implement automated remediation"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Key Length Minimum'
+  severity: medium
+  rule_id: aws.acm.privateca.key_length_minimum
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Ca Certificate Trusted Issuer Verified'
+  severity: medium
+  rule_id: aws.acm.privateca.ca_certificate_trusted_issuer_verified
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificate: Tls Min 1 2 Enforced'
+  severity: high
+  rule_id: aws.acm.certificate.tls_min_1_2_enforced
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm certificate:\n\n1. Ensure certificate is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM certificate: Valid'
+  severity: medium
+  rule_id: aws.acm.certificate.valid
+  for_each:
+    discovery: aws.acm.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.compliant
+    op: equals
+    value: true
+  remediation: "Configure acm certificate for compliance:\n\nRequirement: Valid\n\nDescription: Verifies security configuration\
+    \ for AWS Certificate Manager certificate to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open ACM console\n2. Select the certificate\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html
+- title: 'ACM privateca: Ca Certificate Valid'
+  severity: medium
+  rule_id: aws.acm.privateca.ca_certificate_valid
+  for_each:
+    discovery: aws.acm.privatecas
+    as: privateca
+    item: privateca
+  conditions:
+    var: privateca.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for acm privateca:\n\n1. Ensure privateca is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/acm/latest/userguide/acm-bestpractices.html
+  - https://docs.aws.amazon.com/acm/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/acm-controls.html

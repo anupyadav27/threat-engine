@@ -1,0 +1,386 @@
+version: '1.0'
+provider: aws
+service: elb
+discovery:
+- discovery_id: aws.elb.insecure_ssl_cipherss
+  calls:
+  - client: elb
+    action: describe_load_balancers
+    save_as: insecure_ssl_ciphers_list
+    on_error: continue
+    fields:
+    - Elbs
+  emit:
+    items_for: insecure_ssl_ciphers_list[]
+    as: insecure_ssl_ciphers
+    item:
+      id: '{{ insecure_ssl_ciphers.Id }}'
+      name: '{{ insecure_ssl_ciphers.Name }}'
+- discovery_id: aws.elb.insecure_ssl_ciphers_logging
+  for_each: aws.elb.insecure_ssl_cipherss
+  calls:
+  - client: elb
+    action: describe_account_limits
+    params:
+      Insecure_ssl_ciphersId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.elb.loadbalancer_logging
+  calls:
+  - client: elb
+    action: describe_load_balancer_attributes
+    save_as: loadbalancer_logging
+    on_error: continue
+  emit:
+    items_for: loadbalancer_logging[]
+    as: loadbalancer_logging
+    item:
+      id: '{{ loadbalancer_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.listeners
+  for_each: aws.elb.listener
+  calls:
+  - client: elb
+    action: describe_account_limits
+    save_as: listeners
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.resource_logging
+  calls:
+  - client: elb
+    action: describe_load_balancers
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.logging_logging
+  calls:
+  - client: elb
+    action: list_logging_logging
+    save_as: logging_logging
+    on_error: continue
+  emit:
+    items_for: logging_logging[]
+    as: logging_logging
+    item:
+      id: '{{ logging_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.desyncs
+  for_each: aws.elb.desync
+  calls:
+  - client: elb
+    action: describe_account_limits
+    save_as: desyncs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.internetfacings
+  for_each: aws.elb.internetfacing
+  calls:
+  - client: elb
+    action: describe_account_limits
+    save_as: internetfacings
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.isinmultipleazs
+  for_each: aws.elb.isinmultipleaz
+  calls:
+  - client: elb
+    action: describe_account_limits
+    save_as: isinmultipleazs
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.ssllistenerss
+  for_each: aws.elb.ssllistener
+  calls:
+  - client: elb
+    action: describe_account_limits
+    save_as: ssllistenerss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elb.loadbalancers
+  for_each: aws.elb.loadbalancer
+  calls:
+  - client: elb
+    action: describe_load_balancers
+    save_as: loadbalancers
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+checks:
+- title: 'ELB loadbalancer: Listener Loadbalancer Secure Listener Protocols Configured'
+  severity: medium
+  rule_id: aws.elb.loadbalancer.listener_loadbalancer_secure_listener_protocols_configured
+  for_each:
+    discovery: aws.elb.loadbalancers
+    as: loadbalancer
+    item: loadbalancer
+  conditions:
+    var: loadbalancer.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb loadbalancer for compliance:\n\nRequirement: Listener Loadbalancer Secure Listener Protocols\
+    \ Configuration\n\nDescription: Verifies security configuration for Elastic Load Balancing loadbalancer to ensure alignment\
+    \ with AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains\
+    \ defense in depth, and supports overall security posture.\n\nSteps:\n1. Open ELB console\n2. Select the loadbalancer\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB loadbalancer: Access Logs Enabled'
+  severity: medium
+  rule_id: aws.elb.loadbalancer.access_logs_enabled
+  for_each:
+    discovery: aws.elb.loadbalancer_logging
+    as: loadbalancer
+    item: loadbalancer
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for elb loadbalancer:\n\n1. Open ELB console\n2. Select the loadbalancer\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws elb update-loadbalancer-logging --loadbalancer-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB ssllisteners: Ssl Listeners Configured'
+  severity: high
+  rule_id: aws.elb.ssllisteners.ssl_listeners_configured
+  for_each:
+    discovery: aws.elb.ssllistenerss
+    as: ssllisteners
+    item: ssllisteners
+  conditions:
+    var: ssllisteners.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elb ssllisteners:\n\n1. Ensure ssllisteners is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB resource: Logging Enabled'
+  severity: medium
+  rule_id: aws.elb.resource.logging_enabled
+  for_each:
+    discovery: aws.elb.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for elb resource:\n\n1. Open ELB console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws elb update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB internetfacing: Elb Internet Facing Configured'
+  severity: medium
+  rule_id: aws.elb.internetfacing.elb_internet_facing_configured
+  for_each:
+    discovery: aws.elb.internetfacings
+    as: internetfacing
+    item: internetfacing
+  conditions:
+    var: internetfacing.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb internetfacing for compliance:\n\nRequirement: Elb Internet Facing Configuration\n\nDescription:\
+    \ Verifies security configuration for Elastic Load Balancing internetfacing to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open ELB console\n2. Select the internetfacing\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB insecure ssl ciphers: Insecure Ssl Ciphers Configured'
+  severity: high
+  rule_id: aws.elb.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
+  for_each:
+    discovery: aws.elb.insecure_ssl_cipherss
+    as: insecure_ssl_ciphers
+    item: insecure_ssl_ciphers
+  conditions:
+    var: insecure_ssl_ciphers.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elb insecure_ssl_ciphers:\n\n1. Ensure insecure_ssl_ciphers is deployed in\
+    \ VPC\n2. Configure security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n\
+    \   - Use least privilege\n3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n\
+    5. Use Private Link/VPC Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\
+    \u2022 Deploy in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement\
+    \ defense in depth\n\u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB desync: Elb Mitigation Mode Configured'
+  severity: medium
+  rule_id: aws.elb.desync.elb_mitigation_mode_configured
+  for_each:
+    discovery: aws.elb.desyncs
+    as: desync
+    item: desync
+  conditions:
+    var: desync.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb desync for compliance:\n\nRequirement: Elb Mitigation Mode Configuration\n\nDescription: Verifies\
+    \ security configuration for Elastic Load Balancing desync to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ELB console\n2. Select the desync\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB isinmultipleaz: Elb Is In Multiple Az Configured'
+  severity: medium
+  rule_id: aws.elb.isinmultipleaz.elb_is_in_multiple_az_configured
+  for_each:
+    discovery: aws.elb.isinmultipleazs
+    as: isinmultipleaz
+    item: isinmultipleaz
+  conditions:
+    var: isinmultipleaz.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb isinmultipleaz for compliance:\n\nRequirement: Elb Is In Multiple Az Configuration\n\nDescription:\
+    \ Verifies security configuration for Elastic Load Balancing isinmultipleaz to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open ELB console\n2. Select the isinmultipleaz\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB loadbalancer: Waf Attached If Supported'
+  severity: medium
+  rule_id: aws.elb.loadbalancer.waf_attached_if_supported
+  for_each:
+    discovery: aws.elb.loadbalancers
+    as: loadbalancer
+    item: loadbalancer
+  conditions:
+    var: loadbalancer.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb loadbalancer for compliance:\n\nRequirement: Waf Attached If Supported\n\nDescription: Verifies\
+    \ security configuration for Elastic Load Balancing loadbalancer to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ELB console\n2. Select the loadbalancer\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB logging: Access Logging Enabled'
+  severity: medium
+  rule_id: aws.elb.logging.access_logging_enabled
+  for_each:
+    discovery: aws.elb.logging_logging
+    as: logging
+    item: logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for elb logging:\n\n1. Open ELB console\n2. Select the logging\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws elb update-logging-logging --logging-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB loadbalancer: Valid Certificate Enabled'
+  severity: medium
+  rule_id: aws.elb.loadbalancer.valid_certificate_enabled
+  for_each:
+    discovery: aws.elb.loadbalancers
+    as: loadbalancer
+    item: loadbalancer
+  conditions:
+    var: loadbalancer.compliant
+    op: equals
+    value: true
+  remediation: "Configure elb loadbalancer for compliance:\n\nRequirement: Valid Certificate Enabled\n\nDescription: Verifies\
+    \ security configuration for Elastic Load Balancing loadbalancer to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ELB console\n2. Select the loadbalancer\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB loadbalancer: Listener Tls Min 1 2 Configured'
+  severity: high
+  rule_id: aws.elb.loadbalancer.listener_tls_min_1_2_configured
+  for_each:
+    discovery: aws.elb.loadbalancers
+    as: loadbalancer
+    item: loadbalancer
+  conditions:
+    var: loadbalancer.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elb loadbalancer:\n\n1. Ensure loadbalancer is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELB listener: Ssl Tls Enforced'
+  severity: high
+  rule_id: aws.elb.listener.ssl_tls_enforced
+  for_each:
+    discovery: aws.elb.listeners
+    as: listener
+    item: listener
+  conditions:
+    var: listener.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elb listener:\n\n1. Ensure listener is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

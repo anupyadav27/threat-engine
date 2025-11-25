@@ -1,409 +1,439 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: ecr
 discovery:
-  discovery_id: aws.ecr.resources
+- discovery_id: aws.ecr.imagescans
   calls:
-    - client: ecr
-      action: describe_ecrs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: ecr
+    action: describe_repositories
+    save_as: imagescan_list
+    on_error: continue
+    fields:
+    - Ecrs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: imagescan_list[]
+    as: imagescan
+    item:
+      id: '{{ imagescan.Id }}'
+      name: '{{ imagescan.Name }}'
+- discovery_id: aws.ecr.imagescan_encryption
+  for_each: aws.ecr.imagescans
+  calls:
+  - client: ecr
+    action: describe_repositories
+    params:
+      ImagescanId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.ecr.replication_configuration_encryption
+  calls:
+  - client: ecr
+    action: list_images
+    save_as: replication_configuration_encryption
+    on_error: continue
+  emit:
+    items_for: replication_configuration_encryption[]
+    as: replication_configuration_encryption
+    item:
+      id: '{{ replication_configuration_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.repositories_not_publicly_accessibles
+  for_each: aws.ecr.repositories_not_publicly_accessible
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: repositories_not_publicly_accessibles
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.resources
+  for_each: aws.ecr.resource
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.repository_policys
+  for_each: aws.ecr.repository_policy
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: repository_policys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.resource_encryption
+  calls:
+  - client: ecr
+    action: list_images
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.lifecyclepolicys
+  for_each: aws.ecr.lifecyclepolicy
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: lifecyclepolicys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.lifecyclepolicy_encryption
+  calls:
+  - client: ecr
+    action: list_images
+    save_as: lifecyclepolicy_encryption
+    on_error: continue
+  emit:
+    items_for: lifecyclepolicy_encryption[]
+    as: lifecyclepolicy_encryption
+    item:
+      id: '{{ lifecyclepolicy_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.replication_configurations
+  for_each: aws.ecr.replication_configuration
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: replication_configurations
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.ecr.repositorys
+  for_each: aws.ecr.repository
+  calls:
+  - client: ecr
+    action: describe_image_replication_status
+    save_as: repositorys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.image_scanning.vulnerability_scanning_enabled
-    assertion_id: containers_kubernetes.image_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.image_vulnerability_scanning.vulnerability_scanning_enabled
-    assertion_id: containers_kubernetes.image_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.image_signing.vulnerability_scanning_enabled
-    assertion_id: containers_kubernetes.image_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Base Images Approved
-    severity: low
-    rule_id: aws.ecr.image_scanning.base_images_approved
-    assertion_id: containers_kubernetes.image_security.base_images_approved
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement base images approved for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Base Images Approved
-    severity: low
-    rule_id: aws.ecr.image_vulnerability_scanning.base_images_approved
-    assertion_id: containers_kubernetes.image_security.base_images_approved
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement base images approved for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Base Images Approved
-    severity: low
-    rule_id: aws.ecr.image_signing.base_images_approved
-    assertion_id: containers_kubernetes.image_security.base_images_approved
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement base images approved for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Image Signing Enabled
-    severity: low
-    rule_id: aws.ecr.image_scanning.image_signing_enabled
-    assertion_id: containers_kubernetes.image_security.image_signing_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement image signing enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Image Signing Enabled
-    severity: low
-    rule_id: aws.ecr.image_vulnerability_scanning.image_signing_enabled
-    assertion_id: containers_kubernetes.image_security.image_signing_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement image signing enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Image Signing Enabled
-    severity: low
-    rule_id: aws.ecr.image_signing.image_signing_enabled
-    assertion_id: containers_kubernetes.image_security.image_signing_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement image signing enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Access Control Enforced
-    severity: low
-    rule_id: aws.ecr.registry_security.access_control_enforced
-    assertion_id: supply_chain_registries.registry_security.access_control_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access control enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Access Control Enforced
-    severity: low
-    rule_id: aws.ecr.repository_policies.access_control_enforced
-    assertion_id: supply_chain_registries.registry_security.access_control_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access control enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Access Control Enforced
-    severity: low
-    rule_id: aws.ecr.lifecycle_policies.access_control_enforced
-    assertion_id: supply_chain_registries.registry_security.access_control_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access control enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.registry_security.vulnerability_scanning_enabled
-    assertion_id: supply_chain_registries.registry_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.repository_policies.vulnerability_scanning_enabled
-    assertion_id: supply_chain_registries.registry_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Vulnerability Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.lifecycle_policies.vulnerability_scanning_enabled
-    assertion_id: supply_chain_registries.registry_security.vulnerability_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vulnerability scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Immutable Tags Enforced
-    severity: low
-    rule_id: aws.ecr.registry_security.immutable_tags_enforced
-    assertion_id: supply_chain_registries.registry_security.immutable_tags_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement immutable tags enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Immutable Tags Enforced
-    severity: low
-    rule_id: aws.ecr.repository_policies.immutable_tags_enforced
-    assertion_id: supply_chain_registries.registry_security.immutable_tags_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement immutable tags enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Immutable Tags Enforced
-    severity: low
-    rule_id: aws.ecr.lifecycle_policies.immutable_tags_enforced
-    assertion_id: supply_chain_registries.registry_security.immutable_tags_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement immutable tags enforced for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Dependency Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.dependency_scanning.dependency_scanning_enabled
-    assertion_id: supply_chain_registries.dependency_management.dependency_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement dependency scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Dependency Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.software_bill_of_materials.dependency_scanning_enabled
-    assertion_id: supply_chain_registries.dependency_management.dependency_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement dependency scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: License Compliance Checked
-    severity: low
-    rule_id: aws.ecr.dependency_scanning.license_compliance_checked
-    assertion_id: supply_chain_registries.dependency_management.license_compliance_checked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement license compliance checked for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: License Compliance Checked
-    severity: low
-    rule_id: aws.ecr.software_bill_of_materials.license_compliance_checked
-    assertion_id: supply_chain_registries.dependency_management.license_compliance_checked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement license compliance checked for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Outdated Dependencies Blocked
-    severity: low
-    rule_id: aws.ecr.dependency_scanning.outdated_dependencies_blocked
-    assertion_id: supply_chain_registries.dependency_management.outdated_dependencies_blocked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement outdated dependencies blocked for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Outdated Dependencies Blocked
-    severity: low
-    rule_id: aws.ecr.software_bill_of_materials.outdated_dependencies_blocked
-    assertion_id: supply_chain_registries.dependency_management.outdated_dependencies_blocked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement outdated dependencies blocked for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Continuous Scanning Enabled
-    severity: low
-    rule_id: aws.ecr.vulnerability_scanning.continuous_scanning_enabled
-    assertion_id: supply_chain_registries.vulnerability_scanning.continuous_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement continuous scanning enabled for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Critical Vulnerabilities Blocked
-    severity: low
-    rule_id: aws.ecr.vulnerability_scanning.critical_vulnerabilities_blocked
-    assertion_id: supply_chain_registries.vulnerability_scanning.critical_vulnerabilities_blocked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement critical vulnerabilities blocked for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Digital Signatures Verified
-    severity: low
-    rule_id: aws.ecr.image_signing.digital_signatures_verified
-    assertion_id: supply_chain_registries.signing_verification.digital_signatures_verified
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement digital signatures verified for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
-  - title: Chain Of Trust Maintained
-    severity: low
-    rule_id: aws.ecr.image_signing.chain_of_trust_maintained
-    assertion_id: supply_chain_registries.signing_verification.chain_of_trust_maintained
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement chain of trust maintained for ecr"
-    references:
-      - "https://docs.aws.amazon.com/ecr/"
+- title: 'ECR imagescan: Ecr Results Export Destination Encrypted'
+  severity: high
+  rule_id: aws.ecr.imagescan.ecr_results_export_destination_encrypted
+  for_each:
+    discovery: aws.ecr.imagescan_encryption
+    as: imagescan
+    item: imagescan
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ecr imagescan:\n\n1. Open ECR console\n2. Select the imagescan\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ecr modify-imagescan --imagescan-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR resource: Ecr Image Scan On Push Enabled'
+  severity: medium
+  rule_id: aws.ecr.resource.ecr_image_scan_on_push_enabled
+  for_each:
+    discovery: aws.ecr.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecr resource for compliance:\n\nRequirement: Ecr Image Scan On Push Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS ECR resource to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open ECR console\n2. Select the resource\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR imagescan: Ecr Agents Or Scanners Deployed Configured'
+  severity: medium
+  rule_id: aws.ecr.imagescan.ecr_agents_or_scanners_deployed_configured
+  for_each:
+    discovery: aws.ecr.imagescans
+    as: imagescan
+    item: imagescan
+  conditions:
+    var: imagescan.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecr imagescan for compliance:\n\nRequirement: Ecr Agents Or Scanners Deployed Configuration\n\n\
+    Description: Verifies security configuration for AWS ECR imagescan to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ECR console\n2. Select the imagescan\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR resource: Repository Encryption Enabled'
+  severity: high
+  rule_id: aws.ecr.resource.repository_encryption_enabled
+  for_each:
+    discovery: aws.ecr.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ecr resource:\n\n1. Open ECR console\n2. Select the resource\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ecr modify-resource --resource-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR replication configuration: Ecr Cross Region Encrypted'
+  severity: high
+  rule_id: aws.ecr.replication_configuration.ecr_cross_region_encrypted
+  for_each:
+    discovery: aws.ecr.replication_configuration_encryption
+    as: replication_configuration
+    item: replication_configuration
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ecr replication_configuration:\n\n1. Open ECR console\n2. Select the replication_configuration\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ecr modify-replication_configuration\
+    \ --replication_configuration-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR resource: Ecr Repository Scan On Push Enabled'
+  severity: medium
+  rule_id: aws.ecr.resource.ecr_repository_scan_on_push_enabled
+  for_each:
+    discovery: aws.ecr.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecr resource for compliance:\n\nRequirement: Ecr Repository Scan On Push Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS ECR resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ECR console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repository: Repo Private Or Access Restricted'
+  severity: high
+  rule_id: aws.ecr.repository.repo_private_or_access_restricted
+  for_each:
+    discovery: aws.ecr.repositorys
+    as: repository
+    item: repository
+  conditions:
+    var: repository.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr repository:\n\n1. Open ECR console\n2. Select the repository\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repositories not publicly accessible: Repositories Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.ecr.repositories_not_publicly_accessible.repositories_not_publicly_accessible_configured
+  for_each:
+    discovery: aws.ecr.repositories_not_publicly_accessibles
+    as: repositories_not_publicly_accessible
+    item: repositories_not_publicly_accessible
+  conditions:
+    var: repositories_not_publicly_accessible.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr repositories_not_publicly_accessible:\n\n1. Open ECR console\n2. Select the\
+    \ repositories_not_publicly_accessible\n3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove\
+    \ public access grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource policy\
+    \ or IAM policies\n6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM\
+    \ roles instead of access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for sensitive\
+    \ operations\n\u2022 Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR lifecyclepolicy: Policy Storage Encrypted'
+  severity: high
+  rule_id: aws.ecr.lifecyclepolicy.policy_storage_encrypted
+  for_each:
+    discovery: aws.ecr.lifecyclepolicy_encryption
+    as: lifecyclepolicy
+    item: lifecyclepolicy
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ecr lifecyclepolicy:\n\n1. Open ECR console\n2. Select the lifecyclepolicy\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ecr modify-lifecyclepolicy --lifecyclepolicy-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repository policy: No Public Pull Push Configured'
+  severity: high
+  rule_id: aws.ecr.repository_policy.no_public_pull_push_configured
+  for_each:
+    discovery: aws.ecr.repository_policys
+    as: repository_policy
+    item: repository_policy
+  conditions:
+    var: repository_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr repository_policy:\n\n1. Open ECR console\n2. Select the repository_policy\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR lifecyclepolicy: Ecr Unused Or Old Tags Expire Configured'
+  severity: medium
+  rule_id: aws.ecr.lifecyclepolicy.ecr_unused_or_old_tags_expire_configured
+  for_each:
+    discovery: aws.ecr.lifecyclepolicys
+    as: lifecyclepolicy
+    item: lifecyclepolicy
+  conditions:
+    var: lifecyclepolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr lifecyclepolicy:\n\n1. Open ECR console\n2. Select the lifecyclepolicy\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repository policy: Ecr No Wildcard Admin Configured'
+  severity: medium
+  rule_id: aws.ecr.repository_policy.ecr_no_wildcard_admin_configured
+  for_each:
+    discovery: aws.ecr.repository_policys
+    as: repository_policy
+    item: repository_policy
+  conditions:
+    var: repository_policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr repository_policy:\n\n1. Open ECR console\n2. Select the repository_policy\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repository: Immutable Tags Or Signing Enforced'
+  severity: medium
+  rule_id: aws.ecr.repository.immutable_tags_or_signing_enforced
+  for_each:
+    discovery: aws.ecr.repositorys
+    as: repository
+    item: repository
+  conditions:
+    var: repository.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecr repository for compliance:\n\nRequirement: Immutable Tags Or Signing Enforcement\n\nDescription:\
+    \ Verifies security configuration for AWS ECR repository to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open ECR console\n2. Select the repository\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR imagescan: Scope Includes All Asset Groups Configured'
+  severity: medium
+  rule_id: aws.ecr.imagescan.scope_includes_all_asset_groups_configured
+  for_each:
+    discovery: aws.ecr.imagescan_encryption
+    as: imagescan
+    item: imagescan
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for ecr imagescan:\n\n1. Open ECR console\n2. Select the imagescan\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws ecr modify-imagescan --imagescan-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR repository: Ecr Image Scanning Enabled'
+  severity: medium
+  rule_id: aws.ecr.repository.ecr_image_scanning_enabled
+  for_each:
+    discovery: aws.ecr.repositorys
+    as: repository
+    item: repository
+  conditions:
+    var: repository.compliant
+    op: equals
+    value: true
+  remediation: "Configure ecr repository for compliance:\n\nRequirement: Ecr Image Scanning Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS ECR repository to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open ECR console\n2. Select the repository\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ECR replication configuration: Ecr Destinations Least Privilege'
+  severity: high
+  rule_id: aws.ecr.replication_configuration.ecr_destinations_least_privilege
+  for_each:
+    discovery: aws.ecr.replication_configurations
+    as: replication_configuration
+    item: replication_configuration
+  conditions:
+    var: replication_configuration.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for ecr replication_configuration:\n\n1. Open ECR console\n2. Select the replication_configuration\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

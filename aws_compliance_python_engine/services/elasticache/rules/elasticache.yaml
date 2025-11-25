@@ -1,101 +1,459 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: elasticache
 discovery:
-  discovery_id: aws.elasticache.resources
+- discovery_id: aws.elasticache.backupretentions
   calls:
-    - client: elasticache
-      action: describe_elasticaches
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: elasticache
+    action: describe_cache_clusters
+    save_as: backupretention_list
+    on_error: continue
+    fields:
+    - Elasticaches
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: backupretention_list[]
+    as: backupretention
+    item:
+      id: '{{ backupretention.Id }}'
+      name: '{{ backupretention.Name }}'
+- discovery_id: aws.elasticache.backupretention_encryption
+  for_each: aws.elasticache.backupretentions
+  calls:
+  - client: elasticache
+    action: describe_cache_clusters
+    params:
+      BackupretentionId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.elasticache.backupretention_logging
+  for_each: aws.elasticache.backupretentions
+  calls:
+  - client: elasticache
+    action: describe_cache_clusters
+    params:
+      BackupretentionId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.elasticache.node_encryption
+  calls:
+  - client: elasticache
+    action: list_allowed_node_type_modifications
+    save_as: node_encryption
+    on_error: continue
+  emit:
+    items_for: node_encryption[]
+    as: node_encryption
+    item:
+      id: '{{ node_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elasticache.clusters
+  for_each: aws.elasticache.cluster
+  calls:
+  - client: elasticache
+    action: describe_cache_clusters
+    save_as: clusters
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elasticache.cluster_logging
+  calls:
+  - client: elasticache
+    action: list_allowed_node_type_modifications
+    save_as: cluster_logging
+    on_error: continue
+  emit:
+    items_for: cluster_logging[]
+    as: cluster_logging
+    item:
+      id: '{{ cluster_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elasticache.cluster_encryption
+  calls:
+  - client: elasticache
+    action: list_allowed_node_type_modifications
+    save_as: cluster_encryption
+    on_error: continue
+  emit:
+    items_for: cluster_encryption[]
+    as: cluster_encryption
+    item:
+      id: '{{ cluster_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.elasticache.nodes
+  for_each: aws.elasticache.node
+  calls:
+  - client: elasticache
+    action: describe_cache_clusters
+    save_as: nodes
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Tls Enforced
-    severity: high
-    rule_id: aws.elasticache.in_transit_encryption.tls_enforced
-    assertion_id: crypto_data_protection.encryption_in_transit.tls_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement tls enforced for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
-  - title: Mtls Enabled
-    severity: high
-    rule_id: aws.elasticache.in_transit_encryption.mtls_enabled
-    assertion_id: crypto_data_protection.encryption_in_transit.mtls_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement mtls enabled for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
-  - title: Private Endpoints Used
-    severity: high
-    rule_id: aws.elasticache.in_transit_encryption.private_endpoints_used
-    assertion_id: crypto_data_protection.encryption_in_transit.private_endpoints_used
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement private endpoints used for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
-  - title: Load Balancing Configured
-    severity: low
-    rule_id: aws.elasticache.cluster_mode.load_balancing_configured
-    assertion_id: resilience_recovery.high_availability.load_balancing_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement load balancing configured for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
-  - title: Auto Scaling Enabled
-    severity: low
-    rule_id: aws.elasticache.cluster_mode.auto_scaling_enabled
-    assertion_id: resilience_recovery.high_availability.auto_scaling_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement auto scaling enabled for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
-  - title: Health Checks Configured
-    severity: low
-    rule_id: aws.elasticache.cluster_mode.health_checks_configured
-    assertion_id: resilience_recovery.high_availability.health_checks_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement health checks configured for elasticache"
-    references:
-      - "https://docs.aws.amazon.com/elasticache/"
+- title: 'ELASTICACHE cluster: Require Tls In Transit Configured'
+  severity: high
+  rule_id: aws.elasticache.cluster.require_tls_in_transit_configured
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elasticache cluster:\n\n1. Ensure cluster is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Encryption At Rest Cmek Configured'
+  severity: high
+  rule_id: aws.elasticache.cluster.encryption_at_rest_cmek_configured
+  for_each:
+    discovery: aws.elasticache.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws elasticache modify-cluster --cluster-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE node: Public Access Disabled'
+  severity: high
+  rule_id: aws.elasticache.node.public_access_disabled
+  for_each:
+    discovery: aws.elasticache.nodes
+    as: node
+    item: node
+  conditions:
+    var: node.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for elasticache node:\n\n1. Open ELASTICACHE console\n2. Select the node\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Elasticache Automatic Failover Enabled'
+  severity: medium
+  rule_id: aws.elasticache.cluster.elasticache_automatic_failover_enabled
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure elasticache cluster for compliance:\n\nRequirement: Elasticache Automatic Failover Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS ELASTICACHE cluster to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Private Networking Enforced'
+  severity: high
+  rule_id: aws.elasticache.cluster.private_networking_enforced
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE node: Deletion Protection Enabled'
+  severity: medium
+  rule_id: aws.elasticache.node.deletion_protection_enabled
+  for_each:
+    discovery: aws.elasticache.nodes
+    as: node
+    item: node
+  conditions:
+    var: node.compliant
+    op: equals
+    value: true
+  remediation: "Configure elasticache node for compliance:\n\nRequirement: Deletion Protection\n\nDescription: Ensures AWS\
+    \ ELASTICACHE node has deletion protection enabled to prevent accidental or malicious removal. Deletion protection provides\
+    \ a safety mechanism requiring explicit disablement before deletion, preventing service disruption and data loss.\n\n\
+    Steps:\n1. Open ELASTICACHE console\n2. Select the node\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Customer-managed encryption keys are used for databases
+  severity: high
+  rule_id: aws.elasticache.cluster.rest_encryption_enabled
+  for_each:
+    discovery: aws.elasticache.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws elasticache modify-cluster --cluster-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Deletion Protection Enabled'
+  severity: medium
+  rule_id: aws.elasticache.cluster.deletion_protection_enabled
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure elasticache cluster for compliance:\n\nRequirement: Deletion Protection\n\nDescription: Ensures\
+    \ AWS ELASTICACHE cluster has deletion protection enabled to prevent accidental or malicious removal. Deletion protection\
+    \ provides a safety mechanism requiring explicit disablement before deletion, preventing service disruption and data loss.\n\
+    \nSteps:\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Elasticache Minor Version Auto Upgrade Enabled'
+  severity: low
+  rule_id: aws.elasticache.cluster.elasticache_minor_version_auto_upgrade_enabled
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Go to\
+    \ Properties > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n\
+    7. Save changes\n\nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\
+    \u2022 Audit trail of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Audit Logging Enabled'
+  severity: medium
+  rule_id: aws.elasticache.cluster.audit_logging_enabled
+  for_each:
+    discovery: aws.elasticache.cluster_logging
+    as: cluster
+    item: cluster
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws elasticache update-cluster-logging --cluster-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Public Access Disabled'
+  severity: high
+  rule_id: aws.elasticache.cluster.public_access_disabled
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE node: Iam Or Managed Identity Auth Enabled If Supported'
+  severity: high
+  rule_id: aws.elasticache.node.iam_or_managed_identity_auth_enabled_if_supported
+  for_each:
+    discovery: aws.elasticache.nodes
+    as: node
+    item: node
+  conditions:
+    var: node.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for elasticache node:\n\n1. Open ELASTICACHE console\n2. Select the node\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE node: Require Tls In Transit Configured'
+  severity: high
+  rule_id: aws.elasticache.node.require_tls_in_transit_configured
+  for_each:
+    discovery: aws.elasticache.nodes
+    as: node
+    item: node
+  conditions:
+    var: node.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for elasticache node:\n\n1. Ensure node is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Customer-managed encryption keys are used for databases
+  severity: high
+  rule_id: aws.elasticache.cluster.in_transit_encryption_enabled
+  for_each:
+    discovery: aws.elasticache.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws elasticache modify-cluster --cluster-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Iam Or Managed Identity Auth Enabled If Supported'
+  severity: high
+  rule_id: aws.elasticache.cluster.iam_or_managed_identity_auth_enabled_if_supported
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE node: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.elasticache.node.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.elasticache.node_encryption
+    as: node
+    item: node
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for elasticache node:\n\n1. Open ELASTICACHE console\n2. Select the node\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws elasticache modify-node --node-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.elasticache.cluster.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.elasticache.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for elasticache cluster:\n\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws elasticache modify-cluster --cluster-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE cluster: Elasticache Multi Az Enabled'
+  severity: medium
+  rule_id: aws.elasticache.cluster.elasticache_multi_az_enabled
+  for_each:
+    discovery: aws.elasticache.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure elasticache cluster for compliance:\n\nRequirement: Elasticache Multi Az Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS ELASTICACHE cluster to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open ELASTICACHE console\n2. Select the cluster\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'ELASTICACHE backupretention: Backup Retention Configured'
+  severity: medium
+  rule_id: aws.elasticache.backupretention.backup_retention_configured
+  for_each:
+    discovery: aws.elasticache.backupretentions
+    as: backupretention
+    item: backupretention
+  conditions:
+    var: backupretention.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for elasticache backupretention:\n\n1. Open ELASTICACHE console\n2. Select the backupretention\n\
+    3. Go to Properties > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n\
+    7. Save changes\n\nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\
+    \u2022 Audit trail of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

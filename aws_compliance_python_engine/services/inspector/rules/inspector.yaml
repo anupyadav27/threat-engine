@@ -1,101 +1,232 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: inspector
 discovery:
-  discovery_id: aws.inspector.resources
+- discovery_id: aws.inspector.assessments
   calls:
-    - client: inspector
-      action: describe_inspectors
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: inspector
+    action: list_assessment_templates
+    save_as: assessment_list
+    on_error: continue
+    fields:
+    - Inspectors
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: assessment_list[]
+    as: assessment
+    item:
+      id: '{{ assessment.Id }}'
+      name: '{{ assessment.Name }}'
+- discovery_id: aws.inspector.assessment_encryption
+  for_each: aws.inspector.assessments
+  calls:
+  - client: inspector
+    action: list_assessment_templates
+    params:
+      AssessmentId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.inspector.findings
+  for_each: aws.inspector.finding
+  calls:
+  - client: inspector
+    action: list_findings
+    save_as: findings
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.inspector.finding_encryption
+  calls:
+  - client: inspector
+    action: list_assessment_run_agents
+    save_as: finding_encryption
+    on_error: continue
+  emit:
+    items_for: finding_encryption[]
+    as: finding_encryption
+    item:
+      id: '{{ finding_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.inspector.resources
+  for_each: aws.inspector.resource
+  calls:
+  - client: inspector
+    action: describe_assessment_runs
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Antimalware Enabled
-    severity: low
-    rule_id: aws.inspector.assessments.antimalware_enabled
-    assertion_id: compute_host_security.endpoint_protection.antimalware_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement antimalware enabled for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
-  - title: Intrusion Detection Enabled
-    severity: low
-    rule_id: aws.inspector.assessments.intrusion_detection_enabled
-    assertion_id: compute_host_security.endpoint_protection.intrusion_detection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement intrusion detection enabled for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.inspector.vulnerability_assessments.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.inspector.vulnerability_assessments.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
-  - title: Continuous Scanning Enabled
-    severity: low
-    rule_id: aws.inspector.vulnerability_scanning.continuous_scanning_enabled
-    assertion_id: supply_chain_registries.vulnerability_scanning.continuous_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement continuous scanning enabled for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
-  - title: Critical Vulnerabilities Blocked
-    severity: low
-    rule_id: aws.inspector.vulnerability_scanning.critical_vulnerabilities_blocked
-    assertion_id: supply_chain_registries.vulnerability_scanning.critical_vulnerabilities_blocked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement critical vulnerabilities blocked for inspector"
-    references:
-      - "https://docs.aws.amazon.com/inspector/"
+- title: 'INSPECTOR finding: Inspector Suppression Rules Documented And Scoped Configured'
+  severity: medium
+  rule_id: aws.inspector.finding.inspector_suppression_rules_documented_and_scoped_configured
+  for_each:
+    discovery: aws.inspector.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.compliant
+    op: equals
+    value: true
+  remediation: "Configure inspector finding for compliance:\n\nRequirement: Inspector Suppression Rules Documented And Scoped\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS INSPECTOR finding to ensure alignment with AWS\
+    \ security best practices and compliance requirements. Proper configuration reduces security risks, maintains defense\
+    \ in depth, and supports overall security posture.\n\nSteps:\n1. Open INSPECTOR console\n2. Select the finding\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR resource: Inspector Is Enabled'
+  severity: medium
+  rule_id: aws.inspector.resource.inspector_is_enabled
+  for_each:
+    discovery: aws.inspector.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure inspector resource for compliance:\n\nRequirement: Inspector Is Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS INSPECTOR resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open INSPECTOR console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR finding: Inspector Archival Export Encrypted'
+  severity: high
+  rule_id: aws.inspector.finding.inspector_archival_export_encrypted
+  for_each:
+    discovery: aws.inspector.finding_encryption
+    as: finding
+    item: finding
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector finding:\n\n1. Open INSPECTOR console\n2. Select the finding\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-finding --finding-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR assessment: Policy Store Encrypted'
+  severity: high
+  rule_id: aws.inspector.assessment.policy_store_encrypted
+  for_each:
+    discovery: aws.inspector.assessment_encryption
+    as: assessment
+    item: assessment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector assessment:\n\n1. Open INSPECTOR console\n2. Select the assessment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-assessment --assessment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR assessment: Role Least Privilege'
+  severity: high
+  rule_id: aws.inspector.assessment.role_least_privilege
+  for_each:
+    discovery: aws.inspector.assessment_encryption
+    as: assessment
+    item: assessment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector assessment:\n\n1. Open INSPECTOR console\n2. Select the assessment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-assessment --assessment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR assessment: Scope Includes All Asset Groups Configured'
+  severity: medium
+  rule_id: aws.inspector.assessment.scope_includes_all_asset_groups_configured
+  for_each:
+    discovery: aws.inspector.assessment_encryption
+    as: assessment
+    item: assessment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector assessment:\n\n1. Open INSPECTOR console\n2. Select the assessment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-assessment --assessment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR finding: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.inspector.finding.alert_destinations_configured
+  for_each:
+    discovery: aws.inspector.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for inspector finding:\n\n1. Open CloudWatch console\n2. Create alarm for finding\n3. Configure\
+    \ metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR assessment: Inspector Results Export Destination Encrypted'
+  severity: high
+  rule_id: aws.inspector.assessment.inspector_results_export_destination_encrypted
+  for_each:
+    discovery: aws.inspector.assessment_encryption
+    as: assessment
+    item: assessment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector assessment:\n\n1. Open INSPECTOR console\n2. Select the assessment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-assessment --assessment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'INSPECTOR assessment: Inspector Agents Or Scanners Deployed Configured'
+  severity: medium
+  rule_id: aws.inspector.assessment.inspector_agents_or_scanners_deployed_configured
+  for_each:
+    discovery: aws.inspector.assessment_encryption
+    as: assessment
+    item: assessment
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for inspector assessment:\n\n1. Open INSPECTOR console\n2. Select the assessment\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws inspector modify-assessment --assessment-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

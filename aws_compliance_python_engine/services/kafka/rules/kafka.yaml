@@ -1,101 +1,98 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: kafka
 discovery:
-  discovery_id: aws.kafka.resources
+- discovery_id: aws.kafka.clusters
   calls:
-    - client: kafka
-      action: describe_kafkas
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: kafka
+    action: list_clusters
+    save_as: cluster_list
+    on_error: continue
+    fields:
+    - Kafkas
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: cluster_list[]
+    as: cluster
+    item:
+      id: '{{ cluster.Id }}'
+      name: '{{ cluster.Name }}'
+- discovery_id: aws.kafka.cluster_encryption
+  for_each: aws.kafka.clusters
+  calls:
+  - client: kafka
+    action: list_clusters
+    params:
+      ClusterId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.kafka.resource_encryption
+  calls:
+  - client: kafka
+    action: list_client_vpc_connections
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Default Encryption Enabled
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.default_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.default_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement default encryption enabled for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
-  - title: Customer Managed Keys Used Buckets
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.customer_managed_keys_used_buckets
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_buckets
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used buckets for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
-  - title: Customer Managed Keys Used Databases
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.customer_managed_keys_used_databases
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_databases
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used databases for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
-  - title: Customer Managed Keys Used Disks
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.customer_managed_keys_used_disks
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_disks
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used disks for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
-  - title: Database Encryption Enabled
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.database_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.database_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement database encryption enabled for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
-  - title: Volume Encryption Enabled
-    severity: high
-    rule_id: aws.kafka.cluster_encryption.volume_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.volume_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement volume encryption enabled for kafka"
-    references:
-      - "https://docs.aws.amazon.com/kafka/"
+- title: 'KAFKA resource: Connector In Transit Encryption Enabled'
+  severity: high
+  rule_id: aws.kafka.resource.connector_in_transit_encryption_enabled
+  for_each:
+    discovery: aws.kafka.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kafka resource:\n\n1. Open KAFKA console\n2. Select the resource\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kafka modify-resource --resource-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KAFKA cluster: In Transit Encryption Enabled'
+  severity: high
+  rule_id: aws.kafka.cluster.in_transit_encryption_enabled
+  for_each:
+    discovery: aws.kafka.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kafka cluster:\n\n1. Open KAFKA console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kafka modify-cluster --cluster-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KAFKA cluster: Encryption At Rest Uses Cmk Configured'
+  severity: high
+  rule_id: aws.kafka.cluster.encryption_at_rest_uses_cmk_configured
+  for_each:
+    discovery: aws.kafka.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kafka cluster:\n\n1. Open KAFKA console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kafka modify-cluster --cluster-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

@@ -1,7 +1,13 @@
-# Azure Compliance Check Generation Prompt Template
+# Azure Compliance Check and Metadata Generation Prompt Template
 
 ## Context
-You are a compliance engineer tasked with creating security and compliance checks for Azure infrastructure. You need to generate YAML rule definitions that can be executed by our Azure compliance engine to validate infrastructure against security best practices.
+You are a compliance engineer tasked with creating **security and compliance checks** and their corresponding **metadata files** for Azure infrastructure. These checks and metadata files will be used by our Azure compliance engine to validate infrastructure against security best practices and compliance standards.
+
+## Purpose
+- **Compliance Checks**: Define YAML rules to validate Azure resources against security requirements.
+- **Metadata Files**: Provide rich context for compliance checks, including categorization, compliance mapping, risk assessment, and remediation guidance.
+
+---
 
 ## Azure Engine Capabilities
 
@@ -35,20 +41,9 @@ Dot notation for navigating Azure resource properties:
 - `exists`: Field exists and has a value
 - `not_exists`: Field does not exist or is null/empty
 
-### Resource Group Iteration
-Supports scanning across multiple resource groups:
-```yaml
-scope: subscription
-iterate_resource_groups: true
-discovery:
-  - discovery_id: vms
-    resource_group_param: resource_group_name
-    calls:
-      - action: virtual_machines.list
-        resource_group_param: resource_group_name
-```
+---
 
-## Prompt Template
+## Prompt Template for Compliance Check Generation
 
 ```
 Generate an Azure compliance check to validate [COMPLIANCE_REQUIREMENT].
@@ -79,6 +74,66 @@ Please generate the complete YAML rule including:
 3. Appropriate scope setting and resource group iteration
 4. Any special handling needed for Azure-specific resources
 ```
+
+---
+
+## Prompt Template for Metadata Generation
+
+```
+Generate a CSP metadata file for the following Azure compliance check:
+
+**Rule ID**: azure.<service>.<category>.<check_name>
+**Title**: <Human Readable Title>
+**Description**: <What the check validates and why it matters>
+
+**Check Details**:
+- **Service**: <service_name> (e.g., compute, storage, network, policy)
+- **Resource Type**: <resource_type> (e.g., virtual_machines, storage_accounts, network_security_groups)
+- **Severity**: <low|medium|high|critical>
+- **Scope**: <tenant|management_group|subscription|regional|global>
+
+**Compliance Standard**: [STANDARD_NAME] - [REQUIREMENT_ID]
+- Framework: <CIS|NIST|SOC2|HIPAA|PCI-DSS|GDPR>
+- Control ID: <control_id> (e.g., CIS-2.1.1, NIST-SC-13)
+- Control Title: <control_title>
+- Version: <framework_version> (e.g., CIS-1.4, NIST-800-53-rev5)
+
+**CSP Categorization**:
+- **Primary Category**: <data_security|entitlement|network_security|compute_security|secrets_management|compliance_governance|monitoring_detection|infrastructure_security>
+- **Subcategory**: <specific_subcategory>
+- **Security Domain**: <corresponding_security_domain>
+
+**Risk Assessment**:
+- **Impact**: <low|medium|high|critical> - <why this matters>
+- **Likelihood**: <low|medium|high> - <explanation>
+- **Risk Score**: <0-100> - <calculation rationale>
+
+**Detection**:
+- **Evidence Type**: <config_read|api_call|log_analysis|scan_result>
+- **Detection Method**: <static|runtime|continuous>
+- **Detection Capability**: <automated|manual|semi-automated>
+- **Recommended Frequency**: <continuous|daily|weekly|monthly>
+
+**Remediation**:
+- **Automated**: <true|false>
+- **Remediation Type**: <config_change|policy_update|permission_change|delete|isolate>
+- **Estimated Time**: <minutes|hours|days>
+- **Complexity**: <low|medium|high>
+- **Steps**: <detailed remediation steps>
+
+**Context**:
+- **Business Justification**: <Why this control is important for the business>
+- **Attack Scenario**: <How this could be exploited if not implemented>
+- **Not Applicable When**: <conditions when this check doesn't apply>
+
+**Additional Context**:
+- [ANY_SPECIFIC_DETAILS_ABOUT_THE_CHECK]
+- [CATEGORY_SPECIFIC_FIELDS] (e.g., data_classification for data_security, access_type for entitlement)
+
+Please generate the complete CSP metadata file following the `azure_csp_metadata_template.yaml` structure.
+```
+
+---
 
 ## Example Prompts
 
@@ -124,101 +179,57 @@ Generate an Azure compliance check to validate Storage Account CMK encryption.
 Please generate the complete YAML rule including discovery and check sections.
 ```
 
-### Management Group Policy Example
+### Metadata Example
 ```
-Generate an Azure compliance check to validate Management Group policy assignments.
+Generate a CSP metadata file for the following Azure compliance check:
 
-**Compliance Standard**: Azure Security Benchmark - PL-1
-**Requirement**: Ensure Management Groups have policy assignments configured
-**Severity**: MEDIUM
-**Scope**: management_group
+**Rule ID**: azure.storage.data_security.encryption_at_rest
+**Title**: Ensure Storage Accounts are encrypted at rest
+**Description**: Validate that all Azure Storage Accounts have encryption enabled to protect data at rest.
 
-**Target Resources**: Azure Policy Assignments at Management Group level
+**Check Details**:
+- **Service**: storage
+- **Resource Type**: storage_accounts
+- **Severity**: high
+- **Scope**: subscription
 
-**Expected Behavior**: Management Groups should have at least one policy assignment
+**Compliance Standard**: Azure Security Benchmark - DP-5
+- Framework: CIS
+- Control ID: CIS-2.1.1
+- Control Title: Ensure Storage Account encryption is enabled
+- Version: CIS-1.4
 
-**Current Infrastructure Context**:
-- Multiple management groups in the tenant
-- Need to check policy assignments at MG level
-- Management group scope scanning
+**CSP Categorization**:
+- **Primary Category**: data_security
+- **Subcategory**: data_encryption_at_rest
+- **Security Domain**: data_security
 
-Please generate the complete YAML rule including discovery and check sections.
-```
+**Risk Assessment**:
+- **Impact**: high - Unencrypted data exposes sensitive information
+- **Likelihood**: high - Misconfigured storage accounts are common
+- **Risk Score**: 85 - High impact data exposure × high likelihood of misconfiguration
 
-## Response Format
+**Detection**:
+- **Evidence Type**: config_read
+- **Detection Method**: static
+- **Detection Capability**: automated
+- **Recommended Frequency**: continuous
 
-When responding to these prompts, provide:
+**Remediation**:
+- **Automated**: true
+- **Remediation Type**: config_change
+- **Estimated Time**: minutes
+- **Complexity**: low
+- **Steps**: 
+  1. Enable encryption on the storage account using Azure CLI
+  2. Verify encryption settings in the Azure portal
 
-1. **Complete YAML Rule**: The full rule definition ready to be placed in the appropriate Azure service file
-2. **Explanation**: Brief explanation of how the rule works
-3. **Field Mapping**: Explanation of the Azure resource structure and field paths
-4. **Scope Considerations**: Why the chosen scope is appropriate
-5. **Resource Group Strategy**: Whether and how resource group iteration is used
-6. **Testing Notes**: Any considerations for testing the rule with Azure resources
+**Context**:
+- **Business Justification**: Protects sensitive customer data and meets compliance requirements (HIPAA, PCI-DSS, GDPR)
+- **Attack Scenario**: Attacker gains access to unencrypted storage account, exfiltrates sensitive data
+- **Not Applicable When**: no_storage_accounts
 
-## Common Azure Patterns
-
-### VM Configuration Check
-```yaml
-- check_id: vm_managed_disks
-  title: Ensure VMs use managed disks
-  severity: medium
-  for_each: vms
-  param: vm
-  calls:
-    - action: self
-      fields:
-        - path: storage_profile.os_disk.managed_disk
-          operator: exists
-          expected: true
-```
-
-### Storage Account Security Check
-```yaml
-- check_id: storage_https_only
-  title: Ensure Storage accounts require HTTPS
-  severity: high
-  for_each: accounts
-  param: account
-  calls:
-    - action: self
-      fields:
-        - path: enable_https_traffic_only
-          operator: equals
-          expected: true
+Please generate the complete CSP metadata file.
 ```
 
-### Network Security Group Check
-```yaml
-- check_id: nsg_no_ssh_from_any
-  title: Ensure NSGs do not allow SSH from anywhere
-  severity: high
-  for_each: nsgs
-  param: nsg
-  calls:
-    - action: self
-      fields:
-        - path: security_rules[].source_address_prefix
-          operator: not_contains
-          expected: "*"
-        - path: security_rules[].destination_port_range
-          operator: not_contains
-          expected: "22"
-```
-
-### Management Group Policy Check
-```yaml
-- check_id: mg_has_policy_assignments
-  title: Ensure Management Groups have policy assignments
-  severity: medium
-  for_each: mg_policy_assignments
-  param: assignment
-  calls:
-    - action: self
-      fields:
-        - path: name
-          operator: exists
-          expected: true
-```
-
-This template ensures consistent, effective Azure compliance checks that integrate seamlessly with your existing Azure compliance engine.
+This template ensures consistent, effective Azure compliance checks and metadata files that integrate seamlessly with your existing Azure compliance engine.

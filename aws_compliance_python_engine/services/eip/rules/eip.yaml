@@ -1,0 +1,39 @@
+version: '1.0'
+provider: aws
+service: ec2
+discovery:
+- discovery_id: aws.eip.addresss
+  calls:
+  - client: ec2
+    action: list_eips
+    save_as: address_list
+    on_error: continue
+    fields:
+    - Eips
+  emit:
+    items_for: address_list[]
+    as: address
+    item:
+      id: '{{ address.Id }}'
+      name: '{{ address.Name }}'
+checks:
+- title: 'EIP address: Address Enabled'
+  severity: medium
+  rule_id: aws.eip.address.address_enabled
+  for_each:
+    discovery: aws.eip.addresss
+    as: address
+    item: address
+  conditions:
+    var: address.compliant
+    op: equals
+    value: true
+  remediation: "Configure eip address for compliance:\n\nRequirement: Address Enabled\n\nDescription: Verifies security configuration\
+    \ for AWS EIP address to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open EIP console\n\
+    2. Select the address\n3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify\
+    \ compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022\
+    \ Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular\
+    \ security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

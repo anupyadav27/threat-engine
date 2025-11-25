@@ -1,73 +1,76 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: emr
 discovery:
-  discovery_id: aws.emr.resources
+- discovery_id: aws.emr.clusters
   calls:
-    - client: emr
-      action: describe_emrs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: emr
+    action: list_clusters
+    save_as: cluster_list
+    on_error: continue
+    fields:
+    - Emrs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: cluster_list[]
+    as: cluster
+    item:
+      id: '{{ cluster.Id }}'
+      name: '{{ cluster.Name }}'
 checks:
-  - title: Sensitivity Labels Applied
-    severity: low
-    rule_id: aws.emr.data_encryption.sensitivity_labels_applied
-    assertion_id: data_protection_storage.data_classification.sensitivity_labels_applied
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement sensitivity labels applied for emr"
-    references:
-      - "https://docs.aws.amazon.com/emr/"
-  - title: Automatic Classification Enabled
-    severity: low
-    rule_id: aws.emr.data_encryption.automatic_classification_enabled
-    assertion_id: data_protection_storage.data_classification.automatic_classification_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic classification enabled for emr"
-    references:
-      - "https://docs.aws.amazon.com/emr/"
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.emr.security_configuration.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for emr"
-    references:
-      - "https://docs.aws.amazon.com/emr/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.emr.security_configuration.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for emr"
-    references:
-      - "https://docs.aws.amazon.com/emr/"
+- title: 'EMR cluster: Account Public Block Enabled'
+  severity: high
+  rule_id: aws.emr.cluster.account_public_block_enabled
+  for_each:
+    discovery: aws.emr.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for emr cluster:\n\n1. Open EMR console\n2. Select the cluster\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EMR cluster: Master Nodes No Public Ip Configured'
+  severity: high
+  rule_id: aws.emr.cluster.master_nodes_no_public_ip_configured
+  for_each:
+    discovery: aws.emr.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for emr cluster:\n\n1. Open EMR console\n2. Select the cluster\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EMR cluster: Publicly Accesible Configured'
+  severity: high
+  rule_id: aws.emr.cluster.publicly_accesible_configured
+  for_each:
+    discovery: aws.emr.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for emr cluster:\n\n1. Open EMR console\n2. Select the cluster\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

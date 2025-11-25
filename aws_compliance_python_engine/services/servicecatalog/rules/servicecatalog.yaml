@@ -1,87 +1,51 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: servicecatalog
 discovery:
-  discovery_id: aws.servicecatalog.resources
+- discovery_id: aws.servicecatalog.portfolios
   calls:
-    - client: servicecatalog
-      action: describe_servicecatalogs
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: servicecatalog
+    action: list_portfolios
+    save_as: portfolio_list
+    on_error: continue
+    fields:
+    - Servicecatalogs
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: portfolio_list[]
+    as: portfolio
+    item:
+      id: '{{ portfolio.Id }}'
+      name: '{{ portfolio.Name }}'
+- discovery_id: aws.servicecatalog.portfolio_logging
+  for_each: aws.servicecatalog.portfolios
+  calls:
+  - client: servicecatalog
+    action: describe_constraint
+    params:
+      PortfolioId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
 checks:
-  - title: Security Policies Defined
-    severity: low
-    rule_id: aws.servicecatalog.catalog.security_policies_defined
-    assertion_id: governance_compliance.policy_management.security_policies_defined
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies defined for servicecatalog"
-    references:
-      - "https://docs.aws.amazon.com/servicecatalog/"
-  - title: Policy Compliance Monitored
-    severity: low
-    rule_id: aws.servicecatalog.catalog.policy_compliance_monitored
-    assertion_id: governance_compliance.policy_management.policy_compliance_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy compliance monitored for servicecatalog"
-    references:
-      - "https://docs.aws.amazon.com/servicecatalog/"
-  - title: Policy Exceptions Managed
-    severity: low
-    rule_id: aws.servicecatalog.catalog.policy_exceptions_managed
-    assertion_id: governance_compliance.policy_management.policy_exceptions_managed
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy exceptions managed for servicecatalog"
-    references:
-      - "https://docs.aws.amazon.com/servicecatalog/"
-  - title: Resource Tagging Enforced
-    severity: low
-    rule_id: aws.servicecatalog.catalog.resource_tagging_enforced
-    assertion_id: governance_compliance.resource_governance.resource_tagging_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource tagging enforced for servicecatalog"
-    references:
-      - "https://docs.aws.amazon.com/servicecatalog/"
-  - title: Resource Approval Required
-    severity: low
-    rule_id: aws.servicecatalog.catalog.resource_approval_required
-    assertion_id: governance_compliance.resource_governance.resource_approval_required
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource approval required for servicecatalog"
-    references:
-      - "https://docs.aws.amazon.com/servicecatalog/"
+- title: 'SERVICECATALOG portfolio: Servicecatalog Shared Within Organization Only Configured'
+  severity: medium
+  rule_id: aws.servicecatalog.portfolio.servicecatalog_shared_within_organization_only_configured
+  for_each:
+    discovery: aws.servicecatalog.portfolio_logging
+    as: portfolio
+    item: portfolio
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for servicecatalog portfolio:\n\n1. Open SERVICECATALOG console\n2. Select the portfolio\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws servicecatalog\
+    \ update-portfolio-logging --portfolio-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

@@ -1,87 +1,608 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: sns
 discovery:
-  discovery_id: aws.sns.resources
+- discovery_id: aws.sns.topic_subscription_configureds
   calls:
-    - client: sns
-      action: describe_snss
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: sns
+    action: list_topics
+    save_as: topic_subscription_configured_list
+    on_error: continue
+    fields:
+    - Topics
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: topic_subscription_configured_list[]
+    as: topic_subscription_configured
+    item:
+      id: '{{ topic_subscription_configured.TopicArn }}'
+      name: '{{ topic_subscription_configured.TopicArn }}'
+- discovery_id: aws.sns.topic_subscription_configured_encryption
+  for_each: aws.sns.topic_subscription_configureds
+  calls:
+  - client: sns
+    action: list_topics
+    params:
+      Topic_subscription_configuredId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.sns.topic_subscription_configured_logging
+  for_each: aws.sns.topic_subscription_configureds
+  calls:
+  - client: sns
+    action: get_topic_attributes
+    params:
+      Topic_subscription_configuredId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.sns.topic_logging
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: topic_logging
+    on_error: continue
+  emit:
+    items_for: topic_logging[]
+    as: topic_logging
+    item:
+      id: '{{ topic_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.topics_not_publicly_accessibles
+  for_each: aws.sns.topics_not_publicly_accessible
+  calls:
+  - client: sns
+    action: get_topic_attributes
+    save_as: topics_not_publicly_accessibles
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.subscriptions
+  for_each: aws.sns.subscription
+  calls:
+  - client: sns
+    action: list_subscriptions
+    save_as: subscriptions
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.topics_encryption
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: topics_encryption
+    on_error: continue
+  emit:
+    items_for: topics_encryption[]
+    as: topics_encryption
+    item:
+      id: '{{ topics_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.subscription_logging
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: subscription_logging
+    on_error: continue
+  emit:
+    items_for: subscription_logging[]
+    as: subscription_logging
+    item:
+      id: '{{ subscription_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.resource_encryption
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.subscription_encryption
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: subscription_encryption
+    on_error: continue
+  emit:
+    items_for: subscription_encryption[]
+    as: subscription_encryption
+    item:
+      id: '{{ subscription_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.topic_encryption
+  calls:
+  - client: sns
+    action: list_endpoints_by_platform_application
+    save_as: topic_encryption
+    on_error: continue
+  emit:
+    items_for: topic_encryption[]
+    as: topic_encryption
+    item:
+      id: '{{ topic_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.sns.topics
+  for_each: aws.sns.topic
+  calls:
+  - client: sns
+    action: list_topics
+    save_as: topics
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Event Encryption Enabled
-    severity: low
-    rule_id: aws.sns.topic_security.event_encryption_enabled
-    assertion_id: serverless_paas.event_security.event_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement event encryption enabled for sns"
-    references:
-      - "https://docs.aws.amazon.com/sns/"
-  - title: Event Validation Enabled
-    severity: low
-    rule_id: aws.sns.topic_security.event_validation_enabled
-    assertion_id: serverless_paas.event_security.event_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement event validation enabled for sns"
-    references:
-      - "https://docs.aws.amazon.com/sns/"
-  - title: Real Time Monitoring Enabled
-    severity: medium
-    rule_id: aws.sns.alerting_topics.real_time_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.real_time_monitoring_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement real time monitoring enabled for sns"
-    references:
-      - "https://docs.aws.amazon.com/sns/"
-  - title: Alerting Rules Configured
-    severity: medium
-    rule_id: aws.sns.alerting_topics.alerting_rules_configured
-    assertion_id: logging_monitoring.monitoring_alerting.alerting_rules_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement alerting rules configured for sns"
-    references:
-      - "https://docs.aws.amazon.com/sns/"
-  - title: Performance Monitoring Enabled
-    severity: medium
-    rule_id: aws.sns.alerting_topics.performance_monitoring_enabled
-    assertion_id: logging_monitoring.monitoring_alerting.performance_monitoring_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement performance monitoring enabled for sns"
-    references:
-      - "https://docs.aws.amazon.com/sns/"
+- title: 'SNS topic: Destinations Configured'
+  severity: medium
+  rule_id: aws.sns.topic.destinations_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic for compliance:\n\nRequirement: Destinations Configuration\n\nDescription: Verifies security\
+    \ configuration for Amazon SNS topic to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open SNS console\n2. Select the topic\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS resource: Topics Kms Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.sns.resource.topics_kms_encryption_at_rest_enabled
+  for_each:
+    discovery: aws.sns.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sns resource:\n\n1. Open SNS console\n2. Select the resource\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sns modify-resource --resource-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topics not publicly accessible: Topics Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.sns.topics_not_publicly_accessible.topics_not_publicly_accessible_configured
+  for_each:
+    discovery: aws.sns.topics_not_publicly_accessibles
+    as: topics_not_publicly_accessible
+    item: topics_not_publicly_accessible
+  conditions:
+    var: topics_not_publicly_accessible.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns topics_not_publicly_accessible:\n\n1. Open SNS console\n2. Select the topics_not_publicly_accessible\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: No Public Webhooks Without Auth Configured'
+  severity: high
+  rule_id: aws.sns.topic.no_public_webhooks_without_auth_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Policy Exists For Critical Severity Configured'
+  severity: high
+  rule_id: aws.sns.topic.policy_exists_for_critical_severity_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: No Public Webhooks Configured'
+  severity: high
+  rule_id: aws.sns.subscription.no_public_webhooks_configured
+  for_each:
+    discovery: aws.sns.subscriptions
+    as: subscription
+    item: subscription
+  conditions:
+    var: subscription.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns subscription:\n\n1. Open SNS console\n2. Select the subscription\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: Oncall Contacts Verified'
+  severity: medium
+  rule_id: aws.sns.subscription.oncall_contacts_verified
+  for_each:
+    discovery: aws.sns.subscriptions
+    as: subscription
+    item: subscription
+  conditions:
+    var: subscription.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns subscription for compliance:\n\nRequirement: Oncall Contacts Verified\n\nDescription: Verifies\
+    \ security configuration for Amazon SNS subscription to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SNS console\n2. Select the subscription\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Endpoints Authenticated Configured'
+  severity: medium
+  rule_id: aws.sns.topic.endpoints_authenticated_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic for compliance:\n\nRequirement: Endpoints Authenticated Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon SNS topic to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SNS console\n2. Select the topic\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: Sns Subscription Destinations Configured'
+  severity: medium
+  rule_id: aws.sns.subscription.sns_subscription_destinations_configured
+  for_each:
+    discovery: aws.sns.subscriptions
+    as: subscription
+    item: subscription
+  conditions:
+    var: subscription.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns subscription for compliance:\n\nRequirement: Sns Subscription Destinations Configuration\n\n\
+    Description: Verifies security configuration for Amazon SNS subscription to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SNS console\n2. Select the subscription\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Destinations Authenticated Configured'
+  severity: medium
+  rule_id: aws.sns.topic.destinations_authenticated_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic for compliance:\n\nRequirement: Destinations Authenticated Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon SNS topic to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open SNS console\n2. Select the topic\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: Endpoints Authenticated Configured'
+  severity: medium
+  rule_id: aws.sns.subscription.endpoints_authenticated_configured
+  for_each:
+    discovery: aws.sns.subscriptions
+    as: subscription
+    item: subscription
+  conditions:
+    var: subscription.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns subscription for compliance:\n\nRequirement: Endpoints Authenticated Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon SNS subscription to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open SNS console\n2. Select the subscription\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Security alerting and notification systems are configured
+  severity: high
+  rule_id: aws.sns.subscription.change_audit_logging_enabled
+  for_each:
+    discovery: aws.sns.subscription_logging
+    as: subscription
+    item: subscription
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sns subscription:\n\n1. Open SNS console\n2. Select the subscription\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sns update-subscription-logging --subscription-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: Message Encryption In Transit Configured'
+  severity: high
+  rule_id: aws.sns.subscription.message_encryption_in_transit_configured
+  for_each:
+    discovery: aws.sns.subscription_encryption
+    as: subscription
+    item: subscription
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sns subscription:\n\n1. Open SNS console\n2. Select the subscription\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sns modify-subscription --subscription-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic subscription configured: Topic Subscription Configured Configured'
+  severity: medium
+  rule_id: aws.sns.topic_subscription_configured.topic_subscription_configured_configured
+  for_each:
+    discovery: aws.sns.topic_subscription_configureds
+    as: topic_subscription_configured
+    item: topic_subscription_configured
+  conditions:
+    var: topic_subscription_configured.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic_subscription_configured for compliance:\n\nRequirement: Topic Subscription Configured\
+    \ Configuration\n\nDescription: Verifies security configuration for Amazon SNS topic subscription configured to ensure\
+    \ alignment with AWS security best practices and compliance requirements. Proper configuration reduces security risks,\
+    \ maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open SNS console\n2. Select the topic_subscription_configured\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS subscription: Policy Exists For Critical Severity Configured'
+  severity: high
+  rule_id: aws.sns.subscription.policy_exists_for_critical_severity_configured
+  for_each:
+    discovery: aws.sns.subscriptions
+    as: subscription
+    item: subscription
+  conditions:
+    var: subscription.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns subscription:\n\n1. Open SNS console\n2. Select the subscription\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Destinations Access Least Privilege'
+  severity: high
+  rule_id: aws.sns.topic.destinations_access_least_privilege
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Security alerting and notification systems are configured
+  severity: high
+  rule_id: aws.sns.topic.change_audit_logging_enabled
+  for_each:
+    discovery: aws.sns.topic_logging
+    as: topic
+    item: topic
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws sns update-topic-logging --topic-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Critical Alarms Enabled'
+  severity: medium
+  rule_id: aws.sns.topic.critical_alarms_enabled
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for sns topic:\n\n1. Open CloudWatch console\n2. Create alarm for topic\n3. Configure metrics\
+    \ to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Oncall Contacts Verified'
+  severity: medium
+  rule_id: aws.sns.topic.oncall_contacts_verified
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic for compliance:\n\nRequirement: Oncall Contacts Verified\n\nDescription: Verifies security\
+    \ configuration for Amazon SNS topic to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open SNS console\n2. Select the topic\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topics: Kms Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.sns.topics.kms_encryption_at_rest_enabled
+  for_each:
+    discovery: aws.sns.topics_encryption
+    as: topics
+    item: topics
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sns topics:\n\n1. Open SNS console\n2. Select the topics\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sns modify-topics --topics-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: No Public Webhooks Configured'
+  severity: high
+  rule_id: aws.sns.topic.no_public_webhooks_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Channels Configured'
+  severity: medium
+  rule_id: aws.sns.topic.channels_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.compliant
+    op: equals
+    value: true
+  remediation: "Configure sns topic for compliance:\n\nRequirement: Channels Configuration\n\nDescription: Verifies security\
+    \ configuration for Amazon SNS topic to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open SNS console\n2. Select the topic\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Message Encryption In Transit Configured'
+  severity: high
+  rule_id: aws.sns.topic.message_encryption_in_transit_configured
+  for_each:
+    discovery: aws.sns.topic_encryption
+    as: topic
+    item: topic
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for sns topic:\n\n1. Open SNS console\n2. Select the topic\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws sns modify-topic --topic-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'SNS topic: Alarm Actions Configured'
+  severity: medium
+  rule_id: aws.sns.topic.alarm_actions_configured
+  for_each:
+    discovery: aws.sns.topics
+    as: topic
+    item: topic
+  conditions:
+    var: topic.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for sns topic:\n\n1. Open CloudWatch console\n2. Create alarm for topic\n3. Configure metrics\
+    \ to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

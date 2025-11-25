@@ -1,87 +1,39 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: wellarchitected
 discovery:
-  discovery_id: aws.wellarchitected.resources
+- discovery_id: aws.wellarchitected.workloads
   calls:
-    - client: wellarchitected
-      action: describe_wellarchitecteds
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: wellarchitected
+    action: list_answers
+    save_as: workload_list
+    on_error: continue
+    fields:
+    - Wellarchitecteds
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: workload_list[]
+    as: workload
+    item:
+      id: '{{ workload.Id }}'
+      name: '{{ workload.Name }}'
 checks:
-  - title: Regulatory Requirements Mapped
-    severity: low
-    rule_id: aws.wellarchitected.architected.regulatory_requirements_mapped
-    assertion_id: governance_compliance.compliance_framework.regulatory_requirements_mapped
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement regulatory requirements mapped for wellarchitected"
-    references:
-      - "https://docs.aws.amazon.com/wellarchitected/"
-  - title: Compliance Reporting Enabled
-    severity: low
-    rule_id: aws.wellarchitected.architected.compliance_reporting_enabled
-    assertion_id: governance_compliance.compliance_framework.compliance_reporting_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance reporting enabled for wellarchitected"
-    references:
-      - "https://docs.aws.amazon.com/wellarchitected/"
-  - title: Audit Trail Maintained
-    severity: low
-    rule_id: aws.wellarchitected.architected.audit_trail_maintained
-    assertion_id: governance_compliance.compliance_framework.audit_trail_maintained
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement audit trail maintained for wellarchitected"
-    references:
-      - "https://docs.aws.amazon.com/wellarchitected/"
-  - title: Platform Health Monitored
-    severity: medium
-    rule_id: aws.wellarchitected.architected.platform_health_monitored
-    assertion_id: platform_surfaces_versions.platform_monitoring.platform_health_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement platform health monitored for wellarchitected"
-    references:
-      - "https://docs.aws.amazon.com/wellarchitected/"
-  - title: Service Availability Tracked
-    severity: medium
-    rule_id: aws.wellarchitected.architected.service_availability_tracked
-    assertion_id: platform_surfaces_versions.platform_monitoring.service_availability_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service availability tracked for wellarchitected"
-    references:
-      - "https://docs.aws.amazon.com/wellarchitected/"
+- title: 'WELLARCHITECTED workload: Wellarchitected No High Or Medium Risks Configured'
+  severity: medium
+  rule_id: aws.wellarchitected.workload.wellarchitected_no_high_or_medium_risks_configured
+  for_each:
+    discovery: aws.wellarchitected.workloads
+    as: workload
+    item: workload
+  conditions:
+    var: workload.compliant
+    op: equals
+    value: true
+  remediation: "Configure wellarchitected workload for compliance:\n\nRequirement: Wellarchitected No High Or Medium Risks\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS WELLARCHITECTED workload to ensure alignment with\
+    \ AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains defense\
+    \ in depth, and supports overall security posture.\n\nSteps:\n1. Open WELLARCHITECTED console\n2. Select the workload\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

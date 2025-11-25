@@ -1,45 +1,164 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: directconnect
 discovery:
-  discovery_id: aws.directconnect.resources
+- discovery_id: aws.directconnect.virtual_interface_redundancys
   calls:
-    - client: directconnect
-      action: describe_directconnects
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: directconnect
+    action: describe_connection
+    save_as: virtual_interface_redundancy_list
+    on_error: continue
+    fields:
+    - Directconnects
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: virtual_interface_redundancy_list[]
+    as: virtual_interface_redundancy
+    item:
+      id: '{{ virtual_interface_redundancy.Id }}'
+      name: '{{ virtual_interface_redundancy.Name }}'
+- discovery_id: aws.directconnect.virtual_interface_redundancy_encryption
+  for_each: aws.directconnect.virtual_interface_redundancys
+  calls:
+  - client: directconnect
+    action: describe_connection
+    params:
+      Virtual_interface_redundancyId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.directconnect.connections
+  for_each: aws.directconnect.connection
+  calls:
+  - client: directconnect
+    action: describe_connection
+    save_as: connections
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.directconnect.connection_redundancys
+  for_each: aws.directconnect.connection_redundancy
+  calls:
+  - client: directconnect
+    action: describe_connection_loa
+    save_as: connection_redundancys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.directconnect.connection_encryption
+  calls:
+  - client: directconnect
+    action: list_virtual_interface_test_history
+    save_as: connection_encryption
+    on_error: continue
+  emit:
+    items_for: connection_encryption[]
+    as: connection_encryption
+    item:
+      id: '{{ connection_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Vpc Isolation Enforced
-    severity: low
-    rule_id: aws.directconnect.connection_encryption.vpc_isolation_enforced
-    assertion_id: network_perimeter.network_segmentation.vpc_isolation_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement vpc isolation enforced for directconnect"
-    references:
-      - "https://docs.aws.amazon.com/directconnect/"
-  - title: Subnet Segmentation Configured
-    severity: low
-    rule_id: aws.directconnect.connection_encryption.subnet_segmentation_configured
-    assertion_id: network_perimeter.network_segmentation.subnet_segmentation_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement subnet segmentation configured for directconnect"
-    references:
-      - "https://docs.aws.amazon.com/directconnect/"
+- title: 'DIRECTCONNECT connection redundancy: Directconnect Connection Redundancy Configured'
+  severity: medium
+  rule_id: aws.directconnect.connection_redundancy.directconnect_connection_redundancy_configured
+  for_each:
+    discovery: aws.directconnect.connection_redundancys
+    as: connection_redundancy
+    item: connection_redundancy
+  conditions:
+    var: connection_redundancy.compliant
+    op: equals
+    value: true
+  remediation: "Configure directconnect connection_redundancy for compliance:\n\nRequirement: Directconnect Connection Redundancy\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS DIRECTCONNECT connection redundancy to ensure\
+    \ alignment with AWS security best practices and compliance requirements. Proper configuration reduces security risks,\
+    \ maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open DIRECTCONNECT console\n2. Select\
+    \ the connection_redundancy\n3. Review security configuration\n4. Apply required settings per organizational policy\n\
+    5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\
+    \u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022\
+    \ Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DIRECTCONNECT connection: Tunnel Health Monitoring Enabled'
+  severity: medium
+  rule_id: aws.directconnect.connection.tunnel_health_monitoring_enabled
+  for_each:
+    discovery: aws.directconnect.connections
+    as: connection
+    item: connection
+  conditions:
+    var: connection.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for directconnect connection:\n\n1. Open CloudWatch console\n2. Create alarm for connection\n\
+    3. Configure metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring\
+    \ (if available)\n7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant\
+    \ metrics\n\u2022 Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022\
+    \ Implement automated remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DIRECTCONNECT virtual interface redundancy: Directconnect Virtual Interface Redundancy Configured'
+  severity: medium
+  rule_id: aws.directconnect.virtual_interface_redundancy.directconnect_virtual_interface_redundancy_configured
+  for_each:
+    discovery: aws.directconnect.virtual_interface_redundancys
+    as: virtual_interface_redundancy
+    item: virtual_interface_redundancy
+  conditions:
+    var: virtual_interface_redundancy.compliant
+    op: equals
+    value: true
+  remediation: "Configure directconnect virtual_interface_redundancy for compliance:\n\nRequirement: Directconnect Virtual\
+    \ Interface Redundancy Configuration\n\nDescription: Verifies security configuration for AWS DIRECTCONNECT virtual interface\
+    \ redundancy to ensure alignment with AWS security best practices and compliance requirements. Proper configuration reduces\
+    \ security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open DIRECTCONNECT\
+    \ console\n2. Select the virtual_interface_redundancy\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DIRECTCONNECT connection: Pre Shared Keys Key Rotation Policy Configured'
+  severity: high
+  rule_id: aws.directconnect.connection.pre_shared_keys_key_rotation_policy_configured
+  for_each:
+    discovery: aws.directconnect.connections
+    as: connection
+    item: connection
+  conditions:
+    var: connection.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for directconnect connection:\n\n1. Open DIRECTCONNECT console\n2. Select the connection\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DIRECTCONNECT connection: Ike Phase Encryption Strong Configured'
+  severity: high
+  rule_id: aws.directconnect.connection.ike_phase_encryption_strong_configured
+  for_each:
+    discovery: aws.directconnect.connection_encryption
+    as: connection
+    item: connection
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for directconnect connection:\n\n1. Open DIRECTCONNECT console\n2. Select the connection\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws directconnect\
+    \ modify-connection --connection-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

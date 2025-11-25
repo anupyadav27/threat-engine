@@ -1,101 +1,434 @@
-version: 1.0
+version: '1.0'
 provider: aws
-service: timestream
+service: timestream-query
 discovery:
-  discovery_id: aws.timestream.resources
+- discovery_id: aws.timestream.databases
   calls:
-    - client: timestream-write
-      action: list_databases
-      paginate: true
-  fields:
-    - name: DatabaseName
-      save_as: database_name
+  - client: timestream-query
+    action: list_timestreams
+    save_as: database_list
+    on_error: continue
+    fields:
+    - Timestreams
   emit:
-    items_for:
-      as: resource
-      item: database_name
+    items_for: database_list[]
+    as: database
+    item:
+      id: '{{ database.Id }}'
+      name: '{{ database.Name }}'
+- discovery_id: aws.timestream.database_encryption
+  for_each: aws.timestream.databases
+  calls:
+  - client: timestream-query
+    action: list_timestreams
+    params:
+      DatabaseId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.timestream.database_logging
+  for_each: aws.timestream.databases
+  calls:
+  - client: timestream-query
+    action: describe_database_logging
+    params:
+      DatabaseId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.timestream.resource_logging
+  calls:
+  - client: timestream-query
+    action: describe_load_balancers
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.timestream.resources
+  for_each: aws.timestream.resource
+  calls:
+  - client: timestream-query
+    action: describe_resources
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.timestream.tables
+  for_each: aws.timestream.table
+  calls:
+  - client: timestream-query
+    action: list_tables
+    save_as: tables
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.timestream.table_encryption
+  calls:
+  - client: timestream-query
+    action: describe_table
+    save_as: table_encryption
+    on_error: continue
+  emit:
+    items_for: table_encryption[]
+    as: table_encryption
+    item:
+      id: '{{ table_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Default Encryption Enabled
-    severity: high
-    rule_id: aws.timestream.database_encryption.default_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.default_encryption_enabled
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement default encryption enabled for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
-  - title: Customer Managed Keys Used Buckets
-    severity: high
-    rule_id: aws.timestream.database_encryption.customer_managed_keys_used_buckets
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_buckets
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used buckets for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
-  - title: Customer Managed Keys Used Databases
-    severity: high
-    rule_id: aws.timestream.database_encryption.customer_managed_keys_used_databases
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_databases
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used databases for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
-  - title: Customer Managed Keys Used Disks
-    severity: high
-    rule_id: aws.timestream.database_encryption.customer_managed_keys_used_disks
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_disks
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used disks for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
-  - title: Database Encryption Enabled
-    severity: high
-    rule_id: aws.timestream.database_encryption.database_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.database_encryption_enabled
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement database encryption enabled for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
-  - title: Volume Encryption Enabled
-    severity: high
-    rule_id: aws.timestream.database_encryption.volume_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.volume_encryption_enabled
-    for_each:
-      as: resource
-      item: database_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement volume encryption enabled for timestream"
-    references:
-      - "https://docs.aws.amazon.com/timestream/"
+- title: 'TIMESTREAM resource: Timestream Ingestion Secure Protocol Configured'
+  severity: medium
+  rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
+  for_each:
+    discovery: aws.timestream.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure timestream resource for compliance:\n\nRequirement: Timestream Ingestion Secure Protocol Configuration\n\
+    \nDescription: Verifies security configuration for AWS TIMESTREAM resource to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open TIMESTREAM console\n2. Select the resource\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Check Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.timestream.database.check_encryption_at_rest_enabled
+  for_each:
+    discovery: aws.timestream.database_encryption
+    as: database
+    item: database
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for timestream database:\n\n1. Open TIMESTREAM console\n2. Select the database\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws timestream modify-database --database-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM resource: Security Configuration Compliance Configured'
+  severity: medium
+  rule_id: aws.timestream.resource.security_configuration_compliance_configured
+  for_each:
+    discovery: aws.timestream.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure timestream resource for compliance:\n\nRequirement: Security Configuration Compliance Configuration\n\
+    \nDescription: Verifies security configuration for AWS TIMESTREAM resource to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open TIMESTREAM console\n2. Select the resource\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM resource: Cloudwatch Monitoring And Alerting Enabled'
+  severity: medium
+  rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
+  for_each:
+    discovery: aws.timestream.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for timestream resource:\n\n1. Open TIMESTREAM console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws timestream update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.timestream.database.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.timestream.database_encryption
+    as: database
+    item: database
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for timestream database:\n\n1. Open TIMESTREAM console\n2. Select the database\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws timestream modify-database --database-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Require Tls In Transit Configured'
+  severity: high
+  rule_id: aws.timestream.table.require_tls_in_transit_configured
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for timestream table:\n\n1. Ensure table is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Require Tls In Transit Configured'
+  severity: high
+  rule_id: aws.timestream.database.require_tls_in_transit_configured
+  for_each:
+    discovery: aws.timestream.databases
+    as: database
+    item: database
+  conditions:
+    var: database.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for timestream database:\n\n1. Ensure database is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Deletion Protection Enabled'
+  severity: medium
+  rule_id: aws.timestream.table.deletion_protection_enabled
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.compliant
+    op: equals
+    value: true
+  remediation: "Configure timestream table for compliance:\n\nRequirement: Deletion Protection\n\nDescription: Ensures AWS\
+    \ TIMESTREAM table has deletion protection enabled to prevent accidental or malicious removal. Deletion protection provides\
+    \ a safety mechanism requiring explicit disablement before deletion, preventing service disruption and data loss.\n\n\
+    Steps:\n1. Open TIMESTREAM console\n2. Select the table\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Iam Or Managed Identity Auth Enabled If Supported'
+  severity: high
+  rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
+  for_each:
+    discovery: aws.timestream.databases
+    as: database
+    item: database
+  conditions:
+    var: database.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream database:\n\n1. Open TIMESTREAM console\n2. Select the database\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Private Network Only If Supported'
+  severity: high
+  rule_id: aws.timestream.table.private_network_only_if_supported
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream table:\n\n1. Open TIMESTREAM console\n2. Select the table\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Iam Or Managed Identity Auth Enabled If Supported'
+  severity: high
+  rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream table:\n\n1. Open TIMESTREAM console\n2. Select the table\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM resource: Iam Fine Grained Access Control Enabled'
+  severity: high
+  rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
+  for_each:
+    discovery: aws.timestream.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream resource:\n\n1. Open TIMESTREAM console\n2. Select the resource\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Public Access Disabled'
+  severity: high
+  rule_id: aws.timestream.table.public_access_disabled
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream table:\n\n1. Open TIMESTREAM console\n2. Select the table\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Public Access Disabled'
+  severity: high
+  rule_id: aws.timestream.database.public_access_disabled
+  for_each:
+    discovery: aws.timestream.databases
+    as: database
+    item: database
+  conditions:
+    var: database.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream database:\n\n1. Open TIMESTREAM console\n2. Select the database\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM resource: Cloudtrail Management And Data Logging Enabled'
+  severity: medium
+  rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
+  for_each:
+    discovery: aws.timestream.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for timestream resource:\n\n1. Open TIMESTREAM console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws timestream update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM database: Deletion Protection Enabled'
+  severity: medium
+  rule_id: aws.timestream.database.deletion_protection_enabled
+  for_each:
+    discovery: aws.timestream.databases
+    as: database
+    item: database
+  conditions:
+    var: database.compliant
+    op: equals
+    value: true
+  remediation: "Configure timestream database for compliance:\n\nRequirement: Deletion Protection\n\nDescription: Ensures\
+    \ AWS TIMESTREAM database has deletion protection enabled to prevent accidental or malicious removal. Deletion protection\
+    \ provides a safety mechanism requiring explicit disablement before deletion, preventing service disruption and data loss.\n\
+    \nSteps:\n1. Open TIMESTREAM console\n2. Select the database\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.timestream.table.rbac_least_privilege
+  for_each:
+    discovery: aws.timestream.tables
+    as: table
+    item: table
+  conditions:
+    var: table.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for timestream table:\n\n1. Open TIMESTREAM console\n2. Select the table\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'TIMESTREAM table: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.timestream.table.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.timestream.table_encryption
+    as: table
+    item: table
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for timestream table:\n\n1. Open TIMESTREAM console\n2. Select the table\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws timestream modify-table --table-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

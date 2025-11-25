@@ -1,185 +1,276 @@
-version: 1.0
+version: '1.0'
 provider: aws
-service: cognito
+service: cognito-idp
 discovery:
-  discovery_id: aws.cognito.resources
+- discovery_id: aws.cognito.userpools
   calls:
-    - client: cognito
-      action: describe_cognitos
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: cognito-idp
+    action: list_user_pools
+    save_as: userpool_list
+    on_error: continue
+    fields:
+    - Cognitos
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: userpool_list[]
+    as: userpool
+    item:
+      id: '{{ userpool.Id }}'
+      name: '{{ userpool.Name }}'
+- discovery_id: aws.cognito.userpool_encryption
+  for_each: aws.cognito.userpools
+  calls:
+  - client: cognito-idp
+    action: list_user_pools
+    params:
+      UserpoolId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.cognito.userpoolgroups
+  for_each: aws.cognito.userpoolgroup
+  calls:
+  - client: cognito-idp
+    action: list_groups
+    save_as: userpoolgroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Strong Authn Enabled
-    severity: critical
-    rule_id: aws.cognito.user_pool_mfa_policy.strong_authn_enabled
-    assertion_id: identity_access.authentication.strong_authn_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement strong authn enabled for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Service Authn Configured
-    severity: critical
-    rule_id: aws.cognito.user_pool_mfa_policy.service_authn_configured
-    assertion_id: identity_access.authentication.service_authn_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service authn configured for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Legacy Authn Disabled
-    severity: critical
-    rule_id: aws.cognito.user_pool_mfa_policy.legacy_authn_disabled
-    assertion_id: identity_access.authentication.legacy_authn_disabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement legacy authn disabled for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Session Timeout Configured
-    severity: critical
-    rule_id: aws.cognito.user_pool_mfa_policy.session_timeout_configured
-    assertion_id: identity_access.authentication.session_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session timeout configured for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: External Idp Configured
-    severity: low
-    rule_id: aws.cognito.identity_pools.external_idp_configured
-    assertion_id: identity_access.federation.external_idp_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement external idp configured for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Trust Relationships Managed
-    severity: low
-    rule_id: aws.cognito.identity_pools.trust_relationships_managed
-    assertion_id: identity_access.federation.trust_relationships_managed
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement trust relationships managed for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Cross Account Access Controlled
-    severity: low
-    rule_id: aws.cognito.identity_pools.cross_account_access_controlled
-    assertion_id: identity_access.federation.cross_account_access_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cross account access controlled for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Enforced For Privileged Users
-    severity: low
-    rule_id: aws.cognito.mfa_settings.enforced_for_privileged_users
-    assertion_id: identity_access.mfa.enforced_for_privileged_users
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement enforced for privileged users for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Backup Methods Configured
-    severity: low
-    rule_id: aws.cognito.mfa_settings.backup_methods_configured
-    assertion_id: identity_access.mfa.backup_methods_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement backup methods configured for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Hardware Tokens Required For Privileged
-    severity: low
-    rule_id: aws.cognito.mfa_settings.hardware_tokens_required_for_privileged
-    assertion_id: identity_access.mfa.hardware_tokens_required_for_privileged
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hardware tokens required for privileged for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Session Duration Limited
-    severity: low
-    rule_id: aws.cognito.session_settings.session_duration_limited
-    assertion_id: identity_access.session_management.session_duration_limited
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session duration limited for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
-  - title: Temporary Credentials Controlled
-    severity: low
-    rule_id: aws.cognito.session_settings.temporary_credentials_controlled
-    assertion_id: identity_access.session_management.temporary_credentials_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement temporary credentials controlled for cognito"
-    references:
-      - "https://docs.aws.amazon.com/cognito/"
+- title: 'COGNITO userpool: Access Keys Rotated 90 Days Or Less When Present'
+  severity: medium
+  rule_id: aws.cognito.userpool.access_keys_rotated_90_days_or_less_when_present
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cognito userpool:\n\n1. Open COGNITO console\n2. Select the userpool\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpoolgroup: Cognito No Inline Policies Configured'
+  severity: medium
+  rule_id: aws.cognito.userpoolgroup.cognito_no_inline_policies_configured
+  for_each:
+    discovery: aws.cognito.userpoolgroups
+    as: userpoolgroup
+    item: userpoolgroup
+  conditions:
+    var: userpoolgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpoolgroup for compliance:\n\nRequirement: Cognito No Inline Policies Configuration\n\
+    \nDescription: Verifies security configuration for AWS COGNITO userpoolgroup to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpoolgroup\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Console Password Present Only If Required'
+  severity: critical
+  rule_id: aws.cognito.userpool.console_password_present_only_if_required
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpool for compliance:\n\nRequirement: Console Password Present Only If Required\n\nDescription:\
+    \ Validates critical security configuration for AWS COGNITO userpool to prevent security incidents that could result in\
+    \ significant data breaches, compliance violations, or business disruption. This control addresses high-risk vulnerabilities\
+    \ that require immediate remediation.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpool\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Verify zero-trust authentication policies
+  severity: medium
+  rule_id: aws.cognito.userpool.mfa_required
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpool for compliance:\n\nRequirement: Multi-Factor Authentication\n\nDescription: Checks\
+    \ that AWS COGNITO userpool requires multi-factor authentication (MFA) for access, combining something you know (password)\
+    \ with something you have (token/device). MFA significantly reduces account compromise risk from phishing, credential\
+    \ stuffing, and password reuse attacks.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpool\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Cognito Store Encrypted'
+  severity: high
+  rule_id: aws.cognito.userpool.cognito_store_encrypted
+  for_each:
+    discovery: aws.cognito.userpool_encryption
+    as: userpool
+    item: userpool
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cognito userpool:\n\n1. Open COGNITO console\n2. Select the userpool\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cognito modify-userpool --userpool-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Cognito Inactive 90 Days Disabled'
+  severity: medium
+  rule_id: aws.cognito.userpool.cognito_inactive_90_days_disabled
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpool for compliance:\n\nRequirement: Cognito Inactive 90 Days Disabled\n\nDescription:\
+    \ Verifies security configuration for AWS COGNITO userpool to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpool\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.cognito.userpool.rbac_least_privilege
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cognito userpool:\n\n1. Open COGNITO console\n2. Select the userpool\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Cognito No Inline Policies Enabled'
+  severity: medium
+  rule_id: aws.cognito.userpool.cognito_no_inline_policies_enabled
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpool for compliance:\n\nRequirement: Cognito No Inline Policies Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS COGNITO userpool to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpool\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpoolgroup: Cognito Attached Policies Not Admin Star Configured'
+  severity: medium
+  rule_id: aws.cognito.userpoolgroup.cognito_attached_policies_not_admin_star_configured
+  for_each:
+    discovery: aws.cognito.userpoolgroups
+    as: userpoolgroup
+    item: userpoolgroup
+  conditions:
+    var: userpoolgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpoolgroup for compliance:\n\nRequirement: Cognito Attached Policies Not Admin Star Configuration\n\
+    \nDescription: Verifies security configuration for AWS COGNITO userpoolgroup to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpoolgroup\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Cognito Workflow Storage Encrypted'
+  severity: high
+  rule_id: aws.cognito.userpool.cognito_workflow_storage_encrypted
+  for_each:
+    discovery: aws.cognito.userpool_encryption
+    as: userpool
+    item: userpool
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for cognito userpool:\n\n1. Open COGNITO console\n2. Select the userpool\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws cognito modify-userpool --userpool-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpool: Execution Roles Least Privilege'
+  severity: high
+  rule_id: aws.cognito.userpool.execution_roles_least_privilege
+  for_each:
+    discovery: aws.cognito.userpools
+    as: userpool
+    item: userpool
+  conditions:
+    var: userpool.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for cognito userpool:\n\n1. Open COGNITO console\n2. Select the userpool\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'COGNITO userpoolgroup: Cognito Membership Review Enabled If Supported'
+  severity: medium
+  rule_id: aws.cognito.userpoolgroup.cognito_membership_review_enabled_if_supported
+  for_each:
+    discovery: aws.cognito.userpoolgroups
+    as: userpoolgroup
+    item: userpoolgroup
+  conditions:
+    var: userpoolgroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure cognito userpoolgroup for compliance:\n\nRequirement: Cognito Membership Review Enabled If Supported\n\
+    \nDescription: Verifies security configuration for AWS COGNITO userpoolgroup to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open COGNITO console\n2. Select the userpoolgroup\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

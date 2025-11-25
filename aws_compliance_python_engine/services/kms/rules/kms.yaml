@@ -1,269 +1,548 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: kms
 discovery:
-  discovery_id: aws.kms.keys
+- discovery_id: aws.kms.grants
   calls:
-    - client: kms
-      action: list_keys
-      paginate: true
-  fields:
-    - name: KeyId
-      save_as: key_id
+  - client: kms
+    action: list_keys
+    save_as: grant_list
+    on_error: continue
+    fields:
+    - Keys
   emit:
-    items_for:
-      as: resource
-      item: key_id
+    items_for: grant_list[]
+    as: grant
+    item:
+      id: '{{ grant.KeyId }}'
+      name: '{{ grant.KeyId }}'
+- discovery_id: aws.kms.grant_logging
+  for_each: aws.kms.grants
+  calls:
+  - client: kms
+    action: describe_custom_key_stores
+    params:
+      GrantId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.kms.alias_encryption
+  calls:
+  - client: kms
+    action: list_aliases
+    save_as: alias_encryption
+    on_error: continue
+  emit:
+    items_for: alias_encryption[]
+    as: alias_encryption
+    item:
+      id: '{{ alias_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.kms.key_encryption
+  calls:
+  - client: kms
+    action: list_aliases
+    save_as: key_encryption
+    on_error: continue
+  emit:
+    items_for: key_encryption[]
+    as: key_encryption
+    item:
+      id: '{{ key_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.kms.grant_encryption
+  calls:
+  - client: kms
+    action: list_aliases
+    save_as: grant_encryption
+    on_error: continue
+  emit:
+    items_for: grant_encryption[]
+    as: grant_encryption
+    item:
+      id: '{{ grant_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Encrypted Storage Enabled
-    severity: high
-    rule_id: aws.kms.key_storage.encrypted_storage_enabled
-    assertion_id: secrets_key_mgmt.secret_storage.encrypted_storage_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement encrypted storage enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Access Controlled
-    severity: high
-    rule_id: aws.kms.key_storage.access_controlled
-    assertion_id: secrets_key_mgmt.secret_storage.access_controlled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access controlled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Automatic Rotation Enabled
-    severity: high
-    rule_id: aws.kms.key_rotation.automatic_rotation_enabled
-    assertion_id: secrets_key_mgmt.key_rotation.automatic_rotation_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic rotation enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Manual Rotation Scheduled
-    severity: high
-    rule_id: aws.kms.key_rotation.manual_rotation_scheduled
-    assertion_id: secrets_key_mgmt.key_rotation.manual_rotation_scheduled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement manual rotation scheduled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Hsm Protection Enabled
-    severity: high
-    rule_id: aws.kms.key_protection.hsm_protection_enabled
-    assertion_id: secrets_key_mgmt.key_protection.hsm_protection_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hsm protection enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Hsm Protection Enabled
-    severity: high
-    rule_id: aws.kms.key_policies.hsm_protection_enabled
-    assertion_id: secrets_key_mgmt.key_protection.hsm_protection_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hsm protection enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Hsm Protection Enabled
-    severity: high
-    rule_id: aws.kms.hsm_protection.hsm_protection_enabled
-    assertion_id: secrets_key_mgmt.key_protection.hsm_protection_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hsm protection enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Key Access Logged
-    severity: high
-    rule_id: aws.kms.key_protection.key_access_logged
-    assertion_id: secrets_key_mgmt.key_protection.key_access_logged
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement key access logged for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Key Access Logged
-    severity: high
-    rule_id: aws.kms.key_policies.key_access_logged
-    assertion_id: secrets_key_mgmt.key_protection.key_access_logged
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement key access logged for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Key Access Logged
-    severity: high
-    rule_id: aws.kms.hsm_protection.key_access_logged
-    assertion_id: secrets_key_mgmt.key_protection.key_access_logged
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement key access logged for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Secure Injection Enabled
-    severity: high
-    rule_id: aws.kms.key_usage.secure_injection_enabled
-    assertion_id: secrets_key_mgmt.secret_retrieval.secure_injection_enabled
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement secure injection enabled for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Workload Identity Used
-    severity: high
-    rule_id: aws.kms.key_usage.workload_identity_used
-    assertion_id: secrets_key_mgmt.secret_retrieval.workload_identity_used
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement workload identity used for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Kms Configured
-    severity: low
-    rule_id: aws.kms.customer_managed_keys.kms_configured
-    assertion_id: crypto_data_protection.key_management.kms_configured
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement kms configured for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Key Policies Enforced
-    severity: low
-    rule_id: aws.kms.customer_managed_keys.key_policies_enforced
-    assertion_id: crypto_data_protection.key_management.key_policies_enforced
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement key policies enforced for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Algorithm Standards Enforced
-    severity: low
-    rule_id: aws.kms.crypto_policies.algorithm_standards_enforced
-    assertion_id: crypto_data_protection.crypto_policies.algorithm_standards_enforced
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement algorithm standards enforced for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Algorithm Standards Enforced
-    severity: low
-    rule_id: aws.kms.import_key_material.algorithm_standards_enforced
-    assertion_id: crypto_data_protection.crypto_policies.algorithm_standards_enforced
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement algorithm standards enforced for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Compliance Standards Met
-    severity: low
-    rule_id: aws.kms.crypto_policies.compliance_standards_met
-    assertion_id: crypto_data_protection.crypto_policies.compliance_standards_met
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance standards met for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
-  - title: Compliance Standards Met
-    severity: low
-    rule_id: aws.kms.import_key_material.compliance_standards_met
-    assertion_id: crypto_data_protection.crypto_policies.compliance_standards_met
-    for_each:
-      as: resource
-      item: key_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance standards met for kms"
-    references:
-      - "https://docs.aws.amazon.com/kms/"
+- title: 'KMS alias: Points To Active Key Configured'
+  severity: medium
+  rule_id: aws.kms.alias.points_to_active_key_configured
+  for_each:
+    discovery: aws.kms.alias_encryption
+    as: alias
+    item: alias
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms alias:\n\n1. Open KMS console\n2. Select the alias\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-alias --alias-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS alias: Logging Enabled'
+  severity: medium
+  rule_id: aws.kms.alias.logging_enabled
+  for_each:
+    discovery: aws.kms.alias_encryption
+    as: alias
+    item: alias
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms alias:\n\n1. Open KMS console\n2. Select the alias\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-alias --alias-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: State Change Monitoring Enabled'
+  severity: medium
+  rule_id: aws.kms.key.state_change_monitoring_enabled
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Certificate Expiration Configured'
+  severity: medium
+  rule_id: aws.kms.key.certificate_expiration_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Mtls Required For Internal Services If Supported'
+  severity: high
+  rule_id: aws.kms.key.mtls_required_for_internal_services_if_supported
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Tls Min 1 2 Enforced'
+  severity: high
+  rule_id: aws.kms.key.tls_min_1_2_enforced
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Multi Region Disabled'
+  severity: medium
+  rule_id: aws.kms.key.multi_region_disabled
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: In Transit Tls Min 1 2 Configured'
+  severity: high
+  rule_id: aws.kms.key.in_transit_tls_min_1_2_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS grant: Lessthan Wildcard Permissions Configured'
+  severity: high
+  rule_id: aws.kms.grant.lessthan_wildcard_permissions_configured
+  for_each:
+    discovery: aws.kms.grant_encryption
+    as: grant
+    item: grant
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms grant:\n\n1. Open KMS console\n2. Select the grant\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-grant --grant-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: At Rest Cmek Enabled'
+  severity: medium
+  rule_id: aws.kms.key.at_rest_cmek_enabled
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Not Scheduled For Deletion Configured'
+  severity: medium
+  rule_id: aws.kms.key.not_scheduled_for_deletion_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS grant: Ee Principal Valid'
+  severity: medium
+  rule_id: aws.kms.grant.ee_principal_valid
+  for_each:
+    discovery: aws.kms.grant_encryption
+    as: grant
+    item: grant
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms grant:\n\n1. Open KMS console\n2. Select the grant\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-grant --grant-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Key Management Service is properly configured
+  severity: low
+  rule_id: aws.kms.key.rotation_enabled
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS alias: Default Keys Disabled If Cmek Required'
+  severity: medium
+  rule_id: aws.kms.alias.default_keys_disabled_if_cmek_required
+  for_each:
+    discovery: aws.kms.alias_encryption
+    as: alias
+    item: alias
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms alias:\n\n1. Open KMS console\n2. Select the alias\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-alias --alias-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Customer Managed Keys In Use'
+  severity: medium
+  rule_id: aws.kms.key.customer_managed_keys_in_use
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS alias: Key Has Alias Configured'
+  severity: medium
+  rule_id: aws.kms.alias.key_has_alias_configured
+  for_each:
+    discovery: aws.kms.alias_encryption
+    as: alias
+    item: alias
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms alias:\n\n1. Open KMS console\n2. Select the alias\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-alias --alias-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Deletion Requires Waiting Period Configured'
+  severity: medium
+  rule_id: aws.kms.key.deletion_requires_waiting_period_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Logging Enabled'
+  severity: medium
+  rule_id: aws.kms.key.logging_enabled
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Not Pending Deletion'
+  severity: medium
+  rule_id: aws.kms.key.not_pending_deletion
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.kms.key.not_publicly_accessible_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Default Keys Disabled If Cmek Required'
+  severity: medium
+  rule_id: aws.kms.key.default_keys_disabled_if_cmek_required
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS grant: Constraints Present'
+  severity: medium
+  rule_id: aws.kms.grant.constraints_present
+  for_each:
+    discovery: aws.kms.grant_encryption
+    as: grant
+    item: grant
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms grant:\n\n1. Open KMS console\n2. Select the grant\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-grant --grant-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Lifecycle Policy Configured'
+  severity: high
+  rule_id: aws.kms.key.lifecycle_policy_configured
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'KMS key: Policy Least Privilege'
+  severity: high
+  rule_id: aws.kms.key.policy_least_privilege
+  for_each:
+    discovery: aws.kms.key_encryption
+    as: key
+    item: key
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for kms key:\n\n1. Open KMS console\n2. Select the key\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws kms modify-key --key-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/kms/latest/developerguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/kms-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

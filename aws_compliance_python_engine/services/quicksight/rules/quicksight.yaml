@@ -1,0 +1,413 @@
+version: '1.0'
+provider: aws
+service: quicksight
+discovery:
+- discovery_id: aws.quicksight.groups
+  calls:
+  - client: quicksight
+    action: list_analyses
+    save_as: group_list
+    on_error: continue
+    fields:
+    - Quicksights
+  emit:
+    items_for: group_list[]
+    as: group
+    item:
+      id: '{{ group.Id }}'
+      name: '{{ group.Name }}'
+- discovery_id: aws.quicksight.group_encryption
+  for_each: aws.quicksight.groups
+  calls:
+  - client: quicksight
+    action: list_analyses
+    params:
+      GroupId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.quicksight.group_logging
+  for_each: aws.quicksight.groups
+  calls:
+  - client: quicksight
+    action: describe_account_custom_permission
+    params:
+      GroupId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.quicksight.dataset_encryption
+  calls:
+  - client: quicksight
+    action: list_analyses
+    save_as: dataset_encryption
+    on_error: continue
+  emit:
+    items_for: dataset_encryption[]
+    as: dataset_encryption
+    item:
+      id: '{{ dataset_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.quicksight.users
+  for_each: aws.quicksight.user
+  calls:
+  - client: quicksight
+    action: describe_account_custom_permission
+    save_as: users
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.quicksight.dashboards
+  for_each: aws.quicksight.dashboard
+  calls:
+  - client: quicksight
+    action: describe_dashboard_snapshot_job
+    save_as: dashboards
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.quicksight.dashboard_logging
+  calls:
+  - client: quicksight
+    action: list_analyses
+    save_as: dashboard_logging
+    on_error: continue
+  emit:
+    items_for: dashboard_logging[]
+    as: dashboard_logging
+    item:
+      id: '{{ dashboard_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.quicksight.datasets
+  for_each: aws.quicksight.dataset
+  calls:
+  - client: quicksight
+    action: describe_account_custom_permission
+    save_as: datasets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+checks:
+- title: 'QUICKSIGHT dataset: Public Sharing Disabled'
+  severity: high
+  rule_id: aws.quicksight.dataset.public_sharing_disabled
+  for_each:
+    discovery: aws.quicksight.datasets
+    as: dataset
+    item: dataset
+  conditions:
+    var: dataset.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for quicksight dataset:\n\n1. Open QUICKSIGHT console\n2. Select the dataset\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dashboard: Logs Retention Days Minimum'
+  severity: medium
+  rule_id: aws.quicksight.dashboard.logs_retention_days_minimum
+  for_each:
+    discovery: aws.quicksight.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for quicksight dashboard:\n\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws quicksight update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT user: Quicksight Sso Required'
+  severity: medium
+  rule_id: aws.quicksight.user.quicksight_sso_required
+  for_each:
+    discovery: aws.quicksight.users
+    as: user
+    item: user
+  conditions:
+    var: user.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight user for compliance:\n\nRequirement: Quicksight Sso Required\n\nDescription: Verifies\
+    \ security configuration for AWS QUICKSIGHT user to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open QUICKSIGHT console\n2. Select the user\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dashboard: Quicksight Sharing Restricted To Org Configured'
+  severity: medium
+  rule_id: aws.quicksight.dashboard.quicksight_sharing_restricted_to_org_configured
+  for_each:
+    discovery: aws.quicksight.dashboards
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: dashboard.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight dashboard for compliance:\n\nRequirement: Quicksight Sharing Restricted To Org Configuration\n\
+    \nDescription: Verifies security configuration for AWS QUICKSIGHT dashboard to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT group: Roles Minimal Configured'
+  severity: high
+  rule_id: aws.quicksight.group.roles_minimal_configured
+  for_each:
+    discovery: aws.quicksight.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight group for compliance:\n\nRequirement: Roles Minimal Configuration\n\nDescription: Checks\
+    \ high-priority security configuration for AWS QUICKSIGHT group to mitigate significant security risks. This control addresses\
+    \ vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance if exploited.\n\n\
+    Steps:\n1. Open QUICKSIGHT console\n2. Select the group\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dataset: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.quicksight.dataset.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.quicksight.dataset_encryption
+    as: dataset
+    item: dataset
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for quicksight dataset:\n\n1. Open QUICKSIGHT console\n2. Select the dataset\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws quicksight modify-dataset --dataset-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Analytics query monitoring and logging is enabled
+  severity: medium
+  rule_id: aws.quicksight.dashboard.admin_activity_logging_enabled
+  for_each:
+    discovery: aws.quicksight.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for quicksight dashboard:\n\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws quicksight update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dataset: Row Level Security Enabled'
+  severity: medium
+  rule_id: aws.quicksight.dataset.row_level_security_enabled
+  for_each:
+    discovery: aws.quicksight.datasets
+    as: dataset
+    item: dataset
+  conditions:
+    var: dataset.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight dataset for compliance:\n\nRequirement: Row Level Security Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS QUICKSIGHT dataset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open QUICKSIGHT console\n2. Select the dataset\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dataset: Access Policies Least Privilege'
+  severity: high
+  rule_id: aws.quicksight.dataset.access_policies_least_privilege
+  for_each:
+    discovery: aws.quicksight.datasets
+    as: dataset
+    item: dataset
+  conditions:
+    var: dataset.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for quicksight dataset:\n\n1. Open QUICKSIGHT console\n2. Select the dataset\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT group: Quicksight External Sharing Restricted'
+  severity: medium
+  rule_id: aws.quicksight.group.quicksight_external_sharing_restricted
+  for_each:
+    discovery: aws.quicksight.groups
+    as: group
+    item: group
+  conditions:
+    var: group.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight group for compliance:\n\nRequirement: Quicksight External Sharing Restricted\n\nDescription:\
+    \ Verifies security configuration for AWS QUICKSIGHT group to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open QUICKSIGHT console\n2. Select the group\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dashboard: Quicksight Export Controls Enabled'
+  severity: medium
+  rule_id: aws.quicksight.dashboard.quicksight_export_controls_enabled
+  for_each:
+    discovery: aws.quicksight.dashboards
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: dashboard.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight dashboard for compliance:\n\nRequirement: Quicksight Export Controls Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS QUICKSIGHT dashboard to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dashboard: Public Embeds Disabled'
+  severity: high
+  rule_id: aws.quicksight.dashboard.public_embeds_disabled
+  for_each:
+    discovery: aws.quicksight.dashboards
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: dashboard.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for quicksight dashboard:\n\n1. Open QUICKSIGHT console\n2. Select the dashboard\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Analytics query monitoring and logging is enabled
+  severity: medium
+  rule_id: aws.quicksight.dashboard.query_access_logging_enabled
+  for_each:
+    discovery: aws.quicksight.dashboard_logging
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for quicksight dashboard:\n\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Go to\
+    \ Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket\
+    \ (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws quicksight update-dashboard-logging\
+    \ --dashboard-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send\
+    \ logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022\
+    \ Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT dashboard: Quicksight Sso Required'
+  severity: medium
+  rule_id: aws.quicksight.dashboard.quicksight_sso_required
+  for_each:
+    discovery: aws.quicksight.dashboards
+    as: dashboard
+    item: dashboard
+  conditions:
+    var: dashboard.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight dashboard for compliance:\n\nRequirement: Quicksight Sso Required\n\nDescription: Verifies\
+    \ security configuration for AWS QUICKSIGHT dashboard to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open QUICKSIGHT console\n2. Select the dashboard\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT user: External Access Reviewed Configured'
+  severity: medium
+  rule_id: aws.quicksight.user.external_access_reviewed_configured
+  for_each:
+    discovery: aws.quicksight.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for quicksight user:\n\n1. Open QUICKSIGHT console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'QUICKSIGHT user: Roles Minimal Configured'
+  severity: high
+  rule_id: aws.quicksight.user.roles_minimal_configured
+  for_each:
+    discovery: aws.quicksight.users
+    as: user
+    item: user
+  conditions:
+    var: user.compliant
+    op: equals
+    value: true
+  remediation: "Configure quicksight user for compliance:\n\nRequirement: Roles Minimal Configuration\n\nDescription: Checks\
+    \ high-priority security configuration for AWS QUICKSIGHT user to mitigate significant security risks. This control addresses\
+    \ vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance if exploited.\n\n\
+    Steps:\n1. Open QUICKSIGHT console\n2. Select the user\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

@@ -1,0 +1,666 @@
+version: '1.0'
+provider: aws
+service: waf
+discovery:
+- discovery_id: aws.waf.webacls
+  calls:
+  - client: waf
+    action: list_web_acls
+    save_as: webacl_list
+    on_error: continue
+    fields:
+    - Wafs
+  emit:
+    items_for: webacl_list[]
+    as: webacl
+    item:
+      id: '{{ webacl.Id }}'
+      name: '{{ webacl.Name }}'
+- discovery_id: aws.waf.webacl_encryption
+  for_each: aws.waf.webacls
+  calls:
+  - client: waf
+    action: list_web_acls
+    params:
+      WebaclId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.waf.webacl_logging
+  for_each: aws.waf.webacls
+  calls:
+  - client: waf
+    action: get_logging_configuration
+    params:
+      WebaclId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.waf.rules
+  for_each: aws.waf.rule
+  calls:
+  - client: waf
+    action: list_rules
+    save_as: rules
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.waf.resource_logging
+  calls:
+  - client: waf
+    action: list_activated_rules_in_rule_group
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.waf.ipset_encryption
+  calls:
+  - client: waf
+    action: list_activated_rules_in_rule_group
+    save_as: ipset_encryption
+    on_error: continue
+  emit:
+    items_for: ipset_encryption[]
+    as: ipset_encryption
+    item:
+      id: '{{ ipset_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.waf.ipsets
+  for_each: aws.waf.ipset
+  calls:
+  - client: waf
+    action: list_ip_sets
+    save_as: ipsets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.waf.regexpatternsets
+  for_each: aws.waf.regexpatternset
+  calls:
+  - client: waf
+    action: list_regex_pattern_sets
+    save_as: regexpatternsets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.waf.rulegroups
+  for_each: aws.waf.rulegroup
+  calls:
+  - client: waf
+    action: list_rule_groups
+    save_as: rulegroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+checks:
+- title: 'WAF regexpatternset: Waf Not Empty Configured'
+  severity: medium
+  rule_id: aws.waf.regexpatternset.waf_not_empty_configured
+  for_each:
+    discovery: aws.waf.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf regexpatternset for compliance:\n\nRequirement: Waf Not Empty Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF regexpatternset to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAF console\n2. Select the regexpatternset\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Used By Detectors Configured'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_used_by_detectors_configured
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Used By Detectors Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rule: Waf Has Effective Action Not Count Only Configured'
+  severity: medium
+  rule_id: aws.waf.rule.waf_has_effective_action_not_count_only_configured
+  for_each:
+    discovery: aws.waf.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rule for compliance:\n\nRequirement: Waf Has Effective Action Not Count Only Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAF rule to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAF console\n2. Select the rule\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Cidrs Valid And Minimized Configured'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_cidrs_valid_and_minimized_configured
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Cidrs Valid And Minimized Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF regexpatternset: Waf No Overly Broad Patterns Configured'
+  severity: medium
+  rule_id: aws.waf.regexpatternset.waf_no_overly_broad_patterns_configured
+  for_each:
+    discovery: aws.waf.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf regexpatternset for compliance:\n\nRequirement: Waf No Overly Broad Patterns Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAF regexpatternset to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open WAF console\n2. Select the regexpatternset\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Rule Groups Enabled'
+  severity: medium
+  rule_id: aws.waf.webacl.rule_groups_enabled
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Rule Groups Enabled\n\nDescription: Verifies security\
+    \ configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf Block Actions Not Count Only Configured'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_block_actions_not_count_only_configured
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf Block Actions Not Count Only Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf No Permit Any Configured'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_no_permit_any_configured
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf No Permit Any Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf Managed Rule Sets Enabled'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_managed_rule_sets_enabled
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf Managed Rule Sets Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF resource: Global Webacl Logging Enabled'
+  severity: medium
+  rule_id: aws.waf.resource.global_webacl_logging_enabled
+  for_each:
+    discovery: aws.waf.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for waf resource:\n\n1. Open WAF console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws waf update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf Ip Rate Limit Rules Configured If Supported'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_ip_rate_limit_rules_configured_if_supported
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf Ip Rate Limit Rules Configured If Supported\n\nDescription:\
+    \ Verifies security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rulegroup: Waf Unique Priorities Configured'
+  severity: medium
+  rule_id: aws.waf.rulegroup.waf_unique_priorities_configured
+  for_each:
+    discovery: aws.waf.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rulegroup for compliance:\n\nRequirement: Waf Unique Priorities Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF rulegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rulegroup: Waf References Only Approved Managed Sets Where Used Configured'
+  severity: medium
+  rule_id: aws.waf.rulegroup.waf_references_only_approved_managed_sets_where_used_configured
+  for_each:
+    discovery: aws.waf.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rulegroup for compliance:\n\nRequirement: Waf References Only Approved Managed Sets Where Used\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS WAF rulegroup to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open WAF console\n2. Select the rulegroup\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rulegroup: Waf No Permit All Rule Configured'
+  severity: medium
+  rule_id: aws.waf.rulegroup.waf_no_permit_all_rule_configured
+  for_each:
+    discovery: aws.waf.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rulegroup for compliance:\n\nRequirement: Waf No Permit All Rule Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF rulegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Sources Trusted Configured'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_sources_trusted_configured
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Sources Trusted Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Used By At Least One Rule Configured'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_used_by_at_least_one_rule_configured
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Used By At Least One Rule Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf Attached To Cdn Configured'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_attached_to_cdn_configured
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf Attached To Cdn Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Storage Encrypted'
+  severity: high
+  rule_id: aws.waf.ipset.waf_storage_encrypted
+  for_each:
+    discovery: aws.waf.ipset_encryption
+    as: ipset
+    item: ipset
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for waf ipset:\n\n1. Open WAF console\n2. Select the ipset\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws waf modify-ipset --ipset-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rulegroup: Waf Visibility Config Enabled'
+  severity: medium
+  rule_id: aws.waf.rulegroup.waf_visibility_config_enabled
+  for_each:
+    discovery: aws.waf.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rulegroup for compliance:\n\nRequirement: Waf Visibility Config Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS WAF rulegroup to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Policy Store Encrypted'
+  severity: high
+  rule_id: aws.waf.webacl.policy_store_encrypted
+  for_each:
+    discovery: aws.waf.webacl_encryption
+    as: webacl
+    item: webacl
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for waf webacl:\n\n1. Open WAF console\n2. Select the webacl\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws waf modify-webacl --webacl-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf Policies Present'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_policies_present
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf Policies Present\n\nDescription: Verifies security\
+    \ configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF regexpatternset: Waf Used By At Least One Rule Configured'
+  severity: medium
+  rule_id: aws.waf.regexpatternset.waf_used_by_at_least_one_rule_configured
+  for_each:
+    discovery: aws.waf.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf regexpatternset for compliance:\n\nRequirement: Waf Used By At Least One Rule Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAF regexpatternset to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open WAF console\n2. Select the regexpatternset\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Intrusion detection system is enabled
+  severity: high
+  rule_id: aws.waf.webacl.logging_enabled
+  for_each:
+    discovery: aws.waf.webacl_logging
+    as: webacl
+    item: webacl
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for waf webacl:\n\n1. Open WAF console\n2. Select the webacl\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws waf update-webacl-logging --webacl-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Cross Account Sharing Restricted'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_cross_account_sharing_restricted
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Cross Account Sharing Restricted\n\nDescription: Verifies\
+    \ security configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rule: Waf Priority Unique Within Web Acl Configured'
+  severity: medium
+  rule_id: aws.waf.rule.waf_priority_unique_within_web_acl_configured
+  for_each:
+    discovery: aws.waf.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rule for compliance:\n\nRequirement: Waf Priority Unique Within Web Acl Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAF rule to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAF console\n2. Select the rule\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF ipset: Waf Not Empty Configured'
+  severity: medium
+  rule_id: aws.waf.ipset.waf_not_empty_configured
+  for_each:
+    discovery: aws.waf.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf ipset for compliance:\n\nRequirement: Waf Not Empty Configuration\n\nDescription: Verifies security\
+    \ configuration for AWS WAF ipset to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open WAF console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF rule: Waf References Valid Ip Or Regex Sets Only Configured'
+  severity: medium
+  rule_id: aws.waf.rule.waf_references_valid_ip_or_regex_sets_only_configured
+  for_each:
+    discovery: aws.waf.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf rule for compliance:\n\nRequirement: Waf References Valid Ip Or Regex Sets Only Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAF rule to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAF console\n2. Select the rule\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAF webacl: Waf No Permit All Configured'
+  severity: medium
+  rule_id: aws.waf.webacl.waf_no_permit_all_configured
+  for_each:
+    discovery: aws.waf.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure waf webacl for compliance:\n\nRequirement: Waf No Permit All Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAF webacl to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAF console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

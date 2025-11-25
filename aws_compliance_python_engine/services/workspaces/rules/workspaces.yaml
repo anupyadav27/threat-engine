@@ -1,45 +1,131 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: workspaces
 discovery:
-  discovery_id: aws.workspaces.resources
+- discovery_id: aws.workspaces.restapis
   calls:
-    - client: workspaces
-      action: describe_workspacess
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: workspaces
+    action: list_account_links
+    save_as: restapi_list
+    on_error: continue
+    fields:
+    - Workspacess
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: restapi_list[]
+    as: restapi
+    item:
+      id: '{{ restapi.Id }}'
+      name: '{{ restapi.Name }}'
+- discovery_id: aws.workspaces.restapi_encryption
+  for_each: aws.workspaces.restapis
+  calls:
+  - client: workspaces
+    action: list_account_links
+    params:
+      RestapiId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.workspaces.volume_encryption
+  calls:
+  - client: workspaces
+    action: list_account_links
+    save_as: volume_encryption
+    on_error: continue
+  emit:
+    items_for: volume_encryption[]
+    as: volume_encryption
+    item:
+      id: '{{ volume_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.workspaces.resources
+  for_each: aws.workspaces.resource
+  calls:
+  - client: workspaces
+    action: describe_account
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Scanning Enabled
-    severity: low
-    rule_id: aws.workspaces.workstation_security.scanning_enabled
-    assertion_id: compute_host_security.vulnerability_management.scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement scanning enabled for workspaces"
-    references:
-      - "https://docs.aws.amazon.com/workspaces/"
-  - title: Remediation Tracked
-    severity: low
-    rule_id: aws.workspaces.workstation_security.remediation_tracked
-    assertion_id: compute_host_security.vulnerability_management.remediation_tracked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement remediation tracked for workspaces"
-    references:
-      - "https://docs.aws.amazon.com/workspaces/"
+- title: 'WORKSPACES resource: Directory Check Web Access Disabled'
+  severity: medium
+  rule_id: aws.workspaces.resource.directory_check_web_access_disabled
+  for_each:
+    discovery: aws.workspaces.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for workspaces resource:\n\n1. Open WORKSPACES console\n2. Select the resource\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WORKSPACES restapi: Public Access Restricted'
+  severity: high
+  rule_id: aws.workspaces.restapi.public_access_restricted
+  for_each:
+    discovery: aws.workspaces.restapis
+    as: restapi
+    item: restapi
+  conditions:
+    var: restapi.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for workspaces restapi:\n\n1. Open WORKSPACES console\n2. Select the restapi\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WORKSPACES volume: Encryption Enabled'
+  severity: high
+  rule_id: aws.workspaces.volume.encryption_enabled
+  for_each:
+    discovery: aws.workspaces.volume_encryption
+    as: volume
+    item: volume
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for workspaces volume:\n\n1. Open WORKSPACES console\n2. Select the volume\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws workspaces modify-volume --volume-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WORKSPACES resource: Workspaces Directory Enable Maintenance Mode Configured'
+  severity: medium
+  rule_id: aws.workspaces.resource.workspaces_directory_enable_maintenance_mode_configured
+  for_each:
+    discovery: aws.workspaces.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure workspaces resource for compliance:\n\nRequirement: Workspaces Directory Enable Maintenance Mode\
+    \ Configuration\n\nDescription: Verifies security configuration for AWS WORKSPACES resource to ensure alignment with AWS\
+    \ security best practices and compliance requirements. Proper configuration reduces security risks, maintains defense\
+    \ in depth, and supports overall security posture.\n\nSteps:\n1. Open WORKSPACES console\n2. Select the resource\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

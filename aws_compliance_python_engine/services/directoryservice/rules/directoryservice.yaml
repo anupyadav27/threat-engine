@@ -1,213 +1,71 @@
-version: 1.0
+version: '1.0'
 provider: aws
-service: directoryservice
+service: ds
 discovery:
-  discovery_id: aws.directoryservice.resources
+- discovery_id: aws.directoryservice.resources
   calls:
-    - client: directoryservice
-      action: describe_directoryservices
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: ds
+    action: describe_directories
+    save_as: resource_list
+    on_error: continue
+    fields:
+    - Directoryservices
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: resource_list[]
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
+- discovery_id: aws.directoryservice.resource_logging
+  for_each: aws.directoryservice.resources
+  calls:
+  - client: ds
+    action: describe_directories
+    params:
+      ResourceId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
 checks:
-  - title: Strong Authn Enabled
-    severity: critical
-    rule_id: aws.directoryservice.mfa_enforcement.strong_authn_enabled
-    assertion_id: identity_access.authentication.strong_authn_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement strong authn enabled for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Strong Authn Enabled
-    severity: critical
-    rule_id: aws.directoryservice.service.strong_authn_enabled
-    assertion_id: identity_access.authentication.strong_authn_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement strong authn enabled for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Service Authn Configured
-    severity: critical
-    rule_id: aws.directoryservice.mfa_enforcement.service_authn_configured
-    assertion_id: identity_access.authentication.service_authn_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service authn configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Service Authn Configured
-    severity: critical
-    rule_id: aws.directoryservice.service.service_authn_configured
-    assertion_id: identity_access.authentication.service_authn_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service authn configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Legacy Authn Disabled
-    severity: critical
-    rule_id: aws.directoryservice.mfa_enforcement.legacy_authn_disabled
-    assertion_id: identity_access.authentication.legacy_authn_disabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement legacy authn disabled for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Legacy Authn Disabled
-    severity: critical
-    rule_id: aws.directoryservice.service.legacy_authn_disabled
-    assertion_id: identity_access.authentication.legacy_authn_disabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement legacy authn disabled for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Session Timeout Configured
-    severity: critical
-    rule_id: aws.directoryservice.mfa_enforcement.session_timeout_configured
-    assertion_id: identity_access.authentication.session_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session timeout configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Session Timeout Configured
-    severity: critical
-    rule_id: aws.directoryservice.service.session_timeout_configured
-    assertion_id: identity_access.authentication.session_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session timeout configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: External Idp Configured
-    severity: low
-    rule_id: aws.directoryservice.trust_relationships.external_idp_configured
-    assertion_id: identity_access.federation.external_idp_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement external idp configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Trust Relationships Managed
-    severity: low
-    rule_id: aws.directoryservice.trust_relationships.trust_relationships_managed
-    assertion_id: identity_access.federation.trust_relationships_managed
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement trust relationships managed for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Cross Account Access Controlled
-    severity: low
-    rule_id: aws.directoryservice.trust_relationships.cross_account_access_controlled
-    assertion_id: identity_access.federation.cross_account_access_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cross account access controlled for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Enforced For Privileged Users
-    severity: low
-    rule_id: aws.directoryservice.service.enforced_for_privileged_users
-    assertion_id: identity_access.mfa.enforced_for_privileged_users
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement enforced for privileged users for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Backup Methods Configured
-    severity: low
-    rule_id: aws.directoryservice.service.backup_methods_configured
-    assertion_id: identity_access.mfa.backup_methods_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement backup methods configured for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
-  - title: Hardware Tokens Required For Privileged
-    severity: low
-    rule_id: aws.directoryservice.service.hardware_tokens_required_for_privileged
-    assertion_id: identity_access.mfa.hardware_tokens_required_for_privileged
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hardware tokens required for privileged for directoryservice"
-    references:
-      - "https://docs.aws.amazon.com/directoryservice/"
+- title: 'DIRECTORYSERVICE resource: Supported Mfa Radius Enabled'
+  severity: critical
+  rule_id: aws.directoryservice.resource.supported_mfa_radius_enabled
+  for_each:
+    discovery: aws.directoryservice.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure directoryservice resource for compliance:\n\nRequirement: Multi-Factor Authentication\n\nDescription:\
+    \ Checks that AWS DIRECTORYSERVICE resource requires multi-factor authentication (MFA) for access, combining something\
+    \ you know (password) with something you have (token/device). MFA significantly reduces account compromise risk from phishing,\
+    \ credential stuffing, and password reuse attacks.\n\nSteps:\n1. Open DIRECTORYSERVICE console\n2. Select the resource\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'DIRECTORYSERVICE resource: Directoryservice Directory Log Forwarding Enabled'
+  severity: medium
+  rule_id: aws.directoryservice.resource.directoryservice_directory_log_forwarding_enabled
+  for_each:
+    discovery: aws.directoryservice.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for directoryservice resource:\n\n1. Open DIRECTORYSERVICE console\n2. Select the resource\n\
+    3. Go to Logging/Monitoring settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3\
+    \ bucket (for long-term retention)\n6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws directoryservice\
+    \ update-resource-logging --resource-id <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant\
+    \ log types\n\u2022 Send logs to centralized logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure\
+    \ log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

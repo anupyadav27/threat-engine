@@ -1,45 +1,668 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: guardduty
 discovery:
-  discovery_id: aws.guardduty.resources
+- discovery_id: aws.guardduty.iss
   calls:
-    - client: guardduty
-      action: describe_guarddutys
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: guardduty
+    action: list_detectors
+    save_as: is_list
+    on_error: continue
+    fields:
+    - Guarddutys
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: is_list[]
+    as: is
+    item:
+      id: '{{ is.Id }}'
+      name: '{{ is.Name }}'
+- discovery_id: aws.guardduty.is_encryption
+  for_each: aws.guardduty.iss
+  calls:
+  - client: guardduty
+    action: list_detectors
+    params:
+      IsId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.guardduty.is_logging
+  for_each: aws.guardduty.iss
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    params:
+      IsId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.guardduty.resources
+  for_each: aws.guardduty.resource
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.custom_identifier_encryption
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: custom_identifier_encryption
+    on_error: continue
+  emit:
+    items_for: custom_identifier_encryption[]
+    as: custom_identifier_encryption
+    item:
+      id: '{{ custom_identifier_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.findings
+  for_each: aws.guardduty.finding
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: findings
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.centrally_manageds
+  for_each: aws.guardduty.centrally_managed
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: centrally_manageds
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.ipsets
+  for_each: aws.guardduty.ipset
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: ipsets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.nos
+  for_each: aws.guardduty.no
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: nos
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.resource_logging
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.finding_encryption
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: finding_encryption
+    on_error: continue
+  emit:
+    items_for: finding_encryption[]
+    as: finding_encryption
+    item:
+      id: '{{ finding_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.custom_identifiers
+  for_each: aws.guardduty.custom_identifier
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: custom_identifiers
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.no_high_severity_findingss
+  for_each: aws.guardduty.no_high_severity_finding
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: no_high_severity_findingss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.detectors
+  for_each: aws.guardduty.detector
+  calls:
+  - client: guardduty
+    action: describe_malware_scans
+    save_as: detectors
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.detector_encryption
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: detector_encryption
+    on_error: continue
+  emit:
+    items_for: detector_encryption[]
+    as: detector_encryption
+    item:
+      id: '{{ detector_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.ipset_encryption
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: ipset_encryption
+    on_error: continue
+  emit:
+    items_for: ipset_encryption[]
+    as: ipset_encryption
+    item:
+      id: '{{ ipset_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.guardduty.resource_encryption
+  calls:
+  - client: guardduty
+    action: list_coverage
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Antimalware Enabled
-    severity: low
-    rule_id: aws.guardduty.threat_detection.antimalware_enabled
-    assertion_id: compute_host_security.endpoint_protection.antimalware_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement antimalware enabled for guardduty"
-    references:
-      - "https://docs.aws.amazon.com/guardduty/"
-  - title: Intrusion Detection Enabled
-    severity: low
-    rule_id: aws.guardduty.threat_detection.intrusion_detection_enabled
-    assertion_id: compute_host_security.endpoint_protection.intrusion_detection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement intrusion detection enabled for guardduty"
-    references:
-      - "https://docs.aws.amazon.com/guardduty/"
+- title: 'GUARDDUTY resource: Security Center Enabled'
+  severity: medium
+  rule_id: aws.guardduty.resource.security_center_enabled
+  for_each:
+    discovery: aws.guardduty.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty resource for compliance:\n\nRequirement: Security Center Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon GuardDuty resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Guardduty Finding Archival Export Encrypted'
+  severity: high
+  rule_id: aws.guardduty.finding.guardduty_finding_archival_export_encrypted
+  for_each:
+    discovery: aws.guardduty.finding_encryption
+    as: finding
+    item: finding
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty finding:\n\n1. Open GUARDDUTY console\n2. Select the finding\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-finding --finding-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY no: Guardduty Finding High Severity Findings Configured'
+  severity: medium
+  rule_id: aws.guardduty.no.guardduty_finding_high_severity_findings_configured
+  for_each:
+    discovery: aws.guardduty.nos
+    as: 'no'
+    item: 'no'
+  conditions:
+    var: no.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty no for compliance:\n\nRequirement: Guardduty Finding High Severity Findings Configuration\n\
+    \nDescription: Verifies security configuration for Amazon GuardDuty no to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the no\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY resource: Guardduty Vulnerability Assessment Enabled'
+  severity: medium
+  rule_id: aws.guardduty.resource.guardduty_vulnerability_assessment_enabled
+  for_each:
+    discovery: aws.guardduty.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty resource:\n\n1. Open GUARDDUTY console\n2. Select the resource\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Guardduty Finding Export Destinations Private Configured'
+  severity: high
+  rule_id: aws.guardduty.finding.guardduty_finding_export_destinations_private_configured
+  for_each:
+    discovery: aws.guardduty.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for guardduty finding:\n\n1. Ensure finding is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY ipset: Guardduty Storage Encrypted'
+  severity: high
+  rule_id: aws.guardduty.ipset.guardduty_storage_encrypted
+  for_each:
+    discovery: aws.guardduty.ipset_encryption
+    as: ipset
+    item: ipset
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty ipset:\n\n1. Open GUARDDUTY console\n2. Select the ipset\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-ipset --ipset-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Guardduty Finding Suppression Rules Documented And Scoped Configured'
+  severity: medium
+  rule_id: aws.guardduty.finding.guardduty_finding_suppression_rules_documented_and_scoped_configured
+  for_each:
+    discovery: aws.guardduty.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty finding for compliance:\n\nRequirement: Guardduty Finding Suppression Rules Documented\
+    \ And Scoped Configuration\n\nDescription: Verifies security configuration for Amazon GuardDuty finding to ensure alignment\
+    \ with AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains\
+    \ defense in depth, and supports overall security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the finding\n\
+    3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save\
+    \ changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Rbac Least Privilege'
+  severity: high
+  rule_id: aws.guardduty.finding.rbac_least_privilege
+  for_each:
+    discovery: aws.guardduty.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for guardduty finding:\n\n1. Open GUARDDUTY console\n2. Select the finding\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY detector: Guardduty Detector Enabled In All Regions'
+  severity: medium
+  rule_id: aws.guardduty.detector.guardduty_detector_enabled_in_all_regions
+  for_each:
+    discovery: aws.guardduty.detectors
+    as: detector
+    item: detector
+  conditions:
+    var: detector.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty detector for compliance:\n\nRequirement: Guardduty Detector Enabled In All Regions\n\n\
+    Description: Verifies security configuration for Amazon GuardDuty detector to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the detector\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY ipset: Guardduty Detector Used By Detectors Configured'
+  severity: medium
+  rule_id: aws.guardduty.ipset.guardduty_detector_used_by_detectors_configured
+  for_each:
+    discovery: aws.guardduty.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty ipset for compliance:\n\nRequirement: Guardduty Detector Used By Detectors Configuration\n\
+    \nDescription: Verifies security configuration for Amazon GuardDuty ipset to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the ipset\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY detector: Guardduty Detector S Enabled'
+  severity: medium
+  rule_id: aws.guardduty.detector.guardduty_detector_s_enabled
+  for_each:
+    discovery: aws.guardduty.detectors
+    as: detector
+    item: detector
+  conditions:
+    var: detector.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty detector for compliance:\n\nRequirement: Guardduty Detector S Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon GuardDuty detector to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the detector\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Guardduty Finding Reports Storage Encrypted'
+  severity: high
+  rule_id: aws.guardduty.finding.guardduty_finding_reports_storage_encrypted
+  for_each:
+    discovery: aws.guardduty.finding_encryption
+    as: finding
+    item: finding
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty finding:\n\n1. Open GUARDDUTY console\n2. Select the finding\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-finding --finding-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY detector: Guardduty Detectors Enabled'
+  severity: medium
+  rule_id: aws.guardduty.detector.guardduty_detectors_enabled
+  for_each:
+    discovery: aws.guardduty.detectors
+    as: detector
+    item: detector
+  conditions:
+    var: detector.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty detector for compliance:\n\nRequirement: Guardduty Detectors Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon GuardDuty detector to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the detector\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY resource: Eks Audit Log Enabled'
+  severity: medium
+  rule_id: aws.guardduty.resource.eks_audit_log_enabled
+  for_each:
+    discovery: aws.guardduty.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for guardduty resource:\n\n1. Open GUARDDUTY console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws guardduty update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY is: Guardduty Enabled'
+  severity: medium
+  rule_id: aws.guardduty.is.guardduty_enabled
+  for_each:
+    discovery: aws.guardduty.iss
+    as: is
+    item: is
+  conditions:
+    var: is.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty is for compliance:\n\nRequirement: Guardduty Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon GuardDuty is to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open GUARDDUTY console\n2. Select the is\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY custom identifier: Guardduty Storage Encrypted'
+  severity: high
+  rule_id: aws.guardduty.custom_identifier.guardduty_storage_encrypted
+  for_each:
+    discovery: aws.guardduty.custom_identifier_encryption
+    as: custom_identifier
+    item: custom_identifier
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty custom_identifier:\n\n1. Open GUARDDUTY console\n2. Select the custom_identifier\n\
+    3. Navigate to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed\
+    \ key (default)\n   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-custom_identifier\
+    \ --custom_identifier-id <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed\
+    \ KMS keys for sensitive data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022\
+    \ Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY detector: Finding Detector Finding Export Encrypted Destination'
+  severity: high
+  rule_id: aws.guardduty.detector.finding_detector_finding_export_encrypted_destination
+  for_each:
+    discovery: aws.guardduty.detector_encryption
+    as: detector
+    item: detector
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty detector:\n\n1. Open GUARDDUTY console\n2. Select the detector\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-detector --detector-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY detector: Guardduty Detector Destinations Encrypted'
+  severity: high
+  rule_id: aws.guardduty.detector.guardduty_detector_destinations_encrypted
+  for_each:
+    discovery: aws.guardduty.detector_encryption
+    as: detector
+    item: detector
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for guardduty detector:\n\n1. Open GUARDDUTY console\n2. Select the detector\n3. Navigate\
+    \ to Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws guardduty modify-detector --detector-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY finding: Alert Destinations Configured'
+  severity: medium
+  rule_id: aws.guardduty.finding.alert_destinations_configured
+  for_each:
+    discovery: aws.guardduty.findings
+    as: finding
+    item: finding
+  conditions:
+    var: finding.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for guardduty finding:\n\n1. Open CloudWatch console\n2. Create alarm for finding\n3. Configure\
+    \ metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY custom identifier: Guardduty Source Trusted Configured'
+  severity: medium
+  rule_id: aws.guardduty.custom_identifier.guardduty_source_trusted_configured
+  for_each:
+    discovery: aws.guardduty.custom_identifiers
+    as: custom_identifier
+    item: custom_identifier
+  conditions:
+    var: custom_identifier.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty custom_identifier for compliance:\n\nRequirement: Guardduty Source Trusted Configuration\n\
+    \nDescription: Verifies security configuration for Amazon GuardDuty custom identifier to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the custom_identifier\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY centrally managed: Guardduty Centrally Managed Configured'
+  severity: medium
+  rule_id: aws.guardduty.centrally_managed.guardduty_centrally_managed_configured
+  for_each:
+    discovery: aws.guardduty.centrally_manageds
+    as: centrally_managed
+    item: centrally_managed
+  conditions:
+    var: centrally_managed.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty centrally_managed for compliance:\n\nRequirement: Guardduty Centrally Managed Configuration\n\
+    \nDescription: Verifies security configuration for Amazon GuardDuty centrally managed to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the centrally_managed\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY ipset: Guardduty Sources Trusted Configured'
+  severity: medium
+  rule_id: aws.guardduty.ipset.guardduty_sources_trusted_configured
+  for_each:
+    discovery: aws.guardduty.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty ipset for compliance:\n\nRequirement: Guardduty Sources Trusted Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon GuardDuty ipset to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select the ipset\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY resource: Guardduty Enabled'
+  severity: medium
+  rule_id: aws.guardduty.resource.guardduty_enabled
+  for_each:
+    discovery: aws.guardduty.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty resource for compliance:\n\nRequirement: Guardduty Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon GuardDuty resource to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open GUARDDUTY console\n2. Select the resource\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'GUARDDUTY no high severity findings: Guardduty Finding No High Severity Findings Configured'
+  severity: medium
+  rule_id: aws.guardduty.no_high_severity_findings.guardduty_finding_no_high_severity_findings_configured
+  for_each:
+    discovery: aws.guardduty.no_high_severity_findingss
+    as: no_high_severity_findings
+    item: no_high_severity_findings
+  conditions:
+    var: no_high_severity_findings.compliant
+    op: equals
+    value: true
+  remediation: "Configure guardduty no_high_severity_findings for compliance:\n\nRequirement: Guardduty Finding No High Severity\
+    \ Findings Configuration\n\nDescription: Verifies security configuration for Amazon GuardDuty no high severity findings\
+    \ to ensure alignment with AWS security best practices and compliance requirements. Proper configuration reduces security\
+    \ risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open GUARDDUTY console\n2. Select\
+    \ the no_high_severity_findings\n3. Review security configuration\n4. Apply required settings per organizational policy\n\
+    5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\
+    \u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022\
+    \ Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

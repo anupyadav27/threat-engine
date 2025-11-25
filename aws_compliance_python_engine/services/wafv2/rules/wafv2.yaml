@@ -1,87 +1,504 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: wafv2
 discovery:
-  discovery_id: aws.wafv2.resources
+- discovery_id: aws.wafv2.webacls
   calls:
-    - client: wafv2
-      action: describe_wafv2s
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: wafv2
+    action: list_web_acls
+    save_as: webacl_list
+    on_error: continue
+    fields:
+    - Wafv2s
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: webacl_list[]
+    as: webacl
+    item:
+      id: '{{ webacl.Id }}'
+      name: '{{ webacl.Name }}'
+- discovery_id: aws.wafv2.webacl_logging
+  for_each: aws.wafv2.webacls
+  calls:
+  - client: wafv2
+    action: describe_all_managed_products
+    params:
+      WebaclId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.wafv2.rules
+  for_each: aws.wafv2.rule
+  calls:
+  - client: wafv2
+    action: describe_all_managed_products
+    save_as: rules
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.wafv2.rulegroups
+  for_each: aws.wafv2.rulegroup
+  calls:
+  - client: wafv2
+    action: describe_all_managed_products
+    save_as: rulegroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.wafv2.resource_logging
+  calls:
+  - client: wafv2
+    action: list_api_keys
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.wafv2.ipsets
+  for_each: aws.wafv2.ipset
+  calls:
+  - client: wafv2
+    action: describe_all_managed_products
+    save_as: ipsets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.wafv2.regexpatternsets
+  for_each: aws.wafv2.regexpatternset
+  calls:
+  - client: wafv2
+    action: describe_all_managed_products
+    save_as: regexpatternsets
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Deny All Default
-    severity: low
-    rule_id: aws.wafv2.web_acl.deny_all_default
-    assertion_id: network_perimeter.firewall_rules.deny_all_default
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement deny all default for wafv2"
-    references:
-      - "https://docs.aws.amazon.com/wafv2/"
-  - title: Ssh Rdp Restricted
-    severity: low
-    rule_id: aws.wafv2.web_acl.ssh_rdp_restricted
-    assertion_id: network_perimeter.firewall_rules.ssh_rdp_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement ssh rdp restricted for wafv2"
-    references:
-      - "https://docs.aws.amazon.com/wafv2/"
-  - title: Waf Enabled
-    severity: low
-    rule_id: aws.wafv2.web_acl.waf_enabled
-    assertion_id: network_perimeter.firewall_rules.waf_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement waf enabled for wafv2"
-    references:
-      - "https://docs.aws.amazon.com/wafv2/"
-  - title: Waf Enabled At Edge
-    severity: low
-    rule_id: aws.wafv2.web_acl.waf_enabled_at_edge
-    assertion_id: network_perimeter.firewall_rules.waf_enabled_at_edge
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement waf enabled at edge for wafv2"
-    references:
-      - "https://docs.aws.amazon.com/wafv2/"
-  - title: Egress Filtering Enabled
-    severity: low
-    rule_id: aws.wafv2.web_acl.egress_filtering_enabled
-    assertion_id: network_perimeter.firewall_rules.egress_filtering_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement egress filtering enabled for wafv2"
-    references:
-      - "https://docs.aws.amazon.com/wafv2/"
+- title: 'WAFV2 rule: Wafv2 References Valid Ip Or Regex Sets Only Configured'
+  severity: medium
+  rule_id: aws.wafv2.rule.wafv2_references_valid_ip_or_regex_sets_only_configured
+  for_each:
+    discovery: aws.wafv2.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rule for compliance:\n\nRequirement: Wafv2 References Valid Ip Or Regex Sets Only Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAFV2 rule to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rule\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rulegroup: Wafv2 Unique Priorities Configured'
+  severity: medium
+  rule_id: aws.wafv2.rulegroup.wafv2_unique_priorities_configured
+  for_each:
+    discovery: aws.wafv2.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rulegroup for compliance:\n\nRequirement: Wafv2 Unique Priorities Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 rulegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rulegroup: Wafv2 No Permit All Rule Configured'
+  severity: medium
+  rule_id: aws.wafv2.rulegroup.wafv2_no_permit_all_rule_configured
+  for_each:
+    discovery: aws.wafv2.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rulegroup for compliance:\n\nRequirement: Wafv2 No Permit All Rule Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 rulegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rulegroup: Wafv2 References Only Approved Managed Sets Where Used Configured'
+  severity: medium
+  rule_id: aws.wafv2.rulegroup.wafv2_references_only_approved_managed_sets_where_used_configured
+  for_each:
+    discovery: aws.wafv2.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rulegroup for compliance:\n\nRequirement: Wafv2 References Only Approved Managed Sets Where\
+    \ Used Configuration\n\nDescription: Verifies security configuration for AWS WAFV2 rulegroup to ensure alignment with\
+    \ AWS security best practices and compliance requirements. Proper configuration reduces security risks, maintains defense\
+    \ in depth, and supports overall security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rulegroup\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 ipset: Wafv2 Not Empty Configured'
+  severity: medium
+  rule_id: aws.wafv2.ipset.wafv2_not_empty_configured
+  for_each:
+    discovery: aws.wafv2.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 ipset for compliance:\n\nRequirement: Wafv2 Not Empty Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS WAFV2 ipset to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAFV2 console\n2. Select the ipset\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 webacl: Wafv2 Attached To Cdn Configured'
+  severity: medium
+  rule_id: aws.wafv2.webacl.wafv2_attached_to_cdn_configured
+  for_each:
+    discovery: aws.wafv2.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 webacl for compliance:\n\nRequirement: Wafv2 Attached To Cdn Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 webacl to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the webacl\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 ipset: Wafv2 Used By At Least One Rule Configured'
+  severity: medium
+  rule_id: aws.wafv2.ipset.wafv2_used_by_at_least_one_rule_configured
+  for_each:
+    discovery: aws.wafv2.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 ipset for compliance:\n\nRequirement: Wafv2 Used By At Least One Rule Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 ipset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the ipset\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 resource: Webacl Logging Enabled'
+  severity: medium
+  rule_id: aws.wafv2.resource.webacl_logging_enabled
+  for_each:
+    discovery: aws.wafv2.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for wafv2 resource:\n\n1. Open WAFV2 console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws wafv2 update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 resource: Webacl Rule Logging Enabled'
+  severity: medium
+  rule_id: aws.wafv2.resource.webacl_rule_logging_enabled
+  for_each:
+    discovery: aws.wafv2.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for wafv2 resource:\n\n1. Open WAFV2 console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws wafv2 update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 webacl: Wafv2 Ip Rate Limit Rules Configured If Supported'
+  severity: medium
+  rule_id: aws.wafv2.webacl.wafv2_ip_rate_limit_rules_configured_if_supported
+  for_each:
+    discovery: aws.wafv2.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 webacl for compliance:\n\nRequirement: Wafv2 Ip Rate Limit Rules Configured If Supported\n\
+    \nDescription: Verifies security configuration for AWS WAFV2 webacl to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the webacl\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 regexpatternset: Wafv2 No Overly Broad Patterns Configured'
+  severity: medium
+  rule_id: aws.wafv2.regexpatternset.wafv2_no_overly_broad_patterns_configured
+  for_each:
+    discovery: aws.wafv2.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 regexpatternset for compliance:\n\nRequirement: Wafv2 No Overly Broad Patterns Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAFV2 regexpatternset to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the regexpatternset\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rulegroup: Wafv2 Visibility Config Enabled'
+  severity: medium
+  rule_id: aws.wafv2.rulegroup.wafv2_visibility_config_enabled
+  for_each:
+    discovery: aws.wafv2.rulegroups
+    as: rulegroup
+    item: rulegroup
+  conditions:
+    var: rulegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rulegroup for compliance:\n\nRequirement: Wafv2 Visibility Config Enabled\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 rulegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rulegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rule: Wafv2 Has Effective Action Not Count Only Configured'
+  severity: medium
+  rule_id: aws.wafv2.rule.wafv2_has_effective_action_not_count_only_configured
+  for_each:
+    discovery: aws.wafv2.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rule for compliance:\n\nRequirement: Wafv2 Has Effective Action Not Count Only Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAFV2 rule to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rule\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 webacl: Wafv2 Managed Rule Sets Enabled'
+  severity: medium
+  rule_id: aws.wafv2.webacl.wafv2_managed_rule_sets_enabled
+  for_each:
+    discovery: aws.wafv2.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 webacl for compliance:\n\nRequirement: Wafv2 Managed Rule Sets Enabled\n\nDescription: Verifies\
+    \ security configuration for AWS WAFV2 webacl to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open WAFV2 console\n2. Select the webacl\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 rule: Wafv2 Priority Unique Within Web Acl Configured'
+  severity: medium
+  rule_id: aws.wafv2.rule.wafv2_priority_unique_within_web_acl_configured
+  for_each:
+    discovery: aws.wafv2.rules
+    as: rule
+    item: rule
+  conditions:
+    var: rule.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 rule for compliance:\n\nRequirement: Wafv2 Priority Unique Within Web Acl Configuration\n\n\
+    Description: Verifies security configuration for AWS WAFV2 rule to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the rule\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 regexpatternset: Wafv2 Not Empty Configured'
+  severity: medium
+  rule_id: aws.wafv2.regexpatternset.wafv2_not_empty_configured
+  for_each:
+    discovery: aws.wafv2.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 regexpatternset for compliance:\n\nRequirement: Wafv2 Not Empty Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 regexpatternset to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the regexpatternset\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 ipset: Wafv2 Cross Account Sharing Restricted'
+  severity: medium
+  rule_id: aws.wafv2.ipset.wafv2_cross_account_sharing_restricted
+  for_each:
+    discovery: aws.wafv2.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 ipset for compliance:\n\nRequirement: Wafv2 Cross Account Sharing Restricted\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 ipset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the ipset\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 webacl: Wafv2 Block Actions Not Count Only Configured'
+  severity: medium
+  rule_id: aws.wafv2.webacl.wafv2_block_actions_not_count_only_configured
+  for_each:
+    discovery: aws.wafv2.webacls
+    as: webacl
+    item: webacl
+  conditions:
+    var: webacl.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 webacl for compliance:\n\nRequirement: Wafv2 Block Actions Not Count Only Configuration\n\n\
+    Description: Verifies security configuration for AWS WAFV2 webacl to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the webacl\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 ipset: Wafv2 Cidrs Valid And Minimized Configured'
+  severity: medium
+  rule_id: aws.wafv2.ipset.wafv2_cidrs_valid_and_minimized_configured
+  for_each:
+    discovery: aws.wafv2.ipsets
+    as: ipset
+    item: ipset
+  conditions:
+    var: ipset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 ipset for compliance:\n\nRequirement: Wafv2 Cidrs Valid And Minimized Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS WAFV2 ipset to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the ipset\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 webacl: Logging Enabled'
+  severity: medium
+  rule_id: aws.wafv2.webacl.logging_enabled
+  for_each:
+    discovery: aws.wafv2.webacl_logging
+    as: webacl
+    item: webacl
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for wafv2 webacl:\n\n1. Open WAFV2 console\n2. Select the webacl\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws wafv2 update-webacl-logging --webacl-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'WAFV2 regexpatternset: Wafv2 Used By At Least One Rule Configured'
+  severity: medium
+  rule_id: aws.wafv2.regexpatternset.wafv2_used_by_at_least_one_rule_configured
+  for_each:
+    discovery: aws.wafv2.regexpatternsets
+    as: regexpatternset
+    item: regexpatternset
+  conditions:
+    var: regexpatternset.compliant
+    op: equals
+    value: true
+  remediation: "Configure wafv2 regexpatternset for compliance:\n\nRequirement: Wafv2 Used By At Least One Rule Configuration\n\
+    \nDescription: Verifies security configuration for AWS WAFV2 regexpatternset to ensure alignment with AWS security best\
+    \ practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and\
+    \ supports overall security posture.\n\nSteps:\n1. Open WAFV2 console\n2. Select the regexpatternset\n3. Review security\
+    \ configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral\
+    \ Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable\
+    \ logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

@@ -1,353 +1,1862 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: eks
 discovery:
-  discovery_id: aws.eks.resources
+- discovery_id: aws.eks.certificates
   calls:
-    - client: eks
-      action: describe_ekss
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: eks
+    action: list_clusters
+    save_as: certificate_list
+    on_error: continue
+    fields:
+    - clusters
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: certificate_list[]
+    as: certificate
+    item:
+      id: '{{ certificate.name }}'
+      name: '{{ certificate.name }}'
+- discovery_id: aws.eks.certificate_encryption
+  for_each: aws.eks.certificates
+  calls:
+  - client: eks
+    action: list_clusters
+    params:
+      CertificateId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.eks.certificate_logging
+  for_each: aws.eks.certificates
+  calls:
+  - client: eks
+    action: describe_access_entry
+    params:
+      CertificateId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.eks.apis
+  for_each: aws.eks.api
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: apis
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.resource_logging
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.nodegroup_encryption
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: nodegroup_encryption
+    on_error: continue
+  emit:
+    items_for: nodegroup_encryption[]
+    as: nodegroup_encryption
+    item:
+      id: '{{ nodegroup_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.cluster_logging
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: cluster_logging
+    on_error: continue
+  emit:
+    items_for: cluster_logging[]
+    as: cluster_logging
+    item:
+      id: '{{ cluster_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.cluster_encryption
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: cluster_encryption
+    on_error: continue
+  emit:
+    items_for: cluster_encryption[]
+    as: cluster_encryption
+    item:
+      id: '{{ cluster_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.resources
+  for_each: aws.eks.resource
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.fargateprofiles
+  for_each: aws.eks.fargateprofile
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: fargateprofiles
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.api_logging
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: api_logging
+    on_error: continue
+  emit:
+    items_for: api_logging[]
+    as: api_logging
+    item:
+      id: '{{ api_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.clusters
+  for_each: aws.eks.cluster
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: clusters
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.addons
+  for_each: aws.eks.addon
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: addons
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.fargateprofile_logging
+  calls:
+  - client: eks
+    action: list_access_entries
+    save_as: fargateprofile_logging
+    on_error: continue
+  emit:
+    items_for: fargateprofile_logging[]
+    as: fargateprofile_logging
+    item:
+      id: '{{ fargateprofile_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.eks.nodegroups
+  for_each: aws.eks.nodegroup
+  calls:
+  - client: eks
+    action: describe_access_entry
+    save_as: nodegroups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Runtime Protection Enabled
-    severity: low
-    rule_id: aws.eks.runtime_security.runtime_protection_enabled
-    assertion_id: containers_kubernetes.runtime_security.runtime_protection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime protection enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Runtime Protection Enabled
-    severity: low
-    rule_id: aws.eks.node_security.runtime_protection_enabled
-    assertion_id: containers_kubernetes.runtime_security.runtime_protection_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime protection enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Privileged Containers Restricted
-    severity: low
-    rule_id: aws.eks.runtime_security.privileged_containers_restricted
-    assertion_id: containers_kubernetes.runtime_security.privileged_containers_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement privileged containers restricted for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Privileged Containers Restricted
-    severity: low
-    rule_id: aws.eks.node_security.privileged_containers_restricted
-    assertion_id: containers_kubernetes.runtime_security.privileged_containers_restricted
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement privileged containers restricted for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Resource Limits Enforced
-    severity: low
-    rule_id: aws.eks.runtime_security.resource_limits_enforced
-    assertion_id: containers_kubernetes.runtime_security.resource_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource limits enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Resource Limits Enforced
-    severity: low
-    rule_id: aws.eks.node_security.resource_limits_enforced
-    assertion_id: containers_kubernetes.runtime_security.resource_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource limits enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Network Segmentation Enforced
-    severity: low
-    rule_id: aws.eks.network_policies.network_segmentation_enforced
-    assertion_id: containers_kubernetes.network_policies.network_segmentation_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement network segmentation enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Network Segmentation Enforced
-    severity: low
-    rule_id: aws.eks.cni_addon.network_segmentation_enforced
-    assertion_id: containers_kubernetes.network_policies.network_segmentation_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement network segmentation enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Network Segmentation Enforced
-    severity: low
-    rule_id: aws.eks.service_mesh.network_segmentation_enforced
-    assertion_id: containers_kubernetes.network_policies.network_segmentation_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement network segmentation enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Ingress Egress Controlled
-    severity: low
-    rule_id: aws.eks.network_policies.ingress_egress_controlled
-    assertion_id: containers_kubernetes.network_policies.ingress_egress_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement ingress egress controlled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Ingress Egress Controlled
-    severity: low
-    rule_id: aws.eks.cni_addon.ingress_egress_controlled
-    assertion_id: containers_kubernetes.network_policies.ingress_egress_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement ingress egress controlled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Ingress Egress Controlled
-    severity: low
-    rule_id: aws.eks.service_mesh.ingress_egress_controlled
-    assertion_id: containers_kubernetes.network_policies.ingress_egress_controlled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement ingress egress controlled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Least Privilege Enforced
-    severity: low
-    rule_id: aws.eks.rbac_configuration.least_privilege_enforced
-    assertion_id: containers_kubernetes.rbac_policies.least_privilege_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Least Privilege Enforced
-    severity: low
-    rule_id: aws.eks.oidc_identity_provider.least_privilege_enforced
-    assertion_id: containers_kubernetes.rbac_policies.least_privilege_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Service Account Restrictions
-    severity: low
-    rule_id: aws.eks.rbac_configuration.service_account_restrictions
-    assertion_id: containers_kubernetes.rbac_policies.service_account_restrictions
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service account restrictions for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Service Account Restrictions
-    severity: low
-    rule_id: aws.eks.oidc_identity_provider.service_account_restrictions
-    assertion_id: containers_kubernetes.rbac_policies.service_account_restrictions
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service account restrictions for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Policy Validation Enabled
-    severity: low
-    rule_id: aws.eks.admission_controllers.policy_validation_enabled
-    assertion_id: containers_kubernetes.admission_control.policy_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy validation enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Policy Validation Enabled
-    severity: low
-    rule_id: aws.eks.opa_gatekeeper.policy_validation_enabled
-    assertion_id: containers_kubernetes.admission_control.policy_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy validation enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Policy Validation Enabled
-    severity: low
-    rule_id: aws.eks.kyverno_policies.policy_validation_enabled
-    assertion_id: containers_kubernetes.admission_control.policy_validation_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy validation enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Security Policies Enforced
-    severity: low
-    rule_id: aws.eks.admission_controllers.security_policies_enforced
-    assertion_id: containers_kubernetes.admission_control.security_policies_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Security Policies Enforced
-    severity: low
-    rule_id: aws.eks.opa_gatekeeper.security_policies_enforced
-    assertion_id: containers_kubernetes.admission_control.security_policies_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Security Policies Enforced
-    severity: low
-    rule_id: aws.eks.kyverno_policies.security_policies_enforced
-    assertion_id: containers_kubernetes.admission_control.security_policies_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies enforced for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Supported Versions Used
-    severity: low
-    rule_id: aws.eks.version_management.supported_versions_used
-    assertion_id: platform_surfaces_versions.version_management.supported_versions_used
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement supported versions used for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
-  - title: Version Monitoring Enabled
-    severity: low
-    rule_id: aws.eks.version_management.version_monitoring_enabled
-    assertion_id: platform_surfaces_versions.version_management.version_monitoring_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement version monitoring enabled for eks"
-    references:
-      - "https://docs.aws.amazon.com/eks/"
+- title: 'EKS cluster: Encryption At Rest Enabled'
+  severity: high
+  rule_id: aws.eks.cluster.encryption_at_rest_enabled
+  for_each:
+    discovery: aws.eks.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws eks modify-cluster --cluster-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/enable-kms.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Anonymous Auth Disabled'
+  severity: medium
+  rule_id: aws.eks.cluster.anonymous_auth_disabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Anonymous Auth Disabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Nodes No Public Ip Configured'
+  severity: high
+  rule_id: aws.eks.nodegroup.nodes_no_public_ip_configured
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for eks nodegroup:\n\n1. Open EKS console\n2. Select the nodegroup\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Image Signature Verification Enabled'
+  severity: medium
+  rule_id: aws.eks.api.image_signature_verification_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Image Signature Verification Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS resource: Control Plane Logging All Types Enabled'
+  severity: medium
+  rule_id: aws.eks.resource.control_plane_logging_all_types_enabled
+  for_each:
+    discovery: aws.eks.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for eks resource:\n\n1. Open EKS console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws eks update-resource-logging --resource-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS cluster: Secrets Encryption Kms Cmk Configured'
+  severity: high
+  rule_id: aws.eks.cluster.secrets_encryption_kms_cmk_configured
+  for_each:
+    discovery: aws.eks.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws eks modify-cluster --cluster-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/enable-kms.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Env No Plaintext Secrets Configured'
+  severity: medium
+  rule_id: aws.eks.api.env_no_plaintext_secrets_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Env No Plaintext Secrets Configuration\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Cluster Required Allowlist For Namespace Services'
+  severity: medium
+  rule_id: aws.eks.api.cluster_required_allowlist_for_namespace_services
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Cluster Required Allowlist For Namespace Services\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Read Only Root Filesystem Configured'
+  severity: medium
+  rule_id: aws.eks.api.read_only_root_filesystem_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Read Only Root Filesystem Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Node Shielded Secure Boot Enabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.node_shielded_secure_boot_enabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Node Shielded Secure Boot Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Wildcard Verbs Disallowed Configured'
+  severity: medium
+  rule_id: aws.eks.api.wildcard_verbs_disallowed_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Wildcard Verbs Disallowed Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Tls Min Version 1 2 Configured'
+  severity: high
+  rule_id: aws.eks.api.tls_min_version_1_2_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks api:\n\n1. Ensure api is deployed in VPC\n2. Configure security groups:\n\
+    \   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3. Configure\
+    \ network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC Endpoints\
+    \ where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy in private\
+    \ subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\u2022\
+    \ Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Host Namespace Usage Denied Configured'
+  severity: medium
+  rule_id: aws.eks.api.host_namespace_usage_denied_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Host Namespace Usage Denied Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS resource: Kubelet Event Record Qps Configured'
+  severity: medium
+  rule_id: aws.eks.resource.kubelet_event_record_qps_configured
+  for_each:
+    discovery: aws.eks.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks resource for compliance:\n\nRequirement: Kubelet Event Record Qps Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: No Cluster Admin To Authenticated Configured'
+  severity: medium
+  rule_id: aws.eks.api.no_cluster_admin_to_authenticated_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: No Cluster Admin To Authenticated Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Default Service Account Automount Disabled'
+  severity: medium
+  rule_id: aws.eks.api.default_service_account_automount_disabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Default Service Account Automount Disabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Nodeport Usage Restricted'
+  severity: medium
+  rule_id: aws.eks.api.nodeport_usage_restricted
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Nodeport Usage Restricted\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Private Control Plane Endpoint Enabled'
+  severity: high
+  rule_id: aws.eks.cluster.private_control_plane_endpoint_enabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks cluster:\n\n1. Ensure cluster is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Execution Role Least Privilege'
+  severity: high
+  rule_id: aws.eks.fargateprofile.execution_role_least_privilege
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for eks fargateprofile:\n\n1. Open EKS console\n2. Select the fargateprofile\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Image Registry Allowlist Enforced'
+  severity: medium
+  rule_id: aws.eks.api.image_registry_allowlist_enforced
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Image Registry Allowlist Enforcement\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Drop Net Raw And Reduce Caps Configured'
+  severity: medium
+  rule_id: aws.eks.api.drop_net_raw_and_reduce_caps_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Drop Net Raw And Reduce Caps Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Node Workload Identity Enabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.node_workload_identity_enabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Node Workload Identity Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: Cluster monitoring is enabled
+  severity: medium
+  rule_id: aws.eks.cluster.audit_logging_enabled
+  for_each:
+    discovery: aws.eks.cluster_logging
+    as: cluster
+    item: cluster
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws eks update-cluster-logging --cluster-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS api: Default Deny Egress Per Namespace Configured'
+  severity: medium
+  rule_id: aws.eks.api.default_deny_egress_per_namespace_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Default Deny Egress Per Namespace Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Pod Security Level Restricted'
+  severity: medium
+  rule_id: aws.eks.api.pod_security_level_restricted
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Pod Security Level Restricted\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Client Cert Rotation Enabled'
+  severity: medium
+  rule_id: aws.eks.fargateprofile.client_cert_rotation_enabled
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks fargateprofile for compliance:\n\nRequirement: Client Cert Rotation Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS fargateprofile to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open EKS console\n2. Select the fargateprofile\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Profiling Disabled'
+  severity: medium
+  rule_id: aws.eks.cluster.profiling_disabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Profiling Disabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Service Account Token Signing Enabled'
+  severity: medium
+  rule_id: aws.eks.cluster.service_account_token_signing_enabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Service Account Token Signing Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS certificate: Monitored'
+  severity: medium
+  rule_id: aws.eks.certificate.monitored
+  for_each:
+    discovery: aws.eks.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for eks certificate:\n\n1. Open CloudWatch console\n2. Create alarm for certificate\n3.\
+    \ Configure metrics to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring\
+    \ (if available)\n7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant\
+    \ metrics\n\u2022 Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022\
+    \ Implement automated remediation"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Admission Psa Enforce Mode Configured'
+  severity: medium
+  rule_id: aws.eks.api.admission_psa_enforce_mode_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Admission Psa Enforce Mode Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Read Only Port Disabled'
+  severity: medium
+  rule_id: aws.eks.fargateprofile.read_only_port_disabled
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks fargateprofile for compliance:\n\nRequirement: Read Only Port Disabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS fargateprofile to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the fargateprofile\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Node Read Only Port Disabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.node_read_only_port_disabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Node Read Only Port Disabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS addon: No Privileged Permissions Configured'
+  severity: high
+  rule_id: aws.eks.addon.no_privileged_permissions_configured
+  for_each:
+    discovery: aws.eks.addons
+    as: addon
+    item: addon
+  conditions:
+    var: addon.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for eks addon:\n\n1. Open EKS console\n2. Select the addon\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS fargateprofile: Logging Enabled'
+  severity: medium
+  rule_id: aws.eks.fargateprofile.logging_enabled
+  for_each:
+    discovery: aws.eks.fargateprofile_logging
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for eks fargateprofile:\n\n1. Open EKS console\n2. Select the fargateprofile\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws eks update-fargateprofile-logging --fargateprofile-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS api: Default Deny Ingress Per Namespace Configured'
+  severity: medium
+  rule_id: aws.eks.api.default_deny_ingress_per_namespace_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Default Deny Ingress Per Namespace Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: External Ips Not Used Configured'
+  severity: medium
+  rule_id: aws.eks.api.external_ips_not_used_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: External Ips Not Used Configuration\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS addon: Version Pinned And Supported Configured'
+  severity: low
+  rule_id: aws.eks.addon.version_pinned_and_supported_configured
+  for_each:
+    discovery: aws.eks.addons
+    as: addon
+    item: addon
+  conditions:
+    var: addon.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for eks addon:\n\n1. Open EKS console\n2. Select the addon\n3. Go to Properties > Versioning\n\
+    4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\nBenefits:\n\
+    \u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail of changes\n\
+    \u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Leader Election Enabled'
+  severity: medium
+  rule_id: aws.eks.cluster.leader_election_enabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Leader Election Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Anonymous Auth Disabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.anonymous_auth_disabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Anonymous Auth Disabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Client Cert Auth Enabled'
+  severity: medium
+  rule_id: aws.eks.cluster.client_cert_auth_enabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Client Cert Auth Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: No Hostpath Mounts Configured'
+  severity: medium
+  rule_id: aws.eks.api.no_hostpath_mounts_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: No Hostpath Mounts Configuration\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Tls Min Version 1 2 Configured'
+  severity: high
+  rule_id: aws.eks.cluster.tls_min_version_1_2_configured
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks cluster:\n\n1. Ensure cluster is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Read Only Port Disabled'
+  severity: medium
+  rule_id: aws.eks.api.read_only_port_disabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Read Only Port Disabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Client Cert Rotation Enabled'
+  severity: medium
+  rule_id: aws.eks.api.client_cert_rotation_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Client Cert Rotation Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Default Service Account Automount Disabled'
+  severity: medium
+  rule_id: aws.eks.cluster.default_service_account_automount_disabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Default Service Account Automount Disabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Type Loadbalancer Internal Only Where Required'
+  severity: medium
+  rule_id: aws.eks.api.type_loadbalancer_internal_only_where_required
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Type Loadbalancer Internal Only Where Required\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Network Policies Present'
+  severity: high
+  rule_id: aws.eks.api.network_policies_present
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks api:\n\n1. Ensure api is deployed in VPC\n2. Configure security groups:\n\
+    \   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3. Configure\
+    \ network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC Endpoints\
+    \ where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy in private\
+    \ subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\u2022\
+    \ Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Leader Election Enabled'
+  severity: medium
+  rule_id: aws.eks.api.leader_election_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Leader Election Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Dns And Metrics From Approved Sources Configured'
+  severity: medium
+  rule_id: aws.eks.api.dns_and_metrics_from_approved_sources_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.monitoring_enabled
+    op: equals
+    value: true
+  remediation: "Enable monitoring for eks api:\n\n1. Open CloudWatch console\n2. Create alarm for api\n3. Configure metrics\
+    \ to monitor\n4. Set alarm thresholds\n5. Configure SNS notifications\n6. Enable detailed monitoring (if available)\n\
+    7. Create dashboard for visualization\n\nMonitoring Best Practices:\n\u2022 Monitor security-relevant metrics\n\u2022\
+    \ Set up automated alerting\n\u2022 Integrate with SIEM/SOC\n\u2022 Regular review of metrics\n\u2022 Implement automated\
+    \ remediation"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Privilege Escalation Denied Configured'
+  severity: high
+  rule_id: aws.eks.api.privilege_escalation_denied_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Privilege Escalation Denied Configuration\n\nDescription:\
+    \ Checks high-priority security configuration for Amazon EKS api to mitigate significant security risks. This control\
+    \ addresses vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance if exploited.\n\
+    \nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS api: No Privileged Containers Configured'
+  severity: high
+  rule_id: aws.eks.api.no_privileged_containers_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: No Privileged Containers Configuration\n\nDescription: Checks\
+    \ high-priority security configuration for Amazon EKS api to mitigate significant security risks. This control addresses\
+    \ vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance if exploited.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS nodegroup: Node Protect Kernel Defaults Enabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.node_protect_kernel_defaults_enabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Node Protect Kernel Defaults Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Kms Cmk Encryption In Secrets Enabled'
+  severity: high
+  rule_id: aws.eks.cluster.kms_cmk_encryption_in_secrets_enabled
+  for_each:
+    discovery: aws.eks.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws eks modify-cluster --cluster-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/enable-kms.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Run As Non Root Configured'
+  severity: medium
+  rule_id: aws.eks.api.run_as_non_root_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Run As Non Root Configuration\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Endpoint Access Configured'
+  severity: medium
+  rule_id: aws.eks.cluster.endpoint_access_configured
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Private Nodes Configuration Configured'
+  severity: high
+  rule_id: aws.eks.cluster.private_nodes_configuration_configured
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks cluster:\n\n1. Ensure cluster is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Disk Encryption Enabled'
+  severity: high
+  rule_id: aws.eks.nodegroup.disk_encryption_enabled
+  for_each:
+    discovery: aws.eks.nodegroup_encryption
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for eks nodegroup:\n\n1. Open EKS console\n2. Select the nodegroup\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws eks modify-nodegroup --nodegroup-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/enable-kms.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Host Network Pid Ipc Disabled'
+  severity: high
+  rule_id: aws.eks.api.host_network_pid_ipc_disabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks api:\n\n1. Ensure api is deployed in VPC\n2. Configure security groups:\n\
+    \   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3. Configure\
+    \ network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC Endpoints\
+    \ where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy in private\
+    \ subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\u2022\
+    \ Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Service Account Token Signing Enabled'
+  severity: medium
+  rule_id: aws.eks.api.service_account_token_signing_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Service Account Token Signing Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Anonymous Auth Disabled'
+  severity: medium
+  rule_id: aws.eks.fargateprofile.anonymous_auth_disabled
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks fargateprofile for compliance:\n\nRequirement: Anonymous Auth Disabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS fargateprofile to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the fargateprofile\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Admission Psa Enforce Mode Configured'
+  severity: medium
+  rule_id: aws.eks.cluster.admission_psa_enforce_mode_configured
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Admission Psa Enforce Mode Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Seccomp Profile Runtime Default Configured'
+  severity: medium
+  rule_id: aws.eks.api.seccomp_profile_runtime_default_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Seccomp Profile Runtime Default Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Default Sa Not Cluster Admin Configured'
+  severity: medium
+  rule_id: aws.eks.api.default_sa_not_cluster_admin_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Default Sa Not Cluster Admin Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Secure Port Enabled'
+  severity: medium
+  rule_id: aws.eks.cluster.secure_port_enabled
+  for_each:
+    discovery: aws.eks.clusters
+    as: cluster
+    item: cluster
+  conditions:
+    var: cluster.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks cluster for compliance:\n\nRequirement: Secure Port Enabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS cluster to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the cluster\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS cluster: Secrets Encryption Kms Enabled'
+  severity: high
+  rule_id: aws.eks.cluster.secrets_encryption_kms_enabled
+  for_each:
+    discovery: aws.eks.cluster_encryption
+    as: cluster
+    item: cluster
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for eks cluster:\n\n1. Open EKS console\n2. Select the cluster\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws eks modify-cluster --cluster-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/enable-kms.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS resource: Node Kubelet Read Only Port Configured'
+  severity: medium
+  rule_id: aws.eks.resource.node_kubelet_read_only_port_configured
+  for_each:
+    discovery: aws.eks.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks resource for compliance:\n\nRequirement: Node Kubelet Read Only Port Configuration\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS resource to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the resource\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Kube System Services Not Public Configured'
+  severity: high
+  rule_id: aws.eks.api.kube_system_services_not_public_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for eks api:\n\n1. Open EKS console\n2. Select the api\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Profiling Disabled'
+  severity: medium
+  rule_id: aws.eks.api.profiling_disabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Profiling Disabled\n\nDescription: Verifies security configuration\
+    \ for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open EKS console\n\
+    2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n\
+    6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS addon: From Trusted Channel Configured'
+  severity: medium
+  rule_id: aws.eks.addon.from_trusted_channel_configured
+  for_each:
+    discovery: aws.eks.addons
+    as: addon
+    item: addon
+  conditions:
+    var: addon.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks addon for compliance:\n\nRequirement: From Trusted Channel Configuration\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS addon to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the addon\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Secure Port Enabled'
+  severity: medium
+  rule_id: aws.eks.api.secure_port_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Secure Port Enabled\n\nDescription: Verifies security configuration\
+    \ for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper configuration\
+    \ reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n1. Open EKS console\n\
+    2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n\
+    6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense\
+    \ in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Private Subnets Only Configured'
+  severity: high
+  rule_id: aws.eks.fargateprofile.private_subnets_only_configured
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for eks fargateprofile:\n\n1. Ensure fargateprofile is deployed in VPC\n2. Configure\
+    \ security groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n\
+    3. Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Anonymous Auth Disabled'
+  severity: medium
+  rule_id: aws.eks.api.anonymous_auth_disabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Anonymous Auth Disabled\n\nDescription: Verifies security\
+    \ configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements. Proper\
+    \ configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\nSteps:\n\
+    1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Pod Security Admission Restricted Default Configured'
+  severity: medium
+  rule_id: aws.eks.api.pod_security_admission_restricted_default_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Pod Security Admission Restricted Default Configuration\n\
+    \nDescription: Verifies security configuration for Amazon EKS api to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS fargateprofile: Protect Kernel Defaults Enabled'
+  severity: medium
+  rule_id: aws.eks.fargateprofile.protect_kernel_defaults_enabled
+  for_each:
+    discovery: aws.eks.fargateprofiles
+    as: fargateprofile
+    item: fargateprofile
+  conditions:
+    var: fargateprofile.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks fargateprofile for compliance:\n\nRequirement: Protect Kernel Defaults Enabled\n\nDescription:\
+    \ Verifies security configuration for Amazon EKS fargateprofile to ensure alignment with AWS security best practices and\
+    \ compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open EKS console\n2. Select the fargateprofile\n3. Review security configuration\n4.\
+    \ Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Audit Logging Enabled'
+  severity: medium
+  rule_id: aws.eks.api.audit_logging_enabled
+  for_each:
+    discovery: aws.eks.api_logging
+    as: api
+    item: api
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for eks api:\n\n1. Open EKS console\n2. Select the api\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws eks update-api-logging --api-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'EKS api: Image Tag Not Latest Configured'
+  severity: medium
+  rule_id: aws.eks.api.image_tag_not_latest_configured
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Image Tag Not Latest Configuration\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS api: Protect Kernel Defaults Enabled'
+  severity: medium
+  rule_id: aws.eks.api.protect_kernel_defaults_enabled
+  for_each:
+    discovery: aws.eks.apis
+    as: api
+    item: api
+  conditions:
+    var: api.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks api for compliance:\n\nRequirement: Protect Kernel Defaults Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS api to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open EKS console\n2. Select the api\n3. Review security configuration\n4. Apply required settings per organizational\
+    \ policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected\
+    \ Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\
+    \u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html
+- title: 'EKS nodegroup: Client Cert Rotation Enabled'
+  severity: medium
+  rule_id: aws.eks.nodegroup.client_cert_rotation_enabled
+  for_each:
+    discovery: aws.eks.nodegroups
+    as: nodegroup
+    item: nodegroup
+  conditions:
+    var: nodegroup.compliant
+    op: equals
+    value: true
+  remediation: "Configure eks nodegroup for compliance:\n\nRequirement: Client Cert Rotation Enabled\n\nDescription: Verifies\
+    \ security configuration for Amazon EKS nodegroup to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open EKS console\n2. Select the nodegroup\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/eks/latest/userguide/best-practices.html
+  - https://docs.aws.amazon.com/eks/latest/userguide/security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/eks-controls.html

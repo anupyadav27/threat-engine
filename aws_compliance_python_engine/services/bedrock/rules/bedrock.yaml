@@ -1,129 +1,217 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: bedrock
 discovery:
-  discovery_id: aws.bedrock.resources
+- discovery_id: aws.bedrock.models
   calls:
-    - client: bedrock
-      action: describe_bedrocks
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: bedrock
+    action: list_foundation_models
+    save_as: model_list
+    on_error: continue
+    fields:
+    - Bedrocks
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: model_list[]
+    as: model
+    item:
+      id: '{{ model.Id }}'
+      name: '{{ model.Name }}'
+- discovery_id: aws.bedrock.model_encryption
+  for_each: aws.bedrock.models
+  calls:
+  - client: bedrock
+    action: list_foundation_models
+    params:
+      ModelId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.bedrock.model_logging
+  for_each: aws.bedrock.models
+  calls:
+  - client: bedrock
+    action: list_foundation_models
+    params:
+      ModelId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.bedrock.resource_encryption
+  calls:
+  - client: bedrock
+    action: list_automated_reasoning_policies
+    save_as: resource_encryption
+    on_error: continue
+  emit:
+    items_for: resource_encryption[]
+    as: resource_encryption
+    item:
+      id: '{{ resource_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.bedrock.resource_logging
+  calls:
+  - client: bedrock
+    action: list_automated_reasoning_policies
+    save_as: resource_logging
+    on_error: continue
+  emit:
+    items_for: resource_logging[]
+    as: resource_logging
+    item:
+      id: '{{ resource_logging.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Default Encryption Enabled
-    severity: high
-    rule_id: aws.bedrock.bedrock.default_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.default_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement default encryption enabled for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Customer Managed Keys Used Buckets
-    severity: high
-    rule_id: aws.bedrock.bedrock.customer_managed_keys_used_buckets
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_buckets
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used buckets for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Customer Managed Keys Used Databases
-    severity: high
-    rule_id: aws.bedrock.bedrock.customer_managed_keys_used_databases
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_databases
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used databases for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Customer Managed Keys Used Disks
-    severity: high
-    rule_id: aws.bedrock.bedrock.customer_managed_keys_used_disks
-    assertion_id: crypto_data_protection.encryption_at_rest.customer_managed_keys_used_disks
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement customer managed keys used disks for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Database Encryption Enabled
-    severity: high
-    rule_id: aws.bedrock.bedrock.database_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.database_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement database encryption enabled for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Volume Encryption Enabled
-    severity: high
-    rule_id: aws.bedrock.bedrock.volume_encryption_enabled
-    assertion_id: crypto_data_protection.encryption_at_rest.volume_encryption_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement volume encryption enabled for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Sensitivity Labels Applied
-    severity: low
-    rule_id: aws.bedrock.bedrock.sensitivity_labels_applied
-    assertion_id: data_protection_storage.data_classification.sensitivity_labels_applied
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement sensitivity labels applied for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
-  - title: Automatic Classification Enabled
-    severity: low
-    rule_id: aws.bedrock.bedrock.automatic_classification_enabled
-    assertion_id: data_protection_storage.data_classification.automatic_classification_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement automatic classification enabled for bedrock"
-    references:
-      - "https://docs.aws.amazon.com/bedrock/"
+- title: 'BEDROCK resource: Model Invocation Logging Enabled'
+  severity: medium
+  rule_id: aws.bedrock.resource.model_invocation_logging_enabled
+  for_each:
+    discovery: aws.bedrock.resource_logging
+    as: resource
+    item: resource
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for bedrock resource:\n\n1. Open BEDROCK console\n2. Select the resource\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws bedrock update-resource-logging --resource-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Bedrock Artifact Encrypted At Rest'
+  severity: high
+  rule_id: aws.bedrock.model.bedrock_artifact_encrypted_at_rest
+  for_each:
+    discovery: aws.bedrock.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for bedrock model:\n\n1. Open BEDROCK console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws bedrock modify-model --model-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Bedrock Package Approved Configured'
+  severity: medium
+  rule_id: aws.bedrock.model.bedrock_package_approved_configured
+  for_each:
+    discovery: aws.bedrock.models
+    as: model
+    item: model
+  conditions:
+    var: model.compliant
+    op: equals
+    value: true
+  remediation: "Configure bedrock model for compliance:\n\nRequirement: Bedrock Package Approved Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS BEDROCK model to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open BEDROCK console\n2. Select the model\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Execution Role Least Privilege'
+  severity: high
+  rule_id: aws.bedrock.model.execution_role_least_privilege
+  for_each:
+    discovery: aws.bedrock.models
+    as: model
+    item: model
+  conditions:
+    var: model.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for bedrock model:\n\n1. Open BEDROCK console\n2. Select the model\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Bedrock Kms Cmk Used Configured'
+  severity: high
+  rule_id: aws.bedrock.model.bedrock_kms_cmk_used_configured
+  for_each:
+    discovery: aws.bedrock.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for bedrock model:\n\n1. Open BEDROCK console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws bedrock modify-model --model-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Bedrock Image Scan Passed Configured'
+  severity: medium
+  rule_id: aws.bedrock.model.bedrock_image_scan_passed_configured
+  for_each:
+    discovery: aws.bedrock.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for bedrock model:\n\n1. Open BEDROCK console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws bedrock modify-model --model-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK resource: Model Invocation Logs Encryption Enabled'
+  severity: high
+  rule_id: aws.bedrock.resource.model_invocation_logs_encryption_enabled
+  for_each:
+    discovery: aws.bedrock.resource_encryption
+    as: resource
+    item: resource
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for bedrock resource:\n\n1. Open BEDROCK console\n2. Select the resource\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws bedrock modify-resource --resource-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'BEDROCK model: Kms Encryption Enabled'
+  severity: high
+  rule_id: aws.bedrock.model.kms_encryption_enabled
+  for_each:
+    discovery: aws.bedrock.model_encryption
+    as: model
+    item: model
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for bedrock model:\n\n1. Open BEDROCK console\n2. Select the model\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws bedrock modify-model --model-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

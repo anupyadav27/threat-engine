@@ -1,59 +1,38 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: codeartifact
 discovery:
-  discovery_id: aws.codeartifact.resources
+- discovery_id: aws.codeartifact.resources
   calls:
-    - client: codeartifact
-      action: describe_codeartifacts
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: codeartifact
+    action: list_repositories
+    save_as: resource_list
+    on_error: continue
+    fields:
+    - Codeartifacts
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: resource_list[]
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
 checks:
-  - title: Dependency Scanning Enabled
-    severity: low
-    rule_id: aws.codeartifact.dependency_management.dependency_scanning_enabled
-    assertion_id: supply_chain_registries.dependency_management.dependency_scanning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement dependency scanning enabled for codeartifact"
-    references:
-      - "https://docs.aws.amazon.com/codeartifact/"
-  - title: License Compliance Checked
-    severity: low
-    rule_id: aws.codeartifact.dependency_management.license_compliance_checked
-    assertion_id: supply_chain_registries.dependency_management.license_compliance_checked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement license compliance checked for codeartifact"
-    references:
-      - "https://docs.aws.amazon.com/codeartifact/"
-  - title: Outdated Dependencies Blocked
-    severity: low
-    rule_id: aws.codeartifact.dependency_management.outdated_dependencies_blocked
-    assertion_id: supply_chain_registries.dependency_management.outdated_dependencies_blocked
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement outdated dependencies blocked for codeartifact"
-    references:
-      - "https://docs.aws.amazon.com/codeartifact/"
+- title: 'CODEARTIFACT resource: Packages External Public Publishing Disabled'
+  severity: high
+  rule_id: aws.codeartifact.resource.packages_external_public_publishing_disabled
+  for_each:
+    discovery: aws.codeartifact.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for codeartifact resource:\n\n1. Open CODEARTIFACT console\n2. Select the resource\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

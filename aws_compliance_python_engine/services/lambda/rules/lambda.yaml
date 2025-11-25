@@ -1,199 +1,871 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: lambda
 discovery:
-  discovery_id: aws.lambda.resources
+- discovery_id: aws.lambda.provisioned_concurrencys
   calls:
-    - client: lambda
-      action: describe_lambdas
-      paginate: true
-  fields:
-    - name: id
-      save_as: resource_id
+  - client: lambda
+    action: list_functions
+    save_as: provisioned_concurrency_list
+    on_error: continue
+    fields:
+    - Functions
   emit:
-    items_for:
-      as: resource
-      item: resource_id
+    items_for: provisioned_concurrency_list[]
+    as: provisioned_concurrency
+    item:
+      id: '{{ provisioned_concurrency.FunctionArn }}'
+      name: '{{ provisioned_concurrency.FunctionName }}'
+- discovery_id: aws.lambda.provisioned_concurrency_encryption
+  for_each: aws.lambda.provisioned_concurrencys
+  calls:
+  - client: lambda
+    action: list_functions
+    params:
+      Provisioned_concurrencyId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.lambda.provisioned_concurrency_logging
+  for_each: aws.lambda.provisioned_concurrencys
+  calls:
+  - client: lambda
+    action: describe_provisioned_concurrency_logging
+    params:
+      Provisioned_concurrencyId: '{{ item.id }}'
+    save_as: logging
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false }}'
+- discovery_id: aws.lambda.layers
+  for_each: aws.lambda.layer
+  calls:
+  - client: lambda
+    action: describe_layers
+    save_as: layers
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.lambda.event_source_mappings
+  for_each: aws.lambda.event_source_mapping
+  calls:
+  - client: lambda
+    action: describe_event_source_mappings
+    save_as: event_source_mappings
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.lambda.versions
+  for_each: aws.lambda.version
+  calls:
+  - client: lambda
+    action: describe_versions
+    save_as: versions
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.lambda.functions
+  for_each: aws.lambda.function
+  calls:
+  - client: lambda
+    action: describe_functions
+    save_as: functions
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.lambda.function_logging
+  calls:
+  - client: lambda
+    action: list_aliases
+    save_as: function_logging
+    on_error: continue
+  emit:
+    items_for: function_logging[]
+    as: function_logging
+    item:
+      id: '{{ function_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.lambda.function_encryption
+  calls:
+  - client: lambda
+    action: list_aliases
+    save_as: function_encryption
+    on_error: continue
+  emit:
+    items_for: function_encryption[]
+    as: function_encryption
+    item:
+      id: '{{ function_encryption.Id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Runtime Security Enabled
-    severity: low
-    rule_id: aws.lambda.function_security.runtime_security_enabled
-    assertion_id: serverless_paas.function_security.runtime_security_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime security enabled for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Runtime Security Enabled
-    severity: low
-    rule_id: aws.lambda.layer_security.runtime_security_enabled
-    assertion_id: serverless_paas.function_security.runtime_security_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime security enabled for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Runtime Security Enabled
-    severity: low
-    rule_id: aws.lambda.code_signing.runtime_security_enabled
-    assertion_id: serverless_paas.function_security.runtime_security_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement runtime security enabled for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Execution Timeout Configured
-    severity: low
-    rule_id: aws.lambda.function_security.execution_timeout_configured
-    assertion_id: serverless_paas.function_security.execution_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement execution timeout configured for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Execution Timeout Configured
-    severity: low
-    rule_id: aws.lambda.layer_security.execution_timeout_configured
-    assertion_id: serverless_paas.function_security.execution_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement execution timeout configured for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Execution Timeout Configured
-    severity: low
-    rule_id: aws.lambda.code_signing.execution_timeout_configured
-    assertion_id: serverless_paas.function_security.execution_timeout_configured
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement execution timeout configured for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Memory Limits Enforced
-    severity: low
-    rule_id: aws.lambda.function_security.memory_limits_enforced
-    assertion_id: serverless_paas.function_security.memory_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement memory limits enforced for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Memory Limits Enforced
-    severity: low
-    rule_id: aws.lambda.layer_security.memory_limits_enforced
-    assertion_id: serverless_paas.function_security.memory_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement memory limits enforced for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Memory Limits Enforced
-    severity: low
-    rule_id: aws.lambda.code_signing.memory_limits_enforced
-    assertion_id: serverless_paas.function_security.memory_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement memory limits enforced for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Concurrency Limits Enforced
-    severity: low
-    rule_id: aws.lambda.resource_limits.concurrency_limits_enforced
-    assertion_id: serverless_paas.resource_limits.concurrency_limits_enforced
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement concurrency limits enforced for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Cost Controls Enabled
-    severity: low
-    rule_id: aws.lambda.resource_limits.cost_controls_enabled
-    assertion_id: serverless_paas.resource_limits.cost_controls_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cost controls enabled for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Deprecation Notices Monitored
-    severity: low
-    rule_id: aws.lambda.deprecation_management.deprecation_notices_monitored
-    assertion_id: platform_surfaces_versions.deprecation_mgmt.deprecation_notices_monitored
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement deprecation notices monitored for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
-  - title: Migration Planning Enabled
-    severity: low
-    rule_id: aws.lambda.deprecation_management.migration_planning_enabled
-    assertion_id: platform_surfaces_versions.deprecation_mgmt.migration_planning_enabled
-    for_each:
-      as: resource
-      item: resource_id
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement migration planning enabled for lambda"
-    references:
-      - "https://docs.aws.amazon.com/lambda/"
+- title: 'LAMBDA function: Execution Role Existence Configured'
+  severity: high
+  rule_id: aws.lambda.function.execution_role_existence_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Execution Role Existence Configuration\n\nDescription:\
+    \ Checks high-priority security configuration for AWS Lambda function to mitigate significant security risks. This control\
+    \ addresses vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance if exploited.\n\
+    \nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required settings\
+    \ per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow\
+    \ AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use\
+    \ encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Runtime Support Configured'
+  severity: medium
+  rule_id: aws.lambda.function.runtime_support_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Runtime Support Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS Lambda function to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Vpc Private Networking Enabled'
+  severity: high
+  rule_id: aws.lambda.function.vpc_private_networking_enabled
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Env No Plaintext Secrets Configured'
+  severity: medium
+  rule_id: aws.lambda.function.env_no_plaintext_secrets_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Env No Plaintext Secrets Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS Lambda function to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Restrict Public Access Configured'
+  severity: high
+  rule_id: aws.lambda.function.restrict_public_access_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Execution Roles Least Privilege'
+  severity: high
+  rule_id: aws.lambda.function.execution_roles_least_privilege
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA version: Published And Immutable Configured'
+  severity: medium
+  rule_id: aws.lambda.version.published_and_immutable_configured
+  for_each:
+    discovery: aws.lambda.versions
+    as: version
+    item: version
+  conditions:
+    var: version.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for lambda version:\n\n1. Open LAMBDA console\n2. Select the version\n3. Go to Properties\
+    \ > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\
+    \nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail\
+    \ of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: Environment variables are encrypted in serverless functions
+  severity: high
+  rule_id: aws.lambda.function.environment_variables_kms_encryption_enabled
+  for_each:
+    discovery: aws.lambda.function_encryption
+    as: function
+    item: function
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws lambda modify-function --function-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/security-dataprotection.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Logging And Tracing Enabled'
+  severity: medium
+  rule_id: aws.lambda.function.logging_and_tracing_enabled
+  for_each:
+    discovery: aws.lambda.function_logging
+    as: function
+    item: function
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws lambda update-function-logging --function-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAMBDA function: Url Cors Policy Configured'
+  severity: high
+  rule_id: aws.lambda.function.url_cors_policy_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Dead Letter Queue Configured'
+  severity: medium
+  rule_id: aws.lambda.function.dead_letter_queue_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Dead Letter Queue Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS Lambda function to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Outputs Encrypted'
+  severity: high
+  rule_id: aws.lambda.function.outputs_encrypted
+  for_each:
+    discovery: aws.lambda.function_encryption
+    as: function
+    item: function
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws lambda modify-function --function-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Vpc Multi Az Configured'
+  severity: high
+  rule_id: aws.lambda.function.vpc_multi_az_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for lambda function:\n\n1. Ensure function is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Unique Iam Role Configured'
+  severity: high
+  rule_id: aws.lambda.function.unique_iam_role_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Execution Role No Admin Privileges Configured'
+  severity: high
+  rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Execution Role No Admin Privileges Configuration\n\
+    \nDescription: Checks high-priority security configuration for AWS Lambda function to mitigate significant security risks.\
+    \ This control addresses vulnerabilities that could lead to unauthorized access, data exposure, or regulatory non-compliance\
+    \ if exploited.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAMBDA function: Reserved Concurrency Configured'
+  severity: medium
+  rule_id: aws.lambda.function.reserved_concurrency_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Reserved Concurrency Configuration\n\nDescription:\
+    \ Verifies security configuration for AWS Lambda function to ensure alignment with AWS security best practices and compliance\
+    \ requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall security\
+    \ posture.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required\
+    \ settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022\
+    \ Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022\
+    \ Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Cloudwatch Lambda Insights Enabled'
+  severity: medium
+  rule_id: aws.lambda.function.cloudwatch_lambda_insights_enabled
+  for_each:
+    discovery: aws.lambda.function_logging
+    as: function
+    item: function
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws lambda update-function-logging --function-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Not Publicly Accessible Configured'
+  severity: high
+  rule_id: aws.lambda.function.not_publicly_accessible_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Inside Vpc Configured'
+  severity: high
+  rule_id: aws.lambda.function.inside_vpc_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.in_vpc
+    op: equals
+    value: true
+  remediation: "Configure network security for lambda function:\n\n1. Ensure function is deployed in VPC\n2. Configure security\
+    \ groups:\n   - Restrict inbound traffic to necessary ports\n   - Limit source IP ranges\n   - Use least privilege\n3.\
+    \ Configure network ACLs for subnet-level control\n4. Enable VPC Flow Logs for network monitoring\n5. Use Private Link/VPC\
+    \ Endpoints where available\n6. Enable TLS/SSL for data in transit\n\nNetwork Security Best Practices:\n\u2022 Deploy\
+    \ in private subnets when possible\n\u2022 Use NAT Gateway for outbound internet access\n\u2022 Implement defense in depth\n\
+    \u2022 Enable encryption in transit\n\u2022 Monitor network traffic"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Code Signing Config Present'
+  severity: medium
+  rule_id: aws.lambda.function.code_signing_config_present
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Code Signing Config Present\n\nDescription: Verifies\
+    \ security configuration for AWS Lambda function to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA provisioned concurrency: Execution Role Least Privilege'
+  severity: high
+  rule_id: aws.lambda.provisioned_concurrency.execution_role_least_privilege
+  for_each:
+    discovery: aws.lambda.provisioned_concurrencys
+    as: provisioned_concurrency
+    item: provisioned_concurrency
+  conditions:
+    var: provisioned_concurrency.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda provisioned_concurrency:\n\n1. Open LAMBDA console\n2. Select the provisioned_concurrency\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA layer: Version Immutable Configured'
+  severity: low
+  rule_id: aws.lambda.layer.version_immutable_configured
+  for_each:
+    discovery: aws.lambda.layers
+    as: layer
+    item: layer
+  conditions:
+    var: layer.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for lambda layer:\n\n1. Open LAMBDA console\n2. Select the layer\n3. Go to Properties >\
+    \ Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\
+    \nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail\
+    \ of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Invoke Api Operations Cloudtrail Logging Enabled'
+  severity: medium
+  rule_id: aws.lambda.function.invoke_api_operations_cloudtrail_logging_enabled
+  for_each:
+    discovery: aws.lambda.function_logging
+    as: function
+    item: function
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws lambda update-function-logging --function-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Audit secret access by functions
+  severity: medium
+  rule_id: aws.lambda.function.change_audit_logging_enabled
+  for_each:
+    discovery: aws.lambda.function_logging
+    as: function
+    item: function
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws lambda update-function-logging --function-id <id>\
+    \ --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAMBDA function: Url Authentication Configured'
+  severity: critical
+  rule_id: aws.lambda.function.url_authentication_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Url Authentication Configuration\n\nDescription:\
+    \ Validates critical security configuration for AWS Lambda function to prevent security incidents that could result in\
+    \ significant data breaches, compliance violations, or business disruption. This control addresses high-risk vulnerabilities\
+    \ that require immediate remediation.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n\
+    4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA version: Rollforward Rollback Controls Present'
+  severity: medium
+  rule_id: aws.lambda.version.rollforward_rollback_controls_present
+  for_each:
+    discovery: aws.lambda.versions
+    as: version
+    item: version
+  conditions:
+    var: version.versioning_enabled
+    op: equals
+    value: true
+  remediation: "Enable versioning for lambda version:\n\n1. Open LAMBDA console\n2. Select the version\n3. Go to Properties\
+    \ > Versioning\n4. Enable versioning\n5. Configure retention policies\n6. Set up lifecycle rules (optional)\n7. Save changes\n\
+    \nBenefits:\n\u2022 Protection against accidental deletion\n\u2022 Ability to recover from ransomware\n\u2022 Audit trail\
+    \ of changes\n\u2022 Point-in-time recovery"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Remediation Roles Least Privilege'
+  severity: high
+  rule_id: aws.lambda.function.remediation_roles_least_privilege
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAMBDA layer: Source Trusted Configured'
+  severity: medium
+  rule_id: aws.lambda.layer.source_trusted_configured
+  for_each:
+    discovery: aws.lambda.layers
+    as: layer
+    item: layer
+  conditions:
+    var: layer.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda layer for compliance:\n\nRequirement: Source Trusted Configuration\n\nDescription: Verifies\
+    \ security configuration for AWS Lambda layer to ensure alignment with AWS security best practices and compliance requirements.\
+    \ Proper configuration reduces security risks, maintains defense in depth, and supports overall security posture.\n\n\
+    Steps:\n1. Open LAMBDA console\n2. Select the layer\n3. Review security configuration\n4. Apply required settings per\
+    \ organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\u2022 Follow AWS\
+    \ Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\u2022 Use encryption\
+    \ where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Url Public Configured'
+  severity: high
+  rule_id: aws.lambda.function.url_public_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA event source mapping: Permissions Least Privilege'
+  severity: high
+  rule_id: aws.lambda.event_source_mapping.permissions_least_privilege
+  for_each:
+    discovery: aws.lambda.event_source_mappings
+    as: event_source_mapping
+    item: event_source_mapping
+  conditions:
+    var: event_source_mapping.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda event_source_mapping:\n\n1. Open LAMBDA console\n2. Select the event_source_mapping\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'LAMBDA function: Artifacts Encrypted And Private'
+  severity: high
+  rule_id: aws.lambda.function.artifacts_encrypted_and_private
+  for_each:
+    discovery: aws.lambda.function_encryption
+    as: function
+    item: function
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws lambda modify-function --function-id <id> --encrypted\
+    \ --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable\
+    \ automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Role Least Privilege'
+  severity: high
+  rule_id: aws.lambda.function.role_least_privilege
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Policies Present For Sensitive Fields Configured'
+  severity: medium
+  rule_id: aws.lambda.function.policies_present_for_sensitive_fields_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda function for compliance:\n\nRequirement: Policies Present For Sensitive Fields Configuration\n\
+    \nDescription: Verifies security configuration for AWS Lambda function to ensure alignment with AWS security best practices\
+    \ and compliance requirements. Proper configuration reduces security risks, maintains defense in depth, and supports overall\
+    \ security posture.\n\nSteps:\n1. Open LAMBDA console\n2. Select the function\n3. Review security configuration\n4. Apply\
+    \ required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\nGeneral Security Recommendations:\n\
+    \u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\u2022 Enable logging and monitoring\n\
+    \u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Jobs Private Networking Configured'
+  severity: high
+  rule_id: aws.lambda.function.jobs_private_networking_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA event source mapping: Source Authenticated Configured'
+  severity: medium
+  rule_id: aws.lambda.event_source_mapping.source_authenticated_configured
+  for_each:
+    discovery: aws.lambda.event_source_mappings
+    as: event_source_mapping
+    item: event_source_mapping
+  conditions:
+    var: event_source_mapping.compliant
+    op: equals
+    value: true
+  remediation: "Configure lambda event_source_mapping for compliance:\n\nRequirement: Source Authenticated Configuration\n\
+    \nDescription: Verifies security configuration for AWS Lambda event source mapping to ensure alignment with AWS security\
+    \ best practices and compliance requirements. Proper configuration reduces security risks, maintains defense in depth,\
+    \ and supports overall security posture.\n\nSteps:\n1. Open LAMBDA console\n2. Select the event_source_mapping\n3. Review\
+    \ security configuration\n4. Apply required settings per organizational policy\n5. Verify compliance\n6. Save changes\n\
+    \nGeneral Security Recommendations:\n\u2022 Follow AWS Well-Architected Framework\n\u2022 Implement defense in depth\n\
+    \u2022 Enable logging and monitoring\n\u2022 Use encryption where applicable\n\u2022 Regular security audits"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html
+- title: 'LAMBDA function: Resource Policy Cross Account Access Configured'
+  severity: high
+  rule_id: aws.lambda.function.resource_policy_cross_account_access_configured
+  for_each:
+    discovery: aws.lambda.functions
+    as: function
+    item: function
+  conditions:
+    var: function.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for lambda function:\n\n1. Open LAMBDA console\n2. Select the function\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html
+  - https://docs.aws.amazon.com/lambda/latest/dg/lambda-security.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/lambda-controls.html

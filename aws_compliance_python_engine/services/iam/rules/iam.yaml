@@ -1,899 +1,2533 @@
-version: 1.0
+version: '1.0'
 provider: aws
 service: iam
 discovery:
-  discovery_id: aws.iam.users
+- discovery_id: aws.iam.certificates
   calls:
-    - client: iam
-      action: list_users
-      paginate: true
-  fields:
-    - name: UserName
-      save_as: user_name
+  - client: iam
+    action: list_users
+    save_as: certificate_list
+    on_error: continue
+    fields:
+    - Users
   emit:
-    items_for:
-      as: resource
-      item: user_name
+    items_for: certificate_list[]
+    as: certificate
+    item:
+      id: '{{ certificate.UserId }}'
+      name: '{{ certificate.UserName }}'
+- discovery_id: aws.iam.certificate_encryption
+  for_each: aws.iam.certificates
+  calls:
+  - client: iam
+    action: list_users
+    params:
+      CertificateId: '{{ item.id }}'
+    save_as: encryption
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined else false }}'
+- discovery_id: aws.iam.managedpolicy_logging
+  calls:
+  - client: iam
+    action: list_access_keys
+    save_as: managedpolicy_logging
+    on_error: continue
+  emit:
+    items_for: managedpolicy_logging[]
+    as: managedpolicy_logging
+    item:
+      id: '{{ managedpolicy_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.roots
+  for_each: aws.iam.root
+  calls:
+  - client: iam
+    action: describe_roots
+    save_as: roots
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.roles
+  for_each: aws.iam.role
+  calls:
+  - client: iam
+    action: get_role
+    save_as: roles
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.customers
+  for_each: aws.iam.customer
+  calls:
+  - client: iam
+    action: list_account_aliases
+    save_as: customers
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.passwords
+  for_each: aws.iam.password
+  calls:
+  - client: iam
+    action: get_account_password_policy
+    save_as: passwords
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.timestream_access_control_and_mfa_enforcements
+  for_each: aws.iam.timestream_access_control_and_mfa_enforcement
+  calls:
+  - client: iam
+    action: describe_timestream_access_control_and_mfa_enforcements
+    save_as: timestream_access_control_and_mfa_enforcements
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.resources
+  for_each: aws.iam.resource
+  calls:
+  - client: iam
+    action: describe_resources
+    save_as: resources
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.groups
+  for_each: aws.iam.group
+  calls:
+  - client: iam
+    action: list_groups
+    save_as: groups
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.keys
+  for_each: aws.iam.key
+  calls:
+  - client: iam
+    action: list_keys
+    save_as: keys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.avoidrootusages
+  for_each: aws.iam.avoidrootusage
+  calls:
+  - client: iam
+    action: describe_avoidrootusages
+    save_as: avoidrootusages
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.no_guest_accounts_with_permissionss
+  for_each: aws.iam.no_guest_accounts_with_permission
+  calls:
+  - client: iam
+    action: describe_no_guest_accounts_with_permissionss
+    save_as: no_guest_accounts_with_permissionss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.supports
+  for_each: aws.iam.support
+  calls:
+  - client: iam
+    action: describe_supports
+    save_as: supports
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.awss
+  for_each: aws.iam.aw
+  calls:
+  - client: iam
+    action: describe_awss
+    save_as: awss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.policys
+  for_each: aws.iam.policy
+  calls:
+  - client: iam
+    action: list_policies
+    save_as: policys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.policy_encryption
+  calls:
+  - client: iam
+    action: list_access_keys
+    save_as: policy_encryption
+    on_error: continue
+  emit:
+    items_for: policy_encryption[]
+    as: policy_encryption
+    item:
+      id: '{{ policy_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.instanceprofiles
+  for_each: aws.iam.instanceprofile
+  calls:
+  - client: iam
+    action: list_instance_profiles
+    save_as: instanceprofiles
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.samlprovider_encryption
+  calls:
+  - client: iam
+    action: list_access_keys
+    save_as: samlprovider_encryption
+    on_error: continue
+  emit:
+    items_for: samlprovider_encryption[]
+    as: samlprovider_encryption
+    item:
+      id: '{{ samlprovider_encryption.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.users
+  for_each: aws.iam.user
+  calls:
+  - client: iam
+    action: list_users
+    save_as: users
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.inlines
+  for_each: aws.iam.inline
+  calls:
+  - client: iam
+    action: describe_inlines
+    save_as: inlines
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.user_logging
+  calls:
+  - client: iam
+    action: list_access_keys
+    save_as: user_logging
+    on_error: continue
+  emit:
+    items_for: user_logging[]
+    as: user_logging
+    item:
+      id: '{{ user_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.policy_logging
+  calls:
+  - client: iam
+    action: list_access_keys
+    save_as: policy_logging
+    on_error: continue
+  emit:
+    items_for: policy_logging[]
+    as: policy_logging
+    item:
+      id: '{{ policy_logging.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.samlproviders
+  for_each: aws.iam.samlprovider
+  calls:
+  - client: iam
+    action: list_saml_providers
+    save_as: samlproviders
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.managedpolicys
+  for_each: aws.iam.managedpolicy
+  calls:
+  - client: iam
+    action: describe_managedpolicys
+    save_as: managedpolicys
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.oidcproviders
+  for_each: aws.iam.oidcprovider
+  calls:
+  - client: iam
+    action: describe_oidcproviders
+    save_as: oidcproviders
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.nos
+  for_each: aws.iam.no
+  calls:
+  - client: iam
+    action: describe_nos
+    save_as: nos
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.access_analyzer_active_status_all_regionss
+  for_each: aws.iam.access_analyzer_active_status_all_region
+  calls:
+  - client: iam
+    action: describe_access_analyzer_active_status_all_regionss
+    save_as: access_analyzer_active_status_all_regionss
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.iam.rotates
+  for_each: aws.iam.rotate
+  calls:
+  - client: iam
+    action: describe_rotates
+    save_as: rotates
+    on_error: continue
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
 checks:
-  - title: Strong Authn Enabled
-    severity: critical
-    rule_id: aws.iam.user_mfa_status.strong_authn_enabled
-    assertion_id: identity_access.authentication.strong_authn_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement strong authn enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Strong Authn Enabled
-    severity: critical
-    rule_id: aws.iam.root_account_status.strong_authn_enabled
-    assertion_id: identity_access.authentication.strong_authn_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement strong authn enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Authn Configured
-    severity: critical
-    rule_id: aws.iam.user_mfa_status.service_authn_configured
-    assertion_id: identity_access.authentication.service_authn_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service authn configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Authn Configured
-    severity: critical
-    rule_id: aws.iam.root_account_status.service_authn_configured
-    assertion_id: identity_access.authentication.service_authn_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service authn configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Legacy Authn Disabled
-    severity: critical
-    rule_id: aws.iam.user_mfa_status.legacy_authn_disabled
-    assertion_id: identity_access.authentication.legacy_authn_disabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement legacy authn disabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Legacy Authn Disabled
-    severity: critical
-    rule_id: aws.iam.root_account_status.legacy_authn_disabled
-    assertion_id: identity_access.authentication.legacy_authn_disabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement legacy authn disabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Session Timeout Configured
-    severity: critical
-    rule_id: aws.iam.user_mfa_status.session_timeout_configured
-    assertion_id: identity_access.authentication.session_timeout_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session timeout configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Session Timeout Configured
-    severity: critical
-    rule_id: aws.iam.root_account_status.session_timeout_configured
-    assertion_id: identity_access.authentication.session_timeout_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session timeout configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Permission Boundaries Enforced
-    severity: critical
-    rule_id: aws.iam.role_policies.permission_boundaries_enforced
-    assertion_id: identity_access.authorization.permission_boundaries_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement permission boundaries enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Permission Boundaries Enforced
-    severity: critical
-    rule_id: aws.iam.managed_policies.permission_boundaries_enforced
-    assertion_id: identity_access.authorization.permission_boundaries_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement permission boundaries enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Permission Boundaries Enforced
-    severity: critical
-    rule_id: aws.iam.permission_boundaries.permission_boundaries_enforced
-    assertion_id: identity_access.authorization.permission_boundaries_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement permission boundaries enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Permission Boundaries Enforced
-    severity: critical
-    rule_id: aws.iam.inline_policies.permission_boundaries_enforced
-    assertion_id: identity_access.authorization.permission_boundaries_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement permission boundaries enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Permission Boundaries Enforced
-    severity: critical
-    rule_id: aws.iam.organization_policies.permission_boundaries_enforced
-    assertion_id: identity_access.authorization.permission_boundaries_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement permission boundaries enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Resource Policies Configured
-    severity: critical
-    rule_id: aws.iam.role_policies.resource_policies_configured
-    assertion_id: identity_access.authorization.resource_policies_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource policies configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Resource Policies Configured
-    severity: critical
-    rule_id: aws.iam.managed_policies.resource_policies_configured
-    assertion_id: identity_access.authorization.resource_policies_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource policies configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Resource Policies Configured
-    severity: critical
-    rule_id: aws.iam.permission_boundaries.resource_policies_configured
-    assertion_id: identity_access.authorization.resource_policies_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource policies configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Resource Policies Configured
-    severity: critical
-    rule_id: aws.iam.inline_policies.resource_policies_configured
-    assertion_id: identity_access.authorization.resource_policies_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource policies configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Resource Policies Configured
-    severity: critical
-    rule_id: aws.iam.organization_policies.resource_policies_configured
-    assertion_id: identity_access.authorization.resource_policies_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement resource policies configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Conditional Access Enabled
-    severity: critical
-    rule_id: aws.iam.role_policies.conditional_access_enabled
-    assertion_id: identity_access.authorization.conditional_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement conditional access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Conditional Access Enabled
-    severity: critical
-    rule_id: aws.iam.managed_policies.conditional_access_enabled
-    assertion_id: identity_access.authorization.conditional_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement conditional access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Conditional Access Enabled
-    severity: critical
-    rule_id: aws.iam.permission_boundaries.conditional_access_enabled
-    assertion_id: identity_access.authorization.conditional_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement conditional access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Conditional Access Enabled
-    severity: critical
-    rule_id: aws.iam.inline_policies.conditional_access_enabled
-    assertion_id: identity_access.authorization.conditional_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement conditional access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Conditional Access Enabled
-    severity: critical
-    rule_id: aws.iam.organization_policies.conditional_access_enabled
-    assertion_id: identity_access.authorization.conditional_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement conditional access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: External Idp Configured
-    severity: low
-    rule_id: aws.iam.saml_providers.external_idp_configured
-    assertion_id: identity_access.federation.external_idp_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement external idp configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: External Idp Configured
-    severity: low
-    rule_id: aws.iam.oidc_providers.external_idp_configured
-    assertion_id: identity_access.federation.external_idp_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement external idp configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Trust Relationships Managed
-    severity: low
-    rule_id: aws.iam.saml_providers.trust_relationships_managed
-    assertion_id: identity_access.federation.trust_relationships_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement trust relationships managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Trust Relationships Managed
-    severity: low
-    rule_id: aws.iam.oidc_providers.trust_relationships_managed
-    assertion_id: identity_access.federation.trust_relationships_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement trust relationships managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Cross Account Access Controlled
-    severity: low
-    rule_id: aws.iam.saml_providers.cross_account_access_controlled
-    assertion_id: identity_access.federation.cross_account_access_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cross account access controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Cross Account Access Controlled
-    severity: low
-    rule_id: aws.iam.oidc_providers.cross_account_access_controlled
-    assertion_id: identity_access.federation.cross_account_access_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement cross account access controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Enforced For Privileged Users
-    severity: low
-    rule_id: aws.iam.mfa.enforced_for_privileged_users
-    assertion_id: identity_access.mfa.enforced_for_privileged_users
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement enforced for privileged users for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Backup Methods Configured
-    severity: low
-    rule_id: aws.iam.mfa.backup_methods_configured
-    assertion_id: identity_access.mfa.backup_methods_configured
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement backup methods configured for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Hardware Tokens Required For Privileged
-    severity: low
-    rule_id: aws.iam.mfa.hardware_tokens_required_for_privileged
-    assertion_id: identity_access.mfa.hardware_tokens_required_for_privileged
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement hardware tokens required for privileged for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Session Duration Limited
-    severity: low
-    rule_id: aws.iam.session_duration.session_duration_limited
-    assertion_id: identity_access.session_management.session_duration_limited
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement session duration limited for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Temporary Credentials Controlled
-    severity: low
-    rule_id: aws.iam.session_duration.temporary_credentials_controlled
-    assertion_id: identity_access.session_management.temporary_credentials_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement temporary credentials controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Least Privilege Roles
-    severity: low
-    rule_id: aws.iam.role_definitions.least_privilege_roles
-    assertion_id: rbac_entitlements.role_definition.least_privilege_roles
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege roles for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Least Privilege Roles
-    severity: low
-    rule_id: aws.iam.custom_policies.least_privilege_roles
-    assertion_id: rbac_entitlements.role_definition.least_privilege_roles
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege roles for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Least Privilege Roles
-    severity: low
-    rule_id: aws.iam.service_linked_roles.least_privilege_roles
-    assertion_id: rbac_entitlements.role_definition.least_privilege_roles
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege roles for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Linked Roles Used
-    severity: low
-    rule_id: aws.iam.role_definitions.service_linked_roles_used
-    assertion_id: rbac_entitlements.role_definition.service_linked_roles_used
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service linked roles used for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Linked Roles Used
-    severity: low
-    rule_id: aws.iam.custom_policies.service_linked_roles_used
-    assertion_id: rbac_entitlements.role_definition.service_linked_roles_used
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service linked roles used for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Linked Roles Used
-    severity: low
-    rule_id: aws.iam.service_linked_roles.service_linked_roles_used
-    assertion_id: rbac_entitlements.role_definition.service_linked_roles_used
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service linked roles used for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Principals Limited
-    severity: low
-    rule_id: aws.iam.role_assignments.principals_limited
-    assertion_id: rbac_entitlements.role_assignment.principals_limited
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement principals limited for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Principals Limited
-    severity: low
-    rule_id: aws.iam.group_memberships.principals_limited
-    assertion_id: rbac_entitlements.role_assignment.principals_limited
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement principals limited for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Principals Limited
-    severity: low
-    rule_id: aws.iam.resource_based_policies.principals_limited
-    assertion_id: rbac_entitlements.role_assignment.principals_limited
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement principals limited for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Just In Time Access Enabled
-    severity: low
-    rule_id: aws.iam.role_assignments.just_in_time_access_enabled
-    assertion_id: rbac_entitlements.role_assignment.just_in_time_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement just in time access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Just In Time Access Enabled
-    severity: low
-    rule_id: aws.iam.group_memberships.just_in_time_access_enabled
-    assertion_id: rbac_entitlements.role_assignment.just_in_time_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement just in time access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Just In Time Access Enabled
-    severity: low
-    rule_id: aws.iam.resource_based_policies.just_in_time_access_enabled
-    assertion_id: rbac_entitlements.role_assignment.just_in_time_access_enabled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement just in time access enabled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Access Reviews Conducted
-    severity: low
-    rule_id: aws.iam.least_privilege_analysis.access_reviews_conducted
-    assertion_id: rbac_entitlements.least_privilege.access_reviews_conducted
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access reviews conducted for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Access Reviews Conducted
-    severity: low
-    rule_id: aws.iam.permission_boundaries.access_reviews_conducted
-    assertion_id: rbac_entitlements.least_privilege.access_reviews_conducted
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement access reviews conducted for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Unused Permissions Removed
-    severity: low
-    rule_id: aws.iam.least_privilege_analysis.unused_permissions_removed
-    assertion_id: rbac_entitlements.least_privilege.unused_permissions_removed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement unused permissions removed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Unused Permissions Removed
-    severity: low
-    rule_id: aws.iam.permission_boundaries.unused_permissions_removed
-    assertion_id: rbac_entitlements.least_privilege.unused_permissions_removed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement unused permissions removed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Lifecycle Managed
-    severity: low
-    rule_id: aws.iam.entitlement_policies.lifecycle_managed
-    assertion_id: rbac_entitlements.entitlement_management.lifecycle_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement lifecycle managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Lifecycle Managed
-    severity: low
-    rule_id: aws.iam.role_permissions.lifecycle_managed
-    assertion_id: rbac_entitlements.entitlement_management.lifecycle_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement lifecycle managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Lifecycle Managed
-    severity: low
-    rule_id: aws.iam.organization_policies.lifecycle_managed
-    assertion_id: rbac_entitlements.entitlement_management.lifecycle_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement lifecycle managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Temporary Access Controlled
-    severity: low
-    rule_id: aws.iam.entitlement_policies.temporary_access_controlled
-    assertion_id: rbac_entitlements.entitlement_management.temporary_access_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement temporary access controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Temporary Access Controlled
-    severity: low
-    rule_id: aws.iam.role_permissions.temporary_access_controlled
-    assertion_id: rbac_entitlements.entitlement_management.temporary_access_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement temporary access controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Temporary Access Controlled
-    severity: low
-    rule_id: aws.iam.organization_policies.temporary_access_controlled
-    assertion_id: rbac_entitlements.entitlement_management.temporary_access_controlled
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement temporary access controlled for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Algorithm Standards Enforced
-    severity: low
-    rule_id: aws.iam.crypto_policies.algorithm_standards_enforced
-    assertion_id: crypto_data_protection.crypto_policies.algorithm_standards_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement algorithm standards enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Compliance Standards Met
-    severity: low
-    rule_id: aws.iam.crypto_policies.compliance_standards_met
-    assertion_id: crypto_data_protection.crypto_policies.compliance_standards_met
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement compliance standards met for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Least Privilege Enforced
-    severity: low
-    rule_id: aws.iam.eks_service_roles.least_privilege_enforced
-    assertion_id: containers_kubernetes.rbac_policies.least_privilege_enforced
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement least privilege enforced for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Service Account Restrictions
-    severity: low
-    rule_id: aws.iam.eks_service_roles.service_account_restrictions
-    assertion_id: containers_kubernetes.rbac_policies.service_account_restrictions
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement service account restrictions for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Security Policies Defined
-    severity: low
-    rule_id: aws.iam.policy_management.security_policies_defined
-    assertion_id: governance_compliance.policy_management.security_policies_defined
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement security policies defined for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Policy Compliance Monitored
-    severity: low
-    rule_id: aws.iam.policy_management.policy_compliance_monitored
-    assertion_id: governance_compliance.policy_management.policy_compliance_monitored
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy compliance monitored for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
-  - title: Policy Exceptions Managed
-    severity: low
-    rule_id: aws.iam.policy_management.policy_exceptions_managed
-    assertion_id: governance_compliance.policy_management.policy_exceptions_managed
-    for_each:
-      as: resource
-      item: user_name
-    conditions:
-      - field: resource.compliant
-        operator: equals
-        value: true
-    remediation: "Implement policy exceptions managed for iam"
-    references:
-      - "https://docs.aws.amazon.com/iam/"
+- title: 'IAM password: Policy Lowercase Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_lowercase_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM instanceprofile: No Instance Profile With Admin Star Configured'
+  severity: medium
+  rule_id: aws.iam.instanceprofile.no_instance_profile_with_admin_star_configured
+  for_each:
+    discovery: aws.iam.instanceprofiles
+    as: instanceprofile
+    item: instanceprofile
+  conditions:
+    var: instanceprofile.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam instanceprofile:\n\n1. Open IAM console\n2. Select the instanceprofile\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Security Check Full Admin Privileges Configured'
+  severity: high
+  rule_id: aws.iam.policy.security_check_full_admin_privileges_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM password: Policy Minimum Length 14 Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_minimum_length_14_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Session Duration Reasonable If Applicable Configured'
+  severity: medium
+  rule_id: aws.iam.role.session_duration_reasonable_if_applicable_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Inactive 90 Days Disabled'
+  severity: medium
+  rule_id: aws.iam.user.inactive_90_days_disabled
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Conditions Used If Applicable Configured'
+  severity: medium
+  rule_id: aws.iam.policy.conditions_used_if_applicable_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM instanceprofile: Role Policies Least Privilege'
+  severity: high
+  rule_id: aws.iam.instanceprofile.role_policies_least_privilege
+  for_each:
+    discovery: aws.iam.instanceprofiles
+    as: instanceprofile
+    item: instanceprofile
+  conditions:
+    var: instanceprofile.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam instanceprofile:\n\n1. Open IAM console\n2. Select the instanceprofile\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM user: No Inline Policies Enabled'
+  severity: medium
+  rule_id: aws.iam.user.no_inline_policies_enabled
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Scopes Or S Least Privilege'
+  severity: high
+  rule_id: aws.iam.role.scopes_or_s_least_privilege
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM policy: No Full Access To Cloudtrail Configured'
+  severity: medium
+  rule_id: aws.iam.policy.no_full_access_to_cloudtrail_configured
+  for_each:
+    discovery: aws.iam.policy_logging
+    as: policy
+    item: policy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws iam update-policy-logging --policy-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Versioning And Change Audit Enabled'
+  severity: medium
+  rule_id: aws.iam.policy.versioning_and_change_audit_enabled
+  for_each:
+    discovery: aws.iam.policy_logging
+    as: policy
+    item: policy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws iam update-policy-logging --policy-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Reuse 24 Configured'
+  severity: medium
+  rule_id: aws.iam.policy.reuse_24_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Console Access Unused Configured'
+  severity: medium
+  rule_id: aws.iam.user.console_access_unused_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Attached Policies Not Admin Star Configured'
+  severity: medium
+  rule_id: aws.iam.role.attached_policies_not_admin_star_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM samlprovider: Idp Metadata Signed Configured'
+  severity: medium
+  rule_id: aws.iam.samlprovider.idp_metadata_signed_configured
+  for_each:
+    discovery: aws.iam.samlproviders
+    as: samlprovider
+    item: samlprovider
+  conditions:
+    var: samlprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam samlprovider:\n\n1. Open IAM console\n2. Select the samlprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: No Wildcard Admin Actions Configured'
+  severity: medium
+  rule_id: aws.iam.policy.no_wildcard_admin_actions_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM resource: Access Analyzer External All Regions Configured'
+  severity: medium
+  rule_id: aws.iam.resource.access_analyzer_external_all_regions_configured
+  for_each:
+    discovery: aws.iam.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam resource:\n\n1. Open IAM console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Least Privilege Audit Configured'
+  severity: medium
+  rule_id: aws.iam.policy.least_privilege_audit_configured
+  for_each:
+    discovery: aws.iam.policy_logging
+    as: policy
+    item: policy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws iam update-policy-logging --policy-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM certificate: Expired Removal Monitored'
+  severity: medium
+  rule_id: aws.iam.certificate.expired_removal_monitored
+  for_each:
+    discovery: aws.iam.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam certificate:\n\n1. Open IAM console\n2. Select the certificate\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Keys Not Used Or Rotated 90 Days Or Less Configured'
+  severity: medium
+  rule_id: aws.iam.role.keys_not_used_or_rotated_90_days_or_less_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM customer: Attached Policy No Administrative Privileges Configured'
+  severity: high
+  rule_id: aws.iam.customer.attached_policy_no_administrative_privileges_configured
+  for_each:
+    discovery: aws.iam.customers
+    as: customer
+    item: customer
+  conditions:
+    var: customer.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam customer:\n\n1. Open IAM console\n2. Select the customer\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM password: Policy Reuse 24 Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_reuse_24_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: No Action Star On Resource Star Configured'
+  severity: medium
+  rule_id: aws.iam.policy.no_action_star_on_resource_star_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Attached Only To Group Or Roles Configured'
+  severity: high
+  rule_id: aws.iam.policy.attached_only_to_group_or_roles_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM certificate: Expiration Removal Monitored'
+  severity: medium
+  rule_id: aws.iam.certificate.expiration_removal_monitored
+  for_each:
+    discovery: aws.iam.certificates
+    as: certificate
+    item: certificate
+  conditions:
+    var: certificate.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam certificate:\n\n1. Open IAM console\n2. Select the certificate\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Editors Rbac Least Privilege'
+  severity: high
+  rule_id: aws.iam.managedpolicy.editors_rbac_least_privilege
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: Legacy authentication protocols are disabled
+  severity: medium
+  rule_id: aws.iam.user.access_keys_rotated_90_days_or_less_when_present
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM support: Role Created Configured'
+  severity: high
+  rule_id: aws.iam.support.role_created_configured
+  for_each:
+    discovery: aws.iam.supports
+    as: support
+    item: support
+  conditions:
+    var: support.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam support:\n\n1. Open IAM console\n2. Select the support\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Single Active Access Key Audit Configured'
+  severity: medium
+  rule_id: aws.iam.user.single_active_access_key_audit_configured
+  for_each:
+    discovery: aws.iam.user_logging
+    as: user
+    item: user
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Logging/Monitoring settings\n\
+    4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n6. Set\
+    \ log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws iam update-user-logging --user-id <id> --logging-enabled\n\
+    \nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized logging service\n\u2022\
+    \ Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring and alerting"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Allows Privilege Escalation Configured'
+  severity: high
+  rule_id: aws.iam.policy.allows_privilege_escalation_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM resource: Root Mfa Enabled'
+  severity: critical
+  rule_id: aws.iam.resource.root_mfa_enabled
+  for_each:
+    discovery: aws.iam.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam resource:\n\n1. Open IAM console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM no: Root Access Key Configured'
+  severity: medium
+  rule_id: aws.iam.no.root_access_key_configured
+  for_each:
+    discovery: aws.iam.nos
+    as: 'no'
+    item: 'no'
+  conditions:
+    var: no.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam no:\n\n1. Open IAM console\n2. Select the no\n3. Go to Permissions/Access Control\n\
+    4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   - Implement\
+    \ least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save changes\n\
+    \nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for additional\
+    \ security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use AWS Organizations\
+    \ SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Policy Elastic Disaster Recovery Configured'
+  severity: high
+  rule_id: aws.iam.user.policy_elastic_disaster_recovery_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM rotate: Access Key 90 Days Configured'
+  severity: medium
+  rule_id: aws.iam.rotate.access_key_90_days_configured
+  for_each:
+    discovery: aws.iam.rotates
+    as: rotate
+    item: rotate
+  conditions:
+    var: rotate.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam rotate:\n\n1. Open IAM console\n2. Select the rotate\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: No Full Admin Privileges Enabled'
+  severity: high
+  rule_id: aws.iam.policy.no_full_admin_privileges_enabled
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM policy: No Administrative Privileges Configured'
+  severity: high
+  rule_id: aws.iam.policy.no_administrative_privileges_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM group: Has Users Configured'
+  severity: medium
+  rule_id: aws.iam.group.has_users_configured
+  for_each:
+    discovery: aws.iam.groups
+    as: group
+    item: group
+  conditions:
+    var: group.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam group:\n\n1. Open IAM console\n2. Select the group\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Minimum Length 14 Configured'
+  severity: medium
+  rule_id: aws.iam.policy.minimum_length_14_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM password: Policy Uppercase Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_uppercase_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Centralization Monitored'
+  severity: medium
+  rule_id: aws.iam.user.centralization_monitored
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Accesskey Unused Configured'
+  severity: medium
+  rule_id: aws.iam.user.accesskey_unused_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM instanceprofile: Role Enabled'
+  severity: high
+  rule_id: aws.iam.instanceprofile.role_enabled
+  for_each:
+    discovery: aws.iam.instanceprofiles
+    as: instanceprofile
+    item: instanceprofile
+  conditions:
+    var: instanceprofile.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam instanceprofile:\n\n1. Open IAM console\n2. Select the instanceprofile\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Password Policy Complex Configured'
+  severity: high
+  rule_id: aws.iam.user.password_policy_complex_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: No User Managed Long Lived Keys Configured'
+  severity: medium
+  rule_id: aws.iam.role.no_user_managed_long_lived_keys_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Execution Roles Least Privilege'
+  severity: high
+  rule_id: aws.iam.policy.execution_roles_least_privilege
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM samlprovider: Assertion Lifetime Configured'
+  severity: medium
+  rule_id: aws.iam.samlprovider.assertion_lifetime_configured
+  for_each:
+    discovery: aws.iam.samlprovider_encryption
+    as: samlprovider
+    item: samlprovider
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for iam samlprovider:\n\n1. Open IAM console\n2. Select the samlprovider\n3. Navigate to\
+    \ Properties/Configuration > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n\
+    \   - Customer managed key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws iam modify-samlprovider --samlprovider-id\
+    \ <id> --encrypted --kms-key-id <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive\
+    \ data\n\u2022 Enable automatic key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Monitored'
+  severity: medium
+  rule_id: aws.iam.policy.monitored
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM access analyzer active status all regions: Access Analyzer Active Status All Regions Configured'
+  severity: medium
+  rule_id: aws.iam.access_analyzer_active_status_all_regions.access_analyzer_active_status_all_regions_configured
+  for_each:
+    discovery: aws.iam.access_analyzer_active_status_all_regionss
+    as: access_analyzer_active_status_all_regions
+    item: access_analyzer_active_status_all_regions
+  conditions:
+    var: access_analyzer_active_status_all_regions.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam access_analyzer_active_status_all_regions:\n\n1. Open IAM console\n2. Select\
+    \ the access_analyzer_active_status_all_regions\n3. Go to Permissions/Access Control\n4. Review current permissions:\n\
+    \   - Remove public access grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource\
+    \ policy or IAM policies\n6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022\
+    \ Use IAM roles instead of access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for\
+    \ sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: No Policy Allows Without Constraints Configured'
+  severity: high
+  rule_id: aws.iam.managedpolicy.no_policy_allows_without_constraints_configured
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Awscloudshell Full Access Restriction Configured'
+  severity: medium
+  rule_id: aws.iam.policy.awscloudshell_full_access_restriction_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Single Active Access Key Configured'
+  severity: medium
+  rule_id: aws.iam.user.single_active_access_key_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: No Inline Policies Configured'
+  severity: medium
+  rule_id: aws.iam.role.no_inline_policies_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Versioning And Change Audit Enabled'
+  severity: medium
+  rule_id: aws.iam.managedpolicy.versioning_and_change_audit_enabled
+  for_each:
+    discovery: aws.iam.managedpolicy_logging
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+  remediation: "Enable logging for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to Logging/Monitoring\
+    \ settings\n4. Enable logging\n5. Configure log destination:\n   - CloudWatch Logs\n   - S3 bucket (for long-term retention)\n\
+    6. Set log level (INFO, DEBUG, ERROR)\n7. Save changes\n\nAWS CLI:\naws iam update-managedpolicy-logging --managedpolicy-id\
+    \ <id> --logging-enabled\n\nBest Practices:\n\u2022 Enable all security-relevant log types\n\u2022 Send logs to centralized\
+    \ logging service\n\u2022 Set appropriate retention periods\n\u2022 Configure log encryption\n\u2022 Set up log monitoring\
+    \ and alerting"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Policy No Wildcard Admin Actions Configured'
+  severity: high
+  rule_id: aws.iam.managedpolicy.policy_no_wildcard_admin_actions_configured
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM oidcprovider: Certificate Issuer Https And Matches Discovery Verified'
+  severity: medium
+  rule_id: aws.iam.oidcprovider.certificate_issuer_https_and_matches_discovery_verified
+  for_each:
+    discovery: aws.iam.oidcproviders
+    as: oidcprovider
+    item: oidcprovider
+  conditions:
+    var: oidcprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam oidcprovider:\n\n1. Open IAM console\n2. Select the oidcprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Legacy authentication protocols are disabled
+  severity: medium
+  rule_id: aws.iam.user.mfa_enabled_console_access
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM group: Attached Policies Not Admin Star Configured'
+  severity: medium
+  rule_id: aws.iam.group.attached_policies_not_admin_star_configured
+  for_each:
+    discovery: aws.iam.groups
+    as: group
+    item: group
+  conditions:
+    var: group.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam group:\n\n1. Open IAM console\n2. Select the group\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM key: Rotation 90 Days Configured'
+  severity: medium
+  rule_id: aws.iam.key.rotation_90_days_configured
+  for_each:
+    discovery: aws.iam.keys
+    as: key
+    item: key
+  conditions:
+    var: key.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam key:\n\n1. Open IAM console\n2. Select the key\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM root: Hardware Mfa Enabled'
+  severity: critical
+  rule_id: aws.iam.root.hardware_mfa_enabled
+  for_each:
+    discovery: aws.iam.roots
+    as: root
+    item: root
+  conditions:
+    var: root.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam root:\n\n1. Open IAM console\n2. Select the root\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM resource: Root Hardware Mfa Enabled'
+  severity: critical
+  rule_id: aws.iam.resource.root_hardware_mfa_enabled
+  for_each:
+    discovery: aws.iam.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam resource:\n\n1. Open IAM console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM resource: Console Mfa Enabled'
+  severity: critical
+  rule_id: aws.iam.resource.console_mfa_enabled
+  for_each:
+    discovery: aws.iam.resources
+    as: resource
+    item: resource
+  conditions:
+    var: resource.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam resource:\n\n1. Open IAM console\n2. Select the resource\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Policy No Action Star On Resource Star Configured'
+  severity: high
+  rule_id: aws.iam.managedpolicy.policy_no_action_star_on_resource_star_configured
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM aws: Attached Policy No Administrative Privileges Configured'
+  severity: high
+  rule_id: aws.iam.aws.attached_policy_no_administrative_privileges_configured
+  for_each:
+    discovery: aws.iam.awss
+    as: aws
+    item: aws
+  conditions:
+    var: aws.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam aws:\n\n1. Open IAM console\n2. Select the aws\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM group: External Sharing Restricted If Supported'
+  severity: medium
+  rule_id: aws.iam.group.external_sharing_restricted_if_supported
+  for_each:
+    discovery: aws.iam.groups
+    as: group
+    item: group
+  conditions:
+    var: group.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam group:\n\n1. Open IAM console\n2. Select the group\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM oidcprovider: Token Lifetime Configured'
+  severity: medium
+  rule_id: aws.iam.oidcprovider.token_lifetime_configured
+  for_each:
+    discovery: aws.iam.oidcproviders
+    as: oidcprovider
+    item: oidcprovider
+  conditions:
+    var: oidcprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam oidcprovider:\n\n1. Open IAM console\n2. Select the oidcprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM timestream access control and mfa enforcement: Timestream Access Control Mfa Enforcement Configured'
+  severity: critical
+  rule_id: aws.iam.timestream_access_control_and_mfa_enforcement.timestream_access_control_mfa_enforcement_configured
+  for_each:
+    discovery: aws.iam.timestream_access_control_and_mfa_enforcements
+    as: timestream_access_control_and_mfa_enforcement
+    item: timestream_access_control_and_mfa_enforcement
+  conditions:
+    var: timestream_access_control_and_mfa_enforcement.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam timestream_access_control_and_mfa_enforcement:\n\n1. Open IAM console\n2. Select\
+    \ the timestream_access_control_and_mfa_enforcement\n3. Go to Permissions/Access Control\n4. Review current permissions:\n\
+    \   - Remove public access grants\n   - Remove wildcard (*) principals\n   - Implement least privilege\n5. Update resource\
+    \ policy or IAM policies\n6. Enable resource-level access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022\
+    \ Use IAM roles instead of access keys\n\u2022 Implement condition keys for additional security\n\u2022 Enable MFA for\
+    \ sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM samlprovider: Certificates Certificate Valid'
+  severity: medium
+  rule_id: aws.iam.samlprovider.certificates_certificate_valid
+  for_each:
+    discovery: aws.iam.samlproviders
+    as: samlprovider
+    item: samlprovider
+  conditions:
+    var: samlprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam samlprovider:\n\n1. Open IAM console\n2. Select the samlprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Policy Conditions Used If Applicable Configured'
+  severity: high
+  rule_id: aws.iam.managedpolicy.policy_conditions_used_if_applicable_configured
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Awssupport Access Policy Attachment Configured'
+  severity: high
+  rule_id: aws.iam.role.awssupport_access_policy_attachment_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM password: Policy Number Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_number_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM oidcprovider: Thumbprints Or Jwks Pinning Configured'
+  severity: medium
+  rule_id: aws.iam.oidcprovider.thumbprints_or_jwks_pinning_configured
+  for_each:
+    discovery: aws.iam.oidcproviders
+    as: oidcprovider
+    item: oidcprovider
+  conditions:
+    var: oidcprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam oidcprovider:\n\n1. Open IAM console\n2. Select the oidcprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Permission boundaries are enforced for privileged roles
+  severity: high
+  rule_id: aws.iam.role.least_privilege
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM policy: Workflow Storage Encrypted'
+  severity: high
+  rule_id: aws.iam.policy.workflow_storage_encrypted
+  for_each:
+    discovery: aws.iam.policy_encryption
+    as: policy
+    item: policy
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+  remediation: "Enable encryption for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Navigate to Properties/Configuration\
+    \ > Encryption\n4. Enable encryption\n5. Choose encryption key:\n   - AWS managed key (default)\n   - Customer managed\
+    \ key (KMS) for enhanced control\n6. Save changes\n\nAWS CLI:\naws iam modify-policy --policy-id <id> --encrypted --kms-key-id\
+    \ <key-id>\n\nSecurity Best Practices:\n\u2022 Use customer-managed KMS keys for sensitive data\n\u2022 Enable automatic\
+    \ key rotation\n\u2022 Implement proper key access policies\n\u2022 Audit key usage regularly"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM no guest accounts with permissions: No Guest Accounts With Permissions Configured'
+  severity: high
+  rule_id: aws.iam.no_guest_accounts_with_permissions.no_guest_accounts_with_permissions_configured
+  for_each:
+    discovery: aws.iam.no_guest_accounts_with_permissionss
+    as: no_guest_accounts_with_permissions
+    item: no_guest_accounts_with_permissions
+  conditions:
+    var: no_guest_accounts_with_permissions.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam no_guest_accounts_with_permissions:\n\n1. Open IAM console\n2. Select the no_guest_accounts_with_permissions\n\
+    3. Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM key: Monitored'
+  severity: medium
+  rule_id: aws.iam.key.monitored
+  for_each:
+    discovery: aws.iam.keys
+    as: key
+    item: key
+  conditions:
+    var: key.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam key:\n\n1. Open IAM console\n2. Select the key\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Policy Enabled'
+  severity: high
+  rule_id: aws.iam.policy.policy_enabled
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Console Password Present Only If Required'
+  severity: critical
+  rule_id: aws.iam.user.console_password_present_only_if_required
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM managedpolicy: Policy Resource Constraints Present'
+  severity: high
+  rule_id: aws.iam.managedpolicy.policy_resource_constraints_present
+  for_each:
+    discovery: aws.iam.managedpolicys
+    as: managedpolicy
+    item: managedpolicy
+  conditions:
+    var: managedpolicy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam managedpolicy:\n\n1. Open IAM console\n2. Select the managedpolicy\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Mfa Required'
+  severity: critical
+  rule_id: aws.iam.user.mfa_required
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM avoidrootusage: Avoid Root Usage Configured'
+  severity: medium
+  rule_id: aws.iam.avoidrootusage.avoid_root_usage_configured
+  for_each:
+    discovery: aws.iam.avoidrootusages
+    as: avoidrootusage
+    item: avoidrootusage
+  conditions:
+    var: avoidrootusage.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam avoidrootusage:\n\n1. Open IAM console\n2. Select the avoidrootusage\n3. Go\
+    \ to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM group: Membership Review Enabled If Supported'
+  severity: medium
+  rule_id: aws.iam.group.membership_review_enabled_if_supported
+  for_each:
+    discovery: aws.iam.groups
+    as: group
+    item: group
+  conditions:
+    var: group.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam group:\n\n1. Open IAM console\n2. Select the group\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM root: Mfa Enabled'
+  severity: critical
+  rule_id: aws.iam.root.mfa_enabled
+  for_each:
+    discovery: aws.iam.roots
+    as: root
+    item: root
+  conditions:
+    var: root.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam root:\n\n1. Open IAM console\n2. Select the root\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Resource Constraints Present'
+  severity: medium
+  rule_id: aws.iam.policy.resource_constraints_present
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM password: Policy Symbol Configured'
+  severity: high
+  rule_id: aws.iam.password.policy_symbol_configured
+  for_each:
+    discovery: aws.iam.passwords
+    as: password
+    item: password
+  conditions:
+    var: password.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam password:\n\n1. Open IAM console\n2. Select the password\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Workload Identity Federation Used If Supported'
+  severity: medium
+  rule_id: aws.iam.role.workload_identity_federation_used_if_supported
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM samlprovider: Audience Restriction Configured'
+  severity: medium
+  rule_id: aws.iam.samlprovider.audience_restriction_configured
+  for_each:
+    discovery: aws.iam.samlproviders
+    as: samlprovider
+    item: samlprovider
+  conditions:
+    var: samlprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam samlprovider:\n\n1. Open IAM console\n2. Select the samlprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM inline: Policy No Administrative Privileges Configured'
+  severity: high
+  rule_id: aws.iam.inline.policy_no_administrative_privileges_configured
+  for_each:
+    discovery: aws.iam.inlines
+    as: inline
+    item: inline
+  conditions:
+    var: inline.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam inline:\n\n1. Open IAM console\n2. Select the inline\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM role: Trust External Id Or Audience Required'
+  severity: medium
+  rule_id: aws.iam.role.trust_external_id_or_audience_required
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM group: No Inline Policies Configured'
+  severity: medium
+  rule_id: aws.iam.group.no_inline_policies_configured
+  for_each:
+    discovery: aws.iam.groups
+    as: group
+    item: group
+  conditions:
+    var: group.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam group:\n\n1. Open IAM console\n2. Select the group\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Expires Passwords Within 90 Days Or Less Configured'
+  severity: critical
+  rule_id: aws.iam.policy.expires_passwords_within_90_days_or_less_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Max Session Duration Configured'
+  severity: medium
+  rule_id: aws.iam.role.max_session_duration_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Overly Permissive Configured'
+  severity: medium
+  rule_id: aws.iam.policy.overly_permissive_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: Legacy authentication protocols are disabled
+  severity: medium
+  rule_id: aws.iam.user.hardware_mfa_enabled
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Awscloudshellfullaccess Attachment Configured'
+  severity: medium
+  rule_id: aws.iam.policy.awscloudshellfullaccess_attachment_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM oidcprovider: Allowed Client Ids Audiences Restricted'
+  severity: medium
+  rule_id: aws.iam.oidcprovider.allowed_client_ids_audiences_restricted
+  for_each:
+    discovery: aws.iam.oidcproviders
+    as: oidcprovider
+    item: oidcprovider
+  conditions:
+    var: oidcprovider.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam oidcprovider:\n\n1. Open IAM console\n2. Select the oidcprovider\n3. Go to\
+    \ Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*)\
+    \ principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access\
+    \ control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: Editors Rbac Least Privilege'
+  severity: high
+  rule_id: aws.iam.policy.editors_rbac_least_privilege
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#grant-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+- title: 'IAM user: Credentials Unused 45 Days Disabled'
+  severity: medium
+  rule_id: aws.iam.user.credentials_unused_45_days_disabled
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: Management Centralization Configured'
+  severity: medium
+  rule_id: aws.iam.user.management_centralization_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: No Inline Policies Configured'
+  severity: medium
+  rule_id: aws.iam.user.no_inline_policies_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM user: In Group Configured'
+  severity: medium
+  rule_id: aws.iam.user.in_group_configured
+  for_each:
+    discovery: aws.iam.users
+    as: user
+    item: user
+  conditions:
+    var: user.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam user:\n\n1. Open IAM console\n2. Select the user\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Trust Principals Allowlist Only Configured'
+  severity: medium
+  rule_id: aws.iam.role.trust_principals_allowlist_only_configured
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM instanceprofile: No Admin Star Policies Configured'
+  severity: medium
+  rule_id: aws.iam.instanceprofile.no_admin_star_policies_configured
+  for_each:
+    discovery: aws.iam.instanceprofiles
+    as: instanceprofile
+    item: instanceprofile
+  conditions:
+    var: instanceprofile.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam instanceprofile:\n\n1. Open IAM console\n2. Select the instanceprofile\n3.\
+    \ Go to Permissions/Access Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard\
+    \ (*) principals\n   - Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level\
+    \ access control\n7. Save changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement\
+    \ condition keys for additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\
+    \u2022 Use AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM role: Creation Monitored'
+  severity: medium
+  rule_id: aws.iam.role.creation_monitored
+  for_each:
+    discovery: aws.iam.roles
+    as: role
+    item: role
+  conditions:
+    var: role.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam role:\n\n1. Open IAM console\n2. Select the role\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+- title: 'IAM policy: No Policies Without Constraints Configured'
+  severity: medium
+  rule_id: aws.iam.policy.no_policies_without_constraints_configured
+  for_each:
+    discovery: aws.iam.policys
+    as: policy
+    item: policy
+  conditions:
+    var: policy.is_public
+    op: equals
+    value: false
+  remediation: "Restrict public access for iam policy:\n\n1. Open IAM console\n2. Select the policy\n3. Go to Permissions/Access\
+    \ Control\n4. Review current permissions:\n   - Remove public access grants\n   - Remove wildcard (*) principals\n   -\
+    \ Implement least privilege\n5. Update resource policy or IAM policies\n6. Enable resource-level access control\n7. Save\
+    \ changes\n\nSecurity Recommendations:\n\u2022 Use IAM roles instead of access keys\n\u2022 Implement condition keys for\
+    \ additional security\n\u2022 Enable MFA for sensitive operations\n\u2022 Regularly audit access permissions\n\u2022 Use\
+    \ AWS Organizations SCPs for guardrails"
+  references:
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://docs.aws.amazon.com/securityhub/latest/userguide/iam-controls.html
+  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
