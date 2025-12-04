@@ -1,0 +1,102 @@
+certificates:
+  version: '1.0'
+  provider: azure
+  service: certificates
+  package: azure-keyvault-certificates
+  client_class: CertificateClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.certificates.keyvaults
+    calls:
+    - client: certificates
+      action: list_key_vaults
+      save_as: keyvaults
+  - discovery_id: azure.certificates.resources
+    calls:
+    - client: certificates
+      action: list_certificates
+      save_as: certificates
+  checks:
+  - check_id: azure.certificates.expiration.check
+    title: 'AZURE CERTIFICATES: Certificate Expiration Check'
+    severity: medium
+    for_each: azure.certificates.resources
+    calls:
+    - action: get_certificate
+      params:
+        certificate_name: '{{certificate_name}}'
+      fields:
+      - path: properties.expires_on
+        operator: gte
+        expected: 2592000
+  - check_id: azure.certificates.enabled.status.check
+    title: 'AZURE CERTIFICATES: Certificate Enabled Status Check'
+    severity: high
+    for_each: azure.certificates.resources
+    calls:
+    - action: get_certificate
+      params:
+        certificate_name: '{{certificate_name}}'
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.keyvault.certificate.policy.validation
+    title: 'AZURE KEYVAULT: Certificate Policy Validation'
+    severity: medium
+    for_each: azure.certificates.keyvaults
+    calls:
+    - action: get_certificate_policy
+      params:
+        certificate_name: '{{certificate_name}}'
+      fields:
+      - path: key_properties.key_size
+        operator: gte
+        expected: 2048
+  - check_id: azure.keyvault.certificate.expiration_check
+    title: 'AZURE CERTIFICATES Resource: Certificates Expiration Check'
+    severity: medium
+    for_each: azure.certificates.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.expires
+        operator: greater_than
+        expected: '{{ now() | add_days(30) }}'
+  - check_id: azure.certificates.certificates.expiration.check,.azure.load.balancer.ssl.listeners,.azure.load.balancer.ssl.listeners,.azure.cdn.distributions.using.deprecated.ssl.protocols
+    title: 'AZURE CERTIFICATES Certificates: Expiration Check, Azure Load Balancer SSL Listeners, Azure Load Balancer SSL
+      Listeners, Azure Cdn Distributions Using Deprecated SSL Protocols'
+    severity: medium
+    for_each: azure.certificates.certificates
+    calls:
+    - action: self
+      fields:
+      - path: attributes.expires
+        operator: greater_than
+        expected: '{{ now() + duration(''30d'') }}'
+    - action: network_client.load_balancers.list
+      fields:
+      - path: load_balancing_rules[*].protocol
+        operator: equals
+        expected: Https
+      - path: load_balancing_rules[*].frontend_port
+        operator: equals
+        expected: 443
+    - action: cdn_management_client.profiles.list
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.minimum_tls_version
+        operator: not_equals
+        expected: '1.0'
+      - path: delivery_policy.rules[*].actions[*].parameters.minimum_tls_version
+        operator: not_equals
+        expected: '1.1'
+  - check_id: azure.certificates.certificates.expiration.check
+    title: 'Azure Certificates: Expiration Check'
+    severity: high
+    for_each: azure.certificates.certificates
+    calls:
+    - action: self
+      fields:
+      - path: attributes.expires
+        operator: greater_than
+        expected: '{{ now() + timedelta(days=30) }}'

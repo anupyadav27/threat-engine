@@ -1,0 +1,141 @@
+postgresql:
+  version: '1.0'
+  provider: azure
+  service: postgresql
+  package: azure-mgmt-rdbms
+  client_class: PostgreSQLManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.postgresql.servers
+    calls:
+    - client: postgresql
+      action: servers.list
+      save_as: servers
+  - discovery_id: azure.postgresql.flexible_servers
+    calls:
+    - client: postgresql
+      action: flexible_servers.list
+      save_as: flexible_servers
+  - discovery_id: azure.postgresql.configurations
+    calls:
+    - client: postgresql
+      action: configurations.list_by_server
+      save_as: configurations
+  checks:
+  - check_id: azure.postgresql.flexibleserver.log_connections_enabled
+    title: 'AZURE POSTGRESQL Flexibleserver: Log Connections Enabled'
+    severity: low
+    for_each: azure.postgresql.flexible_servers
+    calls:
+    - action: configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        configuration_name: log_connections
+      fields:
+      - path: value
+        operator: equals
+        expected: 'on'
+  - check_id: azure.postgresql.server.geo_redundant_backup
+    title: 'AZURE POSTGRESQL Server: Geo Redundant Backup'
+    severity: medium
+    for_each: azure.postgresql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: storage_profile.geo_redundant_backup
+        operator: equals
+        expected: Enabled
+  - check_id: azure.postgresql.flexibleserver.access_services_disabled
+    title: 'AZURE POSTGRESQL Flexibleserver: Access Services Disabled'
+    severity: medium
+    for_each: azure.postgresql.flexible_servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address == '0.0.0.0' && @.end_ip_address == '0.0.0.0')]
+        operator: not_exists
+  - check_id: azure.postgresql.flexibleserver.log_checkpoints_enabled
+    title: 'AZURE POSTGRESQL Flexibleserver: Log Checkpoints Enabled'
+    severity: low
+    for_each: azure.postgresql.flexible_servers
+    calls:
+    - action: configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        configuration_name: log_checkpoints
+      fields:
+      - path: value
+        operator: equals
+        expected: 'on'
+  - check_id: azure.postgresql.flexibleserver.ssl_enabled
+    title: 'AZURE POSTGRESQL Flexibleserver: SSL Enabled'
+    severity: medium
+    for_each: azure.postgresql.flexible_servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: auth_config.active_directory_auth
+        operator: equals
+        expected: Enabled
+  - check_id: azure.postgresql.server.ssl_enforcement_enabled
+    title: 'AZURE POSTGRESQL Server: SSL Enforcement Enabled'
+    severity: high
+    for_each: azure.postgresql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: ssl_enforcement
+        operator: equals
+        expected: Enabled
+  - check_id: azure.postgresql.server.threat_detection_enabled
+    title: 'AZURE POSTGRESQL Server: Threat Detection Enabled'
+    severity: high
+    for_each: azure.postgresql.servers
+    calls:
+    - action: server_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.postgresql.flexibleserver.log_retention_days_greater_3
+    title: 'AZURE POSTGRESQL Resource: Flexible Server Log Retention Days Greater 3'
+    severity: low
+    for_each: azure.postgresql.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.configurations.log_retention_days
+        operator: greater_than
+        expected: 3
+  - check_id: azure.postgresql.flexibleserver.log_disconnections_enabled
+    title: 'AZURE POSTGRESQL Resource: Flexible Server Log Disconnections On'
+    severity: low
+    for_each: azure.postgresql.resource
+    calls:
+    - action: postgresql.configurations.get
+      args:
+        resource_group_name: '{{ item.resource_group }}'
+        server_name: '{{ item.name }}'
+        configuration_name: log_disconnections
+      fields:
+      - path: value
+        operator: equals
+        expected: 'on'

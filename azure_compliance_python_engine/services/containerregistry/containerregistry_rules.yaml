@@ -1,0 +1,145 @@
+containerregistry:
+  version: '1.0'
+  provider: azure
+  service: containerregistry
+  package: azure-mgmt-containerregistry
+  client_class: ContainerRegistryManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.containerregistry.registries
+    calls:
+    - client: containerregistry
+      action: registries.list
+      save_as: registries
+  - discovery_id: azure.containerregistry.replications
+    calls:
+    - client: containerregistry
+      action: replications.list
+      save_as: replications
+  - discovery_id: azure.containerregistry.repositories
+    calls:
+    - client: containerregistry
+      action: repositories.list
+      save_as: repositories
+  checks:
+  - check_id: azure.containerregistry.replication.supply_chain_registry_replication_cross_region_encrypted
+    title: 'AZURE CONTAINERREGISTRY Replication: Supply Chain Registry Replication Cross Region Encrypted'
+    severity: medium
+    for_each: azure.containerregistry.replications
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: enabled
+  - check_id: azure.container.registry.not_publicly_accessible
+    title: 'AZURE CONTAINER Registry: Not Publicly Accessible'
+    severity: critical
+    for_each: azure.containerregistry.registries
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.container.registry.private_link_enabled
+    title: 'AZURE CONTAINER Registry: Uses Private Link'
+    severity: low
+    for_each: azure.containerregistry.registries
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.containerregistry.repository.supply_chain_registry_immutable_tags_or_signing_enforced
+    title: 'AZURE CONTAINERREGISTRY Repository: Supply Chain Registry Immutable Tags Or Signing Enforced'
+    severity: low
+    for_each: azure.containerregistry.repositories
+    calls:
+    - action: repositories.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{registry_name}}'
+        repository_name: '{{name}}'
+      fields:
+      - path: write_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.containerregistry.repository.supply_chain_private_or_access_restricted
+    title: 'AZURE CONTAINERREGISTRY Repository: Supply Chain Private Or Access Restricted'
+    severity: low
+    for_each: azure.containerregistry.repositories
+    calls:
+    - action: repositories.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{registry_name}}'
+        repository_name: '{{name}}'
+      fields:
+      - path: read_enabled
+        operator: exists
+  - check_id: azure.containerregistry.registry.admin_user_disabled
+    title: 'AZURE CONTAINERREGISTRY Registry: Admin User Disabled'
+    severity: high
+    for_each: azure.containerregistry.registries
+    calls:
+    - action: registries.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{name}}'
+      fields:
+      - path: admin_user_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.containerregistry.registry.vulnerability_scanning_enabled
+    title: 'AZURE CONTAINERREGISTRY Registry: Vulnerability Scanning Enabled'
+    severity: medium
+    for_each: azure.containerregistry.registries
+    calls:
+    - action: tasks.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{name}}'
+      fields:
+      - path: value[0].status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.containerregistry.replication.supply_chain_registry_replication_destinations_least_privilege
+    title: 'AZURE AZURE Registry_replication_config: Supply Chain Registry Replication Destinations Least Privilege'
+    severity: high
+    for_each: azure.containerregistry.registry_replication_config
+    calls:
+    - action: self
+      fields:
+      - path: properties.networkRuleSet.defaultAction
+        operator: equals
+        expected: Deny
+      - path: properties.networkRuleSet.ipRules
+        operator: exists
+        expected: true
+      - path: properties.publicNetworkAccess
+        operator: equals
+        expected: Disabled
+      - path: properties.networkRuleBypassOptions
+        operator: equals
+        expected: AzureServices
+  - check_id: azure.containerregistry.repository.supply_chain_registry_image_scanning_enabled
+    title: 'AZURE AZURE Registry_repo: Supply Chain Registry Image Scanning Enabled'
+    severity: low
+    for_each: azure.containerregistry.registry_repo
+    calls:
+    - action: containerregistry_management.registries.get
+      fields:
+      - path: properties.policies.quarantine_policy.status
+        operator: equals
+        expected: enabled
+      - path: properties.policies.trust_policy.status
+        operator: equals
+        expected: enabled
+      - path: properties.policies.retention_policy.status
+        operator: equals
+        expected: enabled

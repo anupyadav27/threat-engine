@@ -1,0 +1,109 @@
+search:
+  version: '1.0'
+  provider: azure
+  service: search
+  package: azure-mgmt-search
+  client_class: SearchManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.search.services
+    calls:
+    - client: search
+      action: services.list_by_subscription
+      save_as: search_services
+  checks:
+  - check_id: azure.search.service.encryption_at_rest_enabled
+    title: 'AZURE SEARCH Service: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.search.services
+    calls:
+    - action: self
+      fields:
+      - path: encryption_with_cmk.enforcement
+        operator: equals
+        expected: Enabled
+  - check_id: azure.search.service.public_network_access_disabled
+    title: 'AZURE SEARCH Service: Public Network Access Disabled'
+    severity: critical
+    for_each: azure.search.services
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: disabled
+  - check_id: azure.search.service.network_rule_set_configured
+    title: 'AZURE SEARCH Service: Network Rule Set Configured'
+    severity: medium
+    for_each: azure.search.services
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.ip_rules
+        operator: exists
+  - check_id: azure.search.service.private_endpoint_connections_enabled
+    title: 'AZURE SEARCH Service: Private Endpoint Connections Enabled'
+    severity: high
+    for_each: azure.search.services
+    calls:
+    - action: services.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        search_service_name: '{{name}}'
+      fields:
+      - path: private_endpoint_connections
+        operator: exists
+  - check_id: azure.search.service.domains_access_control_enabled
+    title: 'AZURE SEARCH Service: Domains Access Control Enabled'
+    severity: medium
+    for_each: azure.search.service
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.ip_rules
+        operator: exists
+      - path: network_rule_set.bypass
+        operator: not_equals
+        expected: None
+  - check_id: azure.search.service.domains_encryption_at_rest_enabled
+    title: 'AZURE SEARCH Service: Domains Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.search.service
+    calls:
+    - action: self
+      fields:
+      - path: encryption_with_cmk.enforcement
+        operator: equals
+        expected: Enabled
+  - check_id: azure.aisearch.service.not_publicly_accessible
+    title: 'AZURE AISEARCH Service: Not Publicly Accessible'
+    severity: critical
+    for_each: azure.search.service
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.search.service.domains_node_to_node_encryption_enabled
+    title: 'AZURE SEARCH Service: Domains Node To Node Encryption Enabled'
+    severity: high
+    for_each: azure.search.service
+    calls:
+    - action: self
+      fields:
+      - path: encryption_with_cmk.enforcement
+        operator: equals
+        expected: Enabled
+  - check_id: azure.search.service.domains_logging_enabled
+    title: 'AZURE SEARCH Service: Domains Logging Enabled'
+    severity: medium
+    for_each: azure.search.service
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+      - path: value[*].logs[?(@.category=='OperationLogs')].enabled
+        operator: contains
+        expected: true

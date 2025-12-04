@@ -1,0 +1,112 @@
+hdinsight:
+  version: '1.0'
+  provider: azure
+  service: hdinsight
+  package: azure-mgmt-hdinsight
+  client_class: HDInsightManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.hdinsight.clusters
+    calls:
+    - client: hdinsight
+      action: clusters.list
+      save_as: clusters
+  checks:
+  - check_id: azure.hdinsight.cluster.data_analytics_admin_access_least_privilege
+    title: 'HDInsight Cluster: Data Analytics Admin Access Least Privilege'
+    severity: critical
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: clusters.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        cluster_name: '{{name}}'
+      fields:
+      - path: compute_profile.roles[?(@.name=='headnode')].os_profile.linux_operating_system_profile.ssh_profile.public_keys
+        operator: exists
+      - path: security_profile.directory_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.hdinsight.cluster.data_analytics_encryption_at_rest_cmek
+    title: 'HDInsight Cluster: Data Analytics Encryption At Rest CMEK'
+    severity: high
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: self
+      fields:
+      - path: encryption_in_transit_properties.is_encryption_in_transit_enabled
+        operator: equals
+        expected: true
+      - path: disk_encryption_properties.key_name
+        operator: exists
+  - check_id: azure.hdinsight.cluster.data_analytics_private_networking_enforced
+    title: 'HDInsight Cluster: Data Analytics Private Networking Enforced'
+    severity: medium
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: clusters.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        cluster_name: '{{name}}'
+      fields:
+      - path: compute_profile.roles[0].virtual_network_profile.id
+        operator: exists
+      - path: network_properties.private_link
+        operator: equals
+        expected: Enabled
+  - check_id: azure.hdinsight.cluster.master_nodes_no_public_ip
+    title: 'HDInsight Cluster: Master Nodes No Public IP'
+    severity: critical
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: clusters.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        cluster_name: '{{name}}'
+      fields:
+      - path: compute_profile.roles[?(@.name=='headnode')].virtual_network_profile.subnet
+        operator: exists
+      - path: network_properties.outbound_dependencies_managed_type
+        operator: equals
+        expected: Managed
+  - check_id: azure.hdinsight.cluster.data_analytics_tls_min_1_2_enforced
+    title: 'HDInsight Cluster: Data Analytics TLS Min 1.2 Enforced'
+    severity: medium
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: clusters.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        cluster_name: '{{name}}'
+      fields:
+      - path: min_supported_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.hdinsight.cluster.secure_shell_access_restricted
+    title: 'HDInsight Cluster: Secure Shell Access Restricted'
+    severity: high
+    for_each: azure.hdinsight.clusters
+    calls:
+    - action: clusters.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        cluster_name: '{{name}}'
+      fields:
+      - path: connectivity_endpoints[?(@.name=='SSH')].location
+        operator: exists
+      - path: compute_profile.roles[?(@.name=='headnode')].os_profile.linux_operating_system_profile.ssh_profile.public_keys
+        operator: exists
+  - check_id: azure.hdinsight.cluster.data_analytics_audit_logging_enabled
+    title: 'AZURE HDINSIGHT Cluster: Data Analytics Audit Logging Enabled'
+    severity: medium
+    for_each: azure.hdinsight.cluster
+    calls:
+    - action: self
+      fields:
+      - path: properties.compute_profile.roles[?(@.name=='headnode')].script_actions[?(@.name=='audit-logging')].uri
+        operator: exists
+      - path: properties.cluster_definition.configurations.gateway['restAuthCredential.isEnabled']
+        operator: equals
+        expected: true
+      - path: properties.cluster_definition.configurations.core-site['fs.azure.account.keyprovider']
+        operator: exists

@@ -1,35 +1,1266 @@
 policy:
-  scope: management_group
+  version: '1.0'
+  provider: azure
+  service: policy
+  package: azure-mgmt-resource
+  client_class: PolicyClient
+  scope: subscription
   discovery:
-    - discovery_id: mg_policy_definitions
-      management_group_param: management_group_id
-      calls:
-        - action: policy_definitions.list_by_management_group
-          management_group_param: management_group_id
-          fields:
-            - path: __self__
-              var: policy_definition
-            - path: name
-              var: policy_definition_name
-    - discovery_id: mg_policy_assignments
-      management_group_param: management_group_id
-      calls:
-        - action: policy_assignments.list_for_management_group
-          management_group_param: management_group_id
-          fields:
-            - path: __self__
-              var: policy_assignment
-            - path: name
-              var: policy_assignment_name
+  - discovery_id: azure.policy.assignments
+    calls:
+    - client: policy_assignments
+      action: list
+      save_as: assignments
+  - discovery_id: azure.policy.definitions
+    calls:
+    - client: policy_definitions
+      action: list
+      save_as: definitions
+  - discovery_id: azure.policy.set_definitions
+    calls:
+    - client: policy_set_definitions
+      action: list
+      save_as: set_definitions
+  - discovery_id: azure.policy.remediation_tasks
+    calls:
+    - client: remediation_tasks
+      action: list_for_subscription
+      save_as: remediation_tasks
+  - discovery_id: azure.policy.compliance_states
+    calls:
+    - client: policy_states
+      action: list_query_results_for_subscription
+      save_as: compliance_states
   checks:
-    - check_id: mg_has_any_policy_assignments
-      title: Ensure at least one policy assignment exists at the management group
-      severity: low
-      for_each: mg_policy_assignments
-      param: policy_assignment
-      calls:
-        - action: self
-          fields:
-            - path: name
-              operator: exists
-              expected: true 
+  - check_id: azure.policy.assignment.governance_config_recorder_global_resource_types_tracked
+    title: 'AZURE POLICY Assignment: Governance Config Recorder Global Resource Types Tracked'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.resource_types
+        operator: exists
+  - check_id: azure.policy.definition.identity_access_rbac_conditions_used_where_applicable
+    title: 'AZURE POLICY Definition: Identity Access RBAC Conditions Used Where Applicable'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if.all_of[?(@.field=='type')].equals
+        operator: exists
+  - check_id: azure.policy.remediation_task.configuration_management_config_remediation_auto_remediation_enabled_for_high
+    title: 'AZURE POLICY Remediation Task: Configuration Management Config Remediation Auto Remediation Enabled For High'
+    severity: medium
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: properties.filters.locations
+        operator: exists
+  - check_id: azure.policy.definition.identity_access_rbac_resource_constraints_present
+    title: 'AZURE POLICY Definition: Identity Access RBAC Resource Constraints Present'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.role_definition_ids
+        operator: exists
+  - check_id: azure.policy.assignment.location_restrictions_enforced
+    title: 'AZURE POLICY Assignment: Location Restrictions Enforced'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.enforcement_mode
+        operator: equals
+        expected: Default
+  - check_id: azure.policy.definition.encryption_requirements_specified
+    title: 'AZURE POLICY Definition: Encryption Requirements Specified'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if.field
+        operator: exists
+  - check_id: azure.policy.definition.network_security_rules_defined
+    title: 'AZURE POLICY Definition: Network Security Rules Defined'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.effect
+        operator: exists
+  - check_id: azure.policy.definition.monitoring_requirements_configured
+    title: 'AZURE POLICY Definition: Monitoring Requirements Configured'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.category
+        operator: exists
+  - check_id: azure.policy.compliance.non_compliant_resources_tracked
+    title: 'AZURE POLICY Compliance: Non Compliant Resources Tracked'
+    severity: medium
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[?(@.compliance_state=='NonCompliant')].resource_id
+        operator: exists
+  - check_id: azure.policy.set_definition.initiative_policies_grouped
+    title: 'AZURE POLICY Set Definition: Initiative Policies Grouped'
+    severity: low
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_definitions
+        operator: exists
+  - check_id: azure.policy.assignment.managed_identity_configured
+    title: 'AZURE POLICY Assignment: Managed Identity Configured'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+  - check_id: azure.policy.definition.audit_effect_implemented
+    title: 'AZURE POLICY Definition: Audit Effect Implemented'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.then.effect
+        operator: equals
+        expected: audit
+  - check_id: azure.policy.definition.deny_effect_for_security
+    title: 'AZURE POLICY Definition: Deny Effect For Security'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.then.effect
+        operator: equals
+        expected: deny
+  - check_id: azure.policy.assignment.scope_properly_defined
+    title: 'AZURE POLICY Assignment: Scope Properly Defined'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: '{{scope}}'
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: scope
+        operator: exists
+  - check_id: azure.policy.definition.parameters_validation_configured
+    title: 'AZURE POLICY Definition: Parameters Validation Configured'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: parameters
+        operator: exists
+  - check_id: azure.policy.remediation_task.deployment_failure_handling
+    title: 'AZURE POLICY Remediation Task: Deployment Failure Handling'
+    severity: medium
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get_at_subscription
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: failure_threshold.percentage
+        operator: exists
+  - check_id: azure.policy.definition.modify_effect_configured
+    title: 'AZURE POLICY Definition: Modify Effect Configured'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.then.details.operations
+        operator: exists
+  - check_id: azure.policy.assignment.exclusions_documented
+    title: 'AZURE POLICY Assignment: Exclusions Documented'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: '{{scope}}'
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: not_scopes
+        operator: exists
+  - check_id: azure.policy.definition.append_effect_for_tags
+    title: 'AZURE POLICY Definition: Append Effect For Tags'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.then.details.field
+        operator: exists
+  - check_id: azure.policy.compliance.exemptions_reviewed
+    title: 'AZURE POLICY Compliance: Exemptions Reviewed'
+    severity: medium
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_exemptions.list
+      params: {}
+      fields:
+      - path: value[0].expires_on
+        operator: exists
+  - check_id: azure.policy.set_definition.version_control_maintained
+    title: 'AZURE POLICY Set Definition: Version Control Maintained'
+    severity: low
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.version
+        operator: exists
+  - check_id: azure.policy.definition.deployifnotexists_effect_configured
+    title: 'AZURE POLICY Definition: DeployIfNotExists Effect Configured'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.deployment
+        operator: exists
+  - check_id: azure.policy.assignment.display_name_descriptive
+    title: 'AZURE POLICY Assignment: Display Name Descriptive'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.display_name
+        operator: exists
+  - check_id: azure.policy.definition.condition_logic_validated
+    title: 'AZURE POLICY Definition: Condition Logic Validated'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if.any_of
+        operator: exists
+  - check_id: azure.policy.remediation_task.resource_discovery_mode
+    title: 'AZURE POLICY Remediation Task: Resource Discovery Mode'
+    severity: low
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: properties.resource_discovery_mode
+        operator: exists
+  - check_id: azure.policy.definition.disabled_effect_temporary
+    title: 'AZURE POLICY Definition: Disabled Effect Temporary'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.effect
+        operator: equals
+        expected: disabled
+  - check_id: azure.policy.assignment.parameter_values_secure
+    title: 'AZURE POLICY Assignment: Parameter Values Secure'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters
+        operator: exists
+  - check_id: azure.policy.definition.field_validation_comprehensive
+    title: 'AZURE POLICY Definition: Field Validation Comprehensive'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if.field
+        operator: exists
+  - check_id: azure.policy.compliance.state_change_tracking
+    title: 'AZURE POLICY Compliance: State Change Tracking'
+    severity: low
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[0].timestamp
+        operator: exists
+  - check_id: azure.policy.set_definition.policy_dependencies_managed
+    title: 'AZURE POLICY Set Definition: Policy Dependencies Managed'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_definition_groups
+        operator: exists
+  - check_id: azure.policy.definition.alias_usage_validated
+    title: 'AZURE POLICY Definition: Alias Usage Validated'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if.all_of[0].field
+        operator: exists
+  - check_id: azure.policy.assignment.enforcement_mode_appropriate
+    title: 'AZURE POLICY Assignment: Enforcement Mode Appropriate'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.enforcement_mode
+        operator: exists
+  - check_id: azure.policy.definition.metadata_category_specified
+    title: 'AZURE POLICY Definition: Metadata Category Specified'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.category
+        operator: exists
+  - check_id: azure.policy.remediation_task.parallel_deployments_limited
+    title: 'AZURE POLICY Remediation Task: Parallel Deployments Limited'
+    severity: low
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: properties.parallel_deployments
+        operator: lte
+        expected: 10
+  - check_id: azure.policy.definition.description_comprehensive
+    title: 'AZURE POLICY Definition: Description Comprehensive'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.description
+        operator: exists
+  - check_id: azure.policy.compliance.evaluation_frequency_appropriate
+    title: 'AZURE POLICY Compliance: Evaluation Frequency Appropriate'
+    severity: medium
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_states.list_query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[0].is_compliant
+        operator: exists
+  - check_id: azure.policy.set_definition.parameter_inheritance_configured
+    title: 'AZURE POLICY Set Definition: Parameter Inheritance Configured'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.parameters
+        operator: exists
+  - check_id: azure.policy.definition.mode_specification_correct
+    title: 'AZURE POLICY Definition: Mode Specification Correct'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.mode
+        operator: exists
+  - check_id: azure.policy.assignment.location_inheritance_managed
+    title: 'AZURE POLICY Assignment: Location Inheritance Managed'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: self
+      fields:
+      - path: location
+        operator: exists
+  - check_id: azure.policy.definition.existencecondition_properly_defined
+    title: 'AZURE POLICY Definition: Existence Condition Properly Defined'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.existence_condition
+        operator: exists
+  - check_id: azure.policy.compliance.resource_location_compliance
+    title: 'AZURE POLICY Compliance: Resource Location Compliance'
+    severity: high
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_states.list_query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[0].resource_location
+        operator: exists
+  - check_id: azure.policy.remediation_task.policy_assignment_reference
+    title: 'AZURE POLICY Remediation Task: Policy Assignment Reference'
+    severity: medium
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: policy_assignment_id
+        operator: exists
+  - check_id: azure.policy.set_definition.display_name_clear
+    title: 'AZURE POLICY Set Definition: Display Name Clear'
+    severity: low
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: display_name
+        operator: exists
+  - check_id: azure.policy.definition.value_validation_rules
+    title: 'AZURE POLICY Definition: Value Validation Rules'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.if.value
+        operator: exists
+  - check_id: azure.policy.assignment.description_informative
+    title: 'AZURE POLICY Assignment: Description Informative'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: description
+        operator: exists
+  - check_id: azure.policy.definition.count_operations_optimized
+    title: 'AZURE POLICY Definition: Count Operations Optimized'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: policy_rule.if.count
+        operator: exists
+  - check_id: azure.policy.compliance.policy_definition_reference
+    title: 'AZURE POLICY Compliance: Policy Definition Reference'
+    severity: medium
+    for_each: azure.policy.compliance_states
+    calls:
+    - action: policy_states.list_query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[0].policy_definition_id
+        operator: exists
+  - check_id: azure.policy.remediation_task.resource_count_validation
+    title: 'AZURE POLICY Remediation Task: Resource Count Validation'
+    severity: low
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: remediations.get
+      params:
+        remediation_name: '{{name}}'
+      fields:
+      - path: resource_count
+        operator: gte
+        expected: 0
+  - check_id: azure.policy.set_definition.policy_definition_reference_ids
+    title: 'AZURE POLICY Set Definition: Policy Definition Reference IDs'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: policy_definitions[0].policy_definition_reference_id
+        operator: exists
+  - check_id: azure.policy.assignment.asc_enforcement_enabled
+    title: 'AZURE POLICY Resource: Ensure Asc Enforcement Enabled'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: enforcement_mode
+        operator: equals
+        expected: Default
+      - path: parameters.asc_enforcement
+        operator: exists
+  - check_id: azure.policy.assignment.check.disabled.effect
+    title: 'AZURE POLICY Assignment: Check Disabled Effect'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.effect.value
+        operator: not_equals
+        expected: Disabled
+  - check_id: azure.policy.assignment.configuration_management_config_aggregation_auto_enroll_new_accounts
+    title: 'AZURE POLICY Assignment: Configuration Management Config Aggregation Auto Enroll New Accounts'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.auto_enroll_new_accounts.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.assignment.configuration_management_config_aggregation_org_aggregator_enabled
+    title: 'AZURE POLICY Assignment: Configuration Management Config Aggregation Org Aggregator Enabled'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.organization_aggregator_enabled.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.assignment.configuration_management_config_delivery_secure_destination_configured
+    title: 'AZURE POLICY Assignment: Configuration Management Config Delivery Secure Destination Configured'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.delivery_channel_destination
+        operator: exists
+      - path: properties.parameters.delivery_channel_destination.value
+        operator: contains
+        expected: https://
+  - check_id: azure.policy.assignment.configuration_management_config_recorder_enabled
+    title: 'AZURE POLICY Assignment: Configuration Management Config Recorder Enabled'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.config_recorder_enabled.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.assignment.configuration_management_config_recorder_global_resource_types_tracked
+    title: 'AZURE POLICY Assignment: Configuration Management Config Recorder Global Resource Types Tracked'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.global_resource_types
+        operator: exists
+      - path: properties.parameters.global_resource_types.value
+        operator: not_empty
+  - check_id: azure.policy.assignment.enabled
+    title: 'AZURE POLICY Resource: Enabled'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.enforcement_mode
+        operator: equals
+        expected: Default
+  - check_id: azure.policy.assignment.governance_aggregation_authorization_not_expired_or_revoked
+    title: 'AZURE POLICY Assignment: Governance Aggregation Authorization Not Expired Or Revoked'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.authorization_expiry
+        operator: greater_than
+        expected: '{{current_date}}'
+      - path: properties.parameters.authorization_status.value
+        operator: not_equals
+        expected: Revoked
+  - check_id: azure.policy.assignment.governance_aggregation_authorization_target_accounts_correct
+    title: 'AZURE POLICY Assignment: Governance Aggregation Authorization Target Accounts Correct'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.target_accounts
+        operator: exists
+      - path: properties.parameters.target_accounts.value
+        operator: not_empty
+  - check_id: azure.policy.assignment.governance_aggregation_authorization_trusts_least_privilege
+    title: 'AZURE POLICY Assignment: Governance Aggregation Authorization Trusts Least Privilege'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: properties.parameters.trust_policy.permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.parameters.trust_policy.actions
+        operator: not_contains
+        expected: '*:*'
+  - check_id: azure.policy.assignment.governance_config_recorder_enabled
+    title: 'AZURE POLICY Assignment: Governance Config Recorder Enabled'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.configRecorderEnabled.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.assignment.governance_delivery_channel_destination_access_least_privilege
+    title: 'AZURE POLICY Assignment: Governance Delivery Channel Destination Access Least Privilege'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.deliveryChannelAccess.permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.parameters.deliveryChannelAccess.actions
+        operator: not_contains
+        expected: Microsoft.*/write
+  - check_id: azure.policy.assignment.governance_delivery_channel_kms_encryption_enabled
+    title: 'AZURE POLICY Assignment: Governance Delivery Channel KMS Encryption Enabled'
+    severity: high
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.deliveryChannelEncryption.value
+        operator: equals
+        expected: true
+      - path: properties.parameters.kmsKeyId
+        operator: exists
+  - check_id: azure.policy.assignment.governance_delivery_channel_secure_destination_configured
+    title: 'AZURE POLICY Assignment: Governance Delivery Channel Secure Destination Configured'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.deliveryChannelDestination.value
+        operator: contains
+        expected: https://
+      - path: properties.parameters.deliveryChannelDestination
+        operator: exists
+  - check_id: azure.policy.assignment.recorder_all_regions_enabled
+    title: 'AZURE POLICY Resource: Recorder All Regions Enabled'
+    severity: medium
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.parameters.allRegionsEnabled.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.compliance.configuration_management_config_drift_alerts_configured
+    title: 'AZURE POLICY Compliance: Configuration Management Config Drift Alerts Configured'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[*].policyDefinitionAction
+        operator: contains
+        expected: alert
+      - path: value[*].complianceState
+        operator: equals
+        expected: Compliant
+  - check_id: azure.policy.compliance.configuration_management_config_drift_critical_resources_drift_detection_enabled
+    title: 'AZURE POLICY Compliance: Configuration Management Config Drift Critical Resources Drift Detection Enabled'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[*].policyDefinitionParameters.driftDetectionEnabled.value
+        operator: equals
+        expected: true
+      - path: value[*].complianceState
+        operator: equals
+        expected: Compliant
+  - check_id: azure.policy.compliance_assessment.configuration_management_config_compliance_evidence_export_configured
+    title: 'AZURE POLICY Compliance_assessment: Configuration Management Config Compliance Evidence Export Configured'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[*].policyDefinitionParameters.evidenceExportEnabled.value
+        operator: equals
+        expected: true
+      - path: value[*].policyDefinitionParameters.exportDestination
+        operator: exists
+  - check_id: azure.policy.compliance_assessment.configuration_management_config_compliance_reporting_dashboards_enabled
+    title: 'AZURE POLICY Compliance_assessment: Configuration Management Config Compliance Reporting Dashboards Enabled'
+    severity: low
+    for_each: azure.policy.assignments
+    calls:
+    - action: policy_states.query_results_for_subscription
+      params:
+        policy_states_resource: latest
+      fields:
+      - path: value[*].policyDefinitionParameters.dashboardsEnabled.value
+        operator: equals
+        expected: true
+      - path: value[*].policyDefinitionParameters.reportingEnabled.value
+        operator: equals
+        expected: true
+  - check_id: azure.policy.definition.configuration_management_config_delivery_destination_access_least_privilege
+    title: 'AZURE POLICY Definition: Configuration Management Config Delivery Destination Access Least Privilege'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policyRule.then.details.roleDefinitionIds
+        operator: exists
+      - path: properties.policyRule.then.details.permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.policy.definition.configuration_management_config_delivery_kms_encryption_enabled
+    title: 'AZURE POLICY Definition: Configuration Management Config Delivery KMS Encryption Enabled'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+      - path: properties.policy_rule.then.details.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.policy.definition.governance_editors_rbac_least_privilege
+    title: 'AZURE POLICY Definition: Governance Editors RBAC Least Privilege'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.role_definition_ids
+        operator: not_contains
+        expected: Owner
+      - path: properties.policy_rule.then.details.permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.policy.definition.governance_no_wildcard_admin_actions
+    title: 'AZURE POLICY Definition: Governance No Wildcard Admin Actions'
+    severity: critical
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.actions
+        operator: not_contains
+        expected: '*'
+      - path: properties.policy_rule.then.details.not_actions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.policy.definition.governance_scp_mandatory_block_disabling_guardrail_services
+    title: 'AZURE POLICY Definition: Governance Scp Mandatory Block Disabling Guardrail Services'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.effect
+        operator: equals
+        expected: Deny
+      - path: properties.policy_rule.if.field
+        operator: contains
+        expected: Microsoft.Security
+  - check_id: azure.policy.definition.governance_scp_mandatory_deny_iam_star_admin
+    title: 'AZURE POLICY Definition: Governance Scp Mandatory Deny IAM Star Admin'
+    severity: critical
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.effect
+        operator: equals
+        expected: Deny
+      - path: properties.policy_rule.if.all_of[*].field
+        operator: contains
+        expected: Microsoft.Authorization/roleAssignments
+  - check_id: azure.policy.definition.governance_scp_mandatory_require_mfa_for_console_where_supported
+    title: 'AZURE POLICY Definition: Governance Scp Mandatory Require MFA For Console Where Supported'
+    severity: high
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.require_mfa
+        operator: equals
+        expected: true
+      - path: properties.policy_rule.if.field
+        operator: contains
+        expected: Microsoft.Authorization
+  - check_id: azure.policy.definition.governance_scp_no_allow_star_on_star_resources
+    title: 'AZURE POLICY Definition: Governance Scp No Allow Star On Star Resources'
+    severity: low
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.actions
+        operator: not_equals
+        expected: '*'
+      - path: properties.policy_rule.then.details.resources
+        operator: not_equals
+        expected: '*'
+  - check_id: azure.policy.definition.governance_versioning_and_change_audit_enabled
+    title: 'AZURE POLICY Definition: Governance Versioning And Change Audit Enabled'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.audit_if_not_exists
+        operator: exists
+      - path: properties.metadata.version
+        operator: exists
+  - check_id: azure.policy.definition.identity_access_rbac_no_action_star_on_resource_star
+    title: 'AZURE POLICY Definition: Identity Access RBAC No Action Star On Resource Star'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.then.details.actions
+        operator: not_equals
+        expected: '*'
+      - path: properties.policy_rule.then.details.scope
+        operator: not_equals
+        expected: '*'
+  - check_id: azure.policy.definition.identity_access_rbac_no_policy_allows_without_constraints
+    title: 'AZURE POLICY Definition: Identity Access RBAC No Policy Allows Without Constraints'
+    severity: medium
+    for_each: azure.policy.definitions
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_rule.if
+        operator: exists
+      - path: properties.policy_rule.then.details.conditions
+        operator: exists
+  - check_id: azure.policy.registry_lifecycle_policy.supply_chain_lifecycle_policy_policy_storage_encrypted
+    title: 'AZURE AZURE Registry_lifecycle_policy: Supply Chain Lifecycle Policy Policy Storage Encrypted'
+    severity: medium
+    for_each: azure.policy.registry_lifecycle_policies
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: enabled
+      - path: properties.encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.policy.registry_lifecycle_policy.supply_chain_lifecycle_policy_unused_or_old_tags_expire
+    title: 'AZURE AZURE Registry_lifecycle_policy: Supply Chain Lifecycle Policy Unused Or Old Tags Expire'
+    severity: medium
+    for_each: azure.policy.registry_lifecycle_policies
+    calls:
+    - action: container_registries.get_retention_policy
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{registry_name}}'
+      fields:
+      - path: properties.retention_policy.status
+        operator: equals
+        expected: enabled
+      - path: properties.retention_policy.days
+        operator: less_than
+        expected: 365
+  - check_id: azure.policy.registry_policy.supply_chain_no_public_pull_push
+    title: 'AZURE AZURE Registry_policy: Supply Chain No Public Pull Push'
+    severity: critical
+    for_each: azure.policy.registry_policies
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.policy.registry_policy.supply_chain_no_wildcard_admin
+    title: 'AZURE AZURE Registry_policy: Supply Chain No Wildcard Admin'
+    severity: critical
+    for_each: azure.policy.registry_policies
+    calls:
+    - action: container_registries.get_quarantine_policy
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{registry_name}}'
+      fields:
+      - path: properties.admin_user_enabled
+        operator: equals
+        expected: false
+      - path: properties.policies.quarantine_policy.status
+        operator: equals
+        expected: enabled
+  - check_id: azure.policy.remediation_task.configuration_management_config_remediation_manual_runbooks_attached
+    title: 'AZURE POLICY Remediation_task: Configuration Management Config Remediation Manual Runbooks Attached'
+    severity: medium
+    for_each: azure.policy.remediation_tasks
+    calls:
+    - action: policy_insights.remediations.get
+      params:
+        remediation_name: '{{remediation_name}}'
+      fields:
+      - path: properties.policy_assignment_id
+        operator: exists
+      - path: properties.resource_discovery_mode
+        operator: equals
+        expected: ExistingNonCompliant
+  - check_id: azure.policy.rule.configuration_management_config_remediation_targets_bound
+    title: 'AZURE POLICY Rule: Configuration Management Config Remediation Targets Bound'
+    severity: medium
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{policy_definition_name}}'
+      fields:
+      - path: properties.policy_rule.then.details.deployment.properties.template.resources
+        operator: exists
+      - path: properties.policy_rule.then.details.deployment.properties.parameters
+        operator: exists
+  - check_id: azure.policy.rule.configuration_management_config_required_rules_present
+    title: 'AZURE POLICY Rule: Configuration Management Config Required Rules Present'
+    severity: medium
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{policy_definition_name}}'
+      fields:
+      - path: properties.policy_rule.if
+        operator: exists
+      - path: properties.policy_rule.then
+        operator: exists
+  - check_id: azure.policy.rule.configuration_management_config_rules_enabled
+    title: 'AZURE POLICY Rule: Configuration Management Config Rules Enabled'
+    severity: medium
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{policy_definition_name}}'
+      fields:
+      - path: properties.policy_rule.then.effect
+        operator: not_equals
+        expected: Disabled
+      - path: properties.mode
+        operator: equals
+        expected: All
+  - check_id: azure.policy.rule.governance_config_remediation_targets_bound
+    title: 'AZURE POLICY Rule: Governance Config Remediation Targets Bound'
+    severity: low
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{policy_definition_name}}'
+      fields:
+      - path: properties.policy_rule.then.details.deployment.properties.template.resources[*].type
+        operator: exists
+      - path: properties.policy_rule.then.details.role_definition_ids
+        operator: exists
+  - check_id: azure.policy.rule.governance_config_required_rules_present
+    title: 'AZURE POLICY Rule: Governance Config Required Rules Present'
+    severity: low
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_definitions.get
+      params:
+        policy_definition_name: '{{policy_definition_name}}'
+      fields:
+      - path: properties.policy_rule.if
+        operator: exists
+      - path: properties.policy_rule.then
+        operator: exists
+      - path: properties.metadata.category
+        operator: equals
+        expected: Governance
+  - check_id: azure.policy.rule.governance_config_rules_enabled
+    title: 'AZURE POLICY Rule: Governance Config Rules Enabled'
+    severity: low
+    for_each: azure.policy.rules
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{name}}'
+      fields:
+      - path: properties.enforcement_mode
+        operator: equals
+        expected: Default
+      - path: properties.policy_definition_id
+        operator: exists
+      - path: properties.metadata.category
+        operator: equals
+        expected: Governance
+  - check_id: azure.policy.set_definition.configuration_management_config_baseline_conformance_pack_deployed
+    title: 'AZURE POLICY Set_definition: Configuration Management Config Baseline Conformance Pack Deployed'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.policy_definitions
+        operator: exists
+      - path: properties.metadata.category
+        operator: equals
+        expected: Configuration Management
+      - path: properties.display_name
+        operator: contains
+        expected: Baseline
+  - check_id: azure.policy.set_definition.configuration_management_config_baseline_parameters_set
+    title: 'AZURE POLICY Set_definition: Configuration Management Config Baseline Parameters Set'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.parameters
+        operator: exists
+      - path: properties.metadata.category
+        operator: equals
+        expected: Configuration Management
+      - path: properties.policy_definitions[*].parameters
+        operator: exists
+  - check_id: azure.policy.set_definition.governance_aggregation_authorization_present_and_valid
+    title: 'AZURE POLICY Set_definition: Governance Aggregation Authorization Present And Valid'
+    severity: medium
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.category
+        operator: equals
+        expected: Governance
+      - path: properties.policy_definitions
+        operator: exists
+      - path: properties.display_name
+        operator: contains
+        expected: Aggregation
+  - check_id: azure.policy.set_definition.governance_aggregator_auto_enroll_new_accounts
+    title: 'AZURE POLICY Set_definition: Governance Aggregator Auto Enroll New Accounts'
+    severity: low
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.category
+        operator: equals
+        expected: Governance
+      - path: properties.parameters.auto_enroll_new_accounts
+        operator: equals
+        expected: true
+      - path: properties.display_name
+        operator: contains
+        expected: Aggregator
+  - check_id: azure.policy.set_definition.governance_aggregator_org_aggregator_enabled
+    title: 'AZURE POLICY Set_definition: Governance Aggregator Org Aggregator Enabled'
+    severity: low
+    for_each: azure.policy.set_definitions
+    calls:
+    - action: policy_set_definitions.get
+      params:
+        policy_set_definition_name: '{{name}}'
+      fields:
+      - path: properties.metadata.category
+        operator: equals
+        expected: Governance
+      - path: properties.parameters.organization_aggregator_enabled
+        operator: equals
+        expected: true
+      - path: properties.display_name
+        operator: contains
+        expected: Aggregator

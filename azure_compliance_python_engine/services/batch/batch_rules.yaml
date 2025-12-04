@@ -1,0 +1,77 @@
+batch:
+  version: '1.0'
+  provider: azure
+  service: batch
+  package: azure-mgmt-batch
+  client_class: BatchManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.batch.accounts
+    calls:
+    - client: batch_management
+      action: batch_account.list
+      save_as: batch_accounts
+  - discovery_id: azure.batch.private_endpoints
+    calls:
+    - client: batch_management
+      action: private_endpoint_connection.list_by_batch_account
+      save_as: private_endpoints
+  checks:
+  - check_id: azure.batch.account.public.network.access.check.disabled
+    title: 'AZURE BATCH Account: Public Network Access Check Disabled'
+    severity: critical
+    for_each: azure.batch.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.batch.account.private.endpoint.approved
+    title: 'AZURE BATCH Account: Private Endpoint Approved'
+    severity: low
+    for_each: azure.batch.accounts
+    calls:
+    - action: private_endpoint_connection.list_by_batch_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.batch.account.authentication.modes.check
+    title: 'AZURE BATCH Account: Authentication Modes Check'
+    severity: high
+    for_each: azure.batch.accounts
+    calls:
+    - action: batch_account.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: allowed_authentication_modes
+        operator: exists
+  - check_id: azure.batch.private.endpoint.dns.zone.validation
+    title: 'AZURE BATCH Private: Endpoint Dns Zone Validation'
+    severity: low
+    for_each: azure.batch.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: custom_dns_configs[*].fqdn
+        operator: exists
+  - check_id: azure.batch.account.diagnostics.settings.logs.enabled
+    title: 'AZURE BATCH Account: Diagnostics Settings Logs Enabled'
+    severity: low
+    for_each: azure.batch.account
+    calls:
+    - action: monitor.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+      - path: value[*].properties.logs[?(@.enabled == true)]
+        operator: not_empty

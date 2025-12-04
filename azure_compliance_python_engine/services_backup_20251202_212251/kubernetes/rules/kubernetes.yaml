@@ -1,0 +1,1701 @@
+version: '1.0'
+provider: azure
+service: kubernetes
+discovery: []
+checks:
+- check_id: kubernetes_addon_containers_from_trusted_channel
+  name: 'AZURE KUBERNETES Addon: Containers From Trusted Channel'
+  severity: LOW
+  for_each: addons
+  param: addon
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.config.containerImageRepository
+      operator: exists
+      expected: true
+    - path: properties.config.containerImageRepository
+      operator: contains
+      expected: mcr.microsoft.com
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_addon_containers_no_privileged_permissions
+  name: 'AZURE KUBERNETES Addon: Containers No Privileged Permissions'
+  severity: HIGH
+  for_each: addons
+  param: addon
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: config.addonProfiles.*.config.privileged
+      operator: equals
+      expected: false
+    - path: properties.addonProfiles.*.config.privileged
+      operator: equals
+      expected: false
+    - path: config.containers.*.securityContext.privileged
+      operator: equals
+      expected: false
+    - path: properties.containers.*.securityContext.privileged
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_addon_containers_version_pinned_and_supported
+  name: 'AZURE KUBERNETES Addon: Containers Version Pinned And Supported'
+  severity: LOW
+  for_each: addons
+  param: addon
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.config.containerImageVersion
+      operator: exists
+      expected: true
+    - path: properties.config.containerImageVersion
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_admission_controller_containers_admission_host_namespace_usage_denied
+  name: 'AZURE KUBERNETES Admission_controller: Containers Admission Host Namespace
+    Usage'
+  description: Validates that AZURE kubernetes admission_controller has containers
+    admission host namespace usage denied configured according to security best practices.
+    Proper configuration reduces security risks
+  service: kubernetes
+  resource: admission_controller
+  severity: LOW
+  for_each: admission_controllers
+  param: admission_controller
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.podSecurityPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.securityProfile.podSecurityPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.hostNetwork
+      operator: equals
+      expected: false
+    - path: properties.agentPoolProfiles[*].hostNetwork
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_admission_controller_containers_admission_image_registry_allowlist_enforced
+  name: 'AZURE KUBERNETES Admission_controller: Containers Admission Image Registry
+    Allow'
+  severity: LOW
+  for_each: admission_controllers
+  param: admission_controller
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.azurepolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.addonProfiles.azurepolicy.config.version
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkPolicy
+      operator: equals
+      expected: azure
+    - path: properties.securityProfile.defender.logAnalyticsWorkspaceResourceId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_admission_controller_containers_admission_image_signature_verification_enabled
+  name: 'AZURE KUBERNETES Admission_controller: Containers Admission Image Signature
+    Veri'
+  severity: LOW
+  for_each: admission_controllers
+  param: admission_controller
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.imageSignatureVerificationSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.containerAdmissionSettings.imageSignatureVerification.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_admission_controller_containers_admission_pod_security_admission_restricted_default
+  name: 'AZURE KUBERNETES Admission_controller: Containers Admission Pod Security
+    Admissi'
+  severity: LOW
+  for_each: admission_controllers
+  param: admission_controller
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.podSecurityPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.addonProfiles.podSecurityPolicy.config.defaultProfile
+      operator: equals
+      expected: restricted
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_admission_controller_containers_admission_privilege_escalation_denied
+  name: 'AZURE KUBERNETES Admission_controller: Containers Admission Privilege Escalation'
+  description: Validates that AZURE kubernetes admission_controller has containers
+    admission privilege escalation denied configured according to security best practices.
+    Proper configuration reduces security risks
+  severity: HIGH
+  service: kubernetes
+  resource: admission_controller
+  for_each: admission_controllers
+  param: admission_controller
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.podSecurityPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.agentPoolProfiles[].allowPrivilegeEscalation
+      operator: equals
+      expected: false
+    - path: properties.securityProfile.defender.securityMonitoring.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_agent_pool_containers_node_pool_disk_encryption_enabled
+  name: 'AZURE KUBERNETES Agent_pool: Containers Node Pool Disk Encryption Enabled'
+  severity: HIGH
+  for_each: agent_pools
+  param: agent_pool
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_node_public_ip
+      operator: exists
+      expected: true
+    - path: os_disk_type
+      operator: exists
+      expected: true
+    - path: enable_encryption_at_host
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_agent_pool_containers_node_pool_nodes_no_public_ip
+  name: 'AZURE KUBERNETES Agent_pool: Containers Node Pool Nodes No Public Ip'
+  severity: CRITICAL
+  for_each: agent_pools
+  param: agent_pool
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_node_public_ip
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_agent_pool_containers_node_pool_shielded_secure_boot_enabled
+  name: 'AZURE KUBERNETES Agent_pool: Containers Node Pool Shielded Secure Boot Enabled'
+  severity: LOW
+  for_each: agent_pools
+  param: agent_pool
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_secure_boot
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_agent_pool_containers_node_pool_workload_identity_enabled
+  name: 'AZURE KUBERNETES Agent_pool: Containers Node Pool Workload Identity Enabled'
+  severity: LOW
+  for_each: agent_pools
+  param: agent_pool
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: workload_identity_enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_anonymous_auth_disabled
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver Anonymous Auth Disabled'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles.kubernetesConfig.kubeletConfig.anonymous_auth
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_audit_logging_enabled
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.omsagent.enabled
+      operator: equals
+      expected: true
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_authorization_mode_rbac
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver Authorization Mode RBAC'
+  severity: MEDIUM
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.authorizationMode
+      operator: equals
+      expected: RBAC
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_etcd_connection_encrypted
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver Etcd Connection Encrypted'
+  severity: MEDIUM
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.kubeDashboard.enabled
+      operator: equals
+      expected: false
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.networkPlugin
+      operator: equals
+      expected: azure
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_insecure_port_disabled
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver Insecure Port Disabled'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[].kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_containers_apiserver_tls_min_1_2_enforced
+  name: 'AZURE KUBERNETES Api_server: Containers Apiserver TLS Min 1 2 Enforced'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.httpApplicationRouting.enabled
+      operator: equals
+      expected: false
+    - path: properties.apiServerAccessProfile.authorizedIPRanges
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_k8s_apiserver_admission_psa_enforce_mode
+  name: 'AZURE KUBERNETES Api_server: K8s Apiserver Admission Psa Enforce Mode'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.podSecurityPolicy.config.admission-control-config-map
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.podSecurityPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.apiServerAccessProfile.enablePodSecurityPolicy
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_k8s_apiserver_anonymous_auth_disabled
+  name: 'AZURE KUBERNETES Api_server: K8s Apiserver Anonymous Auth Disabled'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+    - path: properties.apiServerAccessProfile.disableRunCommand
+      operator: equals
+      expected: true
+    - path: properties.addonProfiles.azurepolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_k8s_apiserver_audit_logging_enabled
+  name: 'AZURE KUBERNETES Api_server: K8s Apiserver Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.omsagent.enabled
+      operator: equals
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_api_server_k8s_apiserver_tls_min_version_1_2
+  name: 'AZURE KUBERNETES Api_server: K8s Apiserver TLS Min Version 1 2'
+  severity: LOW
+  for_each: api_servers
+  param: api_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkPlugin
+      operator: exists
+      expected: true
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_cis_3_2_6_needs_development
+  name: 'AZURE KUBERNETES Resource: Cis 3 2 6 Needs Development'
+  severity: LOW
+  for_each: resources
+  param: resource
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityProfile.defender.logAnalyticsWorkspaceResourceId
+      operator: exists
+      expected: true
+    - path: properties.securityProfile.defender.securityMonitoring.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_controller_manager_containers_root_ca_file_configured
+  name: 'AZURE KUBERNETES Controller_manager: Containers Root Ca File Configured'
+  severity: CRITICAL
+  for_each: controller_managers
+  param: controller_manager
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.masterProfile.dnsPrefix
+      operator: exists
+      expected: true
+    - path: properties.linuxProfile.ssh.publicKeys[0].keyData
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_controller_manager_containers_secure_port_tls_enabled
+  name: 'AZURE KUBERNETES Controller_manager: Containers Secure Port TLS Enabled'
+  severity: LOW
+  for_each: controller_managers
+  param: controller_manager
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesConfig.controllerManagerConfig.tlsCertFile
+      operator: exists
+      expected: true
+    - path: properties.kubernetesConfig.controllerManagerConfig.tlsPrivateKeyFile
+      operator: exists
+      expected: true
+    - path: properties.kubernetesConfig.controllerManagerConfig.securePort
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_controller_manager_containers_use_service_account_credentials_enabled
+  name: 'AZURE KUBERNETES Controller_manager: Containers Use Service Account Credentials'
+  severity: HIGH
+  for_each: controller_managers
+  param: controller_manager
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.networkPlugin
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_controller_manager_k8s_controllermanager_secure_port_enabled
+  name: 'AZURE KUBERNETES Controller_manager: K8s Controllermanager Secure Port Enabled'
+  severity: LOW
+  for_each: controller_managers
+  param: controller_manager
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[*].osType
+      operator: contains
+      expected: Linux
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.httpApplicationRouting.enabled
+      operator: equals
+      expected: false
+    - path: properties.networkProfile.networkPlugin
+      operator: exists
+      expected: true
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_controller_manager_k8s_controllermanager_service_account_token_signing_enabled
+  name: 'AZURE KUBERNETES Controller_manager: K8s Controllermanager Service Account
+    Token'
+  severity: LOW
+  for_each: controller_managers
+  param: controller_manager
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesConfig.controllerManagerConfig.serviceAccountKeyFile
+      operator: exists
+      expected: true
+    - path: properties.kubernetesConfig.controllerManagerConfig.useServiceAccountCredentials
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_drop_net_raw_and_reduce_caps
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Drop Net Raw And Reduce
+    Caps'
+  severity: LOW
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.containers[*].securityContext.capabilities.drop
+      operator: contains
+      expected: NET_RAW
+    - path: spec.template.spec.containers[*].securityContext.capabilities.drop
+      operator: contains
+      expected: ALL
+    - path: spec.template.spec.containers[*].securityContext.capabilities.add
+      operator: exists
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_env_no_plaintext_secrets
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Env No Plaintext Secrets'
+  severity: HIGH
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.containers[*].env[*].value
+      operator: exists
+      expected: false
+    - path: spec.template.spec.containers[*].env[*].valueFrom.secretKeyRef
+      operator: exists
+      expected: true
+    - path: spec.template.spec.containers[*].env[*].valueFrom.configMapKeyRef
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_host_network_pid_ipc_disabled
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Host Network Pid Ipc Disabled'
+  severity: MEDIUM
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.hostNetwork
+      operator: equals
+      expected: false
+    - path: spec.template.spec.hostPID
+      operator: equals
+      expected: false
+    - path: spec.template.spec.hostIPC
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_image_tag_not_latest
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Image Tag Not Latest'
+  severity: LOW
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.containers[*].image
+      operator: contains
+      expected: :latest
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_no_hostpath_mounts
+  name: 'AZURE KUBERNETES Deployment: Containers Workload No Hostpath Mounts'
+  severity: LOW
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.volumes[*].hostPath
+      operator: exists
+      expected: false
+    - path: spec.template.spec.containers[*].volumeMounts[*].mountPath
+      operator: contains
+      expected: /host
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_no_privileged_containers
+  name: 'AZURE KUBERNETES Deployment: Containers Workload No Privileged Containers'
+  severity: HIGH
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.containers[*].securityContext.privileged
+      operator: equals
+      expected: false
+    - path: spec.template.spec.initContainers[*].securityContext.privileged
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_read_only_root_filesystem
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Read Only Root Filesystem'
+  severity: CRITICAL
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.containers[*].securityContext.readOnlyRootFilesystem
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_run_as_non_root
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Run As Non Root'
+  severity: CRITICAL
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.securityContext.runAsNonRoot
+      operator: equals
+      expected: true
+    - path: spec.template.spec.containers[*].securityContext.runAsNonRoot
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_deployment_containers_workload_seccomp_profile_runtime_default
+  name: 'AZURE KUBERNETES Deployment: Containers Workload Seccomp Profile Runtime
+    Default'
+  severity: LOW
+  for_each: deployments
+  param: deployment
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.template.spec.securityContext.seccompProfile.type
+      operator: equals
+      expected: RuntimeDefault
+    - path: spec.template.spec.containers[*].securityContext.seccompProfile.type
+      operator: equals
+      expected: RuntimeDefault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_containers_auth_enabled
+  name: 'AZURE KUBERNETES Etcd: Containers Auth Enabled'
+  severity: LOW
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles.kubernetesConfig.etcdContainerAuth
+      operator: equals
+      expected: true
+    - path: properties.masterProfile.kubernetesConfig.etcdContainerAuth
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_containers_client_tls_enabled
+  name: 'AZURE KUBERNETES Etcd: Containers Client TLS Enabled'
+  severity: LOW
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.etcd.client_tls_enabled
+      operator: equals
+      expected: true
+    - path: properties.etcd.containers.tls_config.enabled
+      operator: equals
+      expected: true
+    - path: properties.security.tls.client_cert_auth
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_containers_encryption_at_rest_enabled
+  name: 'AZURE KUBERNETES Etcd: Containers Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryptionAtRestEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_containers_peer_tls_enabled
+  name: 'AZURE KUBERNETES Etcd: Containers Peer TLS Enabled'
+  severity: LOW
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.etcdServerCertificate.enabled
+      operator: equals
+      expected: true
+    - path: properties.etcdPeerCertificate.enabled
+      operator: equals
+      expected: true
+    - path: properties.apiServerConfiguration.etcdPeerTlsConfig.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_k8s_client_cert_auth_enabled
+  name: 'AZURE KUBERNETES Etcd: K8s Client Cert Auth Enabled'
+  severity: LOW
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesConfiguration.etcd.clientCertAuth
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_etcd_k8s_encryption_at_rest_enabled
+  name: 'AZURE KUBERNETES Etcd: K8s Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: etcds
+  param: etcd
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diskEncryptionSetID
+      operator: exists
+      expected: true
+    - path: properties.encryptionAtHost
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+  description: Validates that AZURE kubernetes etcd has k8s encryption at rest enabled
+    configured according to security best practices. Proper configuration reduces
+    security risks, prevents unauthorized access, and
+- check_id: kubernetes_kubelet_containers_anonymous_auth_disabled
+  name: 'AZURE KUBERNETES Kubelet: Containers Anonymous Auth Disabled'
+  description: Validates that AZURE kubernetes kubelet has containers anonymous auth
+    disabled configured according to security best practices. Proper configuration
+    reduces security risks, prevents unauthorized acces
+  severity: LOW
+  service: kubernetes
+  resource: kubelet
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubeletConfig.anonymousAuth
+      operator: equals
+      expected: false
+    - path: properties.agentPoolProfiles[*].kubeletConfig.authentication.anonymous.enabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_containers_authz_webhook_or_rbac_enabled
+  name: 'AZURE KUBERNETES Kubelet: Containers Authz Webhook Or RBAC Enabled'
+  severity: MEDIUM
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubeletConfig.authorization.mode
+      operator: contains
+      expected: Webhook
+    - path: properties.agentPoolProfiles[*].kubeletConfig.authorization.mode
+      operator: contains
+      expected: RBAC
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_containers_read_only_port_disabled
+  name: 'AZURE KUBERNETES Kubelet: Containers Read Only Port Disabled'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[].kubeletConfig.readOnlyPort
+      operator: equals
+      expected: 0
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_containers_tls_min_1_2_enforced
+  name: 'AZURE KUBERNETES Kubelet: Containers TLS Min 1 2 Enforced'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[*].kubeletConfig.tlsMinVersion
+      operator: equals
+      expected: '1.2'
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_k8s_anonymous_auth_disabled
+  name: 'AZURE KUBERNETES Kubelet: K8s Anonymous Auth Disabled'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles.kubeletConfig.anonymous.enabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_k8s_client_cert_rotation_enabled
+  name: 'AZURE KUBERNETES Kubelet: K8s Client Cert Rotation Enabled'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubeletConfig.rotateCertificates
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_k8s_protect_kernel_defaults_enabled
+  name: 'AZURE KUBERNETES Kubelet: K8s Protect Kernel Defaults Enabled'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubeletConfig.protectKernelDefaults
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_kubelet_k8s_read_only_port_disabled
+  name: 'AZURE KUBERNETES Kubelet: K8s Read Only Port Disabled'
+  severity: LOW
+  for_each: kubelets
+  param: kubelet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[].kubeletConfig.readOnlyPort
+      operator: equals
+      expected: 0
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_audit_logging_enabled
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.addonProfiles.omsagent.enabled
+      operator: equals
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_default_service_account_automount_disabled
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Default Service Account
+    Aut'
+  severity: LOW
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.service_principal_profile.automount_service_account_token
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_private_control_plane_endpoint_enabled
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Private Control Plane
+    Endpo'
+  severity: LOW
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_secrets_encryption_kms_enabled
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Secrets Encryption KMS
+    Enab'
+  severity: HIGH
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.disk_encryption_set_id
+      operator: exists
+      expected: true
+    - path: properties.encryption_at_host_enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_service_dns_and_metrics_from_approved_sources
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Service Dns And Metrics
+    Fro'
+  severity: LOW
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dnsPrefix
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.omsagent.enabled
+      operator: equals
+      expected: true
+    - path: properties.addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.dnsServiceIP
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.serviceCidr
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_cluster_service_kube_system_services_not_public
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Cluster Service Kube System
+    Service'
+  severity: CRITICAL
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.loadBalancerSku
+      operator: equals
+      expected: Standard
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_fargate_profile_execution_role_least_privilege
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Fargate Profile Execution Role
+    Leas'
+  severity: HIGH
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[*].type
+      operator: equals
+      expected: VirtualMachineScaleSets
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.addonProfiles.azurepolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_fargate_profile_logging_enabled
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Fargate Profile Logging Enabled'
+  severity: MEDIUM
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[*].fargateProfile.logging.enabled
+      operator: equals
+      expected: true
+    - path: properties.addonProfiles.omsagent.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_managed_cluster_containers_fargate_profile_private_subnets_only
+  name: 'AZURE KUBERNETES Managed_cluster: Containers Fargate Profile Private Subnets
+    Only'
+  severity: LOW
+  for_each: managed_clusters
+  param: managed_cluster
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[*].vnetSubnetID
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkPlugin
+      operator: equals
+      expected: azure
+    - path: properties.agentPoolProfiles[*].enableNodePublicIP
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_namespace_containers_default_service_account_automount_disabled
+  name: 'AZURE KUBERNETES Namespace: Containers Default Service Account Automount
+    Disable'
+  severity: LOW
+  for_each: namespaces
+  param: namespace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.serviceAccount.automountServiceAccountToken
+      operator: equals
+      expected: false
+    - path: spec.containers[*].securityContext.automountServiceAccountToken
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_namespace_containers_network_policies_present
+  name: 'AZURE KUBERNETES Namespace: Containers Network Policies Present'
+  severity: MEDIUM
+  for_each: namespaces
+  param: namespace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.networkPolicies
+      operator: exists
+      expected: true
+    - path: spec.networkPolicies
+      operator: contains
+      expected: ingress
+    - path: spec.networkPolicies
+      operator: contains
+      expected: egress
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_namespace_containers_pod_security_level_restricted
+  name: 'AZURE KUBERNETES Namespace: Containers Pod Security Level Restricted'
+  severity: LOW
+  for_each: namespaces
+  param: namespace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: metadata.labels["pod-security.kubernetes.io/enforce"]
+      operator: equals
+      expected: restricted
+    - path: metadata.labels["pod-security.kubernetes.io/audit"]
+      operator: equals
+      expected: restricted
+    - path: metadata.labels["pod-security.kubernetes.io/warn"]
+      operator: equals
+      expected: restricted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_network_policy_containers_networkpolicy_default_deny_egress_per_namespace
+  name: 'AZURE KUBERNETES Network_policy: Containers Networkpolicy Default Deny Egress
+    Pe'
+  severity: MEDIUM
+  for_each: network_policys
+  param: network_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.policyTypes
+      operator: contains
+      expected: Egress
+    - path: spec.egress
+      operator: exists
+      expected: false
+    - path: spec.podSelector
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_network_policy_containers_networkpolicy_default_deny_ingress_per_namespace
+  name: 'AZURE KUBERNETES Network_policy: Containers Networkpolicy Default Deny Ingress
+    P'
+  severity: MEDIUM
+  for_each: network_policys
+  param: network_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.policyTypes
+      operator: contains
+      expected: Ingress
+    - path: spec.ingress
+      operator: exists
+      expected: false
+    - path: spec.podSelector
+      operator: exists
+      expected: true
+    - path: metadata.namespace
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_network_policy_containers_networkpolicy_required_allowlist_for_namespace_services
+  name: 'AZURE KUBERNETES Network_policy: Containers Networkpolicy Required Allowlist
+    For'
+  severity: MEDIUM
+  for_each: network_policys
+  param: network_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.ingress
+      operator: exists
+      expected: true
+    - path: spec.egress
+      operator: exists
+      expected: true
+    - path: spec.podSelector
+      operator: exists
+      expected: true
+    - path: spec.policyTypes
+      operator: contains
+      expected: Ingress
+    - path: spec.policyTypes
+      operator: contains
+      expected: Egress
+    - path: spec.ingress[*].from[*].namespaceSelector
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_containers_authorization_mode_rbac_enabled
+  name: 'AZURE KUBERNETES Rbac: Containers Authorization Mode RBAC Enabled'
+  severity: MEDIUM
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+    - path: properties.aadProfile.managed
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_containers_no_cluster_admin_bindings_to_users
+  name: 'AZURE KUBERNETES Rbac: Containers No Cluster Admin Bindings To Users'
+  severity: CRITICAL
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: roleRef.name
+      operator: equals
+      expected: cluster-admin
+    - path: subjects
+      operator: exists
+      expected: true
+    - path: subjects[?(@.kind == 'User')]
+      operator: exists
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_containers_no_wildcard_rules_in_clusterroles
+  name: 'AZURE KUBERNETES Rbac: Containers No Wildcard Rules In Clusterroles'
+  severity: LOW
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.rules[*].resources
+      operator: contains
+      expected: '*'
+    - path: properties.rules[*].verbs
+      operator: contains
+      expected: '*'
+    - path: properties.rules[*].apiGroups
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_containers_subjects_scoped_to_namespaces
+  name: 'AZURE KUBERNETES Rbac: Containers Subjects Scoped To Namespaces'
+  severity: LOW
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: subjects
+      operator: exists
+      expected: true
+    - path: subjects[*].namespace
+      operator: exists
+      expected: true
+    - path: subjects[*].kind
+      operator: equals
+      expected: ServiceAccount
+    - path: roleRef.kind
+      operator: contains
+      expected: Role
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_k8s_default_sa_not_cluster_admin
+  name: 'AZURE KUBERNETES Rbac: K8s Default Sa Not Cluster Admin'
+  severity: CRITICAL
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: subjects
+      operator: exists
+      expected: true
+    - path: subjects[?(@.kind=='ServiceAccount' && @.name=='default')].name
+      operator: exists
+      expected: false
+    - path: roleRef.name
+      operator: equals
+      expected: cluster-admin
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_k8s_no_cluster_admin_to_authenticated
+  name: 'AZURE KUBERNETES Rbac: K8s No Cluster Admin To Authenticated'
+  severity: CRITICAL
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: subjects
+      operator: exists
+      expected: true
+    - path: subjects[?(@.kind=='User' && @.name=='system:authenticated')].name
+      operator: contains
+      expected: system:authenticated
+    - path: roleRef.name
+      operator: equals
+      expected: cluster-admin
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_rbac_k8s_wildcard_verbs_disallowed
+  name: 'AZURE KUBERNETES Rbac: K8s Wildcard Verbs Disallowed'
+  severity: LOW
+  for_each: rbacs
+  param: rbac
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: rules
+      operator: exists
+      expected: true
+    - path: rules[*].verbs
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_containers_authentication_kubeconfig_configured
+  name: 'AZURE KUBERNETES Scheduler: Containers Authentication Kubeconfig Configured'
+  severity: HIGH
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].kubernetesConfig.kubeletConfig.authentication.x509.clientCAFile
+      operator: exists
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.aadProfile.managed
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_containers_authorization_kubeconfig_configured
+  name: 'AZURE KUBERNETES Scheduler: Containers Authorization Kubeconfig Configured'
+  severity: LOW
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles.kubeConfigFile
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles.authorization.mode
+      operator: equals
+      expected: RBAC
+    - path: properties.addonProfiles.kubeDashboard.enabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_containers_secure_port_tls_enabled
+  name: 'AZURE KUBERNETES Scheduler: Containers Secure Port TLS Enabled'
+  severity: LOW
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles
+      operator: exists
+      expected: true
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.httpApplicationRouting.enabled
+      operator: equals
+      expected: false
+    - path: properties.networkProfile.networkPlugin
+      operator: equals
+      expected: azure
+    - path: properties.enableRBAC
+      operator: equals
+      expected: true
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_k8s_leader_election_enabled
+  name: 'AZURE KUBERNETES Scheduler: K8s Leader Election Enabled'
+  severity: LOW
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.schedulerProfile.leaderElection.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_k8s_profiling_disabled
+  name: 'AZURE KUBERNETES Scheduler: K8s Profiling Disabled'
+  severity: LOW
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agentPoolProfiles[*].enableNodePublicIP
+      operator: equals
+      expected: false
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.addonProfiles.httpApplicationRouting.enabled
+      operator: equals
+      expected: false
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_scheduler_k8s_secure_port_enabled
+  name: 'AZURE KUBERNETES Scheduler: K8s Secure Port Enabled'
+  severity: LOW
+  for_each: schedulers
+  param: scheduler
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.kubernetesVersion
+      operator: exists
+      expected: true
+    - path: properties.agentPoolProfiles[0].enableNodePublicIP
+      operator: equals
+      expected: false
+    - path: properties.servicePrincipalProfile.clientId
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkPolicy
+      operator: exists
+      expected: true
+    - path: properties.apiServerAccessProfile.enablePrivateCluster
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_service_containers_external_ips_not_used
+  name: 'AZURE KUBERNETES Service: Containers External Ips Not Used'
+  severity: LOW
+  for_each: services
+  param: service
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.externalIPs
+      operator: exists
+      expected: false
+    - path: spec.type
+      operator: equals
+      expected: ClusterIP
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: kubernetes_service_containers_nodeport_usage_restricted
+  name: 'AZURE KUBERNETES Service: Containers Nodeport Usage Restricted'
+  severity: LOW
+  for_each: services
+  param: service
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.type
+      operator: equals
+      expected: NodePort
+    - path: spec.ports[*].nodePort
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: kubernetes_service_containers_type_loadbalancer_internal_only_where_required
+  name: 'AZURE KUBERNETES Service: Containers Type Loadbalancer Internal Only Where
+    Requi'
+  severity: LOW
+  for_each: services
+  param: service
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: spec.type
+      operator: equals
+      expected: LoadBalancer
+    - path: metadata.annotations['service.beta.kubernetes.io/azure-load-balancer-internal']
+      operator: equals
+      expected: 'true'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []

@@ -1,52 +1,1780 @@
 storage:
+  version: '1.0'
+  provider: azure
+  service: storage
+  package: azure-mgmt-storage
+  client_class: StorageManagementClient
   scope: subscription
-  iterate_resource_groups: true
   discovery:
-    - discovery_id: accounts
-      resource_group_param: resource_group_name
-      calls:
-        - action: storage_accounts.list_by_resource_group
-          resource_group_param: resource_group_name
-          fields:
-            - path: __self__
-              var: account
-            - path: name
-              var: account_name
-            - path: id
-              var: account_id
+  - discovery_id: azure.storage.accounts
+    calls:
+    - client: storage
+      action: storage_accounts.list
+      save_as: storage_accounts
+      fields:
+      - path: __self__
   checks:
-    - check_id: storage_https_only
-      title: Ensure Storage accounts require HTTPS
-      severity: high
-      for_each: accounts
-      param: account
-      calls:
-        - action: self
-          fields:
-            - path: enable_https_traffic_only
-              operator: equals
-              expected: true
-    - check_id: storage_min_tls12
-      title: Ensure minimum TLS version is 1.2 for Storage accounts
-      severity: medium
-      for_each: accounts
-      param: account
-      calls:
-        - action: self
-          fields:
-            - path: minimum_tls_version
-              operator: equals
-              expected: "TLS1_2"
-    - check_id: monitor_storage_account_with_activity_logs_cmk_encrypted
-      title: Ensure storage accounts are encrypted with Customer Managed Key (CMK)
-      severity: high
-      for_each: accounts
-      param: account
-      calls:
-        - action: self
-          fields:
-            - path: encryption.key_source
-              operator: equals
-              expected: Microsoft.Keyvault
-            - path: encryption.key_vault_properties.key_uri
-              operator: exists 
+  - check_id: azure.storage.account.blob.soft.delete.enabled
+    title: 'AZURE STORAGE Account: Blob Soft Delete Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.encryption.with.customer.managed.keys
+    title: 'AZURE STORAGE Account: Encryption With Customer Managed Keys'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+  - check_id: azure.storage.account.smb.minimum.version.enforcement
+    title: 'AZURE STORAGE Account: SMB Minimum Version Enforcement'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: protocol_settings.smb.versions
+        operator: exists
+  - check_id: azure.storage.account.secure.transfer.required
+    title: 'AZURE STORAGE Account: Secure Transfer Required'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.public.access.disabled
+    title: 'AZURE STORAGE Account: Public Access Disabled'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.network.access.restricted
+    title: 'AZURE STORAGE Account: Network Access Restricted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.file_share.data_protection_fileshare_kms_key_policy_least_privilege
+    title: 'AZURE STORAGE File Share: Data Protection KMS Key Policy Least Privilege'
+    severity: high
+    for_each: azure.storage.file_shares
+    calls:
+    - action: file_shares.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        share_name: '{{name}}'
+      fields:
+      - path: access_policy.permissions
+        operator: exists
+  - check_id: azure.storage.container.public.read.access.disabled
+    title: 'AZURE STORAGE Container: Public Read Access Disabled'
+    severity: critical
+    for_each: azure.storage.blob_containers
+    calls:
+    - action: blob_containers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        container_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: None
+  - check_id: azure.storage.account.logging.enabled
+    title: 'AZURE STORAGE Account: Logging Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: exists
+  - check_id: azure.storage.account.minimum.tls.version
+    title: 'AZURE STORAGE Account: Minimum TLS Version'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: minimum_tls_version
+        operator: equals
+        expected: TLS1_2
+  - check_id: azure.storage.account.shared.key.access.disabled
+    title: 'AZURE STORAGE Account: Shared Key Access Disabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.blob.versioning.enabled
+    title: 'AZURE STORAGE Account: Blob Versioning Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: is_versioning_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.blob.change.feed.enabled
+    title: 'AZURE STORAGE Account: Blob Change Feed Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: change_feed.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.infrastructure.encryption.enabled
+    title: 'AZURE STORAGE Account: Infrastructure Encryption Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.require_infrastructure_encryption
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.cross.tenant.replication.disabled
+    title: 'AZURE STORAGE Account: Cross Tenant Replication Disabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_cross_tenant_replication
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.default.to.oauth.authentication
+    title: 'AZURE STORAGE Account: Default to OAuth Authentication'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: default_to_o_auth_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.immutable.blob.with.versioning
+    title: 'AZURE STORAGE Account: Immutable Blob With Versioning'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: immutable_storage_with_versioning.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.private.endpoint.configured
+    title: 'AZURE STORAGE Account: Private Endpoint Configured'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.geo.redundant.storage
+    title: 'AZURE STORAGE Account: Geo Redundant Storage'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: exists
+  - check_id: azure.storage.account.container.soft.delete.enabled
+    title: 'AZURE STORAGE Account: Container Soft Delete Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: container_delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.queue.logging.enabled
+    title: 'AZURE STORAGE Account: Queue Logging Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: queue_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        queue_service_name: default
+      fields:
+      - path: cors
+        operator: exists
+  - check_id: azure.storage.account.table.logging.enabled
+    title: 'AZURE STORAGE Account: Table Logging Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: table_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_service_name: default
+      fields:
+      - path: cors
+        operator: exists
+  - check_id: azure.storage.account.access.keys.regenerated.regularly
+    title: 'AZURE STORAGE Account: Access Keys Regenerated Regularly'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: storage_accounts.list_keys
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: keys[0].creation_time
+        operator: exists
+  - check_id: azure.storage.account.anonymous.access.disabled
+    title: 'AZURE STORAGE Account: Anonymous Access Disabled'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.managed.identity.enabled
+    title: 'AZURE STORAGE Account: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.storage.account.firewall.rules.configured
+    title: 'AZURE STORAGE Account: Firewall Rules Configured'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.ip_rules
+        operator: exists
+  - check_id: azure.storage.account.virtual.network.rules.configured
+    title: 'AZURE STORAGE Account: Virtual Network Rules Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.virtual_network_rules
+        operator: exists
+  - check_id: azure.storage.account.resource.access.rules.configured
+    title: 'AZURE STORAGE Account: Resource Access Rules Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.resource_access_rules
+        operator: exists
+  - check_id: azure.storage.account.bypass.azure.services.enabled
+    title: 'AZURE STORAGE Account: Bypass Azure Services Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.bypass
+        operator: exists
+  - check_id: azure.storage.account.large.file.shares.enabled
+    title: 'AZURE STORAGE Account: Large File Shares Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: large_file_shares_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.storage.account.nfs.v3.enabled
+    title: 'AZURE STORAGE Account: NFS v3 Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: is_nfs_v3_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.hierarchical.namespace.enabled
+    title: 'AZURE STORAGE Account: Hierarchical Namespace Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: is_hns_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.sftp.enabled
+    title: 'AZURE STORAGE Account: SFTP Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: is_sftp_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.local.users.configured
+    title: 'AZURE STORAGE Account: Local Users Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: local_users.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.blob.restore.policy.enabled
+    title: 'AZURE STORAGE Account: Blob Restore Policy Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: restore_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.last.access.time.tracking.enabled
+    title: 'AZURE STORAGE Account: Last Access Time Tracking Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: last_access_time_tracking_policy.enable
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.blob.public.access.prevention
+    title: 'AZURE STORAGE Account: Blob Public Access Prevention'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.routing.preference.configured
+    title: 'AZURE STORAGE Account: Routing Preference Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: routing_preference.routing_choice
+        operator: exists
+  - check_id: azure.storage.account.edge.zone.configured
+    title: 'AZURE STORAGE Account: Edge Zone Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: extended_location.name
+        operator: exists
+  - check_id: azure.storage.account.failover.configured
+    title: 'AZURE STORAGE Account: Failover Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: failover_in_progress
+        operator: exists
+  - check_id: azure.storage.account.object.replication.configured
+    title: 'AZURE STORAGE Account: Object Replication Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: object_replication_policies.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.encryption.scopes.configured
+    title: 'AZURE STORAGE Account: Encryption Scopes Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: encryption_scopes.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.blob.service.properties.configured
+    title: 'AZURE STORAGE Account: Blob Service Properties Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: exists
+  - check_id: azure.storage.account.file.service.properties.configured
+    title: 'AZURE STORAGE Account: File Service Properties Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: exists
+  - check_id: azure.storage.account.queue.service.properties.configured
+    title: 'AZURE STORAGE Account: Queue Service Properties Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: queue_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        queue_service_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: exists
+  - check_id: azure.storage.account.table.service.properties.configured
+    title: 'AZURE STORAGE Account: Table Service Properties Configured'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: table_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_service_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: exists
+  - check_id: azure.storage.account.usage.metrics.enabled
+    title: 'AZURE STORAGE Account: Usage Metrics Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: usages.list_by_location
+      params:
+        location: '{{location}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.deleted.account.recovery.enabled
+    title: 'AZURE STORAGE Account: Deleted Account Recovery Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: deleted_accounts.list
+      params: {}
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.network.security.perimeter.configured
+    title: 'AZURE STORAGE Account: Network Security Perimeter Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: network_security_perimeter_configurations.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.storage.account.access.key.rotation.check
+    title: 'AZURE STORAGE Account: Access Key Rotation Check'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: key_creation_time.key1
+        operator: age_days
+        expected: 90
+      - path: key_creation_time.key2
+        operator: age_days
+        expected: 90
+  - check_id: azure.storage.account.access.keys.rotation.check
+    title: 'AZURE STORAGE Account: Access Keys Rotation Check'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: key_policy.key_expiration_period_in_days
+        operator: less_than_or_equal
+        expected: 90
+  - check_id: azure.storage.account.allow.blob.anonymous.access.disabled
+    title: 'AZURE STORAGE Account: Allow Blob Anonymous Access Disabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.blob.anonymous.access.disabled
+    title: 'AZURE STORAGE Account: Blob Anonymous Access Disabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.blob.logging.read.write.delete.enabled
+    title: 'AZURE STORAGE Account: Blob Logging Read Write Delete Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: logging.read
+        operator: equals
+        expected: true
+      - path: logging.write
+        operator: equals
+        expected: true
+      - path: logging.delete
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.blob.versioning.check
+    title: 'AZURE STORAGE Account: Blob Versioning Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: is_versioning_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_access_logging_enabled
+    title: 'AZURE STORAGE Account: Data Protection Bucket Access Logging Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: logging.read
+        operator: equals
+        expected: true
+      - path: logging.write
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_block_public_access_enabled
+    title: 'AZURE STORAGE Account: Data Protection Bucket Block Public Access Enabled'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.data_protection_bucket_cmk_cmek_configured
+    title: 'AZURE STORAGE Account: Data Protection Bucket CMK Cmek Configured'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+      - path: encryption.key_vault_properties.key_name
+        operator: exists
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_encryption_at_rest_enabled
+    title: 'AZURE STORAGE Account: Data Protection Bucket Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: encryption.services.file.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_notification_cross_destinations_restricted
+    title: 'AZURE STORAGE Account: Data Protection Bucket Notification Cross Destinations Restricted'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+      - path: network_rule_set.bypass
+        operator: not_contains
+        expected: AzureServices
+  - check_id: azure.storage.account.data_protection_bucket_notification_destination_encrypted
+    title: 'AZURE STORAGE Account: Data Protection Bucket Notification Destination Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+      - path: minimum_tls_version
+        operator: equals
+        expected: TLS1_2
+  - check_id: azure.storage.account.data_protection_bucket_notification_destination_least_privilege
+    title: 'AZURE STORAGE Account: Data Protection Bucket Notification Destination Least Privilege'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.data_protection_bucket_policy_denies_public_and_insecure
+    title: 'AZURE STORAGE Account: Data Protection Bucket Policy Denies Public And Insecure'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.data_protection_bucket_policy_deny_insecure_transport
+    title: 'AZURE STORAGE Account: Data Protection Bucket Policy Deny Insecure Transport'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+      - path: minimum_tls_version
+        operator: equals
+        expected: TLS1_2
+  - check_id: azure.storage.account.data_protection_bucket_policy_deny_unencrypted_puts
+    title: 'AZURE STORAGE Account: Data Protection Bucket Policy Deny Unencrypted Puts'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.require_infrastructure_encryption
+        operator: equals
+        expected: true
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_policy_no_public_principals
+    title: 'AZURE STORAGE Account: Data Protection Bucket Policy No Public Principals'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.data_protection_bucket_policy_no_wildcards_on_actions_or_principals
+    title: 'AZURE STORAGE Account: Data Protection Bucket Policy No Wildcards On Actions Or Principals'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.data_protection_bucket_require_tls_in_transit
+    title: 'AZURE STORAGE Account: Data Protection Bucket Require TLS In Transit'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.data_protection_bucket_versioning_enabled
+    title: 'AZURE STORAGE Account: Data Protection Bucket Versioning Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: is_versioning_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.default.network.access.rule.set.to.deny
+    title: 'AZURE STORAGE Account: Default Network Access Rule Set To Deny'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.account.default.to.microsoft.entra.authorization.enabled
+    title: 'AZURE STORAGE Account: Default To Microsoft Entra Authorization Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: default_to_o_auth_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.disable.shared.key.access.check
+    title: 'AZURE STORAGE Account: Disable Shared Key Access Check'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.encryption.at.rest.microsoft.managed.keys.enabled
+    title: 'AZURE STORAGE Account: Encryption At Rest Microsoft Managed Keys Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: encryption.services.file.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.encryption.at.rest.with.cmk
+    title: 'AZURE STORAGE Account: Encryption At Rest With CMK'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+  - check_id: azure.storage.account.encryption.cmk.check
+    title: 'AZURE STORAGE Account: Encryption CMK Check'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+      - path: encryption.key_vault_properties.key_name
+        operator: exists
+        expected: true
+  - check_id: azure.storage.account.file.shares.soft.delete.retention.policy
+    title: 'AZURE STORAGE Account: File Shares Soft Delete Retention Policy'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: share_delete_retention_policy.enabled
+        operator: equals
+        expected: true
+      - path: share_delete_retention_policy.days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.storage.account.geo.redundancy.check
+    title: 'AZURE STORAGE Account: Geo Redundancy Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: in
+        expected:
+        - Standard_GRS
+        - Standard_RAGRS
+        - Standard_GZRS
+        - Standard_RAGZRS
+  - check_id: azure.storage.account.geo_redundant
+    title: 'AZURE STORAGE Resource: Geo Redundant'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: in
+        expected:
+        - Standard_GRS
+        - Standard_RAGRS
+        - Standard_GZRS
+        - Standard_RAGZRS
+  - check_id: azure.storage.account.https.traffic.only.check
+    title: 'AZURE STORAGE Account: HTTPS Traffic Only Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.key.rotation.reminder.enabled
+    title: 'AZURE STORAGE Account: Key Rotation Reminder Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: key_policy.key_expiration_period_in_days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.storage.account.network.access.deny.by.default.check
+    title: 'AZURE STORAGE Account: Network Access Deny By Default Check'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.account.network.access.public.disabled
+    title: 'AZURE STORAGE Account: Network Access Public Disabled'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.network.bypass.azure.services.enabled
+    title: 'AZURE STORAGE Account: Network Bypass Azure Services Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.bypass
+        operator: contains
+        expected: AzureServices
+  - check_id: azure.storage.account.network.rule.trusted.services.check
+    title: 'AZURE STORAGE Account: Network Rule Trusted Services Check'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.bypass
+        operator: contains
+        expected: AzureServices
+  - check_id: azure.storage.account.private.endpoint.approved
+    title: 'AZURE STORAGE Account: Private Endpoint Approved'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.storage.account.public.network.access.disabled
+    title: 'AZURE STORAGE Account: Public Network Access Disabled'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.account.redundancy.check.geo.redundant
+    title: 'AZURE STORAGE Account: Redundancy Check Geo Redundant'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: in
+        expected:
+        - Standard_GRS
+        - Standard_RAGRS
+        - Standard_GZRS
+        - Standard_RAGZRS
+  - check_id: azure.storage.account.sas.https.only
+    title: 'AZURE STORAGE Account: Sas HTTPS Only'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.secure.transfer.enabled
+    title: 'AZURE STORAGE Account: Secure Transfer Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.secure_transport_policy
+    title: 'AZURE STORAGE Account: Secure Transport Policy'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: minimum_tls_version
+        operator: in
+        expected:
+        - TLS1_2
+        - TLS1_3
+  - check_id: azure.storage.account.shared.key.access.disabled.check
+    title: 'AZURE STORAGE Account: Shared Key Access Disabled Check'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.account.smb.channel.encryption.in.transit.aes256gcm
+    title: 'AZURE STORAGE Account: Smb Channel Encryption In Transit Aes256gcm'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: protocol_settings.smb.channel_encryption
+        operator: equals
+        expected: AES-256-GCM
+  - check_id: azure.storage.account.smb.channel.encryption.in.transit
+    title: 'AZURE STORAGE Account: Smb Channel Encryption In Transit'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: protocol_settings.smb.channel_encryption
+        operator: not_equals
+        expected: null
+  - check_id: azure.storage.account.smb.protocol.version.check
+    title: 'AZURE STORAGE Account: Smb Protocol Version Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: protocol_settings.smb.versions
+        operator: contains
+        expected: SMB3.1.1
+  - check_id: azure.storage.account.soft.delete.configuration.check
+    title: 'AZURE STORAGE Account: Soft Delete Configuration Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.account.table.service.logging.rw.delete.enabled
+    title: 'AZURE STORAGE Account: Table Service Logging Rw Delete Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: table_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_service_name: default
+      fields:
+      - path: logging.read
+        operator: equals
+        expected: true
+      - path: logging.write
+        operator: equals
+        expected: true
+      - path: logging.delete
+        operator: equals
+        expected: true
+  - check_id: azure.storage.accounts.private.endpoints.verification
+    title: 'AZURE STORAGE Accounts: Private Endpoints Verification'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: private_endpoint_connections
+        operator: not_empty
+        expected: true
+  - check_id: azure.storage.blob.data_protection_object_encrypted_at_rest
+    title: 'AZURE STORAGE Blob: Data Protection Object Encrypted At Rest'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.blob.data_protection_object_not_publicly_readable
+    title: 'AZURE STORAGE Blob: Data Protection Object Not Publicly Readable'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.blob.data_protection_object_object_lock_or_immutability_enabled_where_supported
+    title: 'AZURE STORAGE Blob: Data Protection Object Object Lock Or Immutability Enabled Where Supported'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: container_delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.bucket.cross.region.replication,.azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.aks.endpoints.not.publicly.accessible,.azure.virtual.network.endpoint.for.ec2.enabled,.azure.storage.account.level.public.access.blocks,.azure.awslambda.function.not.publicly.accessible,.azure.hdinsight.cluster.master.nodes.no.public.ip,.azure.compute.instance.public.ip,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.awslambda.function.inside.vpc,.azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured,.azure.automation.managed.compliant.patching,.azure.sql.cluster.default.admin,.azure.sql.instance.default.admin
+    title: 'AZURE STORAGE Bucket: Cross Region Replication, Azure Compute Ebs Public Snapshot, Azure Sql Instance No Public
+      Access, Azure Aks Endpoints Not Publicly Accessible, Azure Virtual Network Endpoint For Ec2 Enabled, Azure Storage Account
+      Level Public Access Blocks, Azure Awslambda Function Not Publicly Accessible, Azure Hdinsight Cluster Master Nodes No
+      Public Ip, Azure Compute Instance Public Ip, Azure Sql Snapshots Public Access, Azure Search Service Domains Not Publicly
+      Accessible, Azure Synapse Cluster Public Access, Azure Awslambda Function Inside Vpc, Azure Compute Securitygroup Allow
+      Ingress From Internet To Tcp Port 22, Azure Database Migration Instance No Public Access, Azure Machine Learning Notebook
+      Instance Without Direct Internet Access Configured, Azure Automation Managed Compliant Patching, Azure Sql Cluster Default
+      Admin, Azure Sql Instance Default Admin'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+      - path: sku.name
+        operator: in
+        expected:
+        - Standard_GRS
+        - Standard_RAGRS
+        - Standard_GZRS
+        - Standard_RAGZRS
+  - check_id: azure.storage.bucket.object.versioning
+    title: 'AZURE STORAGE Bucket: Object Versioning'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: is_versioning_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.bucket.server.access.logging.enabled,.azure.monitor.s3.dataevents.read.enabled,.azure.monitor.multi.region.enabled,.azure.monitor.cloudwatch.logging.enabled,.azure.synapse.cluster.audit.logging,.azure.policy.recorder.all.regions.enabled,.azure.storage.bucket.object.versioning,.azure.monitor.log.file.validation.enabled,.azure.storage.bucket.cross.region.replication
+    title: 'AZURE STORAGE Bucket: Server Access Logging Enabled, Azure Monitor S3 Dataevents Read Enabled, Azure Monitor Multi
+      Region Enabled, Azure Monitor Cloudwatch Logging Enabled, Azure Synapse Cluster Audit Logging, Azure Policy Recorder
+      All Regions Enabled, Azure Storage Bucket Object Versioning, Azure Monitor Log File Validation Enabled, Azure Storage
+      Bucket Cross Region Replication'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: cors.cors_rules[0].logging.read
+        operator: equals
+        expected: true
+      - path: cors.cors_rules[0].logging.write
+        operator: equals
+        expected: true
+      - path: cors.cors_rules[0].logging.delete
+        operator: equals
+        expected: true
+  - check_id: azure.storage.bucket.server.access.logging.enabled,.azure.monitor.s3.dataevents.read.enabled,.azure.monitor.multi.region.enabled,.azure.monitor.cloudwatch.logging.enabled,.azure.synapse.cluster.audit.logging
+    title: 'AZURE STORAGE Bucket: Server Access Logging Enabled, Azure Monitor S3 Dataevents Read Enabled, Azure Monitor Multi
+      Region Enabled, Azure Monitor Cloudwatch Logging Enabled, Azure Synapse Cluster Audit Logging'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: cors.cors_rules[0].logging.read
+        operator: equals
+        expected: true
+      - path: cors.cors_rules[0].logging.write
+        operator: equals
+        expected: true
+      - path: cors.cors_rules[0].logging.delete
+        operator: equals
+        expected: true
+  - check_id: azure.storage.container.locked.immutability.policy.enabled
+    title: 'AZURE STORAGE Container: Locked Immutability Policy Enabled'
+    severity: medium
+    for_each: azure.storage.containers
+    calls:
+    - action: blob_containers.get_immutability_policy
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        container_name: '{{name}}'
+      fields:
+      - path: state
+        operator: equals
+        expected: Locked
+  - check_id: azure.storage.disk.data_protection_volume_cmk_cmek_configured
+    title: 'AZURE STORAGE Disk: Data Protection Volume CMK Cmek Configured'
+    severity: medium
+    for_each: azure.storage.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: equals
+        expected: EncryptionAtRestWithCustomerKey
+  - check_id: azure.storage.disk.data_protection_volume_encryption_at_rest_enabled
+    title: 'AZURE STORAGE Disk: Data Protection Volume Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.storage.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: not_equals
+        expected: null
+  - check_id: azure.storage.disk.data_protection_volume_snapshots_encrypted
+    title: 'AZURE STORAGE Disk: Data Protection Volume Snapshots Encrypted'
+    severity: medium
+    for_each: azure.storage.snapshots
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: not_equals
+        expected: null
+  - check_id: azure.storage.file.share.soft.delete.enabled
+    title: 'AZURE STORAGE File: Share Soft Delete Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: file_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        file_services_name: default
+      fields:
+      - path: share_delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.file_share.data_protection_fileshare_encryption_at_rest_enabled
+    title: 'AZURE STORAGE File_share: Data Protection Fileshare Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.storage.file_shares
+    calls:
+    - action: file_shares.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        share_name: '{{name}}'
+      fields:
+      - path: enabled_protocols
+        operator: not_equals
+        expected: NFS
+  - check_id: azure.storage.file_share.data_protection_fileshare_private_network_only
+    title: 'AZURE STORAGE File_share: Data Protection Fileshare Private Network Only'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.file_share.data_protection_fileshare_snapshots_enabled
+    title: 'AZURE STORAGE File_share: Data Protection Fileshare Snapshots Enabled'
+    severity: low
+    for_each: azure.storage.file_shares
+    calls:
+    - action: file_shares.list_snapshots
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        share_name: '{{name}}'
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.storage.nfs.root.squash.check
+    title: 'AZURE STORAGE Nfs: Root Squash Check'
+    severity: critical
+    for_each: azure.storage.file_shares
+    calls:
+    - action: file_shares.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        share_name: '{{name}}'
+      fields:
+      - path: root_squash
+        operator: equals
+        expected: RootSquash
+  - check_id: azure.storage.private.endpoint.presence.and.configuration.check
+    title: 'AZURE STORAGE Private: Endpoint Presence And Configuration Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.storage.queue.data_protection_auth_required
+    title: 'AZURE STORAGE Queue: Data Protection Auth Required'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+  - check_id: azure.storage.queue.data_protection_cross_account_send_receive_restricted
+    title: 'AZURE STORAGE Queue: Data Protection Cross Account Send Receive Restricted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.queue.data_protection_encryption_at_rest_enabled
+    title: 'AZURE STORAGE Queue: Data Protection Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.queue.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.queue.data_protection_private_network_only_where_supported
+    title: 'AZURE STORAGE Queue: Data Protection Private Network Only Where Supported'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.queue.logging.read.write.delete.enabled
+    title: 'AZURE STORAGE Queue: Logging Read Write Delete Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: queue_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        queue_service_name: default
+      fields:
+      - path: logging.read
+        operator: equals
+        expected: true
+      - path: logging.write
+        operator: equals
+        expected: true
+      - path: logging.delete
+        operator: equals
+        expected: true
+  - check_id: azure.storage.s3.dataevents.read.enabled
+    title: 'AZURE STORAGE S3: Dataevents Read Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: logging.read
+        operator: equals
+        expected: true
+  - check_id: azure.storage.s3.dataevents.write.enabled
+    title: 'AZURE STORAGE S3: Dataevents Write Enabled'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: logging.write
+        operator: equals
+        expected: true
+  - check_id: azure.storage.sas.expiration.check
+    title: 'AZURE STORAGE Sas: Expiration Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: sas_policy.expiration_action
+        operator: equals
+        expected: Log
+  - check_id: azure.storage.sas.https.only.check
+    title: 'AZURE STORAGE Sas: HTTPS Only Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: enable_https_traffic_only
+        operator: equals
+        expected: true
+  - check_id: azure.storage.sas.linked.to.stored.access.policy
+    title: 'AZURE STORAGE Sas: Linked To Stored Access Policy'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: sas_policy.sas_expiration_period
+        operator: not_equals
+        expected: null
+  - check_id: azure.storage.sas.policy.compliance.check
+    title: 'AZURE STORAGE Sas: Policy Compliance Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: sas_policy.sas_expiration_period
+        operator: not_null
+        expected: true
+      - path: sas_policy.expiration_action
+        operator: equals
+        expected: Log
+  - check_id: azure.storage.sas.token.expiration.check
+    title: 'AZURE STORAGE Sas: Token Expiration Check'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: sas_policy.sas_expiration_period
+        operator: less_than_or_equal
+        expected: 7.00:00:00
+  - check_id: azure.storage.snapshot.data_protection_cross_region_copy_encrypted
+    title: 'AZURE STORAGE Snapshot: Data Protection Cross Region Copy Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.require_infrastructure_encryption
+        operator: equals
+        expected: true
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.snapshot.data_protection_encrypted
+    title: 'AZURE STORAGE Snapshot: Data Protection Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        blob_services_name: default
+      fields:
+      - path: container_delete_retention_policy.enabled
+        operator: equals
+        expected: true
+      - path: delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.snapshot.data_protection_not_public
+    title: 'AZURE STORAGE Snapshot: Data Protection Not Public'
+    severity: critical
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_blob_public_access
+        operator: equals
+        expected: false
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.storage.table.data_protection_encryption_at_rest_enabled
+    title: 'AZURE STORAGE Table: Data Protection Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.table.enabled
+        operator: equals
+        expected: true
+      - path: encryption.key_source
+        operator: not_equals
+        expected: null
+  - check_id: azure.storage.table.data_protection_global_cross_region_replication_encrypted
+    title: 'AZURE STORAGE Table: Data Protection Global Cross Region Replication Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: geo_replication_stats.status
+        operator: equals
+        expected: Live
+      - path: encryption.services.table.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.table.data_protection_global_encryption_at_rest_all_regions
+    title: 'AZURE STORAGE Table: Data Protection Global Encryption At Rest All Regions'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.table.enabled
+        operator: equals
+        expected: true
+      - path: encryption.require_infrastructure_encryption
+        operator: equals
+        expected: true
+  - check_id: azure.storage.table.data_protection_global_pitr_enabled_where_supported
+    title: 'AZURE STORAGE Table: Data Protection Global Pitr Enabled Where Supported'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: table_services.get_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_service_name: default
+      fields:
+      - path: cors.cors_rules
+        operator: not_null
+        expected: true
+  - check_id: azure.storage.table.data_protection_private_network_only_where_supported
+    title: 'AZURE STORAGE Table: Data Protection Private Network Only Where Supported'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.storage.table.data_protection_rbac_least_privilege
+    title: 'AZURE STORAGE Table: Data Protection RBAC Least Privilege'
+    severity: high
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: allow_shared_key_access
+        operator: equals
+        expected: false
+      - path: default_to_o_auth_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.storage.threat_custom_identifier.storage_encrypted
+    title: 'AZURE AZURE Threat_custom_identifier: Storage Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Storage
+  - check_id: azure.storage.threat_ip_set.storage_encrypted
+    title: 'AZURE AZURE Threat_ip_set: Storage Encrypted'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Storage
+  - check_id: azure.storage.account.readonly.lock.compliance.check
+    title: 'AZURE STORAGE Account: Readonly Lock Compliance Check'
+    severity: low
+    for_each: azure.storage.account
+    calls:
+    - action: management_locks.list_by_scope
+      fields:
+      - path: value[?level=='ReadOnly'].level
+        operator: contains
+        expected: ReadOnly
+  - check_id: azure.storage.account.cannot.delete.lock.applied
+    title: 'AZURE STORAGE Account: Cannot Delete Lock Applied'
+    severity: low
+    for_each: azure.storage.account
+    calls:
+    - action: management_locks.list_by_scope
+      fields:
+      - path: value[?level=='CanNotDelete']
+        operator: not_empty
+        expected: true
+  - check_id: azure.storage.account.readonly.lock.check
+    title: 'AZURE STORAGE Account: Readonly Lock Check'
+    severity: low
+    for_each: azure.storage.account
+    calls:
+    - action: management_locks.list_by_scope
+      fields:
+      - path: value[?level=='ReadOnly'].level
+        operator: contains
+        expected: ReadOnly
+  - check_id: azure.storage.account.cannot.delete.lock.check
+    title: 'AZURE STORAGE Account: Cannot Delete Lock Check'
+    severity: low
+    for_each: azure.storage.account
+    calls:
+    - action: management_locks.list_by_scope
+      fields:
+      - path: value[?level=='CanNotDelete']
+        operator: not_empty
+        expected: true
+  - check_id: azure.storage.bucket.lifecycle.enabled
+    title: 'AZURE STORAGE Bucket: Lifecycle Management Enabled'
+    severity: medium
+    for_each: azure.storage.bucket
+    calls:
+    - action: storage_management_client.management_policies.get
+      fields:
+      - path: policy.rules
+        operator: exists
+        expected: true

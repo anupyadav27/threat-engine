@@ -1,0 +1,113 @@
+billing:
+  version: '1.0'
+  provider: azure
+  service: billing
+  package: azure-mgmt-billing
+  client_class: BillingManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.billing.savings_plans
+    calls:
+    - client: billing
+      action: savings_plans.list_all
+      save_as: savings_plans
+  - discovery_id: azure.billing.reservations
+    calls:
+    - client: billing
+      action: reservations.list_all
+      save_as: reservations
+  checks:
+  - check_id: azure.billing.savings_plan.cost_admins_mfa_required
+    title: 'AZURE BILLING Savings Plan: Cost Admins MFA Required'
+    severity: critical
+    for_each: azure.billing.savings_plans
+    calls:
+    - action: role_assignments.list_by_savings_plan
+      params:
+        savings_plan_id: '{{savings_plan_id}}'
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Cost Management Contributor')].properties.principal_id
+        operator: exists
+    - action: conditional_access_policies.list
+      params: {}
+      fields:
+      - path: value[?(@.conditions.applications.include_applications contains 'Microsoft.Billing' && @.grant_controls.built_in_controls
+          contains 'mfa')].id
+        operator: exists
+  - check_id: azure.billing.reservation.cost_admins_mfa_required
+    title: 'AZURE BILLING Reservation: Cost Admins MFA Required'
+    severity: critical
+    for_each: azure.billing.reservations
+    calls:
+    - action: role_assignments.list_by_reservation_order
+      params:
+        reservation_order_id: '{{reservation_order_id}}'
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Reservation Purchaser')].properties.principal_id
+        operator: exists
+    - action: conditional_access_policies.list
+      params: {}
+      fields:
+      - path: value[?(@.conditions.applications.include_applications contains 'Microsoft.Capacity' && @.grant_controls.built_in_controls
+          contains 'mfa')].id
+        operator: exists
+  - check_id: azure.billing.savings_plan.cost_approval_workflow_required
+    title: 'AZURE BILLING Savings Plan: Cost Approval Workflow Required'
+    severity: low
+    for_each: azure.billing.savings_plans
+    calls:
+    - action: savings_plans.get
+      params:
+        savings_plan_id: '{{savings_plan_id}}'
+      fields:
+      - path: properties.purchase_request.approval_required
+        operator: equals
+        expected: true
+  - check_id: azure.billing.reservation.cost_purchase_permissions_restricted
+    title: 'AZURE BILLING Reservation: Cost Purchase Permissions Restricted'
+    severity: low
+    for_each: azure.billing.reservations
+    calls:
+    - action: role_assignments.list_by_reservation_order
+      params:
+        reservation_order_id: '{{reservation_order_id}}'
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Reservation Purchaser')].length
+        operator: lte
+        expected: 3
+  - check_id: azure.billing.savings_plan.cost_purchase_permissions_restricted
+    title: 'AZURE BILLING Savings Plan: Cost Purchase Permissions Restricted'
+    severity: low
+    for_each: azure.billing.savings_plans
+    calls:
+    - action: role_assignments.list_by_savings_plan
+      params:
+        savings_plan_id: '{{savings_plan_id}}'
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Cost Management Contributor')].length
+        operator: lte
+        expected: 5
+  - check_id: azure.billing.reservation.cost_budget_alerts_configured
+    title: 'AZURE BILLING Reservation: Cost Budget Alerts Configured'
+    severity: medium
+    for_each: azure.billing.reservations
+    calls:
+    - action: budgets.list
+      params: {}
+      fields:
+      - path: value[?(@.properties.filters.resources contains '{{reservation_id}}')].properties.notifications
+        operator: exists
+  - check_id: azure.billing.reservation.cost_approval_workflow_required
+    title: 'AZURE BILLING Reservation: Cost Approval Workflow Required'
+    severity: low
+    for_each: azure.billing.reservation
+    calls:
+    - action: self
+      fields:
+      - path: properties.provisioningState
+        operator: not_equals
+        expected: PendingApproval
+      - path: properties.purchaseRequest.appliedScopeType
+        operator: exists
+      - path: properties.purchaseRequest.reviewDateTime
+        operator: not_exists

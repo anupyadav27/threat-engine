@@ -1,0 +1,1324 @@
+backup:
+  version: '1.0'
+  provider: azure
+  service: backup
+  package: azure-mgmt-recoveryservices
+  client_class: RecoveryServicesClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.backup.vaults
+    calls:
+    - client: backup
+      action: vaults.list_by_subscription
+      save_as: vaults
+  - discovery_id: azure.backup.policies
+    calls:
+    - client: backup
+      action: backup_policies.list
+      save_as: policies
+  - discovery_id: azure.backup.jobs
+    calls:
+    - client: backup
+      action: backup_jobs.list
+      save_as: jobs
+  - discovery_id: azure.backup.protected_items
+    calls:
+    - client: backup
+      action: backup_protected_items.list
+      save_as: protected_items
+  checks:
+  - check_id: azure.backup.policy.dr_immutable_or_worm_enabled_where_supported
+    title: 'AZURE BACKUP Policy: DR Immutable Or WORM Enabled Where Supported'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.immutability_policy.state
+        operator: equals
+        expected: Locked
+  - check_id: azure.backup.recovery.services.vault.soft.delete.settings
+    title: 'AZURE BACKUP Recovery: Services Vault Soft Delete Settings'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.soft_delete_feature_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.policy.min_retention_configured
+    title: 'AZURE BACKUP Policy: Min Retention Configured'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.daily_schedule.retention_duration.count
+        operator: gte
+        expected: 30
+  - check_id: azure.backup.protected_item.resilience_dr_source_min_telemtry_required_no_pii
+    title: 'AZURE BACKUP Protected Item: Resilience DR Source Min Telemetry Required No PII'
+    severity: low
+    for_each: azure.backup.protected_items
+    calls:
+    - action: backup_protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.source_resource_id
+        operator: exists
+  - check_id: azure.backup.job.monitoring_alert_rules_for_failures_configured
+    title: 'AZURE BACKUP Job: Monitoring Alert Rules For Failures Configured'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: alert_rules.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[?(@.properties.condition.data_source.resource_uri contains 'Microsoft.RecoveryServices')].name
+        operator: exists
+  - check_id: azure.backup.vault.encryption.customer_managed_keys
+    title: 'AZURE BACKUP Vault: Encryption Customer Managed Keys'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_at_rest_type
+        operator: equals
+        expected: CustomerManaged
+  - check_id: azure.backup.vault.cross_region_restore_enabled
+    title: 'AZURE BACKUP Vault: Cross Region Restore Enabled'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_storage_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.cross_region_restore_flag
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.backup_frequency_configured
+    title: 'AZURE BACKUP Policy: Backup Frequency Configured'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.schedule_policy.schedule_run_frequency
+        operator: exists
+  - check_id: azure.backup.policy.geo_redundant_storage
+    title: 'AZURE BACKUP Policy: Geo Redundant Storage'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_storage_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.storage_type
+        operator: equals
+        expected: GeoRedundant
+  - check_id: azure.backup.vault.private_endpoint_configured
+    title: 'AZURE BACKUP Vault: Private Endpoint Configured'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: value[0].properties.connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.backup.job.failure_notification_configured
+    title: 'AZURE BACKUP Job: Failure Notification Configured'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.enhanced_security_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.policy.long_term_retention_configured
+    title: 'AZURE BACKUP Policy: Long Term Retention Configured'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.yearly_schedule
+        operator: exists
+  - check_id: azure.backup.vault.security_pin_enabled
+    title: 'AZURE BACKUP Vault: Security PIN Enabled'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_security_pin.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.resource_guard_operation_requests
+        operator: exists
+  - check_id: azure.backup.protected_item.backup_status_healthy
+    title: 'AZURE BACKUP Protected Item: Backup Status Healthy'
+    severity: high
+    for_each: azure.backup.protected_items
+    calls:
+    - action: backup_protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.protection_state
+        operator: equals
+        expected: Protected
+  - check_id: azure.backup.vault.resource_guard_enabled
+    title: 'AZURE BACKUP Vault: Resource Guard Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_guard_proxies.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: value[0].properties.resource_guard_resource_id
+        operator: exists
+  - check_id: azure.backup.policy.instant_restore_retention
+    title: 'AZURE BACKUP Policy: Instant Restore Retention'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.instant_rp_retention_range_in_days
+        operator: gte
+        expected: 2
+  - check_id: azure.backup.vault.multi_user_authorization
+    title: 'AZURE BACKUP Vault: Multi User Authorization'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.is_soft_delete_feature_state_editable
+        operator: equals
+        expected: false
+  - check_id: azure.backup.job.backup_completion_monitoring
+    title: 'AZURE BACKUP Job: Backup Completion Monitoring'
+    severity: medium
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.status
+        operator: equals
+        expected: Completed
+  - check_id: azure.backup.policy.timezone_configured
+    title: 'AZURE BACKUP Policy: Timezone Configured'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.time_zone
+        operator: exists
+  - check_id: azure.backup.vault.system_identity_enabled
+    title: 'AZURE BACKUP Vault: System Identity Enabled'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+  - check_id: azure.backup.protected_item.last_backup_time_recent
+    title: 'AZURE BACKUP Protected Item: Last Backup Time Recent'
+    severity: high
+    for_each: azure.backup.protected_items
+    calls:
+    - action: protected_items.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.last_backup_time
+        operator: exists
+  - check_id: azure.backup.vault.backup_storage_redundancy
+    title: 'AZURE BACKUP Vault: Backup Storage Redundancy'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_storage_configs.get
+      params:
+        vault_name: '{{name}}'
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: properties.storage_model_type
+        operator: equals
+        expected: GeoRedundant
+  - check_id: azure.backup.policy.weekly_retention_enabled
+    title: 'AZURE BACKUP Policy: Weekly Retention Enabled'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.weekly_schedule
+        operator: exists
+  - check_id: azure.backup.vault.public_network_access_disabled
+    title: 'AZURE BACKUP Vault: Public Network Access Disabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.backup.job.restore_point_availability
+    title: 'AZURE BACKUP Job: Restore Point Availability'
+    severity: medium
+    for_each: azure.backup.protected_items
+    calls:
+    - action: recovery_points.list
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: value[0].name
+        operator: exists
+  - check_id: azure.backup.policy.monthly_retention_configured
+    title: 'AZURE BACKUP Policy: Monthly Retention Configured'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.monthly_schedule
+        operator: exists
+  - check_id: azure.backup.vault.immutable_vault_enabled
+    title: 'AZURE BACKUP Vault: Immutable Vault Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: vault_configs.get
+      params:
+        vault_name: '{{name}}'
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: properties.immutability_settings.state
+        operator: equals
+        expected: Locked
+  - check_id: azure.backup.protected_item.policy_compliance
+    title: 'AZURE BACKUP Protected Item: Policy Compliance'
+    severity: medium
+    for_each: azure.backup.protected_items
+    calls:
+    - action: protected_items.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.policy_id
+        operator: exists
+  - check_id: azure.backup.vault.backup_management_type_configured
+    title: 'AZURE BACKUP Vault: Backup Management Type Configured'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: protection_containers.list
+      params:
+        vault_name: '{{name}}'
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[0].properties.backup_management_type
+        operator: exists
+  - check_id: azure.backup.job.backup_item_count_monitoring
+    title: 'AZURE BACKUP Job: Backup Item Count Monitoring'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_protected_items.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.backup.policy.backup_schedule_optimized
+    title: 'AZURE BACKUP Policy: Backup Schedule Optimized'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.schedule_policy.schedule_run_times
+        operator: exists
+  - check_id: azure.backup.vault.upgrade_to_enhanced_policy
+    title: 'AZURE BACKUP Vault: Upgrade To Enhanced Policy'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.policy_type
+        operator: equals
+        expected: V2
+  - check_id: azure.backup.protected_item.health_status_monitoring
+    title: 'AZURE BACKUP Protected Item: Health Status Monitoring'
+    severity: high
+    for_each: azure.backup.protected_items
+    calls:
+    - action: backup_protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.health_status
+        operator: equals
+        expected: Passed
+  - check_id: azure.backup.vault.backup_infrastructure_encryption
+    title: 'AZURE BACKUP Vault: Backup Infrastructure Encryption'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_encryption_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.infrastructure_encryption
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.job.critical_operation_monitoring
+    title: 'AZURE BACKUP Job: Critical Operation Monitoring'
+    severity: high
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.operation
+        operator: exists
+  - check_id: azure.backup.policy.application_consistent_backup
+    title: 'AZURE BACKUP Policy: Application Consistent Backup'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.sub_protection_policy
+        operator: exists
+  - check_id: azure.backup.vault.cross_subscription_restore_settings
+    title: 'AZURE BACKUP Vault: Cross Subscription Restore Settings'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.cross_subscription_restore_settings.cross_subscription_restore_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.protected_item.backup_readiness_status
+    title: 'AZURE BACKUP Protected Item: Backup Readiness Status'
+    severity: medium
+    for_each: azure.backup.protected_items
+    calls:
+    - action: backup_protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.protection_status
+        operator: equals
+        expected: Healthy
+  - check_id: azure.backup.vault.monitoring_and_reporting_configured
+    title: 'AZURE BACKUP Vault: Monitoring And Reporting Configured'
+    severity: medium
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.are_notifications_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.job.restore_operation_validation
+    title: 'AZURE BACKUP Job: Restore Operation Validation'
+    severity: high
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag
+        operator: exists
+  - check_id: azure.backup.policy.backup_tier_management
+    title: 'AZURE BACKUP Policy: Backup Tier Management'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.tiering_policy
+        operator: exists
+  - check_id: azure.backup.protected_item.data_source_validation
+    title: 'AZURE BACKUP Protected Item: Data Source Validation'
+    severity: medium
+    for_each: azure.backup.protected_items
+    calls:
+    - action: backup_protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.workload_type
+        operator: exists
+  - check_id: azure.backup.vault.security_features_enabled
+    title: 'AZURE BACKUP Vault: Security Features Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.security_settings.soft_delete_settings.soft_delete_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.job.performance_optimization_monitoring
+    title: 'AZURE BACKUP Job: Performance Optimization Monitoring'
+    severity: low
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.duration
+        operator: exists
+  - check_id: azure.backup.policy.smart_tiering_enabled
+    title: 'AZURE BACKUP Policy: Smart Tiering Enabled'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.make_policy_consistent
+        operator: equals
+        expected: true
+  - check_id: azure.backup.vault.disaster_recovery_preparedness
+    title: 'AZURE BACKUP Vault: Disaster Recovery Preparedness'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: replication_alert_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: properties.send_to_owners
+        operator: equals
+        expected: Send
+  - check_id: azure.backup.backup_job.resilience_logs_enabled
+    title: 'AZURE AZURE Dr_job: Resilience Logs Enabled'
+    severity: low
+    for_each: azure.backup.dr_jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.logging_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.backup_job.resilience_network_private_only
+    title: 'AZURE AZURE Dr_job: Resilience Network Private Only'
+    severity: medium
+    for_each: azure.backup.dr_jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.network_access
+        operator: equals
+        expected: Private
+  - check_id: azure.backup.backup_job.resilience_roles_least_privilege
+    title: 'AZURE AZURE Dr_job: Resilience Roles Least Privilege'
+    severity: high
+    for_each: azure.backup.dr_jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.role_assignments
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.backup.job.monitoring_alert_destinations_configured
+    title: 'AZURE BACKUP Job: Monitoring Alert Destinations Configured'
+    severity: medium
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.alert_destinations
+        operator: not_empty
+        expected: true
+  - check_id: azure.backup.job.monitoring_alert_rules_for_sla_breach_configured
+    title: 'AZURE BACKUP Job: Monitoring Alert Rules For Sla Breach Configured'
+    severity: medium
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.sla_breach_alert_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.job.monitoring_metrics_export_enabled
+    title: 'AZURE BACKUP Job: Monitoring Metrics Export Enabled'
+    severity: medium
+    for_each: azure.backup.jobs
+    calls:
+    - action: backup_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        job_name: '{{name}}'
+      fields:
+      - path: properties.extended_info.property_bag.metrics_export_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.access_backup_admins_mfa_required
+    title: 'AZURE BACKUP Policy: Access Backup Admins MFA Required'
+    severity: critical
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.security_settings.mfa_required
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.access_backup_keys_access_least_privilege
+    title: 'AZURE BACKUP Policy: Access Backup Keys Access Least Privilege'
+    severity: high
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.security_settings.key_access_level
+        operator: equals
+        expected: ReadOnly
+  - check_id: azure.backup.policy.access_backup_vault_rbac_least_privilege
+    title: 'AZURE BACKUP Policy: Access Backup Vault RBAC Least Privilege'
+    severity: high
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.security_settings.rbac_settings.least_privilege_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.access_no_public_access_to_backup_vault
+    title: 'AZURE BACKUP Policy: Access No Public Access To Backup Vault'
+    severity: critical
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.security_settings.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.backup.policy.configured
+    title: 'AZURE BACKUP Policy: Configured'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.schedule_policy
+        operator: not_empty
+        expected: true
+  - check_id: azure.backup.policy.dr_destination_private_only
+    title: 'AZURE BACKUP Policy: DR Destination Private Only'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.destination_settings.network_access
+        operator: equals
+        expected: Private
+  - check_id: azure.backup.policy.dr_encrypted_at_rest_cmek
+    title: 'AZURE BACKUP Policy: DR Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_settings.encryption_key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+  - check_id: azure.backup.policy.dr_schedule_defined_min_frequency
+    title: 'AZURE BACKUP Policy: DR Schedule Defined Min Frequency'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.schedule_policy.schedule_run_frequency
+        operator: in
+        expected:
+        - Daily
+        - Weekly
+  - check_id: azure.backup.policy.resilience_recovery_coverage_assignment_complete
+    title: 'AZURE BACKUP Policy: Resilience Recovery Coverage Assignment Complete'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.protected_items_count
+        operator: greater_than
+        expected: 0
+  - check_id: azure.backup.policy.resilience_recovery_coverage_unprotected_assets_alerting_enabled
+    title: 'AZURE BACKUP Policy: Resilience Recovery Coverage Unprotected Assets Alerting Enabled'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.alert_settings.unprotected_assets_alert_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.resilience_recovery_health_failed_jobs_alerting_enabled
+    title: 'AZURE BACKUP Policy: Resilience Recovery Health Failed Jobs Alerting Enabled'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.alert_settings.failed_jobs_alert_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.policy.resilience_recovery_health_job_success_rate_minimum
+    title: 'AZURE BACKUP Policy: Resilience Recovery Health Job Success Rate Minimum'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.health_settings.minimum_success_rate
+        operator: greater_than_or_equal
+        expected: 95
+  - check_id: azure.backup.policy.resilience_recovery_health_last_backup_recency_within_days
+    title: 'AZURE BACKUP Policy: Resilience Recovery Health Last Backup Recency Within Days'
+    severity: medium
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.health_settings.last_backup_recency_days
+        operator: less_than_or_equal
+        expected: 7
+  - check_id: azure.backup.policy.resilience_recovery_inventory_resource_discovery_synced
+    title: 'AZURE BACKUP Policy: Resilience Recovery Inventory Resource Discovery Synced'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        policy_name: '{{name}}'
+      fields:
+      - path: properties.inventory_settings.resource_discovery_synced
+        operator: equals
+        expected: true
+  - check_id: azure.backup.protected_item.resilience_dr_source_agent_to_service_tls_required
+    title: 'AZURE AZURE Dr_source_server: Resilience DR Source Agent To Service TLS Required'
+    severity: medium
+    for_each: azure.backup.protected_items
+    calls:
+    - action: protected_items.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{vault_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{name}}'
+      fields:
+      - path: properties.source_resource_id
+        operator: exists
+        expected: true
+      - path: properties.policy_info.policy_id
+        operator: exists
+        expected: true
+  - check_id: azure.backup.protected_item.resilience_dr_source_encryption_at_rest_cmek_where_supported
+    title: 'AZURE AZURE Dr_source_server: Resilience DR Source Encryption At Rest Cmek Where Supported'
+    severity: high
+    for_each: azure.backup.protected_items
+    calls:
+    - action: self
+      fields:
+      - path: properties.kek_details.key_url
+        operator: exists
+        expected: true
+      - path: properties.encryption_details.encryption_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.recovery.point_encrypted
+    title: 'AZURE BACKUP Resource: Recovery Point Encrypted'
+    severity: medium
+    for_each: azure.backup.recovery_points
+    calls:
+    - action: self
+      fields:
+      - path: properties.is_source_vm_encrypted
+        operator: equals
+        expected: true
+      - path: properties.encryption_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.backup.recovery.point_retention_configured
+    title: 'AZURE BACKUP Resource: Recovery Point Retention'
+    severity: low
+    for_each: azure.backup.policies
+    calls:
+    - action: backup_policies.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: properties.retention_policy.retention_policy_type
+        operator: exists
+        expected: true
+      - path: properties.retention_policy.daily_schedule.retention_duration.count
+        operator: greater_than
+        expected: 0
+  - check_id: azure.backup.recovery.services.vault.infrastructure.encryption.enabled.check
+    title: 'AZURE BACKUP Recovery: Services Vault Infrastructure Encryption Enabled Check'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.infrastructure_encryption
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption_at_rest_type
+        operator: equals
+        expected: CustomerManaged
+  - check_id: azure.backup.recovery.services.vault.public.network.access.disabled
+    title: 'AZURE BACKUP Recovery: Services Vault Public Network Access Disabled'
+    severity: critical
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_plan.resilience_approvals_required_for_changes
+    title: 'AZURE AZURE Dr_plan: Resilience Approvals Required For Changes'
+    severity: low
+    for_each: azure.backup.recovery_plans
+    calls:
+    - action: replication_recovery_plans.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        recovery_plan_name: '{{recovery_plan_name}}'
+      fields:
+      - path: properties.allowed_operations
+        operator: not_contains
+        expected: PlannedFailover
+      - path: properties.current_scenario_status.scenario_name
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_plan.resilience_change_audit_logging_enabled
+    title: 'AZURE AZURE Dr_plan: Resilience Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.backup.recovery_plans
+    calls:
+    - action: replication_recovery_plans.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        recovery_plan_name: '{{recovery_plan_name}}'
+      fields:
+      - path: properties.replication_providers
+        operator: exists
+        expected: true
+      - path: properties.failover_deployment_model
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_plan.resilience_storage_encrypted_and_private
+    title: 'AZURE AZURE Dr_plan: Resilience Storage Encrypted And Private'
+    severity: medium
+    for_each: azure.backup.recovery_plans
+    calls:
+    - action: replication_recovery_plans.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        recovery_plan_name: '{{recovery_plan_name}}'
+      fields:
+      - path: properties.groups[*].group_type
+        operator: equals
+        expected: Protected
+      - path: properties.groups[*].replication_protected_items[*].recovery_azure_storage_account
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_point.resilience_recovery_instance_private_network_only
+    title: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Private Network Only'
+    severity: medium
+    for_each: azure.backup.recovery_points
+    calls:
+    - action: recovery_points.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{item_name}}'
+        recovery_point_id: '{{recovery_point_id}}'
+      fields:
+      - path: properties.recovery_point_properties.is_private_access_enabled_on_any_disk
+        operator: equals
+        expected: true
+      - path: properties.recovery_point_properties.recovery_point_move_readiness_info
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_point.resilience_recovery_instance_security_groups_restrictive
+    title: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Security Groups Restrictive'
+    severity: low
+    for_each: azure.backup.recovery_points
+    calls:
+    - action: recovery_points.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{item_name}}'
+        recovery_point_id: '{{recovery_point_id}}'
+      fields:
+      - path: properties.recovery_point_properties.security_type
+        operator: equals
+        expected: TrustedLaunch
+      - path: properties.recovery_point_properties.recovery_point_tier_details
+        operator: exists
+        expected: true
+  - check_id: azure.backup.recovery_point.resilience_recovery_instance_volumes_encrypted
+    title: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Volumes Encrypted'
+    severity: medium
+    for_each: azure.backup.recovery_points
+    calls:
+    - action: recovery_points.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group_name}}'
+        fabric_name: '{{fabric_name}}'
+        container_name: '{{container_name}}'
+        protected_item_name: '{{item_name}}'
+        recovery_point_id: '{{recovery_point_id}}'
+      fields:
+      - path: properties.is_source_vm_encrypted
+        operator: equals
+        expected: true
+      - path: properties.key_and_secret_details.encryption_mechanism
+        operator: exists
+        expected: true
+  - check_id: azure.backup.vault.cross.region.restore.check
+    title: 'AZURE BACKUP Vault: Cross Region Restore Check'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+        vault_config_name: vaultconfig
+      fields:
+      - path: is_cross_region_restore_enabled
+        operator: equals
+        expected: true
+      - path: cross_region_restore_flag
+        operator: equals
+        expected: true
+  - check_id: azure.backup.vault.cross.subscription.restore.check
+    title: 'AZURE BACKUP Vault: Cross Subscription Restore Check'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+        vault_config_name: vaultconfig
+      fields:
+      - path: cross_subscription_restore_settings
+        operator: exists
+        expected: true
+      - path: cross_subscription_restore_settings.cross_subscription_restore_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.vault.enabled_for_vms
+    title: 'AZURE BACKUP Resource: Enabled For Vms'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.provisioning_state
+        operator: equals
+        expected: Succeeded
+      - path: properties.upgrade_details.status
+        operator: not_equals
+        expected: InProgress
+  - check_id: azure.backup.vault.encryption_backup_storage_immutability_enabled
+    title: 'AZURE BACKUP Vault: Encryption Backup Storage Immutability Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+        vault_config_name: vaultconfig
+      fields:
+      - path: immutability_settings.state
+        operator: equals
+        expected: Locked
+      - path: soft_delete_settings.soft_delete_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.vault.encryption_cmk_cmek_key_configured
+    title: 'AZURE BACKUP Vault: Encryption CMK Cmek Key Configured'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest_type
+        operator: equals
+        expected: CustomerManaged
+      - path: key_uri
+        operator: exists
+        expected: true
+  - check_id: azure.backup.vault.encryption_enabled
+    title: 'AZURE BACKUP Resource: Backup Encryption Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest_type
+        operator: in
+        expected:
+        - CustomerManaged
+        - MicrosoftManaged
+      - path: last_update_status
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.backup.vault.encryption_encryption_at_rest_enabled
+    title: 'AZURE BACKUP Vault: Encryption Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest_type
+        operator: not_equals
+        expected: Invalid
+      - path: infrastructure_encryption
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.vault.encryption_encryption_in_transit_tls_min_1_2
+    title: 'AZURE BACKUP Vault: Encryption Encryption In Transit TLS Min 1 2'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+        vault_config_name: vaultconfig
+      fields:
+      - path: enhanced_security_state
+        operator: equals
+        expected: Enabled
+      - path: soft_delete_settings.soft_delete_retention_period_in_days
+        operator: greater_than_or_equal
+        expected: 14
+  - check_id: azure.backup.vault.encryption_key_policy_least_privilege
+    title: 'AZURE BACKUP Vault: Encryption Key Policy Least Privilege'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest_type
+        operator: equals
+        expected: CustomerManaged
+      - path: key_uri
+        operator: not_empty
+        expected: true
+      - path: infrastructure_encryption
+        operator: equals
+        expected: Enabled
+  - check_id: azure.backup.vault.encryption_key_rotation_enabled
+    title: 'AZURE BACKUP Vault: Encryption Key Rotation Enabled'
+    severity: high
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_resource_encryption_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+        backup_resource_encryption_config_name: backupResourceEncryptionConfig
+      fields:
+      - path: key_rotation_enabled
+        operator: equals
+        expected: true
+      - path: last_key_rotation_timestamp
+        operator: not_empty
+        expected: true
+  - check_id: azure.backup.vault.immutability.locked
+    title: 'AZURE BACKUP Vault: Immutability Locked'
+    severity: low
+    for_each: azure.backup.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: immutability_settings.state
+        operator: equals
+        expected: Locked
+  - check_id: azure.backup.vault.soft_delete_enabled
+    title: 'AZURE BACKUP Resource: Vault Soft Delete Enabled'
+    severity: low
+    for_each: azure.backup.resources
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: soft_delete_feature_state
+        operator: equals
+        expected: Enabled
+      - path: enhanced_security_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.recoveryservices.vault.cross.subscription.restore.disabled
+    title: 'AZURE RECOVERYSERVICES Vault: Cross Subscription Restore Disabled'
+    severity: medium
+    for_each: azure.recoveryservices.vaults
+    calls:
+    - action: backup_vault_configs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vault_name: '{{name}}'
+      fields:
+      - path: cross_subscription_restore_settings.cross_subscription_restore_state
+        operator: equals
+        expected: Disabled
+  - check_id: azure.recoveryservices.vault.encryption.at.rest.cmk.enabled
+    title: 'AZURE RECOVERYSERVICES Vault: Encryption At Rest CMK Enabled'
+    severity: high
+    for_each: azure.recoveryservices.vaults
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest_type
+        operator: equals
+        expected: CustomerManaged
+      - path: key_uri
+        operator: not_empty
+        expected: true

@@ -1,0 +1,1126 @@
+synapse:
+  version: '1.0'
+  provider: azure
+  service: synapse
+  package: azure-mgmt-synapse
+  client_class: SynapseManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.synapse.workspaces
+    calls:
+    - client: synapse
+      action: workspaces.list
+      save_as: workspaces
+  - discovery_id: azure.synapse.big_data_pools
+    calls:
+    - client: synapse
+      action: big_data_pools.list_by_workspace
+      save_as: big_data_pools
+  - discovery_id: azure.synapse.sql_pools
+    calls:
+    - client: synapse
+      action: sql_pools.list_by_workspace
+      save_as: sql_pools
+  - discovery_id: azure.synapse.integration_runtimes
+    calls:
+    - client: synapse
+      action: integration_runtimes.list_by_workspace
+      save_as: integration_runtimes
+  checks:
+  - check_id: azure.synapse.workspace.public_network_access_disabled
+    title: 'AZURE SYNAPSE Workspace: Public Network Access Disabled'
+    severity: critical
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.synapse.workspace.managed_virtual_network_enabled
+    title: 'AZURE SYNAPSE Workspace: Managed Virtual Network Enabled'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: managed_virtual_network
+        operator: exists
+  - check_id: azure.synapse.workspace.data_exfiltration_protection_enabled
+    title: 'AZURE SYNAPSE Workspace: Data Exfiltration Protection Enabled'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: managed_virtual_network_settings.prevent_data_exfiltration
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.workspace.encryption_customer_managed_key
+    title: 'AZURE SYNAPSE Workspace: Customer Managed Key Encryption'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.cmk
+        operator: exists
+  - check_id: azure.synapse.workspace.sql_administrator_login_password_set
+    title: 'AZURE SYNAPSE Workspace: SQL Administrator Login Password Set'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: sql_administrator_login_password
+        operator: exists
+  - check_id: azure.synapse.workspace.azure_ad_only_authentication
+    title: 'AZURE SYNAPSE Workspace: Azure AD Only Authentication'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: azure_ad_only_authentications.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        azure_ad_only_authentication_name: default
+      fields:
+      - path: azure_ad_only_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.workspace.vulnerability_assessments_enabled
+    title: 'AZURE SYNAPSE Workspace: Vulnerability Assessments Enabled'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_vulnerability_assessments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        vulnerability_assessment_name: default
+      fields:
+      - path: storage_container_path
+        operator: exists
+  - check_id: azure.synapse.workspace.audit_logging_enabled
+    title: 'AZURE SYNAPSE Workspace: Audit Logging Enabled'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_sql_aad_admins.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace.advanced_threat_protection_enabled
+    title: 'AZURE SYNAPSE Workspace: Advanced Threat Protection Enabled'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_managed_sql_server_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace.private_endpoint_connections
+    title: 'AZURE SYNAPSE Workspace: Private Endpoint Connections'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.synapse.sql_pool.transparent_data_encryption_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Transparent Data Encryption Enabled'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.audit_logging_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Audit Logging Enabled'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.vulnerability_assessments_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Vulnerability Assessments Enabled'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_vulnerability_assessments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        vulnerability_assessment_name: default
+      fields:
+      - path: storage_container_path
+        operator: exists
+  - check_id: azure.synapse.sql_pool.security_alert_policies_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Security Alert Policies Enabled'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_masking_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Data Masking Enabled'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_data_masking_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        data_masking_policy_name: Default
+      fields:
+      - path: data_masking_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.geo_backup_policy_enabled
+    title: 'AZURE SYNAPSE SQL Pool: Geo Backup Policy Enabled'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_geo_backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        geo_backup_policy_name: Default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.connection_policy_secure
+    title: 'AZURE SYNAPSE SQL Pool: Connection Policy Secure'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_connection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        connection_policy_name: default
+      fields:
+      - path: connection_type
+        operator: equals
+        expected: Proxy
+  - check_id: azure.synapse.sql_pool.maintenance_configuration_set
+    title: 'AZURE SYNAPSE SQL Pool: Maintenance Configuration Set'
+    severity: low
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_maintenance_configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        maintenance_configuration_name: current
+      fields:
+      - path: maintenance_window_time_ranges
+        operator: exists
+  - check_id: azure.synapse.sql_pool.workload_groups_configured
+    title: 'AZURE SYNAPSE SQL Pool: Workload Groups Configured'
+    severity: low
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_workload_groups.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+      fields:
+      - path: value[0].importance
+        operator: exists
+  - check_id: azure.synapse.big_data_pool.auto_scale_enabled
+    title: 'AZURE SYNAPSE Big Data Pool: Auto Scale Enabled'
+    severity: medium
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{big_data_pool_name}}'
+      fields:
+      - path: auto_scale.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.big_data_pool.auto_pause_enabled
+    title: 'AZURE SYNAPSE Big Data Pool: Auto Pause Enabled'
+    severity: low
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: auto_pause.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.big_data_pool.spark_version_supported
+    title: 'AZURE SYNAPSE Big Data Pool: Spark Version Supported'
+    severity: medium
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: spark_version
+        operator: gte
+        expected: '3.0'
+  - check_id: azure.synapse.big_data_pool.dynamic_executor_allocation
+    title: 'AZURE SYNAPSE Big Data Pool: Dynamic Executor Allocation'
+    severity: low
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: dynamic_executor_allocation.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.big_data_pool.session_level_packages_enabled
+    title: 'AZURE SYNAPSE Big Data Pool: Session Level Packages Enabled'
+    severity: low
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: session_level_packages_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.big_data_pool.library_requirements_configured
+    title: 'AZURE SYNAPSE Big Data Pool: Library Requirements Configured'
+    severity: low
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: library_requirements
+        operator: exists
+  - check_id: azure.synapse.big_data_pool.spark_config_properties_set
+    title: 'AZURE SYNAPSE Big Data Pool: Spark Config Properties Set'
+    severity: low
+    for_each: azure.synapse.big_data_pools
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{name}}'
+      fields:
+      - path: spark_config_properties
+        operator: exists
+  - check_id: azure.synapse.integration_runtime.managed_virtual_network
+    title: 'AZURE SYNAPSE Integration Runtime: Managed Virtual Network'
+    severity: medium
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: integration_runtimes.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        integration_runtime_name: '{{name}}'
+      fields:
+      - path: properties.managed_virtual_network.reference_name
+        operator: exists
+  - check_id: azure.synapse.integration_runtime_compute_properties
+    title: 'AZURE SYNAPSE Integration Runtime: Compute Properties'
+    severity: low
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: integration_runtimes.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        integration_runtime_name: '{{name}}'
+      fields:
+      - path: properties.compute_properties.location
+        operator: exists
+  - check_id: azure.synapse.integration_runtime_data_flow_properties
+    title: 'AZURE SYNAPSE Integration Runtime: Data Flow Properties'
+    severity: low
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: integration_runtimes.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        integration_runtime_name: '{{name}}'
+      fields:
+      - path: properties.data_flow_properties.compute_type
+        operator: exists
+  - check_id: azure.synapse.workspace_firewall_rules_configured
+    title: 'AZURE SYNAPSE Workspace: Firewall Rules Configured'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: ip_firewall_rules.list_by_workspace
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].properties.start_ip_address
+        operator: exists
+  - check_id: azure.synapse.workspace_managed_identity_sql_control_settings
+    title: 'AZURE SYNAPSE Workspace: Managed Identity SQL Control Settings'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_managed_identity_sql_control_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+        managed_identity_sql_control_settings_name: default
+      fields:
+      - path: grant_sql_control_to_managed_identity.desired_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace_dedicated_sql_minimal_tls_settings
+    title: 'AZURE SYNAPSE Workspace: Dedicated SQL Minimal TLS Settings'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: dedicated_sql_minimal_tls_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+        dedicated_sql_minimal_tls_settings_name: default
+      fields:
+      - path: minimal_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.synapse.workspace_administrator_configured
+    title: 'AZURE SYNAPSE Workspace: Administrator Configured'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_aad_admins.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.synapse.workspace_sql_aad_admins_configured
+    title: 'AZURE SYNAPSE Workspace: SQL AAD Admins Configured'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_sql_aad_admins.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].login
+        operator: exists
+  - check_id: azure.synapse.workspace_keys_configured
+    title: 'AZURE SYNAPSE Workspace: Keys Configured'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: keys.list_by_workspace
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].key_vault_url
+        operator: exists
+  - check_id: azure.synapse.workspace_private_link_resources
+    title: 'AZURE SYNAPSE Workspace: Private Link Resources'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: private_link_resources.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].group_id
+        operator: exists
+  - check_id: azure.synapse.workspace_restore_points_available
+    title: 'AZURE SYNAPSE Workspace: Restore Points Available'
+    severity: low
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: restorable_dropped_sql_pools.list_by_workspace
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].creation_date
+        operator: exists
+  - check_id: azure.synapse.workspace_extended_sql_pool_audit_settings
+    title: 'AZURE SYNAPSE Workspace: Extended SQL Pool Audit Settings'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: extended_sql_pool_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace_server_security_alert_policy
+    title: 'AZURE SYNAPSE Workspace: Server Security Alert Policy'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_managed_sql_server_security_alert_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace_server_vulnerability_assessments
+    title: 'AZURE SYNAPSE Workspace: Server Vulnerability Assessments'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspace_managed_sql_server_vulnerability_assessments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+        vulnerability_assessment_name: default
+      fields:
+      - path: storage_container_path
+        operator: exists
+  - check_id: azure.synapse.cluster.audit_logging
+    title: 'AZURE SYNAPSE Cluster: Audit Logging'
+    severity: medium
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: spark_config_properties.spark.sql.adaptive.enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.synapse.cluster.automated_snapshot
+    title: 'AZURE SYNAPSE Cluster: Automated Snapshot'
+    severity: low
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: auto_scale.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.cluster.automatic_upgrades
+    title: 'AZURE SYNAPSE Cluster: Automatic Upgrades'
+    severity: low
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: spark_version
+        operator: not_empty
+        expected: null
+  - check_id: azure.synapse.cluster.encrypted
+    title: 'AZURE SYNAPSE Cluster: Encrypted'
+    severity: medium
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: spark_config_properties.spark.sql.adaptive.coalescePartitions.enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.synapse.cluster.maintenance_settings
+    title: 'AZURE SYNAPSE Cluster: Maintenance Settings'
+    severity: low
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: auto_pause.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.cluster.public_access
+    title: 'AZURE SYNAPSE Cluster: Public Access'
+    severity: critical
+    for_each: azure.synapse.clusters
+    calls:
+    - action: big_data_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        big_data_pool_name: '{{cluster_name}}'
+      fields:
+      - path: is_compute_isolation_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_encrypted
+    title: 'AZURE SYNAPSE Integration_runtime: Data Catalog Dev Endpoint Encrypted'
+    severity: medium
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: type_properties.data_flow_properties.compute_type
+        operator: not_equals
+        expected: General
+  - check_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_no_public_access
+    title: 'AZURE SYNAPSE Integration_runtime: Data Catalog Dev Endpoint No Public Access'
+    severity: critical
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: type_properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_role_least_privilege
+    title: 'AZURE SYNAPSE Integration_runtime: Data Catalog Dev Endpoint Role Least Privilege'
+    severity: high
+    for_each: azure.synapse.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: type_properties.data_flow_properties.core_count
+        operator: less_than_or_equal
+        expected: 8
+  - check_id: azure.synapse.sql_pool.data_analytics_parameter_group_logging_enabled_where_supported
+    title: 'AZURE SYNAPSE Sql_pool: Data Analytics Parameter Group Logging Enabled Where Supported'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+      fields:
+      - path: storage_account_type
+        operator: not_empty
+        expected: null
+  - check_id: azure.synapse.sql_pool.data_analytics_parameter_group_tls_required
+    title: 'AZURE SYNAPSE Sql_pool: Data Analytics Parameter Group TLS Required'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_cluster_admin_access_least_privilege
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Cluster Admin Access Least Privilege'
+    severity: critical
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_cluster_audit_logging_enabled
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Cluster Audit Logging Enabled'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_cluster_encryption_at_rest_cmek
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Cluster Encryption At Rest Cmek'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_cluster_private_networking_enforced
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Cluster Private Networking Enforced'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.synapse.sql_pool.data_warehouse_cluster_tls_min_1_2_enforced
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Cluster TLS Min 1 2 Enforced'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_connection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        connection_policy_name: default
+      fields:
+      - path: security_enabled_access
+        operator: equals
+        expected: Required
+  - check_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_allowed_cidrs_minimized
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Endpoint Access Allowed Cidrs Minimized'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: ip_firewall_rules.list_by_workspace
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: start_ip_address
+        operator: not_equals
+        expected: 0.0.0.0
+  - check_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_private_only
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Endpoint Access Private Only'
+    severity: low
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+      fields:
+      - path: status
+        operator: not_equals
+        expected: Paused
+  - check_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_tls_required
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Endpoint Access TLS Required'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_connection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        connection_policy_name: default
+      fields:
+      - path: security_enabled_access
+        operator: equals
+        expected: Required
+  - check_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_no_anonymous_access
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Endpoint Authz No Anonymous Access'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_vulnerability_assessments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        vulnerability_assessment_name: default
+      fields:
+      - path: recurring_scans.is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_rbac_least_privilege
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Endpoint Authz RBAC Least Privilege'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+      fields:
+      - path: sql_pool_resource_state
+        operator: equals
+        expected: Online
+    - action: sql_pool_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_key_length_minimum
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Client Cert Key Length Minimum'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_key_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_not_expired
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Client Cert Not Expired'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_key_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_trusted_issuer
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Client Cert Trusted Issuer'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_key_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_configuration_present
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Configuration Present'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_keys_in_hsm_only
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Keys In Hsm Only'
+    severity: high
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_key_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_hsm_only_approved_hsm_endpoints
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Hsm Only Approved Hsm Endpoints'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_uri
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_parameter_group_logging_enabled_where_supported
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Parameter Group Logging Enabled Where Supported'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.sql_pool.data_warehouse_parameter_group_require_ssl
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Parameter Group Require SSL'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_connection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+        connection_policy_name: default
+      fields:
+      - path: security_enabled_access
+        operator: equals
+        expected: Required
+  - check_id: azure.synapse.sql_pool.data_warehouse_snapshot_cross_region_copy_encrypted
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_restore_points.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{sql_pool_name}}'
+      fields:
+      - path: value[*].restore_point_type
+        operator: not_equals
+        expected: DISCRETE
+  - check_id: azure.synapse.sql_pool.data_warehouse_snapshot_encrypted_at_rest_cmek
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Snapshot Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pool_transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: key_vault_key_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.sql_pool.data_warehouse_snapshot_not_publicly_shared
+    title: 'AZURE SYNAPSE Sql_pool: Data Warehouse Snapshot Not Publicly Shared'
+    severity: critical
+    for_each: azure.synapse.sql_pools
+    calls:
+    - action: sql_pools.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        sql_pool_name: '{{name}}'
+      fields:
+      - path: status
+        operator: not_equals
+        expected: Online
+  - check_id: azure.synapse.workspace.data_analytics_catalog_cross_account_sharing_restricted
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Catalog Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: trusted_service_bypass_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.synapse.workspace.data_analytics_catalog_metadata_encryption_enabled
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Catalog Metadata Encryption Enabled'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.cmk.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace.data_analytics_catalog_rbac_least_privilege
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: managed_resource_group_name
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.workspace.data_analytics_subnet_group_private_subnets_only
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Subnet Group Private Subnets Only'
+    severity: low
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: virtual_network_profile.compute_subnet_id
+        operator: exists
+        expected: true
+  - check_id: azure.synapse.workspace.data_analytics_workgroup_allowed_data_sources_allowlist
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Workgroup Allowed Data Sources Allowlist'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: ip_firewall_rules.list_by_workspace
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.synapse.workspace.data_analytics_workgroup_network_access_private
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Workgroup Network Access Private'
+    severity: medium
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.synapse.workspace.data_analytics_workgroup_query_result_encryption_enabled
+    title: 'AZURE SYNAPSE Workspace: Data Analytics Workgroup Query Result Encryption Enabled'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.cmk.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.synapse.workspace.data_warehouse_subnet_group_private_subnets_only
+    title: 'AZURE SYNAPSE Workspace: Data Warehouse Subnet Group Private Subnets Only'
+    severity: low
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: managed_virtual_network
+        operator: equals
+        expected: default
+  - check_id: azure.synapse.workspace.encryption_enabled
+    title: 'AZURE SYNAPSE Workspace: Workgroup Encryption'
+    severity: high
+    for_each: azure.synapse.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.cmk
+        operator: exists
+        expected: true
+      - path: encryption.cmk.status
+        operator: equals
+        expected: Enabled

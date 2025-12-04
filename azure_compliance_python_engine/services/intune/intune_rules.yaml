@@ -1,0 +1,23 @@
+intune:
+  version: '1.0'
+  provider: azure
+  service: intune
+  package: msgraph-sdk
+  client_class: GraphServiceClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.intune.diagnostic.settings
+    calls:
+    - client: intune
+      action: diagnostic_settings.list_all
+      save_as: diagnostic_settings
+  checks:
+  - check_id: azure.intune.diagnostic.settings.log.analytics.check
+    title: 'AZURE INTUNE Diagnostic: Settings Log Analytics Check'
+    severity: low
+    for_each: azure.intune.diagnostic_settings
+    calls:
+    - action: device_management.audit_events.get
+      fields:
+      - path: value[0].log_analytics_workspace_id
+        operator: exists

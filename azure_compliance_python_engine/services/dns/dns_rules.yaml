@@ -1,0 +1,303 @@
+dns:
+  version: '1.0'
+  provider: azure
+  service: dns
+  package: azure-mgmt-dns
+  client_class: DnsManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.dns.zones
+    calls:
+    - client: dns
+      action: zones.list
+      save_as: zones
+  - discovery_id: azure.dns.record_sets
+    calls:
+    - client: dns
+      action: record_sets.list_all_by_dns_zone
+      save_as: record_sets
+  - discovery_id: azure.dns.health_probes
+    calls:
+    - client: dns
+      action: zones.list
+      save_as: health_probes
+  checks:
+  - check_id: azure.dns.zone.cross_account_sharing_restricted
+    title: 'AZURE DNS Zone: Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: name_servers
+        operator: exists
+      - path: zone_type
+        operator: equals
+        expected: Public
+  - check_id: azure.dns.zone.query_logging_enabled
+    title: 'AZURE DNS Zone: Query Logging Enabled'
+    severity: medium
+    for_each: azure.dns.zones
+    calls:
+    - action: zones.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+      fields:
+      - path: registration_virtual_networks
+        operator: exists
+  - check_id: azure.dns.zone.zone_transfer_restricted_or_tsig_required
+    title: 'AZURE DNS Zone: Zone Transfer Restricted Or TSIG Required'
+    severity: low
+    for_each: azure.dns.zones
+    calls:
+    - action: zones.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+      fields:
+      - path: max_number_of_record_sets
+        operator: gte
+        expected: 1
+  - check_id: azure.dns.record_set.dmarc_record_present_when_mx_present
+    title: 'AZURE DNS Record Set: DMARC Record Present When MX Present'
+    severity: low
+    for_each: azure.dns.record_sets
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: '{{name}}'
+        record_type: MX
+      fields:
+      - path: mx_records
+        operator: exists
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: _dmarc
+        record_type: TXT
+      fields:
+      - path: txt_records
+        operator: exists
+  - check_id: azure.dns.record_set.alias_targets_in_approved_services
+    title: 'AZURE DNS Record Set: Alias Targets In Approved Services'
+    severity: low
+    for_each: azure.dns.record_sets
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: '{{name}}'
+        record_type: '{{record_type}}'
+      fields:
+      - path: target_resource.id
+        operator: exists
+  - check_id: azure.dns.record_set.spf_record_configured
+    title: 'AZURE DNS Record Set: SPF Record Configured'
+    severity: medium
+    for_each: azure.dns.record_sets
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: '{{name}}'
+        record_type: TXT
+      fields:
+      - path: txt_records[?(@.value[0] =~ /^v=spf1/)].value
+        operator: exists
+  - check_id: azure.dns.record_set.caa_record_present
+    title: 'AZURE DNS Record Set: CAA Record Present'
+    severity: low
+    for_each: azure.dns.record_sets
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: '{{name}}'
+        record_type: CAA
+      fields:
+      - path: caa_records
+        operator: exists
+  - check_id: azure.dns.health_probe.endpoint_monitoring_enabled
+    title: 'AZURE DNS Health Probe: Endpoint Monitoring Enabled'
+    severity: medium
+    for_each: azure.dns.health_probes
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: monitor_config.protocol
+        operator: exists
+  - check_id: azure.dns.health_probe.failure_threshold_configured
+    title: 'AZURE DNS Health Probe: Failure Threshold Configured'
+    severity: low
+    for_each: azure.dns.health_probes
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: monitor_config.tolerated_number_of_failures
+        operator: lte
+        expected: 3
+  - check_id: azure.dns.health_probe.timeout_value_appropriate
+    title: 'AZURE DNS Health Probe: Timeout Value Appropriate'
+    severity: low
+    for_each: azure.dns.health_probes
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: monitor_config.timeout_in_seconds
+        operator: gte
+        expected: 5
+      - path: monitor_config.timeout_in_seconds
+        operator: lte
+        expected: 30
+  - check_id: azure.dns.zone.dnssec_enabled
+    title: 'AZURE DNS Zone: DNSSEC Enabled'
+    severity: high
+    for_each: azure.dns.zones
+    calls:
+    - action: zones.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+      fields:
+      - path: signing_keys
+        operator: exists
+  - check_id: azure.dns.health_probe.health_check_alerts_configured
+    title: 'AZURE DNS Health_probe: Health Check Alerts Configured'
+    severity: low
+    for_each: azure.dns.health_probes
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: endpoint_monitor_status
+        operator: exists
+      - path: monitor_config.alerts_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.dns.health_probe.health_check_https_or_tls_used
+    title: 'AZURE DNS Health_probe: Health Check HTTPS Or TLS Used'
+    severity: medium
+    for_each: azure.dns.health_probes
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+      fields:
+      - path: monitor_config.protocol
+        operator: in
+        expected:
+        - HTTPS
+        - TCP
+      - path: monitor_config.port
+        operator: not_equals
+        expected: 80
+  - check_id: azure.dns.health_probe.health_check_no_plaintext_credentials_in_url
+    title: 'AZURE DNS Health_probe: Health Check No Plaintext Credentials In Url'
+    severity: high
+    for_each: azure.dns.health_probes
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+      fields:
+      - path: monitor_config.path
+        operator: not_contains
+        expected: '@'
+      - path: monitor_config.path
+        operator: not_regex
+        expected: ://[^/]*:[^@]*@
+  - check_id: azure.dns.record_set.caa_records_present_for_root_and_wildcard
+    title: 'AZURE DNS Record_set: Caa Records Present For Root And Wildcard'
+    severity: critical
+    for_each: azure.dns.zones
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+        relative_record_set_name: '@'
+        record_type: CAA
+      fields:
+      - path: caa_records
+        operator: exists
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+        relative_record_set_name: '*'
+        record_type: CAA
+      fields:
+      - path: caa_records
+        operator: exists
+  - check_id: azure.dns.record_set.no_overly_broad_wildcard_records_in_sensitive_zones
+    title: 'AZURE DNS Record_set: No Overly Broad Wildcard Records In Sensitive Zones'
+    severity: low
+    for_each: azure.dns.record_sets
+    calls:
+    - action: self
+      fields:
+      - path: name
+        operator: not_equals
+        expected: '*'
+      - path: a_records
+        operator: not_exists
+        when:
+          path: name
+          operator: equals
+          expected: '*'
+  - check_id: azure.dns.record_set.no_rfc1918_in_public_zones
+    title: 'AZURE DNS Record_set: No Rfc1918 In Public Zones'
+    severity: critical
+    for_each: azure.dns.record_sets
+    calls:
+    - action: record_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{zone_name}}'
+        relative_record_set_name: '{{name}}'
+        record_type: '{{record_type}}'
+      fields:
+      - path: a_records[*].ipv4_address
+        operator: not_regex
+        expected: ^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)
+      - path: aaaa_records[*].ipv6_address
+        operator: not_regex
+        expected: ^(fc00:|fd00:)
+  - check_id: azure.dns.zone.dnssec_enabled_where_supported
+    title: 'AZURE DNS Zone: Dnssec Enabled Where Supported'
+    severity: low
+    for_each: azure.dns.zones
+    calls:
+    - action: zones.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        zone_name: '{{name}}'
+      fields:
+      - path: registration_virtual_networks
+        operator: not_exists
+      - path: resolution_virtual_networks
+        operator: not_exists
+      - path: dnssec_config.enabled
+        operator: equals
+        expected: true

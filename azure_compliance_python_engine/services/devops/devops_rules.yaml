@@ -1,0 +1,156 @@
+devops:
+  version: '1.0'
+  provider: azure
+  service: devops
+  package: azure-devops
+  client_class: DevOpsClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.devops.projects
+    calls:
+    - client: devops
+      action: projects.list_all
+      save_as: projects
+  checks:
+  - check_id: azure.devops.project.source.repo.url.no.sensitive.credentials
+    title: 'AZURE DEVOPS Project: Source Repo URL No Sensitive Credentials'
+    severity: high
+    for_each: azure.devops.projects
+    calls:
+    - action: repositories.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        project_id: '{{project_id}}'
+      fields:
+      - path: value[*].remote_url
+        operator: not_contains
+        expected: ://.*:.*@
+  - check_id: azure.devops.project.no.secrets.in.variables
+    title: 'AZURE DEVOPS Project: No Secrets In Variables'
+    severity: high
+    for_each: azure.devops.projects
+    calls:
+    - action: variable_groups.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        project_id: '{{project_id}}'
+      fields:
+      - path: value[*].variables[*].is_secret
+        operator: equals
+        expected: false
+  - check_id: azure.devops.project.source.repo.url.no.sensitive.credentials,.azure.devops.project.no.secrets.in.variables
+    title: 'AZURE DEVOPS Project: Source Repo Url No Sensitive Credentials, Azure Devops Project No Secrets In Variables'
+    severity: high
+    for_each: azure.devops.project
+    calls:
+    - action: git_client.get_repositories
+      fields:
+      - path: value[*].remoteUrl
+        operator: not_regex
+        expected: ://[^@/]*:[^@/]*@
+    - action: task_agent_client.get_variable_groups
+      fields:
+      - path: value[*].variables[*].isSecret
+        operator: equals
+        expected: false
+    - action: build_client.get_definitions
+      fields:
+      - path: value[*].variables[*].isSecret
+        operator: equals
+        expected: false
+    - action: release_client.get_release_definitions
+      fields:
+      - path: value[*].variables[*].isSecret
+        operator: equals
+        expected: false
+  - check_id: azure.devops.project.comprehensive.security.compliance
+    title: Azure DevOps Project Comprehensive Security and Encryption Compliance
+    severity: high
+    for_each: azure.devops.project
+    calls:
+    - action: devops_client.get_project_variables
+      fields:
+      - path: variables[*].isSecret
+        operator: not_equals
+        expected: false
+      - path: variables[*].value
+        operator: not_contains_any
+        expected:
+        - password
+        - secret
+        - key
+        - token
+        - credential
+    - action: devops_client.get_project_repositories
+      fields:
+      - path: repositories[*].remoteUrl
+        operator: not_contains_any
+        expected:
+        - ://.*:.*@
+        - password=
+        - token=
+        - key=
+    - action: storage_client.get_blob_service_properties
+      fields:
+      - path: properties.requireSecureTransfer
+        operator: equals
+        expected: true
+    - action: network_client.list_load_balancer_frontend_ip_configurations
+      fields:
+      - path: frontendIPConfigurations[*].loadBalancingRules[*].protocol
+        operator: equals
+        expected: Https
+    - action: search_client.get_service
+      fields:
+      - path: encryptionWithCmk.enforcement
+        operator: equals
+        expected: Enabled
+      - path: networkRuleSet.bypass
+        operator: equals
+        expected: None
+    - action: compute_client.list_disks
+      fields:
+      - path: encryptionSettingsCollection.enabled
+        operator: equals
+        expected: true
+    - action: sql_client.get_database
+      fields:
+      - path: transparentDataEncryption.status
+        operator: equals
+        expected: Enabled
+    - action: machinelearning_client.get_notebook_vm
+      fields:
+      - path: properties.vmSize.encryptionAtHost
+        operator: equals
+        expected: true
+    - action: storage_client.get_blob_service_properties
+      fields:
+      - path: encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: encryption.services.file.enabled
+        operator: equals
+        expected: true
+    - action: containerservice_client.get_managed_cluster
+      fields:
+      - path: properties.addonProfiles.azureKeyvaultSecretsProvider.enabled
+        operator: equals
+        expected: true
+    - action: cosmosdb_client.get_database_account
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+    - action: monitor_client.get_log_analytics_workspace
+      fields:
+      - path: properties.features.enableLogAccessUsingOnlyResourcePermissions
+        operator: equals
+        expected: true
+    - action: synapse_client.get_workspace
+      fields:
+      - path: properties.sqlAdministratorLogin
+        operator: exists
+        expected: true
+      - path: properties.managedVirtualNetwork
+        operator: equals
+        expected: default

@@ -1,0 +1,69 @@
+log:
+  version: '1.0'
+  provider: azure
+  service: log
+  package: azure-mgmt-loganalytics
+  client_class: LogAnalyticsManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.log.workspaces
+    calls:
+    - client: log
+      action: workspaces.list
+      save_as: workspaces
+  - discovery_id: azure.log.clusters
+    calls:
+    - client: log
+      action: clusters.list_by_subscription
+      save_as: clusters
+  - discovery_id: azure.log.data_exports
+    calls:
+    - client: log
+      action: data_exports.list_by_workspace
+      save_as: data_exports
+  checks:
+  - check_id: azure.monitor.log.multi_region_enabled
+    title: 'AZURE LOG Monitor: Multi Region Enabled Check'
+    severity: low
+    for_each: azure.log.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: features.enable_log_access_using_only_resource_permissions
+        operator: equals
+        expected: true
+      - path: workspace_capping.daily_quota_gb
+        operator: gte
+        expected: 1
+  - check_id: azure.monitor.log.enabled
+    title: 'AZURE LOG Monitor: Workspace Enabled Check'
+    severity: low
+    for_each: azure.log.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+      - path: public_network_access_for_ingestion
+        operator: equals
+        expected: Enabled
+  - check_id: azure.monitor.log.file_validation_enabled
+    title: 'AZURE LOG Monitor: File Validation Enabled Check'
+    severity: low
+    for_each: azure.log.data_exports
+    calls:
+    - action: data_exports.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        data_export_name: '{{name}}'
+      fields:
+      - path: enable
+        operator: equals
+        expected: true
+      - path: destination.type
+        operator: exists

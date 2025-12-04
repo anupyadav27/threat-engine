@@ -1,26 +1,1808 @@
 network:
+  version: '1.0'
+  provider: azure
+  service: network
+  package: azure-mgmt-network
+  client_class: NetworkManagementClient
   scope: subscription
-  iterate_resource_groups: true
   discovery:
-    - discovery_id: nsgs
-      resource_group_param: resource_group_name
-      calls:
-        - action: network_security_groups.list
-          resource_group_param: resource_group_name
-          fields:
-            - path: __self__
-              var: nsg
-            - path: name
-              var: nsg_name
+  - discovery_id: azure.network.virtual_networks
+    calls:
+    - client: network
+      action: virtual_networks.list_all
+      save_as: virtual_networks
+  - discovery_id: azure.network.network_security_groups
+    calls:
+    - client: network
+      action: network_security_groups.list_all
+      save_as: network_security_groups
+  - discovery_id: azure.network.network_interfaces
+    calls:
+    - client: network
+      action: network_interfaces.list_all
+      save_as: network_interfaces
+  - discovery_id: azure.network.load_balancers
+    calls:
+    - client: network
+      action: load_balancers.list_all
+      save_as: load_balancers
+  - discovery_id: azure.network.vpn_gateways
+    calls:
+    - client: network
+      action: vpn_gateways.list
+      save_as: vpn_gateways
+  - discovery_id: azure.network.network_watchers
+    calls:
+    - client: network
+      action: network_watchers.list_all
+      save_as: network_watchers
+  - discovery_id: azure.network.application_gateways
+    calls:
+    - client: network
+      action: application_gateways.list_all
+      save_as: application_gateways
+  - discovery_id: azure.network.private_endpoints
+    calls:
+    - client: network
+      action: private_endpoints.list
+      save_as: private_endpoints
   checks:
-    - check_id: nsg_no_ssh_from_any
-      title: Ensure NSG does not allow SSH from anywhere
-      severity: high
-      for_each: nsgs
-      param: nsg
-      calls:
-        - action: self
-          fields:
-            - path: security_rules[].destination_port_range
-              operator: not_contains
-              expected: "22" 
+  - check_id: azure.network.privacy_anonymization.jobs_private_networking
+    title: 'AZURE NETWORK Privacy Anonymization: Jobs Private Networking'
+    severity: medium
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: private_link_service_connections[0].private_link_service_id
+        operator: exists
+  - check_id: azure.network.nsg.flow.logs.to.log.analytics
+    title: 'AZURE NETWORK NSG: Flow Logs To Log Analytics'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: flow_logs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+      fields:
+      - path: value[0].storage_id
+        operator: exists
+  - check_id: azure.network.traffic_analysis.alert_destinations
+    title: 'AZURE NETWORK Traffic Analysis: Alert Destinations Configured'
+    severity: low
+    for_each: azure.network.network_watchers
+    calls:
+    - action: flow_logs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{name}}'
+      fields:
+      - path: value[0].flow_analytics_configuration.network_watcher_flow_analytics_configuration.workspace_id
+        operator: exists
+  - check_id: azure.network.interface.eni_security_groups_present
+    title: 'AZURE NETWORK Interface: ENI Security Groups Present'
+    severity: medium
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: network_security_group.id
+        operator: exists
+  - check_id: azure.network.vpn_connection.vpn_tunnel_health_monitoring_enabled
+    title: 'AZURE NETWORK VPN Connection: VPN Tunnel Health Monitoring Enabled'
+    severity: medium
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_connections.list_by_vpn_gateway
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: value[0].enable_bgp
+        operator: equals
+        expected: true
+  - check_id: azure.network.segmentation.subnet_isolation_enabled
+    title: 'AZURE NETWORK Segmentation: Subnet Isolation Enabled'
+    severity: high
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets[0].network_security_group.id
+        operator: exists
+  - check_id: azure.network.anomaly_detection.traffic_analytics_enabled
+    title: 'AZURE NETWORK Anomaly Detection: Traffic Analytics Enabled'
+    severity: medium
+    for_each: azure.network.network_watchers
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.network.load_balancer.health_probe_configured
+    title: 'AZURE NETWORK Load Balancer: Health Probe Configured'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: probes[0].protocol
+        operator: exists
+  - check_id: azure.network.nsg.default_rules_restricted
+    title: 'AZURE NETWORK NSG: Default Rules Restricted'
+    severity: high
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.access == 'Allow' && @.direction == 'Inbound' && @.source_address_prefix == '*')].name
+        operator: exists
+  - check_id: azure.network.vnet.ddos_protection_enabled
+    title: 'AZURE NETWORK VNet: DDoS Protection Enabled'
+    severity: high
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: ddos_protection_plan.id
+        operator: exists
+  - check_id: azure.network.application_gateway.waf_enabled
+    title: 'AZURE NETWORK Application Gateway: WAF Enabled'
+    severity: high
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: web_application_firewall_configuration.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.private_endpoint.dns_integration_enabled
+    title: 'AZURE NETWORK Private Endpoint: DNS Integration Enabled'
+    severity: medium
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: private_dns_zone_configs[0].name
+        operator: exists
+  - check_id: azure.network.nsg.logging_enabled
+    title: 'AZURE NETWORK NSG: Logging Enabled'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: flow_logs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+      fields:
+      - path: value[0].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.load_balancer.backend_pool_configured
+    title: 'AZURE NETWORK Load Balancer: Backend Pool Configured'
+    severity: low
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: backend_address_pools[0].backend_ip_configurations
+        operator: exists
+  - check_id: azure.network.vpn_gateway.encryption_enabled
+    title: 'AZURE NETWORK VPN Gateway: Encryption Enabled'
+    severity: high
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vpn_gateway_name: '{{name}}'
+      fields:
+      - path: vpn_gateway_scale_unit
+        operator: gte
+        expected: 1
+  - check_id: azure.network.interface.ip_forwarding_disabled
+    title: 'AZURE NETWORK Interface: IP Forwarding Disabled'
+    severity: medium
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: enable_ip_forwarding
+        operator: equals
+        expected: false
+  - check_id: azure.network.vnet.service_endpoints_configured
+    title: 'AZURE NETWORK VNet: Service Endpoints Configured'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets[0].service_endpoints[0].service
+        operator: exists
+  - check_id: azure.network.application_gateway.ssl_policy_configured
+    title: 'AZURE NETWORK Application Gateway: SSL Policy Configured'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_policy.policy_type
+        operator: exists
+  - check_id: azure.network.nsg.inbound_rules_restricted
+    title: 'AZURE NETWORK NSG: Inbound Rules Restricted'
+    severity: high
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.destination_port_range == '*')].name
+        operator: exists
+  - check_id: azure.network.load_balancer.outbound_rules_configured
+    title: 'AZURE NETWORK Load Balancer: Outbound Rules Configured'
+    severity: low
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: outbound_rules[0].protocol
+        operator: exists
+  - check_id: azure.network.private_endpoint.network_policies_disabled
+    title: 'AZURE NETWORK Private Endpoint: Network Policies Disabled'
+    severity: medium
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: subnet.private_endpoint_network_policies
+        operator: equals
+        expected: Disabled
+  - check_id: azure.network.vpn_connection.ipsec_policies_configured
+    title: 'AZURE NETWORK VPN Connection: IPSec Policies Configured'
+    severity: medium
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_connections.list_by_vpn_gateway
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: value[0].ipsec_policies[0].ipsec_encryption
+        operator: exists
+  - check_id: azure.network.interface.accelerated_networking_enabled
+    title: 'AZURE NETWORK Interface: Accelerated Networking Enabled'
+    severity: low
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: enable_accelerated_networking
+        operator: equals
+        expected: true
+  - check_id: azure.network.vnet.peering_configured_securely
+    title: 'AZURE NETWORK VNet: Peering Configured Securely'
+    severity: medium
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_network_peerings.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: value[0].allow_forwarded_traffic
+        operator: equals
+        expected: false
+  - check_id: azure.network.application_gateway.cookie_based_affinity_disabled
+    title: 'AZURE NETWORK Application Gateway: Cookie Based Affinity Disabled'
+    severity: low
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: backend_http_settings_collection[0].cookie_based_affinity
+        operator: equals
+        expected: Disabled
+  - check_id: azure.network.nsg.outbound_rules_restricted
+    title: 'AZURE NETWORK NSG: Outbound Rules Restricted'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' && @.destination_address_prefix == '*')].name
+        operator: exists
+  - check_id: azure.network.load_balancer.session_persistence_configured
+    title: 'AZURE NETWORK Load Balancer: Session Persistence Configured'
+    severity: low
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: load_balancing_rules[0].load_distribution
+        operator: exists
+  - check_id: azure.network.private_endpoint.custom_dns_configured
+    title: 'AZURE NETWORK Private Endpoint: Custom DNS Configured'
+    severity: low
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: custom_dns_configs[0].fqdn
+        operator: exists
+  - check_id: azure.network.vpn_gateway.active_active_enabled
+    title: 'AZURE NETWORK VPN Gateway: Active-Active Enabled'
+    severity: medium
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: is_routing_preference_internet
+        operator: equals
+        expected: false
+  - check_id: azure.network.interface.public_ip_disabled
+    title: 'AZURE NETWORK Interface: Public IP Disabled'
+    severity: high
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: ip_configurations[0].public_ip_address
+        operator: exists
+  - check_id: azure.network.vnet.address_space_optimized
+    title: 'AZURE NETWORK VNet: Address Space Optimized'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: address_space.address_prefixes
+        operator: exists
+  - check_id: azure.network.application_gateway.request_routing_rules_configured
+    title: 'AZURE NETWORK Application Gateway: Request Routing Rules Configured'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: request_routing_rules[0].rule_type
+        operator: exists
+  - check_id: azure.network.nsg.application_security_groups_used
+    title: 'AZURE NETWORK NSG: Application Security Groups Used'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[0].source_application_security_groups[0].id
+        operator: exists
+  - check_id: azure.network.load_balancer.standard_sku_used
+    title: 'AZURE NETWORK Load Balancer: Standard SKU Used'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: equals
+        expected: Standard
+  - check_id: azure.network.private_endpoint.subnet_delegation_configured
+    title: 'AZURE NETWORK Private Endpoint: Subnet Delegation Configured'
+    severity: low
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: subnet.delegations[0].service_name
+        operator: exists
+  - check_id: azure.network.vpn_connection.shared_key_configured
+    title: 'AZURE NETWORK VPN Connection: Shared Key Configured'
+    severity: high
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_connections.list_by_vpn_gateway
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: value[0].shared_key
+        operator: exists
+  - check_id: azure.network.interface.dns_servers_configured
+    title: 'AZURE NETWORK Interface: DNS Servers Configured'
+    severity: low
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: dns_settings.dns_servers
+        operator: exists
+  - check_id: azure.network.vnet.nat_gateway_configured
+    title: 'AZURE NETWORK VNet: NAT Gateway Configured'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets[0].nat_gateway.id
+        operator: exists
+  - check_id: azure.network.application_gateway.autoscaling_enabled
+    title: 'AZURE NETWORK Application Gateway: Autoscaling Enabled'
+    severity: low
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: autoscale_configuration.min_capacity
+        operator: gte
+        expected: 1
+  - check_id: azure.network.nsg.priority_ranges_optimized
+    title: 'AZURE NETWORK NSG: Priority Ranges Optimized'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[0].priority
+        operator: gte
+        expected: 100
+  - check_id: azure.network.load_balancer.availability_zones_configured
+    title: 'AZURE NETWORK Load Balancer: Availability Zones Configured'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: zones
+        operator: exists
+  - check_id: azure.network.private_endpoint.manual_approval_required
+    title: 'AZURE NETWORK Private Endpoint: Manual Approval Required'
+    severity: medium
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: manual_private_link_service_connections[0].request_message
+        operator: exists
+  - check_id: azure.network.vpn_gateway.point_to_site_configured
+    title: 'AZURE NETWORK VPN Gateway: Point-to-Site Configured'
+    severity: low
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: p2_s_connection_configurations[0].vpn_client_address_pool.address_prefixes
+        operator: exists
+  - check_id: azure.network.interface.private_ip_allocation_static
+    title: 'AZURE NETWORK Interface: Private IP Allocation Static'
+    severity: low
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: ip_configurations[0].private_ip_allocation_method
+        operator: equals
+        expected: Static
+  - check_id: azure.network.vnet.flow_timeout_configured
+    title: 'AZURE NETWORK VNet: Flow Timeout Configured'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: flow_timeout_in_minutes
+        operator: gte
+        expected: 4
+  - check_id: azure.network.application_gateway.connection_draining_enabled
+    title: 'AZURE NETWORK Application Gateway: Connection Draining Enabled'
+    severity: low
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: backend_http_settings_collection[0].connection_draining.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.load_balancer.tcp_reset_enabled
+    title: 'AZURE NETWORK Load Balancer: TCP Reset Enabled'
+    severity: low
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: load_balancing_rules[0].enable_tcp_reset
+        operator: equals
+        expected: true
+  - check_id: azure.network.private_endpoint.connection_state_approved
+    title: 'AZURE NETWORK Private Endpoint: Connection State Approved'
+    severity: medium
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: private_link_service_connections[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.network.vpn_connection.routing_weight_configured
+    title: 'AZURE NETWORK VPN Connection: Routing Weight Configured'
+    severity: low
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: vpn_connections.list_by_vpn_gateway
+      params:
+        resource_group_name: '{{resource_group}}'
+        gateway_name: '{{name}}'
+      fields:
+      - path: value[0].routing_weight
+        operator: gte
+        expected: 0
+  - check_id: azure.network.interface.primary_configuration_set
+    title: 'AZURE NETWORK Interface: Primary Configuration Set'
+    severity: low
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: ip_configurations[?(@.primary == true)].name
+        operator: exists
+  - check_id: azure.network.vnet.bgp_communities_configured
+    title: 'AZURE NETWORK VNet: BGP Communities Configured'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: bgp_communities.virtual_network_community
+        operator: exists
+  - check_id: azure.network.application_gateway.redirect_configuration_set
+    title: 'AZURE NETWORK Application Gateway: Redirect Configuration Set'
+    severity: low
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: redirect_configurations[0].redirect_type
+        operator: exists
+  - check_id: azure.network.nsg.tags_properly_configured
+    title: 'AZURE NETWORK NSG: Tags Properly Configured'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: self
+      fields:
+      - path: tags.Environment
+        operator: exists
+  - check_id: azure.load.balancer.logging.enabled
+    title: 'AZURE LOAD Balancer: Logging Enabled'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: diagnostic_settings
+        operator: exists
+      - path: diagnostic_settings.logs
+        operator: not_empty
+  - check_id: azure.load.balancer_health_probe_configured:az.azure_network_load_balancer.network_security_lb_listener_tls_min_1_2
+    title: 'AZURE LOAD Balancer Health Probe: TLS Min 1.2'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: probes
+        operator: not_empty
+      - path: load_balancing_rules[*].protocol
+        operator: equals
+        expected: Https
+  - check_id: azure.load.balancer_waf_acl_attached:az.azure_network_load_balancer.network_security_lb_waf_attached_where_supported
+    title: 'AZURE LOAD Balancer: WAF ACL Attached'
+    severity: medium
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: frontend_ip_configurations[*].application_gateway_backend_address_pools
+        operator: exists
+  - check_id: azure.loadbalancer.deletion.protection
+    title: 'AZURE LOADBALANCER Deletion: Protection'
+    severity: low
+    for_each: azure.network.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: enable_deletion_protection
+        operator: equals
+        expected: true
+  - check_id: azure.loadbalancer.v2.waf.acl.attached
+    title: 'AZURE LOADBALANCER V2: WAF ACL Attached'
+    severity: low
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: web_application_firewall_configuration
+        operator: exists
+      - path: web_application_firewall_configuration.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.access_control.no_permit_all
+    title: 'AZURE Network Access Control: No Permit All'
+    severity: medium
+    for_each: azure.network.security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[*].source_address_prefix
+        operator: not_equals
+        expected: '*'
+      - path: security_rules[*].destination_address_prefix
+        operator: not_equals
+        expected: '*'
+  - check_id: azure.network.access_control.policies_present
+    title: 'AZURE Network Access Control: Policies Present'
+    severity: medium
+    for_each: azure.network.security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules
+        operator: not_empty
+  - check_id: azure.network.access_control.policy_store_encrypted
+    title: 'AZURE Network Access Control: Policy Store Encrypted'
+    severity: medium
+    for_each: azure.network.security_groups
+    calls:
+    - action: self
+      fields:
+      - path: encryption
+        operator: exists
+      - path: encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.anomaly_detection.anomaly_destinations_encrypted
+    title: 'AZURE Network Anomaly Detection: Destinations Encrypted'
+    severity: medium
+    for_each: azure.network.watchers
+    calls:
+    - action: network_watchers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{name}}'
+      fields:
+      - path: anomaly_detection.destination_encryption
+        operator: equals
+        expected: true
+  - check_id: azure.network.anomaly_detection.anomaly_detectors_enabled
+    title: 'AZURE Network Anomaly Detection: Detectors Enabled'
+    severity: medium
+    for_each: azure.network.watchers
+    calls:
+    - action: network_watchers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{name}}'
+      fields:
+      - path: anomaly_detection.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.automation.change_audit_logging_enabled
+    title: 'AZURE Network Automation: Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.network.automation_accounts
+    calls:
+    - action: automation_accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{name}}'
+      fields:
+      - path: audit_logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.automation.remediation_roles_least_privilege
+    title: 'AZURE Network Automation: Remediation Roles Least Privilege'
+    severity: high
+    for_each: azure.network.automation_accounts
+    calls:
+    - action: role_assignments.list_for_resource
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_provider_namespace: Microsoft.Automation
+        parent_resource_path: automationAccounts
+        resource_type: '{{name}}'
+        resource_name: ''
+      fields:
+      - path: value[*].role_definition_id
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.network.backend_pool.tg_health_checks_tls_where_supported
+    title: 'AZURE Network Target Group: Health Checks TLS'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: probes[*].protocol
+        operator: equals
+        expected: Https
+  - check_id: azure.network.backend_pool.tg_targets_in_private_subnets
+    title: 'AZURE Network Target Group: Targets In Private Subnets'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: backend_address_pools[*].backend_addresses[*].ip_address
+        operator: not_matches
+        expected: ^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)
+  - check_id: azure.network.bastion.host.existence.check
+    title: 'AZURE Network Bastion: Host Existence Check'
+    severity: low
+    for_each: azure.network.bastion_hosts
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.network.customer_gateway.cgw_ip_addresses_valid_and_owned
+    title: 'AZURE Network Customer Gateway: IP Addresses Valid'
+    severity: medium
+    for_each: azure.network.local_network_gateways
+    calls:
+    - action: local_network_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        local_network_gateway_name: '{{name}}'
+      fields:
+      - path: gateway_ip_address
+        operator: matches
+        expected: ^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$
+  - check_id: azure.network.customer_gateway.cgw_no_public_management_interfaces_exposed
+    title: 'AZURE Network Customer Gateway: No Public Management Interfaces'
+    severity: critical
+    for_each: azure.network.local_network_gateways
+    calls:
+    - action: local_network_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        local_network_gateway_name: '{{name}}'
+      fields:
+      - path: local_network_address_space.address_prefixes
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: azure.network.encryption.mtls_required_for_internal_services_where_supported
+    title: 'AZURE Network Encryption: mTLS Required'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_certificates
+        operator: not_empty
+      - path: http_listeners[*].require_server_name_indication
+        operator: equals
+        expected: true
+  - check_id: azure.network.encryption.tls_min_1_2_enforced
+    title: 'AZURE Network Encryption: TLS Min 1.2 Enforced'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_policy.min_protocol_version
+        operator: in
+        expected:
+        - TLSv1_2
+        - TLSv1_3
+  - check_id: azure.network.endpoint.policy_least_privilege
+    title: 'AZURE Network Endpoint: Policy Least Privilege'
+    severity: high
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: network_policies
+        operator: exists
+      - path: private_link_service_connections[*].request_message
+        operator: not_empty
+  - check_id: azure.network.endpoint.private_dns_enabled_where_supported
+    title: 'AZURE AZURE Network_endpoint: Private Dns Enabled Where Supported'
+    severity: low
+    for_each: azure.network.private_endpoints
+    calls:
+    - action: private_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        private_endpoint_name: '{{name}}'
+      fields:
+      - path: private_dns_zone_configs
+        operator: exists
+      - path: private_dns_zone_configs[0].private_dns_zone_id
+        operator: exists
+  - check_id: azure.network.firewall.no_permit_any_any
+    title: 'AZURE AZURE Network_firewall: No Permit Any Any'
+    severity: low
+    for_each: azure.network.azure_firewalls
+    calls:
+    - action: azure_firewalls.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        azure_firewall_name: '{{name}}'
+      fields:
+      - path: network_rule_collections[*].rules[*].source_addresses
+        operator: not_contains
+        expected: '*'
+      - path: network_rule_collections[*].rules[*].destination_addresses
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.network.firewall.rule_groups_attached
+    title: 'AZURE AZURE Network_firewall: Rule Groups Attached'
+    severity: low
+    for_each: azure.network.azure_firewalls
+    calls:
+    - action: azure_firewalls.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        azure_firewall_name: '{{name}}'
+      fields:
+      - path: network_rule_collections
+        operator: exists
+      - path: application_rule_collections
+        operator: exists
+  - check_id: azure.network.flow.log.retention.period.check
+    title: 'AZURE NETWORK Flow: Log Retention Period Check'
+    severity: low
+    for_each: azure.network.flow_logs
+    calls:
+    - action: flow_logs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+        flow_log_name: '{{name}}'
+      fields:
+      - path: retention_policy.enabled
+        operator: equals
+        expected: true
+      - path: retention_policy.days
+        operator: greater_than
+        expected: 30
+  - check_id: azure.network.interface.eni_security_groups_restrictive
+    title: 'AZURE AZURE Network_interface: Network Eni Security Groups Restrictive'
+    severity: medium
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: network_security_group
+        operator: exists
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{nsg_name}}'
+      fields:
+      - path: security_rules[*].access
+        operator: not_all_equal
+        expected: Allow
+  - check_id: azure.network.isolation.automated_isolation_supported
+    title: 'AZURE AZURE Network_isolation: Automated Isolation Supported'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets[*].network_security_group
+        operator: exists
+      - path: enable_ddos_protection
+        operator: equals
+        expected: true
+  - check_id: azure.network.isolation.quarantine_network_defined
+    title: 'AZURE AZURE Network_isolation: Quarantine Network Defined'
+    severity: medium
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets
+        operator: contains_key
+        expected: quarantine
+      - path: subnets[*].name
+        operator: regex_match
+        expected: .*quarantine.*
+  - check_id: azure.network.listener.cipher_policy_secure
+    title: 'AZURE AZURE Network_listener: Cipher Policy Secure'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_policy.cipher_suites
+        operator: not_contains
+        expected: TLS_RSA_WITH_AES_128_CBC_SHA
+      - path: ssl_policy.min_protocol_version
+        operator: greater_than_or_equal
+        expected: TLSv1_2
+  - check_id: azure.network.listener.tls_min_1_2
+    title: 'AZURE AZURE Network_listener: TLS Min 1 2'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_policy.min_protocol_version
+        operator: greater_than_or_equal
+        expected: TLSv1_2
+  - check_id: azure.network.load_balancer.lb_listener_tls_min_1_2
+    title: 'AZURE AZURE Network_load_balancer: Network Lb Listener TLS Min 1 2'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_policy.min_protocol_version
+        operator: greater_than_or_equal
+        expected: TLSv1_2
+  - check_id: azure.network.load_balancer.lb_valid_certificate_attached
+    title: 'AZURE AZURE Network_load_balancer: Network Lb Valid Certificate Attached'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: ssl_certificates
+        operator: exists
+      - path: ssl_certificates[*].data
+        operator: exists
+  - check_id: azure.network.load_balancer.lb_waf_attached_where_supported
+    title: 'AZURE AZURE Network_load_balancer: Network Lb Waf Attached Where Supported'
+    severity: medium
+    for_each: azure.network.application_gateways
+    calls:
+    - action: application_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        application_gateway_name: '{{name}}'
+      fields:
+      - path: web_application_firewall_configuration
+        operator: exists
+      - path: web_application_firewall_configuration.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.micro_segmentation.microseg_endpoint_policies_applied
+    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Endpoint Policies Applied'
+    severity: medium
+    for_each: azure.network.network_interfaces
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{name}}'
+      fields:
+      - path: network_security_group
+        operator: exists
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{nsg_name}}'
+      fields:
+      - path: security_rules
+        operator: exists
+      - path: security_rules
+        operator: min_length
+        expected: 1
+  - check_id: azure.network.micro_segmentation.microseg_identity_aware_policies_enabled
+    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Identity Aware Policies Enabled'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[*].source_application_security_groups
+        operator: exists
+      - path: security_rules[*].destination_application_security_groups
+        operator: exists
+  - check_id: azure.network.monitoring.alerts_for_anomalies
+    title: 'AZURE AZURE Network_monitoring: Alerts For Anomalies Configured'
+    severity: low
+    for_each: azure.network.network_watchers
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+    - action: metric_alerts.list_by_subscription
+      params: {}
+      fields:
+      - path: value[*].criteria.all_of[*].metric_name
+        operator: contains
+        expected: NetworkIn
+  - check_id: azure.network.monitoring.flow_logs_enabled
+    title: 'AZURE AZURE Network_monitoring: Flow Logs Enabled'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: flow_logs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+      fields:
+      - path: value[*].enabled
+        operator: contains
+        expected: true
+      - path: value[*].target_resource_id
+        operator: contains
+        expected: '{{id}}'
+  - check_id: azure.network.network_acl.nacl_egress_restricted
+    title: 'AZURE AZURE Network_network_acl: Network Nacl Egress Restricted'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[*].direction
+        operator: contains
+        expected: Outbound
+      - path: security_rules[?(@.direction=='Outbound')].access
+        operator: contains
+        expected: Deny
+  - check_id: azure.network.network_acl.nacl_no_allow_all_rules
+    title: 'AZURE AZURE Network_network_acl: Network Nacl No Allow All Rules'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[*].source_address_prefix
+        operator: not_contains
+        expected: '*'
+      - path: security_rules[*].destination_address_prefix
+        operator: not_contains
+        expected: '*'
+      - path: security_rules[*].destination_port_range
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.network.nsg.databricks.subnet.explicit.rules
+    title: 'AZURE NETWORK Nsg: Databricks Subnet Explicit Rules'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules
+        operator: exists
+      - path: security_rules[?(@.destination_port_range == '443' || @.destination_port_ranges[*] == '443')]
+        operator: exists
+  - check_id: azure.network.nsg.flow.log.retention.days.check
+    title: 'AZURE NETWORK Nsg: Flow Log Retention Days Check'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: flow_logs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+        flow_log_name: '{{flow_log_name}}'
+      fields:
+      - path: retention_policy.days
+        operator: gte
+        expected: 90
+  - check_id: azure.network.nsg.inbound.http.access.check
+    title: 'AZURE NETWORK Nsg: Inbound Http Access Check'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.destination_port_range == '80' || @.destination_port_ranges[*]
+          == '80'))]
+        operator: not_exists
+  - check_id: azure.network.nsg.rdp.internet.access.check
+    title: 'AZURE NETWORK Nsg: Rdp Internet Access Check'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && (@.destination_port_range
+          == '3389' || @.destination_port_ranges[*] == '3389'))]
+        operator: not_exists
+  - check_id: azure.network.nsg.ssh.access.evaluation
+    title: 'AZURE NETWORK Nsg: Ssh Access Evaluation'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && (@.destination_port_range
+          == '22' || @.destination_port_ranges[*] == '22'))]
+        operator: not_exists
+  - check_id: azure.network.nsg.udp.internet.access.check
+    title: 'AZURE NETWORK Nsg: Udp Internet Access Check'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && @.protocol
+          == 'UDP')]
+        operator: not_exists
+  - check_id: azure.network.paas_app.private_networking_enforced
+    title: 'AZURE AZURE Paas_app: Private Networking Enforced'
+    severity: medium
+    for_each: azure.network.app_services
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.network.public.ip.list.and.review
+    title: 'AZURE NETWORK Public: Ip List And Review'
+    severity: low
+    for_each: azure.network.public_ip_addresses
+    calls:
+    - action: self
+      fields:
+      - path: ip_address
+        operator: exists
+      - path: tags.reviewed
+        operator: exists
+  - check_id: azure.network.route_table.no_0_0_0_0_from_private_subnets
+    title: 'AZURE AZURE Network_route_table: No 0 0 0 0 From Private Subnets'
+    severity: low
+    for_each: azure.network.route_tables
+    calls:
+    - action: route_tables.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        route_table_name: '{{name}}'
+      fields:
+      - path: routes[?(@.address_prefix == '0.0.0.0/0' && @.next_hop_type == 'Internet')]
+        operator: not_exists
+  - check_id: azure.network.route_table.vpc_endpoints_used_for_saas_where_supported
+    title: 'AZURE AZURE Network_route_table: VPC Endpoints Used For Saas Where Supported'
+    severity: low
+    for_each: azure.network.route_tables
+    calls:
+    - action: route_tables.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        route_table_name: '{{name}}'
+      fields:
+      - path: routes[?(@.next_hop_type == 'VirtualNetworkServiceEndpoint')]
+        operator: exists
+  - check_id: azure.network.security_group.data_warehouse_sg_egress_egress_restricted
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Egress Egress Restricted'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' && @.destination_address_prefix == '*')]
+        operator: not_exists
+  - check_id: azure.network.security_group.data_warehouse_sg_egress_restricted
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Egress Restricted'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow')]
+        operator: count_lte
+        expected: 5
+  - check_id: azure.network.security_group.data_warehouse_sg_ingress_no_0_0_0_0
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Ingress No 0 0 0 0'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '0.0.0.0/0')]
+        operator: not_exists
+  - check_id: azure.network.security_group.data_warehouse_sg_ingress_only_required_ports
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Ingress Only Required Ports'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && !(@.destination_port_range in ['443', '1433',
+          '5432']))]
+        operator: not_exists
+  - check_id: azure.network.security_group.data_warehouse_sg_no_0_0_0_0_ingress
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg No 0 0 0 0 Ingress'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.source_address_prefix == '*' || @.source_address_prefix
+          == '0.0.0.0/0'))]
+        operator: not_exists
+  - check_id: azure.network.security_group.data_warehouse_sg_only_required_ports_open
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Only Required Ports Open'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.access == 'Allow' && !(@.destination_port_range in ['443', '1433', '5432', '80']))]
+        operator: not_exists
+  - check_id: azure.network.security_group.sg_egress_restricted
+    title: 'AZURE AZURE Network_security_group: Network Sg Egress Restricted'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' && @.destination_address_prefix == '*')]
+        operator: not_exists
+  - check_id: azure.network.security_group.sg_no_0_0_0_0_ingress
+    title: 'AZURE AZURE Network_security_group: Network Sg No 0 0 0 0 Ingress'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.source_address_prefix == '*' || @.source_address_prefix
+          == '0.0.0.0/0'))]
+        operator: not_exists
+  - check_id: azure.network.security_group.sg_only_required_ports_open
+    title: 'AZURE AZURE Network_security_group: Network Sg Only Required Ports Open'
+    severity: medium
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.access == 'Allow' && @.destination_port_range == '*')]
+        operator: not_exists
+  - check_id: azure.network.segmentation.default_deny_between_tiers
+    title: 'AZURE AZURE Network_segmentation: Default Deny Between Tiers'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: subnets[*].network_security_group
+        operator: exists
+  - check_id: azure.network.segmentation.exception_approvals_required
+    title: 'AZURE AZURE Network_segmentation: Exception Approvals Required'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: self
+      fields:
+      - path: subnets[*].network_security_group
+        operator: exists
+      - path: tags.exceptionApprovalRequired
+        operator: equals
+        expected: 'true'
+  - check_id: azure.network.segmentation.tier_to_tier_policies_defined
+    title: 'AZURE AZURE Network_segmentation: Tier To Tier Policies Defined'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[*].access
+        operator: contains
+        expected: Deny
+      - path: security_rules[*].direction
+        operator: contains
+        expected: Inbound
+  - check_id: azure.network.subnet.private_subnets_no_igw_route
+    title: 'AZURE AZURE Network_subnet: Private Subnets No Igw Route'
+    severity: low
+    for_each: azure.network.subnets
+    calls:
+    - action: subnets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{virtual_network_name}}'
+        subnet_name: '{{name}}'
+      fields:
+      - path: route_table.id
+        operator: exists
+    - action: route_tables.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        route_table_name: '{{route_table_name}}'
+      fields:
+      - path: routes[*].next_hop_type
+        operator: not_equals
+        expected: Internet
+  - check_id: azure.network.subnet.public_subnets_use_nacl_restrictions
+    title: 'AZURE AZURE Network_subnet: Public Subnets Use Nacl Restrictions'
+    severity: critical
+    for_each: azure.network.subnets
+    calls:
+    - action: subnets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{virtual_network_name}}'
+        subnet_name: '{{name}}'
+      fields:
+      - path: network_security_group.id
+        operator: exists
+      - path: route_table.id
+        operator: exists
+  - check_id: azure.network.subnet.route_table_association_present
+    title: 'AZURE AZURE Network_subnet: Route Table Association Present'
+    severity: low
+    for_each: azure.network.subnets
+    calls:
+    - action: subnets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{virtual_network_name}}'
+        subnet_name: '{{name}}'
+      fields:
+      - path: route_table.id
+        operator: exists
+  - check_id: azure.network.traffic_analysis.ids_ips_enabled_where_supported
+    title: 'AZURE AZURE Network_traffic_analysis: Ids Ips Enabled Where Supported'
+    severity: low
+    for_each: azure.network.network_watchers
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+    - action: flow_logs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+        flow_log_name: '{{flow_log_name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.network.virtual.network.ddos.protection.status
+    title: 'AZURE NETWORK Virtual: Network Ddos Protection Status'
+    severity: medium
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: enable_ddos_protection
+        operator: equals
+        expected: true
+      - path: ddos_protection_plan.id
+        operator: exists
+  - check_id: azure.network.virtual_network.dns_hostnames_and_support
+    title: 'AZURE AZURE Network_vpc: Dns Hostnames And Support Configured'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: virtual_networks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{name}}'
+      fields:
+      - path: dhcp_options.dns_servers
+        operator: exists
+      - path: address_space.address_prefixes
+        operator: exists
+  - check_id: azure.network.virtual_network.flow_logs_enabled
+    title: 'AZURE AZURE Network_vpc: Flow Logs Enabled'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: flow_logs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+        flow_log_name: '{{flow_log_name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: target_resource_id
+        operator: exists
+  - check_id: azure.network.virtual_network.route_tables_no_unintended_internet_paths
+    title: 'AZURE AZURE Network_vpc: Route Tables No Unintended Internet Paths'
+    severity: low
+    for_each: azure.network.route_tables
+    calls:
+    - action: route_tables.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        route_table_name: '{{name}}'
+      fields:
+      - path: routes[*].next_hop_type
+        operator: not_contains
+        expected: Internet
+      - path: routes[*].address_prefix
+        operator: not_equals
+        expected: 0.0.0.0/0
+  - check_id: azure.network.vnet.flow.logs.to.log.analytics.enabled
+    title: 'AZURE NETWORK Vnet: Flow Logs To Log Analytics Enabled'
+    severity: low
+    for_each: azure.network.virtual_networks
+    calls:
+    - action: flow_logs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_watcher_name: '{{network_watcher_name}}'
+        flow_log_name: '{{flow_log_name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: flow_analytics_configuration.network_watcher_flow_analytics_configuration.enabled
+        operator: equals
+        expected: true
+      - path: flow_analytics_configuration.network_watcher_flow_analytics_configuration.workspace_id
+        operator: exists
+  - check_id: azure.network.vnet.subnet.nsg.association.check
+    title: 'AZURE NETWORK Vnet: Subnet Nsg Association Check'
+    severity: low
+    for_each: azure.network.subnets
+    calls:
+    - action: subnets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_name: '{{virtual_network_name}}'
+        subnet_name: '{{name}}'
+      fields:
+      - path: network_security_group.id
+        operator: exists
+  - check_id: azure.network.vpn_connection.vpn_ike_phase_encryption_strong
+    title: 'AZURE AZURE Network_vpn_connection: Network Vpn Ike Phase Encryption Strong'
+    severity: high
+    for_each: azure.network.vpn_connections
+    calls:
+    - action: virtual_network_gateway_connections.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_gateway_connection_name: '{{name}}'
+      fields:
+      - path: ipsec_policies[*].ike_encryption
+        operator: in
+        expected:
+        - AES256
+        - AES192
+      - path: ipsec_policies[*].ike_integrity
+        operator: in
+        expected:
+        - SHA256
+        - SHA384
+  - check_id: azure.network.vpn_connection.vpn_pre_shared_keys_rotation_policy_defined
+    title: 'AZURE AZURE Network_vpn_connection: Network Vpn Pre Shared Keys Rotation Policy Defined'
+    severity: high
+    for_each: azure.network.vpn_connections
+    calls:
+    - action: self
+      fields:
+      - path: tags.keyRotationPolicy
+        operator: exists
+      - path: tags.keyRotationInterval
+        operator: exists
+  - check_id: azure.network.watcher.region.compliance.check
+    title: 'AZURE NETWORK Watcher: Region Compliance Check'
+    severity: low
+    for_each: azure.network.network_watchers
+    calls:
+    - action: self
+      fields:
+      - path: location
+        operator: in
+        expected:
+        - eastus
+        - westus
+        - centralus
+        - northeurope
+        - westeurope
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.networksecuritygroup.default.restrict.traffic
+    title: 'AZURE NETWORKSECURITYGROUP Default: Restrict Traffic'
+    severity: low
+    for_each: azure.network.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: default_security_rules[*].access
+        operator: contains
+        expected: Deny
+      - path: security_rules[?(@.source_address_prefix == '*' && @.access == 'Allow')].length
+        operator: equals
+        expected: 0
+  - check_id: azure.vpn.gateway.point.to.site.authentication.type.set.to.azure.ad
+    title: 'AZURE VPN Gateway: Point To Site Authentication Type Set To Azure Ad'
+    severity: high
+    for_each: azure.network.vpn_gateways
+    calls:
+    - action: virtual_network_gateways.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        virtual_network_gateway_name: '{{name}}'
+      fields:
+      - path: vpn_client_configuration.vpn_authentication_types
+        operator: contains
+        expected: AAD
+      - path: vpn_client_configuration.aad_tenant
+        operator: exists
+      - path: vpn_client_configuration.aad_audience
+        operator: exists
+  - check_id: azure.network.load_balancer.lb_access_logs_enabled
+    title: 'AZURE AZURE Network_load_balancer: Network Lb Access Logs Enabled'
+    severity: medium
+    for_each: azure.network.network_load_balancer
+    calls:
+    - action: self
+      fields:
+      - path: properties.enableLogging
+        operator: equals
+        expected: true
+  - check_id: azure.network.firewall.logging_enabled
+    title: 'AZURE AZURE Network_firewall: Logging Enabled'
+    severity: medium
+    for_each: azure.network.network_firewall
+    calls:
+    - action: self
+      fields:
+      - path: properties.diagnosticSettings
+        operator: not_empty
+      - path: properties.diagnosticSettings[*].logs[*].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.load.balancer.logging.enabled
+    title: Azure Load Balancer Logging Enabled
+    severity: medium
+    for_each: azure.network.balancer
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      args:
+        resource_uri: '{{ item.id }}'
+      fields:
+      - path: value
+        operator: not_empty
+      - path: value[*].properties.logs[?(@.category=='LoadBalancerAlertEvent' || @.category=='LoadBalancerProbeHealthStatus')].enabled
+        operator: contains
+        expected: true

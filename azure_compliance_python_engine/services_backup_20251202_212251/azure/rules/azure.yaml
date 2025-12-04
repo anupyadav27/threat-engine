@@ -1,0 +1,4344 @@
+version: '1.0'
+provider: azure
+service: azure
+discovery: []
+checks:
+- check_id: crypto_alias_secrets_alias_alias_points_to_active_key
+  name: 'AZURE AZURE Crypto_alias: Secrets Alias Alias Points To Active Key'
+  severity: HIGH
+  for_each: crypto_aliass
+  param: crypto_alias
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.targetKeyId
+      operator: exists
+      expected: true
+    - path: properties.enabled
+      operator: equals
+      expected: true
+    - path: properties.keyState
+      operator: equals
+      expected: Active
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_alias_secrets_alias_key_has_alias
+  name: 'AZURE AZURE Crypto_alias: Secrets Alias Key Has Alias'
+  severity: HIGH
+  for_each: crypto_aliass
+  param: crypto_alias
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keyVaultProperties.keyIdentifier
+      operator: exists
+      expected: true
+    - path: properties.keyVaultProperties.keyIdentifier
+      operator: contains
+      expected: vault.azure.net
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_certificate_secrets_certificate_key_length_minimum
+  name: 'AZURE AZURE Crypto_certificate: Secrets Certificate Key Length Minimum'
+  severity: HIGH
+  for_each: crypto_certificates
+  param: crypto_certificate
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keySize
+      operator: exists
+      expected: true
+    - path: properties.keySize
+      operator: gte
+      expected: 2048
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_certificate_secrets_certificate_not_expired
+  name: 'AZURE AZURE Crypto_certificate: Secrets Certificate Not Expired'
+  severity: HIGH
+  for_each: crypto_certificates
+  param: crypto_certificate
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.certificate.notAfter
+      operator: exists
+      expected: true
+    - path: properties.certificate.notAfter
+      operator: greater_than_current_time
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_certificate_secrets_certificate_trusted_issuer
+  name: 'AZURE AZURE Crypto_certificate: Secrets Certificate Trusted Issuer'
+  severity: HIGH
+  for_each: crypto_certificates
+  param: crypto_certificate
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.issuer_parameters.certificate_transparency
+      operator: equals
+      expected: true
+    - path: properties.issuer_parameters.name
+      operator: exists
+      expected: true
+    - path: properties.certificate_policy.issuer_parameters.name
+      operator: contains
+      expected: DigiCert|GlobalSign|Sectigo|GeoTrust|Thawte|VeriSign
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_grant_secrets_kms_grant_constraints_present
+  name: 'AZURE AZURE Crypto_grant: Secrets KMS Grant Constraints Present'
+  severity: HIGH
+  for_each: crypto_grants
+  param: crypto_grant
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.constraints
+      operator: exists
+      expected: true
+    - path: properties.constraints.encryptionContextSubset
+      operator: exists
+      expected: true
+    - path: properties.constraints.encryptionContextEquals
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_grant_secrets_kms_grant_grantee_principal_valid
+  name: 'AZURE AZURE Crypto_grant: Secrets KMS Grant Grantee Principal Valid'
+  severity: HIGH
+  for_each: crypto_grants
+  param: crypto_grant
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.grantee_principal
+      operator: exists
+      expected: true
+    - path: properties.grantee_principal
+      operator: contains
+      expected: '@'
+    - path: properties.grant_operations
+      operator: contains
+      expected: Decrypt
+    - path: properties.key_id
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_grant_secrets_kms_grant_lessthan_wildcard_permissions
+  name: 'AZURE AZURE Crypto_grant: Secrets KMS Grant Lessthan Wildcard Permissions'
+  severity: HIGH
+  for_each: crypto_grants
+  param: crypto_grant
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.permissions
+      operator: exists
+      expected: true
+    - path: properties.permissions
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_private_ca_secrets_private_ca_ca_access_rbac_least_privilege
+  name: 'AZURE AZURE Crypto_private_ca: Secrets Private Ca Ca Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: crypto_private_cas
+  param: crypto_private_ca
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessPolicies
+      operator: exists
+      expected: true
+    - path: properties.accessPolicies[*].permissions.secrets
+      operator: contains
+      expected:
+      - get
+    - path: properties.accessPolicies[*].permissions.certificates
+      operator: contains
+      expected:
+      - get
+      - list
+    - path: properties.enableRbacAuthorization
+      operator: equals
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_private_ca_secrets_private_ca_ca_key_in_hsm_where_supported
+  name: 'AZURE AZURE Crypto_private_ca: Secrets Private Ca Ca Key In Hsm Where Supported'
+  severity: HIGH
+  for_each: crypto_private_cas
+  param: crypto_private_ca
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keyVaultProperties.hsmEnabled
+      operator: equals
+      expected: true
+    - path: properties.keyVaultProperties.keyName
+      operator: exists
+      expected: true
+    - path: properties.keyVaultProperties.vaultUri
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: crypto_private_ca_secrets_private_ca_crl_or_ocsp_configured
+  name: 'AZURE AZURE Crypto_private_ca: Secrets Private Ca Crl Or Ocsp Configured'
+  severity: HIGH
+  for_each: crypto_private_cas
+  param: crypto_private_ca
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.revocation.crl_distribution_points
+      operator: exists
+      expected: true
+    - path: properties.revocation.ocsp_url
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: crypto_private_ca_secrets_private_ca_path_length_constraints_set
+  name: 'AZURE AZURE Crypto_private_ca: Secrets Private Ca Path Length Constraints
+    Set'
+  severity: HIGH
+  for_each: crypto_private_cas
+  param: crypto_private_ca
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.ca_certificate.subject_config.subject_alt_name.path_len_constraint
+      operator: exists
+      expected: true
+    - path: properties.ca_certificate.subject_config.subject_alt_name.path_len_constraint
+      operator: equals
+      expected: 0
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_job_resilience_logs_enabled
+  name: 'AZURE AZURE Dr_job: Resilience Logs Enabled'
+  severity: LOW
+  for_each: dr_jobs
+  param: dr_job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.resilienceLogsEnabled
+      operator: equals
+      expected: true
+    - path: properties.logging.enabled
+      operator: equals
+      expected: true
+    - path: properties.diagnosticSettings.logs
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_job_resilience_network_private_only
+  name: 'AZURE AZURE Dr_job: Resilience Network Private Only'
+  severity: MEDIUM
+  for_each: dr_jobs
+  param: dr_job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkConfiguration.networkAccess
+      operator: equals
+      expected: Private
+    - path: properties.networkConfiguration.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkConfiguration.privateEndpointConnections
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_job_resilience_roles_least_privilege
+  name: 'AZURE AZURE Dr_job: Resilience Roles Least Privilege'
+  severity: HIGH
+  for_each: dr_jobs
+  param: dr_job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].principalType
+      operator: contains
+      expected: User
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: exists
+      expected: true
+    - path: properties.accessPolicies
+      operator: exists
+      expected: true
+    - path: properties.accessPolicies[*].permissions.actions
+      operator: exists
+      expected: true
+    - path: properties.enableRbac
+      operator: equals
+      expected: true
+    - path: properties.minimumPermissions
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_plan_resilience_approvals_required_for_changes
+  name: 'AZURE AZURE Dr_plan: Resilience Approvals Required For Changes'
+  severity: LOW
+  for_each: dr_plans
+  param: dr_plan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.resilienceSettings.approvalRequired
+      operator: equals
+      expected: true
+    - path: properties.resilienceSettings.changeManagement.enabled
+      operator: equals
+      expected: true
+    - path: properties.resilienceSettings.changeManagement.requireApproval
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_plan_resilience_change_audit_logging_enabled
+  name: 'AZURE AZURE Dr_plan: Resilience Change Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: dr_plans
+  param: dr_plan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.auditLoggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.resilienceChangeAuditLogging.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_plan_resilience_storage_encrypted_and_private
+  name: 'AZURE AZURE Dr_plan: Resilience Storage Encrypted And Private'
+  severity: MEDIUM
+  for_each: dr_plans
+  param: dr_plan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.resilience_storage.properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.resilience_storage.properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.resilience_storage.properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.resilience_storage.properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.resilience_storage.properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_recovery_instance_resilience_recovery_instance_private_network_only
+  name: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Private Network
+    O'
+  severity: MEDIUM
+  for_each: dr_recovery_instances
+  param: dr_recovery_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkConfiguration.enablePublicAccess
+      operator: equals
+      expected: false
+    - path: properties.networkConfiguration.privateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.networkConfiguration.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_recovery_instance_resilience_recovery_instance_security_groups_restrictive
+  name: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Security Groups
+    R'
+  severity: LOW
+  for_each: dr_recovery_instances
+  param: dr_recovery_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkProfile.networkSecurityGroup.properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.networkProfile.networkSecurityGroup.properties.securityRules[*].properties.access
+      operator: contains
+      expected: Deny
+    - path: properties.networkProfile.networkSecurityGroup.properties.securityRules[*].properties.sourceAddressPrefix
+      operator: equals
+      expected: '*'
+    - path: properties.networkProfile.networkSecurityGroup.properties.securityRules[*].properties.destinationPortRange
+      operator: contains
+      expected: '22'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_recovery_instance_resilience_recovery_instance_volumes_encrypted
+  name: 'AZURE AZURE Dr_recovery_instance: Resilience Recovery Instance Volumes Encrypted'
+  severity: MEDIUM
+  for_each: dr_recovery_instances
+  param: dr_recovery_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataDisks[].encryptionSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.osDisk.encryptionSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.storageProfile.dataDisks[].managedDisk.diskEncryptionSet.id
+      operator: exists
+      expected: true
+    - path: properties.storageProfile.osDisk.managedDisk.diskEncryptionSet.id
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_source_server_resilience_dr_source_agent_to_service_tls_required
+  name: 'AZURE AZURE Dr_source_server: Resilience DR Source Agent To Service TLS Required'
+  severity: MEDIUM
+  for_each: dr_source_servers
+  param: dr_source_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.agent_to_service_tls_required
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_source_server_resilience_dr_source_encryption_at_rest_cmek_where_supported
+  name: 'AZURE AZURE Dr_source_server: Resilience DR Source Encryption At Rest Cmek
+    Where'
+  severity: HIGH
+  for_each: dr_source_servers
+  param: dr_source_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyVaultProperties.keyName
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyVaultProperties.keyVaultUri
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyVaultProperties.keyVersion
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: dr_source_server_resilience_dr_source_min_telemtry_required_no_pii
+  name: 'AZURE AZURE Dr_source_server: Resilience DR Source Min Telemtry Required
+    No Pii'
+  severity: LOW
+  for_each: dr_source_servers
+  param: dr_source_server
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.telemetrySettings.minTelemetryRequired
+      operator: equals
+      expected: true
+    - path: properties.telemetrySettings.enablePiiCollection
+      operator: equals
+      expected: false
+    - path: properties.resilienceSettings.drSourceConfiguration.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_log_stream_logging_stream_encryption_at_rest_enabled
+  name: 'AZURE AZURE Logging_log_stream: Logging Stream Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: logging_log_streams
+  param: logging_log_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_log_stream_logging_stream_ingestion_auth_required
+  name: 'AZURE AZURE Logging_log_stream: Logging Stream Ingestion Auth Required'
+  severity: MEDIUM
+  for_each: logging_log_streams
+  param: logging_log_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authenticationRequired
+      operator: equals
+      expected: true
+    - path: properties.ingestionSettings.authentication.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_log_stream_logging_stream_retention_days_minimum
+  name: 'AZURE AZURE Logging_log_stream: Logging Stream Retention Days Minimum'
+  severity: MEDIUM
+  for_each: logging_log_streams
+  param: logging_log_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retentionInDays
+      operator: exists
+      expected: true
+    - path: properties.retentionInDays
+      operator: gte
+      expected: 30
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_query_definition_access_rbac_least_privilege
+  name: 'AZURE AZURE Logging_query_definition: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: logging_query_definitions
+  param: logging_query_definition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.body
+      operator: exists
+      expected: true
+    - path: properties.displayName
+      operator: exists
+      expected: true
+    - path: tags
+      operator: exists
+      expected: true
+    - path: properties.related.categories
+      operator: contains
+      expected: Security
+    - path: properties.related.resourceTypes
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_query_definition_storage_encrypted
+  name: 'AZURE AZURE Logging_query_definition: Storage Encrypted'
+  severity: MEDIUM
+  for_each: logging_query_definitions
+  param: logging_query_definition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_sink_cross_account_destinations_restricted
+  name: 'AZURE AZURE Logging_sink: Cross Account Destinations Restricted'
+  severity: LOW
+  for_each: logging_sinks
+  param: logging_sink
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destinations
+      operator: exists
+      expected: true
+    - path: properties.destinations.external_account_access_restricted
+      operator: equals
+      expected: true
+    - path: properties.cross_tenant_destinations_enabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_sink_destination_encrypted
+  name: 'AZURE AZURE Logging_sink: Destination Encrypted'
+  severity: MEDIUM
+  for_each: logging_sinks
+  param: logging_sink
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destination.storageAccount.properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.destination.storageAccount.properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.destination.eventHub.properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: logging_sink_destination_least_privilege
+  name: 'AZURE AZURE Logging_sink: Destination Least Privilege'
+  severity: HIGH
+  for_each: logging_sinks
+  param: logging_sink
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destination.authorization.type
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.destination.authorization.principalId
+      operator: exists
+      expected: true
+    - path: properties.destination.authorization.permissions
+      operator: contains
+      expected: write
+    - path: properties.destination.storageAccount.accessTier
+      operator: equals
+      expected: Hot
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_store_access_rbac_least_privilege
+  name: 'AZURE AZURE Logging_store: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: logging_stores
+  param: logging_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].principalType
+      operator: contains
+      expected: User
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Reader
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_store_encryption_at_rest_cmek
+  name: 'AZURE AZURE Logging_store: Encryption At Rest Cmek'
+  severity: HIGH
+  for_each: logging_stores
+  param: logging_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_store_immutability_or_object_lock_where_supported
+  name: 'AZURE AZURE Logging_store: Immutability Or Object Lock Where Supported'
+  severity: LOW
+  for_each: logging_stores
+  param: logging_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.immutableStorageWithVersioning.enabled
+      operator: equals
+      expected: true
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: logging_store_retention_days_minimum
+  name: 'AZURE AZURE Logging_store: Retention Days Minimum'
+  severity: LOW
+  for_each: logging_stores
+  param: logging_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retentionPolicy.days
+      operator: exists
+      expected: true
+    - path: properties.retentionPolicy.days
+      operator: gte
+      expected: 30
+    - path: properties.retentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: mlops_monitoring_ml_ops_monitoring_logs_enabled
+  name: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Logs Enabled'
+  severity: MEDIUM
+  for_each: mlops_monitorings
+  param: mlops_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diagnosticSettings.logs.enabled
+      operator: equals
+      expected: true
+    - path: properties.monitoring.logAnalytics.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: mlops_monitoring_ml_ops_monitoring_outputs_encrypted_and_private
+  name: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Outputs Encrypted And Private'
+  severity: MEDIUM
+  for_each: mlops_monitorings
+  param: mlops_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keyVaultProperties.keyVaultArmId
+      operator: exists
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.storageAccount.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: mlops_monitoring_ml_ops_monitoring_private_networking_enforced
+  name: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Private Networking Enforced'
+  severity: MEDIUM
+  for_each: mlops_monitorings
+  param: mlops_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: mlops_monitoring_ml_ops_monitoring_roles_least_privilege
+  name: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Roles Least Privilege'
+  severity: HIGH
+  for_each: mlops_monitorings
+  param: mlops_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/f6c7c914-8db3-469d-8ca1-694a8f32e121
+    - path: properties.roleAssignments[*].scope
+      operator: exists
+      expected: true
+    - path: properties.identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: ServicePrincipal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_alert_alarm_actions_configured
+  name: 'AZURE AZURE Monitoring_alert: Alarm Actions Configured'
+  severity: LOW
+  for_each: monitoring_alerts
+  param: monitoring_alert
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.actions
+      operator: exists
+      expected: true
+    - path: properties.actions
+      operator: contains
+      expected: actionGroupId
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_alert_critical_alarms_enabled
+  name: 'AZURE AZURE Monitoring_alert: Critical Alarms Enabled'
+  severity: LOW
+  for_each: monitoring_alerts
+  param: monitoring_alert
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enabled
+      operator: equals
+      expected: true
+    - path: properties.severity
+      operator: equals
+      expected: 0
+    - path: properties.condition.allOf[0].threshold
+      operator: exists
+      expected: true
+    - path: properties.actions
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_alert_destinations_authenticated
+  name: 'AZURE AZURE Monitoring_alert: Destinations Authenticated'
+  severity: LOW
+  for_each: monitoring_alerts
+  param: monitoring_alert
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.actions
+      operator: exists
+      expected: true
+    - path: properties.actions[*].actionGroupId
+      operator: exists
+      expected: true
+    - path: properties.actions[*].webhookProperties.authentication
+      operator: exists
+      expected: true
+    - path: properties.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_anomaly_detector_monitoring_anomaly_alerts_configured
+  name: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Alerts Configured'
+  severity: MEDIUM
+  for_each: monitoring_anomaly_detectors
+  param: monitoring_anomaly_detector
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.alertSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.alertSettings.anomalyDetectorDirection
+      operator: exists
+      expected: true
+    - path: properties.alertSettings.hookIds
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_anomaly_detector_monitoring_anomaly_detectors_enabled
+  name: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Detectors Enabled'
+  severity: MEDIUM
+  for_each: monitoring_anomaly_detectors
+  param: monitoring_anomaly_detector
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.provisioningState
+      operator: equals
+      expected: Succeeded
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_anomaly_detector_monitoring_anomaly_training_data_sources_approved
+  name: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Training Data
+    Source'
+  severity: MEDIUM
+  for_each: monitoring_anomaly_detectors
+  param: monitoring_anomaly_detector
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataSource
+      operator: exists
+      expected: true
+    - path: properties.dataSource.dataSourceType
+      operator: equals
+      expected: AzureBlob
+    - path: properties.dataSource.connectionString
+      operator: exists
+      expected: true
+    - path: properties.granularity
+      operator: exists
+      expected: true
+    - path: properties.metrics
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_dashboard_public_embeds_disabled
+  name: 'AZURE AZURE Monitoring_dashboard: Public Embeds Disabled'
+  severity: CRITICAL
+  for_each: monitoring_dashboards
+  param: monitoring_dashboard
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publiclyEmbeddable
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_dashboard_sharing_restricted_to_org
+  name: 'AZURE AZURE Monitoring_dashboard: Sharing Restricted To Org'
+  severity: LOW
+  for_each: monitoring_dashboards
+  param: monitoring_dashboard
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.metadata.shared
+      operator: equals
+      expected: false
+    - path: properties.metadata.sharingPolicy
+      operator: equals
+      expected: organization
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_dashboard_sso_required
+  name: 'AZURE AZURE Monitoring_dashboard: Sso Required'
+  severity: LOW
+  for_each: monitoring_dashboards
+  param: monitoring_dashboard
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.ssoEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_sampling_rule_access_rbac_least_privilege
+  name: 'AZURE AZURE Monitoring_sampling_rule: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: monitoring_sampling_rules
+  param: monitoring_sampling_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: /subscriptions/{subscription-id}/providers/Microsoft.Authorization/roleDefinitions/92aaf0da-9dab-42b6-94a3-d43ce8d16293
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.permissions.actions
+      operator: contains
+      expected: Microsoft.Insights/components/samplingRules/read
+    - path: properties.permissions.notActions
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_sampling_rule_rules_present
+  name: 'AZURE AZURE Monitoring_sampling_rule: Rules Present'
+  severity: LOW
+  for_each: monitoring_sampling_rules
+  param: monitoring_sampling_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sampling_rules
+      operator: exists
+      expected: true
+    - path: properties.sampling_rules
+      operator: contains
+      expected: rule
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_sampling_rule_storage_encrypted
+  name: 'AZURE AZURE Monitoring_sampling_rule: Storage Encrypted'
+  severity: MEDIUM
+  for_each: monitoring_sampling_rules
+  param: monitoring_sampling_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.storage.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.storage.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_trace_access_rbac_least_privilege
+  name: 'AZURE AZURE Monitoring_trace: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: monitoring_traces
+  param: monitoring_trace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: /subscriptions/{subscription-id}/providers/Microsoft.Authorization/roleDefinitions/92aaf0da-9dab-42b6-94a3-d43ce8d16293
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.restrictOutboundNetworkAccess
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_trace_retention_days_minimum
+  name: 'AZURE AZURE Monitoring_trace: Retention Days Minimum'
+  severity: LOW
+  for_each: monitoring_traces
+  param: monitoring_trace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retentionInDays
+      operator: exists
+      expected: true
+    - path: properties.retentionInDays
+      operator: gte
+      expected: 30
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: monitoring_trace_store_encrypted
+  name: 'AZURE AZURE Monitoring_trace: Store Encrypted'
+  severity: MEDIUM
+  for_each: monitoring_traces
+  param: monitoring_trace
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_access_control_no_permit_all
+  name: 'AZURE AZURE Network_access_control: No Permit All'
+  severity: MEDIUM
+  for_each: network_access_controls
+  param: network_access_control
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.networkRules.ipRules
+      operator: exists
+      expected: true
+    - path: properties.networkRules.virtualNetworkRules
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_access_control_policies_present
+  name: 'AZURE AZURE Network_access_control: Policies Present'
+  severity: MEDIUM
+  for_each: network_access_controls
+  param: network_access_control
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.ipRules
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.virtualNetworkRules
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_access_control_policy_store_encrypted
+  name: 'AZURE AZURE Network_access_control: Policy Store Encrypted'
+  severity: MEDIUM
+  for_each: network_access_controls
+  param: network_access_control
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policyStore.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.policyStore.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_anomaly_detection_network_anomaly_destinations_encrypted
+  name: 'AZURE AZURE Network_anomaly_detection: Network Anomaly Destinations Encrypted'
+  severity: MEDIUM
+  for_each: network_anomaly_detections
+  param: network_anomaly_detection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destinations.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.destinations.encryptionAtTransit
+      operator: equals
+      expected: true
+    - path: properties.destinations.tlsVersion
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_anomaly_detection_network_anomaly_detectors_enabled
+  name: 'AZURE AZURE Network_anomaly_detection: Network Anomaly Detectors Enabled'
+  severity: MEDIUM
+  for_each: network_anomaly_detections
+  param: network_anomaly_detection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableAnomalyDetection
+      operator: equals
+      expected: true
+    - path: properties.anomalyDetectors
+      operator: exists
+      expected: true
+    - path: properties.state
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_automation_change_audit_logging_enabled
+  name: 'AZURE AZURE Network_automation: Change Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: network_automations
+  param: network_automation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diagnosticSettings.logs
+      operator: exists
+      expected: true
+    - path: properties.diagnosticSettings.logs[*].category
+      operator: contains
+      expected: AuditEvent
+    - path: properties.diagnosticSettings.logs[*].enabled
+      operator: equals
+      expected: true
+    - path: properties.auditingSettings.state
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_automation_remediation_roles_least_privilege
+  name: 'AZURE AZURE Network_automation: Remediation Roles Least Privilege'
+  severity: HIGH
+  for_each: network_automations
+  param: network_automation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: contains
+      expected: /subscriptions/{subscription-id}/providers/Microsoft.Authorization/roleDefinitions/
+    - path: properties.roleAssignments.*.scope
+      operator: exists
+      expected: true
+    - path: properties.remediation.permissions
+      operator: equals
+      expected: minimal
+    - path: properties.remediation.roleAssignments.*.principalType
+      operator: equals
+      expected: ServicePrincipal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_customer_gateway_network_cgw_ip_addresses_valid_and_owned
+  name: 'AZURE AZURE Network_customer_gateway: Network Cgw Ip Addresses Valid And
+    Owned'
+  severity: MEDIUM
+  for_each: network_customer_gateways
+  param: network_customer_gateway
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.bgpSettings.asn
+      operator: exists
+      expected: true
+    - path: properties.gatewayIpAddress
+      operator: exists
+      expected: true
+    - path: properties.provisioningState
+      operator: equals
+      expected: Succeeded
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_customer_gateway_network_cgw_no_public_management_interfaces_exposed
+  name: 'AZURE AZURE Network_customer_gateway: Network Cgw No Public Management Interface'
+  severity: CRITICAL
+  for_each: network_customer_gateways
+  param: network_customer_gateway
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkInterfaces
+      operator: exists
+      expected: true
+    - path: properties.networkInterfaces[?(@.properties.primary == true)].properties.ipConfigurations[*].properties.publicIPAddress
+      operator: equals
+      expected: null
+    - path: properties.managementInterface.properties.publicIPAddress
+      operator: equals
+      expected: null
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_encryption_mtls_required_for_internal_services_where_supported
+  name: 'AZURE AZURE Network_encryption: Mtls Required For Internal Services Where
+    Suppor'
+  severity: MEDIUM
+  for_each: network_encryptions
+  param: network_encryption
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.requireInfrastructureEncryption
+      operator: equals
+      expected: true
+    - path: properties.networkSecurityRules
+      operator: exists
+      expected: true
+    - path: properties.enableMutualTLS
+      operator: equals
+      expected: true
+    - path: properties.tlsVersion
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_encryption_tls_min_1_2_enforced
+  name: 'AZURE AZURE Network_encryption: TLS Min 1 2 Enforced'
+  severity: MEDIUM
+  for_each: network_encryptions
+  param: network_encryption
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_endpoint_policy_least_privilege
+  name: 'AZURE AZURE Network_endpoint: Policy Least Privilege'
+  severity: HIGH
+  for_each: network_endpoints
+  param: network_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAccessPolicy
+      operator: equals
+      expected: Deny
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.networkRuleSet.bypass
+      operator: equals
+      expected: None
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_endpoint_private_dns_enabled_where_supported
+  name: 'AZURE Network_endpoint: Private Dns Enabled Where Supported'
+  severity: LOW
+  for_each: network_endpoints
+  param: network_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.privateDnsZoneConfigs
+      operator: exists
+      expected: true
+    - path: properties.privateDnsZoneConfigs[0].privateDnsZoneId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_firewall_logging_enabled
+  name: 'AZURE AZURE Network_firewall: Logging Enabled'
+  severity: MEDIUM
+  for_each: network_firewalls
+  param: network_firewall
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.additionalProperties.AzureFirewallApplicationRuleCollectionAction
+      operator: exists
+      expected: true
+    - path: properties.additionalProperties.AzureFirewallNetworkRuleCollectionAction
+      operator: exists
+      expected: true
+    - path: properties.threatIntelMode
+      operator: equals
+      expected: Alert
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_firewall_no_permit_any_any
+  name: 'AZURE AZURE Network_firewall: No Permit Any Any'
+  severity: LOW
+  for_each: network_firewalls
+  param: network_firewall
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.applicationRuleCollections
+      operator: exists
+      expected: true
+    - path: properties.applicationRuleCollections[*].rules[*].sourceAddresses
+      operator: contains
+      expected: '*'
+    - path: properties.applicationRuleCollections[*].rules[*].targetFqdns
+      operator: contains
+      expected: '*'
+    - path: properties.networkRuleCollections[*].rules[*].sourceAddresses
+      operator: contains
+      expected: '*'
+    - path: properties.networkRuleCollections[*].rules[*].destinationAddresses
+      operator: contains
+      expected: '*'
+    - path: properties.networkRuleCollections[*].rules[*].destinationPorts
+      operator: contains
+      expected: '*'
+    - path: properties.natRuleCollections[*].rules[*].sourceAddresses
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_firewall_rule_groups_attached
+  name: 'AZURE AZURE Network_firewall: Rule Groups Attached'
+  severity: LOW
+  for_each: network_firewalls
+  param: network_firewall
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.applicationRuleCollections
+      operator: exists
+      expected: true
+    - path: properties.networkRuleCollections
+      operator: exists
+      expected: true
+    - path: properties.natRuleCollections
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: network_interface_network_eni_security_groups_present
+  name: 'AZURE AZURE Network_interface: Network Eni Security Groups Present'
+  severity: MEDIUM
+  for_each: network_interfaces
+  param: network_interface
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityGroup
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_interface_network_eni_security_groups_restrictive
+  name: 'AZURE AZURE Network_interface: Network Eni Security Groups Restrictive'
+  severity: MEDIUM
+  for_each: network_interfaces
+  param: network_interface
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityGroup
+      operator: exists
+      expected: true
+    - path: properties.networkSecurityGroup.properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.networkSecurityGroup.properties.securityRules[*].properties.access
+      operator: contains
+      expected: Deny
+    - path: properties.networkSecurityGroup.properties.securityRules[*].properties.sourceAddressPrefix
+      operator: equals
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_isolation_automated_isolation_supported
+  name: 'AZURE AZURE Network_isolation: Automated Isolation Supported'
+  severity: LOW
+  for_each: network_isolations
+  param: network_isolation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.automatedIsolationEnabled
+      operator: equals
+      expected: true
+    - path: properties.isolationPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.isolationSettings.automatedResponse
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_isolation_quarantine_network_defined
+  name: 'AZURE AZURE Network_isolation: Quarantine Network Defined'
+  severity: MEDIUM
+  for_each: network_isolations
+  param: network_isolation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.quarantineNetworkConfiguration
+      operator: exists
+      expected: true
+    - path: properties.quarantineNetworkConfiguration.networkId
+      operator: exists
+      expected: true
+    - path: properties.quarantineNetworkConfiguration.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_listener_cipher_policy_secure
+  name: 'AZURE Network_listener: Cipher Policy Secure'
+  severity: MEDIUM
+  for_each: network_listeners
+  param: network_listener
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sslPolicy.cipherSuites
+      operator: exists
+      expected: true
+    - path: properties.sslPolicy.minProtocolVersion
+      operator: equals
+      expected: TLSv1_2
+    - path: properties.sslPolicy.policyType
+      operator: equals
+      expected: Custom
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_listener_tls_min_1_2
+  name: 'AZURE AZURE Network_listener: TLS Min 1 2'
+  severity: MEDIUM
+  for_each: network_listeners
+  param: network_listener
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sslPolicy.minProtocolVersion
+      operator: equals
+      expected: TLSv1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_load_balancer_network_lb_access_logs_enabled
+  name: 'AZURE AZURE Network_load_balancer: Network Lb Access Logs Enabled'
+  severity: MEDIUM
+  for_each: network_load_balancers
+  param: network_load_balancer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableLogging
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_load_balancer_network_lb_listener_tls_min_1_2
+  name: 'AZURE AZURE Network_load_balancer: Network Lb Listener TLS Min 1 2'
+  severity: MEDIUM
+  for_each: network_load_balancers
+  param: network_load_balancer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.listeners[*].properties.sslPolicy.minProtocolVersion
+      operator: equals
+      expected: TLSv1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_load_balancer_network_lb_valid_certificate_attached
+  name: 'AZURE AZURE Network_load_balancer: Network Lb Valid Certificate Attached'
+  severity: MEDIUM
+  for_each: network_load_balancers
+  param: network_load_balancer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.frontendIPConfigurations
+      operator: exists
+      expected: true
+    - path: properties.loadBalancingRules
+      operator: exists
+      expected: true
+    - path: properties.loadBalancingRules[*].properties.protocol
+      operator: contains
+      expected: Https
+    - path: properties.sslCertificates
+      operator: exists
+      expected: true
+    - path: properties.sslCertificates[*].properties.data
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_load_balancer_network_lb_waf_attached_where_supported
+  name: 'AZURE AZURE Network_load_balancer: Network Lb Waf Attached Where Supported'
+  severity: MEDIUM
+  for_each: network_load_balancers
+  param: network_load_balancer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.frontendIPConfigurations
+      operator: exists
+      expected: true
+    - path: properties.backendAddressPools
+      operator: exists
+      expected: true
+    - path: properties.loadBalancingRules
+      operator: exists
+      expected: true
+    - path: properties.probes
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_micro_segmentation_network_microseg_endpoint_policies_applied
+  name: 'AZURE AZURE Network_micro_segmentation: Network Microseg Endpoint Policies
+    Appli'
+  severity: MEDIUM
+  for_each: network_micro_segmentations
+  param: network_micro_segmentation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityPerimeter.policies
+      operator: exists
+      expected: true
+    - path: properties.networkSecurityPerimeter.policies
+      operator: contains
+      expected: microsegmentation
+    - path: properties.endpointPolicies.enabled
+      operator: equals
+      expected: true
+    - path: properties.endpointPolicies.enforcementMode
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_micro_segmentation_network_microseg_identity_aware_policies_enabled
+  name: 'AZURE Network Micro Segmentation: Network Microseg Identity Aware Policies'
+  severity: MEDIUM
+  for_each: network_micro_segmentations
+  param: network_micro_segmentation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.identityAwarePolicies.enabled
+      operator: equals
+      expected: true
+    - path: properties.microsegmentation.identityBasedRules
+      operator: exists
+      expected: true
+    - path: properties.securityPolicies.identityAwareEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_monitoring_alerts_for_anomalies_configured
+  name: 'AZURE AZURE Network_monitoring: Alerts For Anomalies Configured'
+  severity: LOW
+  for_each: network_monitorings
+  param: network_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.alertingSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.alertingSettings.anomalyDetection.enabled
+      operator: equals
+      expected: true
+    - path: properties.alertingSettings.anomalyDetection.severity
+      operator: exists
+      expected: null
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_monitoring_flow_logs_enabled
+  name: 'AZURE AZURE Network_monitoring: Flow Logs Enabled'
+  severity: LOW
+  for_each: network_monitorings
+  param: network_monitoring
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enabled
+      operator: equals
+      expected: true
+    - path: properties.flowLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_network_acl_network_nacl_egress_restricted
+  name: 'AZURE Network_network_acl: Network Nacl Egress Restricted'
+  severity: MEDIUM
+  for_each: network_network_acls
+  param: network_network_acl
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.securityRules[*].direction
+      operator: contains
+      expected: Outbound
+    - path: properties.securityRules[*].access
+      operator: equals
+      expected: Deny
+    - path: properties.securityRules[*].destinationAddressPrefix
+      operator: equals
+      expected: '*'
+    - path: properties.securityRules[*].protocol
+      operator: equals
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_network_acl_network_nacl_no_allow_all_rules
+  name: 'AZURE AZURE Network_network_acl: Network Nacl No Allow All Rules'
+  severity: MEDIUM
+  for_each: network_network_acls
+  param: network_network_acl
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityRules[*].properties.access
+      operator: contains
+      expected: Allow
+    - path: properties.securityRules[*].properties.sourceAddressPrefix
+      operator: contains
+      expected: '*'
+    - path: properties.securityRules[*].properties.destinationAddressPrefix
+      operator: contains
+      expected: '*'
+    - path: properties.securityRules[*].properties.sourcePortRange
+      operator: contains
+      expected: '*'
+    - path: properties.securityRules[*].properties.destinationPortRange
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_route_table_no_0_0_0_0_from_private_subnets
+  name: 'AZURE AZURE Network_route_table: No 0 0 0 0 From Private Subnets'
+  severity: LOW
+  for_each: network_route_tables
+  param: network_route_table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.routes
+      operator: exists
+      expected: true
+    - path: properties.routes[*].properties.addressPrefix
+      operator: contains
+      expected: 0.0.0.0/0
+    - path: properties.subnets[*].properties.addressPrefix
+      operator: contains
+      expected: 10.0.0.0/8
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_route_table_vpc_endpoints_used_for_saas_where_supported
+  name: 'AZURE Network Route Table: VPC Endpoints Used For SaaS Where Supported'
+  severity: LOW
+  for_each: network_route_tables
+  param: network_route_table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.routes
+      operator: exists
+      expected: true
+    - path: properties.routes[*].properties.nextHopType
+      operator: contains
+      expected: VnetLocal
+    - path: properties.routes[*].properties.addressPrefix
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_security_group_network_sg_egress_restricted
+  name: 'AZURE AZURE Network_security_group: Network Sg Egress Restricted'
+  severity: MEDIUM
+  for_each: network_security_groups
+  param: network_security_group
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.securityRules[*].direction
+      operator: contains
+      expected: Outbound
+    - path: properties.securityRules[?(@.direction=='Outbound')].access
+      operator: contains
+      expected: Deny
+    - path: properties.securityRules[?(@.direction=='Outbound' && @.access=='Allow')].destinationAddressPrefix
+      operator: equals
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_security_group_network_sg_no_0_0_0_0_ingress
+  name: 'AZURE AZURE Network_security_group: Network Sg No 0 0 0 0 Ingress'
+  severity: MEDIUM
+  for_each: network_security_groups
+  param: network_security_group
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.securityRules[?direction=='Inbound' && access=='Allow' && (sourceAddressPrefix=='0.0.0.0/0'
+        || sourceAddressPrefix=='*' || sourceAddressPrefixes contains '0.0.0.0/0'
+        || sourceAddressPrefixes contains '*')]
+      operator: equals
+      expected: []
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_security_group_network_sg_only_required_ports_open
+  name: 'AZURE AZURE Network_security_group: Network Sg Only Required Ports Open'
+  severity: MEDIUM
+  for_each: network_security_groups
+  param: network_security_group
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.securityRules[?direction=='Inbound' && access=='Allow' && protocol=='*']
+      operator: equals
+      expected: []
+    - path: properties.securityRules[?direction=='Inbound' && access=='Allow' && destinationPortRange=='*']
+      operator: equals
+      expected: []
+    - path: properties.securityRules[?direction=='Inbound' && access=='Allow' && sourceAddressPrefix=='*']
+      operator: equals
+      expected: []
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_segmentation_default_deny_between_tiers
+  name: 'AZURE AZURE Network_segmentation: Default Deny Between Tiers'
+  severity: LOW
+  for_each: network_segmentations
+  param: network_segmentation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityGroups
+      operator: exists
+      expected: true
+    - path: properties.securityRules
+      operator: contains
+      expected: DenyAllInbound
+    - path: properties.defaultSecurityRules.access
+      operator: equals
+      expected: Deny
+    - path: properties.enableDdosProtection
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_segmentation_exception_approvals_required
+  name: 'AZURE AZURE Network_segmentation: Exception Approvals Required'
+  severity: LOW
+  for_each: network_segmentations
+  param: network_segmentation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.exceptionApprovalRequired
+      operator: equals
+      expected: true
+    - path: properties.approvalWorkflow.enabled
+      operator: equals
+      expected: true
+    - path: properties.securityPolicy.requireApproval
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_segmentation_tier_to_tier_policies_defined
+  name: 'AZURE AZURE Network_segmentation: Tier To Tier Policies Defined'
+  severity: LOW
+  for_each: network_segmentations
+  param: network_segmentation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityGroups
+      operator: exists
+      expected: true
+    - path: properties.routeTables
+      operator: exists
+      expected: true
+    - path: properties.subnets
+      operator: exists
+      expected: true
+    - path: properties.securityRules
+      operator: exists
+      expected: true
+    - path: properties.tierSegmentationPolicies
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_subnet_private_subnets_no_igw_route
+  name: 'AZURE AZURE Network_subnet: Private Subnets No Igw Route'
+  severity: LOW
+  for_each: network_subnets
+  param: network_subnet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.routeTable.properties.routes
+      operator: exists
+      expected: true
+    - path: properties.routeTable.properties.routes[].properties.nextHopType
+      operator: equals
+      expected: Internet
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_subnet_public_subnets_use_nacl_restrictions
+  name: 'AZURE AZURE Network_subnet: Public Subnets Use Nacl Restrictions'
+  severity: CRITICAL
+  for_each: network_subnets
+  param: network_subnet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkSecurityGroup.id
+      operator: exists
+      expected: true
+    - path: properties.routeTable.id
+      operator: exists
+      expected: true
+    - path: properties.privateEndpointNetworkPolicies
+      operator: equals
+      expected: Enabled
+    - path: properties.privateLinkServiceNetworkPolicies
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_subnet_route_table_association_present
+  name: 'AZURE AZURE Network_subnet: Route Table Association Present'
+  severity: LOW
+  for_each: network_subnets
+  param: network_subnet
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.routeTable
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_target_group_network_tg_health_checks_tls_where_supported
+  name: 'AZURE AZURE Network_target_group: Network Tg Health Checks TLS Where Supported'
+  severity: MEDIUM
+  for_each: network_target_groups
+  param: network_target_group
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.healthProbeSettings.protocol
+      operator: equals
+      expected: Https
+    - path: properties.healthProbeSettings.enabledState
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_target_group_network_tg_targets_in_private_subnets
+  name: 'AZURE AZURE Network_target_group: Network Tg Targets In Private Subnets'
+  severity: MEDIUM
+  for_each: network_target_groups
+  param: network_target_group
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.backendAddressPools
+      operator: exists
+      expected: true
+    - path: properties.backendAddressPools[*].properties.backendIPConfigurations[*].properties.subnet.properties.addressPrefix
+      operator: contains
+      expected: '10.'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_traffic_analysis_alert_destinations_configured
+  name: 'AZURE AZURE Network_traffic_analysis: Alert Destinations Configured'
+  severity: LOW
+  for_each: network_traffic_analysiss
+  param: network_traffic_analysis
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkWatchers.flowAnalyticsConfiguration.networkWatcherFlowAnalyticsConfiguration.workspaceId
+      operator: exists
+      expected: true
+    - path: properties.networkWatchers.flowAnalyticsConfiguration.networkWatcherFlowAnalyticsConfiguration.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_traffic_analysis_ids_ips_enabled_where_supported
+  name: 'AZURE AZURE Network_traffic_analysis: Ids Ips Enabled Where Supported'
+  severity: LOW
+  for_each: network_traffic_analysiss
+  param: network_traffic_analysis
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkWatcherFlowAnalyticsConfiguration.enabled
+      operator: equals
+      expected: true
+    - path: properties.networkWatcherFlowAnalyticsConfiguration.networkWatcherFlowAnalyticsConfiguration.trafficAnalyticsInterval
+      operator: exists
+      expected: true
+    - path: properties.securityConfiguration.idsIpsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpc_dns_hostnames_and_support_configured
+  name: 'AZURE AZURE Network_vpc: Dns Hostnames And Support Configured'
+  severity: LOW
+  for_each: network_vpcs
+  param: network_vpc
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dhcpOptions.dnsServers
+      operator: exists
+      expected: true
+    - path: properties.enableDnsSupport
+      operator: equals
+      expected: true
+    - path: properties.enableDnsHostnames
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpc_flow_logs_enabled
+  name: 'AZURE AZURE Network_vpc: Flow Logs Enabled'
+  severity: LOW
+  for_each: network_vpcs
+  param: network_vpc
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableFlowLogs
+      operator: equals
+      expected: true
+    - path: properties.flowLogsSettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpc_route_tables_no_unintended_internet_paths
+  name: 'AZURE AZURE Network_vpc: Route Tables No Unintended Internet Paths'
+  severity: LOW
+  for_each: network_vpcs
+  param: network_vpc
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.subnets[*].properties.routeTable.properties.routes[*].properties.nextHopType
+      operator: equals
+      expected: Internet
+    - path: properties.subnets[*].properties.routeTable.properties.routes[*].properties.addressPrefix
+      operator: equals
+      expected: 0.0.0.0/0
+    - path: properties.subnets[*].properties.routeTable.properties.disableBgpRoutePropagation
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpn_connection_network_vpn_ike_phase_encryption_strong
+  name: 'AZURE AZURE Network_vpn_connection: Network Vpn Ike Phase Encryption Strong'
+  severity: HIGH
+  for_each: network_vpn_connections
+  param: network_vpn_connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.ipsecPolicies[*].ikeEncryption
+      operator: contains
+      expected: AES256
+    - path: properties.ipsecPolicies[*].ipsecEncryption
+      operator: contains
+      expected: AES256
+    - path: properties.ipsecPolicies[*].ikeIntegrity
+      operator: contains
+      expected: SHA256
+    - path: properties.ipsecPolicies[*].ipsecIntegrity
+      operator: contains
+      expected: SHA256
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpn_connection_network_vpn_pre_shared_keys_rotation_policy_defined
+  name: 'AZURE AZURE Network_vpn_connection: Network Vpn Pre Shared Keys Rotation
+    Policy'
+  severity: HIGH
+  for_each: network_vpn_connections
+  param: network_vpn_connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sharedKey
+      operator: exists
+      expected: true
+    - path: properties.keyRotationPolicy
+      operator: exists
+      expected: true
+    - path: properties.keyRotationPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.keyRotationPolicy.rotationIntervalInDays
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: network_vpn_connection_network_vpn_tunnel_health_monitoring_enabled
+  name: 'AZURE AZURE Network_vpn_connection: Network Vpn Tunnel Health Monitoring
+    Enabled'
+  severity: MEDIUM
+  for_each: network_vpn_connections
+  param: network_vpn_connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableBgp
+      operator: equals
+      expected: true
+    - path: properties.connectionStatus
+      operator: exists
+      expected: true
+    - path: properties.tunnelConnectionStatus
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_app_env_secrets_from_vault_only
+  name: 'AZURE AZURE Paas_app: Env Secrets From Vault Only'
+  severity: HIGH
+  for_each: paas_apps
+  param: paas_app
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.appSettings
+      operator: exists
+      expected: true
+    - path: properties.siteConfig.appSettings[*].name
+      operator: contains
+      expected: '@Microsoft.KeyVault'
+    - path: properties.identity.type
+      operator: equals
+      expected: SystemAssigned
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_app_logging_enabled
+  name: 'AZURE AZURE Paas_app: Logging Enabled'
+  severity: MEDIUM
+  for_each: paas_apps
+  param: paas_app
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.httpLoggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.siteConfig.requestTracingEnabled
+      operator: equals
+      expected: true
+    - path: properties.siteConfig.detailedErrorLoggingEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_app_private_networking_enforced
+  name: 'AZURE AZURE Paas_app: Private Networking Enforced'
+  severity: MEDIUM
+  for_each: paas_apps
+  param: paas_app
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.vnetRouteAllEnabled
+      operator: equals
+      expected: true
+    - path: properties.virtualNetworkSubnetId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_app_tls_min_1_2_enforced
+  name: 'AZURE AZURE Paas_app: TLS Min 1 2 Enforced'
+  severity: MEDIUM
+  for_each: paas_apps
+  param: paas_app
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.minTlsVersion
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_application_version_paas_app_version_artifact_encrypted
+  name: 'AZURE AZURE Paas_application_version: Paas App Version Artifact Encrypted'
+  severity: MEDIUM
+  for_each: paas_application_versions
+  param: paas_application_version
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_application_version_paas_app_version_immutable
+  name: 'AZURE AZURE Paas_application_version: Paas App Version Immutable'
+  severity: LOW
+  for_each: paas_application_versions
+  param: paas_application_version
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.immutable
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_database_paas_db_encryption_at_rest_enabled
+  name: 'AZURE AZURE Paas_lightsail_database: Paas Db Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: paas_lightsail_databases
+  param: paas_lightsail_database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.storageProfile.storageEncrypted
+      operator: equals
+      expected: true
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_database_paas_db_public_access_disabled
+  name: 'AZURE AZURE Paas_lightsail_database: Paas Db Public Access Disabled'
+  severity: CRITICAL
+  for_each: paas_lightsail_databases
+  param: paas_lightsail_database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_database_paas_db_require_tls_in_transit
+  name: 'AZURE AZURE Paas_lightsail_database: Paas Db Require TLS In Transit'
+  severity: MEDIUM
+  for_each: paas_lightsail_databases
+  param: paas_lightsail_database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sslEnforcement
+      operator: equals
+      expected: Enabled
+    - path: properties.minimalTlsVersion
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_instance_paas_instance_disk_encrypted
+  name: 'AZURE AZURE Paas_lightsail_instance: Paas Instance Disk Encrypted'
+  severity: MEDIUM
+  for_each: paas_lightsail_instances
+  param: paas_lightsail_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.storageProfile.osDisk.encryptionSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.storageProfile.dataDisks[*].encryptionSettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_instance_paas_instance_no_public_ip_unless_required
+  name: 'AZURE AZURE Paas_lightsail_instance: Paas Instance No Public Ip Unless Required'
+  severity: CRITICAL
+  for_each: paas_lightsail_instances
+  param: paas_lightsail_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicIpAddress
+      operator: exists
+      expected: false
+    - path: properties.networkProfile.publicIPAddress
+      operator: exists
+      expected: false
+    - path: properties.ipConfiguration.publicIPAddress
+      operator: exists
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: paas_lightsail_instance_paas_instance_ssh_password_auth_disabled
+  name: 'AZURE AZURE Paas_lightsail_instance: Paas Instance Ssh Password Auth Disabled'
+  severity: LOW
+  for_each: paas_lightsail_instances
+  param: paas_lightsail_instance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.osProfile.linuxConfiguration.disablePasswordAuthentication
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_endpoint_authn_required
+  name: 'AZURE AZURE Platform_api_endpoint: Authn Required'
+  severity: LOW
+  for_each: platform_api_endpoints
+  param: platform_api_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authenticationConfiguration.requireAuthentication
+      operator: equals
+      expected: true
+    - path: properties.authenticationConfiguration.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_endpoint_authz_policies_enforced
+  name: 'AZURE AZURE Platform_api_endpoint: Authz Policies Enforced'
+  severity: LOW
+  for_each: platform_api_endpoints
+  param: platform_api_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authorizationPolicies
+      operator: exists
+      expected: true
+    - path: properties.authorizationPolicies.enabled
+      operator: equals
+      expected: true
+    - path: properties.policyEnforcement.mode
+      operator: equals
+      expected: Enforced
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_endpoint_private_networking_enforced
+  name: 'AZURE AZURE Platform_api_endpoint: Private Networking Enforced'
+  severity: MEDIUM
+  for_each: platform_api_endpoints
+  param: platform_api_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_endpoint_waf_attached
+  name: 'AZURE AZURE Platform_api_endpoint: Waf Attached'
+  severity: LOW
+  for_each: platform_api_endpoints
+  param: platform_api_endpoint
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.webApplicationFirewallPolicyLink.id
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_key_expiration_required
+  name: 'AZURE AZURE Platform_api_key: Expiration Required'
+  severity: MEDIUM
+  for_each: platform_api_keys
+  param: platform_api_key
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.expiration
+      operator: exists
+      expected: true
+    - path: properties.expiration
+      operator: equals
+      expected: null
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_key_rotation_policy_defined
+  name: 'AZURE AZURE Platform_api_key: Rotation Policy Defined'
+  severity: MEDIUM
+  for_each: platform_api_keys
+  param: platform_api_key
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.rotationPolicy
+      operator: exists
+      expected: true
+    - path: properties.rotationPolicy.lifetimeActions
+      operator: exists
+      expected: true
+    - path: properties.rotationPolicy.attributes.expiryTime
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_api_key_scopes_least_privilege
+  name: 'AZURE AZURE Platform_api_key: Scopes Least Privilege'
+  severity: HIGH
+  for_each: platform_api_keys
+  param: platform_api_key
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scopes
+      operator: exists
+      expected: true
+    - path: properties.scopes
+      operator: contains
+      expected: read
+    - path: properties.scopes
+      operator: contains
+      expected: write
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_authorizer_cache_ttl_reasonable
+  name: 'AZURE AZURE Platform_authorizer: Cache Ttl Reasonable'
+  severity: LOW
+  for_each: platform_authorizers
+  param: platform_authorizer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.cache.ttl
+      operator: exists
+      expected: true
+    - path: properties.cache.ttl
+      operator: equals
+      expected: 300
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_authorizer_tls_min_1_2_enforced
+  name: 'AZURE AZURE Platform_authorizer: TLS Min 1 2 Enforced'
+  severity: MEDIUM
+  for_each: platform_authorizers
+  param: platform_authorizer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_authorizer_token_audience_restricted
+  name: 'AZURE AZURE Platform_authorizer: Token Audience Restricted'
+  severity: LOW
+  for_each: platform_authorizers
+  param: platform_authorizer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.tokenAudience
+      operator: exists
+      expected: true
+    - path: properties.tokenAudience
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_stage_logging_enabled
+  name: 'AZURE AZURE Platform_stage: Logging Enabled'
+  severity: MEDIUM
+  for_each: platform_stages
+  param: platform_stage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.enabled
+      operator: equals
+      expected: true
+    - path: properties.logging.level
+      operator: exists
+      expected: true
+    - path: properties.diagnosticSettings
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_stage_require_usage_plan_for_api_keys
+  name: 'AZURE AZURE Platform_stage: Require Usage Plan For API Keys'
+  severity: HIGH
+  for_each: platform_stages
+  param: platform_stage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.apiKeys.requireUsagePlan
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_stage_throttling_enabled
+  name: 'AZURE AZURE Platform_stage: Throttling Enabled'
+  severity: LOW
+  for_each: platform_stages
+  param: platform_stage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.throttling.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_usage_plan_quota_limits_configured
+  name: 'AZURE AZURE Platform_usage_plan: Quota Limits Configured'
+  severity: LOW
+  for_each: platform_usage_plans
+  param: platform_usage_plan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.quota
+      operator: exists
+      expected: true
+    - path: properties.quota.callCountLimit
+      operator: exists
+      expected: true
+    - path: properties.quota.bandwidthLimit
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: platform_usage_plan_rate_limits_configured
+  name: 'AZURE AZURE Platform_usage_plan: Rate Limits Configured'
+  severity: LOW
+  for_each: platform_usage_plans
+  param: platform_usage_plan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.throttlePolicy.rateLimits
+      operator: exists
+      expected: true
+    - path: properties.throttlePolicy.rateLimits.callsPerPeriod
+      operator: exists
+      expected: true
+    - path: properties.throttlePolicy.rateLimits.period
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_anonymization_jobs_private_networking
+  name: 'AZURE AZURE Privacy_anonymization: Jobs Private Networking'
+  severity: MEDIUM
+  for_each: privacy_anonymizations
+  param: privacy_anonymization
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.jobConfiguration.networkConfiguration.privateNetworkAccess
+      operator: equals
+      expected: true
+    - path: properties.jobConfiguration.networkConfiguration.subnetId
+      operator: exists
+      expected: true
+    - path: properties.jobConfiguration.networkConfiguration.publicNetworkAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_anonymization_outputs_encrypted
+  name: 'AZURE AZURE Privacy_anonymization: Outputs Encrypted'
+  severity: MEDIUM
+  for_each: privacy_anonymizations
+  param: privacy_anonymization
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.outputs.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.outputs.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.outputs.encryption.keyVaultProperties.keyIdentifier
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_audit_logs_centralized_and_encrypted
+  name: 'AZURE AZURE Privacy_audit: Logs Centralized And Encrypted'
+  severity: MEDIUM
+  for_each: privacy_audits
+  param: privacy_audit
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logAnalyticsConfiguration.enabled
+      operator: equals
+      expected: true
+    - path: properties.logAnalyticsConfiguration.workspaceId
+      operator: exists
+      expected: true
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.storageAccountAccessKey
+      operator: exists
+      expected: false
+    - path: properties.isStorageSecondaryKeyInUse
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_audit_retention_days_minimum
+  name: 'AZURE AZURE Privacy_audit: Retention Days Minimum'
+  severity: MEDIUM
+  for_each: privacy_audits
+  param: privacy_audit
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retentionPolicy.days
+      operator: exists
+      expected: true
+    - path: properties.retentionPolicy.days
+      operator: gte
+      expected: 90
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_breach_detection_alert_destinations_configured
+  name: 'AZURE AZURE Privacy_breach_detection: Alert Destinations Configured'
+  severity: MEDIUM
+  for_each: privacy_breach_detections
+  param: privacy_breach_detection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.alertDestinations
+      operator: exists
+      expected: true
+    - path: properties.alertDestinations
+      operator: contains
+      expected: '@'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_breach_detection_integrations_authenticated
+  name: 'AZURE AZURE Privacy_breach_detection: Integrations Authenticated'
+  severity: MEDIUM
+  for_each: privacy_breach_detections
+  param: privacy_breach_detection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.integrations.authentication.enabled
+      operator: equals
+      expected: true
+    - path: properties.integrations.authentication.method
+      operator: exists
+      expected: true
+    - path: properties.integrations.authentication.credentials
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_consent_access_rbac_least_privilege
+  name: 'AZURE AZURE Privacy_consent: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: privacy_consents
+  param: privacy_consent
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Reader
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.access.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.rbacConfiguration.leastPrivilegeEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_consent_store_encrypted
+  name: 'AZURE AZURE Privacy_consent: Store Encrypted'
+  severity: MEDIUM
+  for_each: privacy_consents
+  param: privacy_consent
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_encryption_at_rest_cmek_enabled
+  name: 'AZURE AZURE Privacy_encryption: At Rest Cmek Enabled'
+  severity: MEDIUM
+  for_each: privacy_encryptions
+  param: privacy_encryption
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_encryption_in_transit_tls_min_1_2
+  name: 'AZURE AZURE Privacy_encryption: In Transit TLS Min 1 2'
+  severity: MEDIUM
+  for_each: privacy_encryptions
+  param: privacy_encryption
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+    - path: properties.supportsHttpsTrafficOnly
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_masking_execution_roles_least_privilege
+  name: 'AZURE AZURE Privacy_masking: Execution Roles Least Privilege'
+  severity: HIGH
+  for_each: privacy_maskings
+  param: privacy_masking
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.executionRoles
+      operator: exists
+      expected: true
+    - path: properties.executionRoles.minimumPrivileges
+      operator: equals
+      expected: true
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.accessControl.principalType
+      operator: contains
+      expected: ServicePrincipal
+    - path: properties.permissions.scope
+      operator: equals
+      expected: minimal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_masking_policies_present_for_sensitive_fields
+  name: 'AZURE AZURE Privacy_masking: Policies Present For Sensitive Fields'
+  severity: MEDIUM
+  for_each: privacy_maskings
+  param: privacy_masking
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataMaskingPolicies
+      operator: exists
+      expected: true
+    - path: properties.dataMaskingPolicies
+      operator: contains
+      expected: enabled
+    - path: properties.state
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_rights_execution_roles_least_privilege
+  name: 'AZURE AZURE Privacy_rights: Execution Roles Least Privilege'
+  severity: HIGH
+  for_each: privacy_rightss
+  param: privacy_rights
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinition.permissions[*].actions
+      operator: contains
+      expected: Microsoft.Authorization/*/read
+    - path: properties.roleAssignments[*].roleDefinition.permissions[*].notActions
+      operator: exists
+      expected: true
+    - path: properties.principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.roleAssignments[*].scope
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: privacy_rights_workflow_storage_encrypted
+  name: 'AZURE AZURE Privacy_rights: Workflow Storage Encrypted'
+  severity: MEDIUM
+  for_each: privacy_rightss
+  param: privacy_rights
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.workflowStorage.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.workflowStorage.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.workflowStorage.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.workflowStorage.encryption.services.file.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_lifecycle_policy_supply_chain_lifecycle_policy_policy_storage_encrypted
+  name: 'AZURE AZURE Registry_lifecycle_policy: Supply Chain Lifecycle Policy Policy
+    Stor'
+  severity: MEDIUM
+  for_each: registry_lifecycle_policys
+  param: registry_lifecycle_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: enabled
+    - path: properties.encryption.keyVaultProperties.keyIdentifier
+      operator: exists
+      expected: true
+    - path: properties.policies.lifecyclePolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_lifecycle_policy_supply_chain_lifecycle_policy_unused_or_old_tags_expire
+  name: 'AZURE AZURE Registry_lifecycle_policy: Supply Chain Lifecycle Policy Unused
+    Or Old Tags Expire'
+  severity: MEDIUM
+  for_each: registry_lifecycle_policys
+  param: registry_lifecycle_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policy.rules
+      operator: exists
+      expected: true
+    - path: properties.policy.rules[*].name
+      operator: contains
+      expected: deleteUntaggedImages
+    - path: properties.policy.rules[*].action
+      operator: equals
+      expected: delete
+    - path: properties.policy.rules[*].selection.tagStatus
+      operator: equals
+      expected: untagged
+    - path: properties.policy.rules[*].selection.countType
+      operator: equals
+      expected: sinceImagePushed
+    - path: properties.policy.rules[*].selection.countNumber
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_policy_supply_chain_no_public_pull_push
+  name: 'AZURE AZURE Registry_policy: Supply Chain No Public Pull Push'
+  severity: CRITICAL
+  for_each: registry_policys
+  param: registry_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policies.quarantinePolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_policy_supply_chain_no_wildcard_admin
+  name: 'AZURE Registry_policy: Supply Chain No Wildcard Admin'
+  severity: CRITICAL
+  for_each: registry_policys
+  param: registry_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policies.quarantinePolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.trustPolicy.type
+      operator: equals
+      expected: Notary
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.adminUserEnabled
+      operator: equals
+      expected: false
+    - path: properties.policies.retentionPolicy.status
+      operator: equals
+      expected: enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_replication_config_supply_chain_registry_replication_cross_region_encrypted
+  name: 'AZURE AZURE Registry_replication_config: Supply Chain Registry Replication
+    Cross'
+  severity: MEDIUM
+  for_each: registry_replication_configs
+  param: registry_replication_config
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: enabled
+    - path: properties.encryption.keyVaultProperties
+      operator: exists
+      expected: true
+    - path: location
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_replication_config_supply_chain_registry_replication_destinations_least_privilege
+  name: 'AZURE AZURE Registry_replication_config: Supply Chain Registry Replication
+    Desti'
+  severity: HIGH
+  for_each: registry_replication_configs
+  param: registry_replication_config
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.zoneRedundancy
+      operator: equals
+      expected: Enabled
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.encryption.status
+      operator: equals
+      expected: enabled
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_repo_supply_chain_private_or_access_restricted
+  name: 'AZURE AZURE Registry_repo: Supply Chain Private Or Access Restricted'
+  severity: LOW
+  for_each: registry_repos
+  param: registry_repo
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_repo_supply_chain_registry_image_scanning_enabled
+  name: 'AZURE AZURE Registry_repo: Supply Chain Registry Image Scanning Enabled'
+  severity: LOW
+  for_each: registry_repos
+  param: registry_repo
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policies.quarantinePolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.retentionPolicy.status
+      operator: equals
+      expected: enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: registry_repo_supply_chain_registry_immutable_tags_or_signing_enforced
+  name: 'AZURE AZURE Registry_repo: Supply Chain Registry Immutable Tags Or Signing
+    Enfor'
+  severity: LOW
+  for_each: registry_repos
+  param: registry_repo
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.policies.trustPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.policies.retentionPolicy.status
+      operator: equals
+      expected: enabled
+    - path: properties.dataEndpointEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: secrets_parameter_access_rbac_least_privilege
+  name: 'AZURE AZURE Secrets_parameter: Access RBAC Least Privilege'
+  severity: HIGH
+  description: Validates that AZURE azure secrets_parameter has access rbac least
+    privilege configured according to security best practices. Proper configuration
+    reduces security risks, prevents unauthorized access
+  for_each: secrets_parameters
+  param: secrets_parameter
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessPolicies
+      operator: exists
+      expected: true
+    - path: properties.enableRbacAuthorization
+      operator: equals
+      expected: true
+    - path: properties.accessPolicies[*].permissions.secrets
+      operator: contains
+      expected:
+      - get
+    - path: properties.accessPolicies[*].permissions.keys
+      operator: contains
+      expected:
+      - get
+    - path: properties.accessPolicies[*].permissions.certificates
+      operator: contains
+      expected:
+      - get
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_parameter_kms_key_configured
+  name: 'AZURE AZURE Secrets_parameter: KMS Key Configured'
+  severity: HIGH
+  for_each: secrets_parameters
+  param: secrets_parameter
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyVaultProperties.keyName
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyVaultProperties.keyVaultUri
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_parameter_secure_string_type_for_sensitive
+  name: 'AZURE AZURE Secrets_parameter: Secure String Type For Sensitive'
+  severity: MEDIUM
+  for_each: secrets_parameters
+  param: secrets_parameter
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: type
+      operator: equals
+      expected: secureString
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_secret_kms_key_configured
+  name: 'AZURE AZURE Secrets_secret: KMS Key Configured'
+  severity: HIGH
+  for_each: secrets_secrets
+  param: secrets_secret
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyVaultKeyUri
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_secret_no_plaintext_exposed_in_policy_or_tags
+  name: 'AZURE AZURE Secrets_secret: No Plaintext Exposed In Policy Or Tags'
+  severity: CRITICAL
+  for_each: secrets_secrets
+  param: secrets_secret
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.access_policies
+      operator: exists
+      expected: true
+    - path: properties.access_policies
+      operator: contains
+      expected: ''
+    - path: tags
+      operator: exists
+      expected: true
+    - path: tags
+      operator: contains
+      expected: ''
+    - path: properties.vault_uri
+      operator: contains
+      expected: https://
+    - path: properties.enabled_for_template_deployment
+      operator: equals
+      expected: false
+    - path: properties.enabled_for_disk_encryption
+      operator: equals
+      expected: false
+    - path: properties.enabled_for_deployment
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_secret_rotation_configured_where_applicable
+  name: 'AZURE AZURE Secrets_secret: Rotation Configured Where Applicable'
+  severity: MEDIUM
+  for_each: secrets_secrets
+  param: secrets_secret
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.rotationPolicy.attributes.expiryTime
+      operator: exists
+      expected: true
+    - path: properties.rotationPolicy.lifetimeActions
+      operator: exists
+      expected: true
+    - path: attributes.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_store_access_rbac_least_privilege
+  name: 'AZURE AZURE Secrets_store: Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: secrets_stores
+  param: secrets_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessPolicies
+      operator: exists
+      expected: true
+    - path: properties.enableRbacAuthorization
+      operator: equals
+      expected: true
+    - path: properties.accessPolicies[*].permissions.secrets
+      operator: contains
+      expected:
+      - get
+    - path: properties.accessPolicies[*].permissions.keys
+      operator: contains
+      expected:
+      - get
+    - path: properties.accessPolicies[*].permissions.certificates
+      operator: contains
+      expected:
+      - get
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_store_kms_encryption_enabled
+  name: 'AZURE AZURE Secrets_store: KMS Encryption Enabled'
+  severity: HIGH
+  for_each: secrets_stores
+  param: secrets_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyVaultProperties.keyIdentifier
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: secrets_store_rotation_enabled_for_rotatable_secrets
+  name: 'AZURE AZURE Secrets_store: Rotation Enabled For Rotatable Secrets'
+  severity: HIGH
+  for_each: secrets_stores
+  param: secrets_store
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enableAutoRotation
+      operator: equals
+      expected: true
+    - path: properties.rotationPolicy.attributes.expiryTime
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_event_source_permissions_least_privilege
+  name: 'AZURE AZURE Serverless_event_source: Permissions Least Privilege'
+  severity: HIGH
+  for_each: serverless_event_sources
+  param: serverless_event_source
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessRights
+      operator: equals
+      expected: Listen
+    - path: properties.rights
+      operator: contains
+      expected: Listen
+    - path: properties.keyName
+      operator: exists
+      expected: true
+    - path: properties.primaryKey
+      operator: exists
+      expected: true
+    - path: properties.connectionString
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_event_source_source_authenticated
+  name: 'AZURE AZURE Serverless_event_source: Source Authenticated'
+  severity: LOW
+  for_each: serverless_event_sources
+  param: serverless_event_source
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authenticationConfiguration.enabled
+      operator: equals
+      expected: true
+    - path: properties.authenticationConfiguration.authType
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_function_dead_letter_queue_configured
+  name: 'AZURE AZURE Serverless_function: Dead Letter Queue Configured'
+  severity: LOW
+  for_each: serverless_functions
+  param: serverless_function
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.appSettings
+      operator: exists
+      expected: true
+    - path: properties.siteConfig.appSettings[?(@.name=='AzureWebJobsStorage')]
+      operator: exists
+      expected: true
+    - path: properties.siteConfig.appSettings[?(@.name=='WEBSITE_CONTENTAZUREFILECONNECTIONSTRING')]
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_function_env_no_plaintext_secrets
+  name: 'AZURE AZURE Serverless_function: Env No Plaintext Secrets'
+  severity: HIGH
+  for_each: serverless_functions
+  param: serverless_function
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.appSettings
+      operator: exists
+      expected: true
+    - path: properties.siteConfig.appSettings[*].value
+      operator: contains
+      expected: '@Microsoft.KeyVault'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_function_logging_and_tracing_enabled
+  name: 'AZURE AZURE Serverless_function: Logging And Tracing Enabled'
+  severity: MEDIUM
+  for_each: serverless_functions
+  param: serverless_function
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.appSettings
+      operator: contains
+      expected: APPINSIGHTS_INSTRUMENTATIONKEY
+    - path: properties.siteConfig.appSettings
+      operator: contains
+      expected: APPLICATIONINSIGHTS_CONNECTION_STRING
+    - path: properties.httpsOnly
+      operator: equals
+      expected: true
+    - path: properties.siteConfig.detailedErrorLoggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.siteConfig.httpLoggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.siteConfig.requestTracingEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_function_role_least_privilege
+  name: 'AZURE AZURE Serverless_function: Role Least Privilege'
+  severity: HIGH
+  for_each: serverless_functions
+  param: serverless_function
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.siteConfig.managedServiceIdentityId
+      operator: exists
+      expected: true
+    - path: identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.httpsOnly
+      operator: equals
+      expected: true
+    - path: properties.clientAffinityEnabled
+      operator: equals
+      expected: false
+    - path: properties.siteConfig.minTlsVersion
+      operator: equals
+      expected: '1.2'
+    - path: properties.siteConfig.ftpsState
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_function_vpc_private_networking_enabled
+  name: 'AZURE AZURE Serverless_function: VPC Private Networking Enabled'
+  severity: MEDIUM
+  for_each: serverless_functions
+  param: serverless_function
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.virtualNetworkSubnetId
+      operator: exists
+      expected: true
+    - path: properties.vnetRouteAllEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_layer_source_trusted
+  name: 'AZURE AZURE Serverless_layer: Source Trusted'
+  severity: LOW
+  for_each: serverless_layers
+  param: serverless_layer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sourceCodeUri
+      operator: exists
+      expected: true
+    - path: properties.sourceCodeUri
+      operator: contains
+      expected: https://
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_layer_version_immutable
+  name: 'AZURE AZURE Serverless_layer: Version Immutable'
+  severity: LOW
+  for_each: serverless_layers
+  param: serverless_layer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.immutable
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_provisioned_concurrency_serverless_prov_conc_execution_role_least_privilege
+  name: 'AZURE AZURE Serverless_provisioned_concurrency: Serverless Prov Conc Execution
+    R'
+  severity: HIGH
+  for_each: serverless_provisioned_concurrencys
+  param: serverless_provisioned_concurrency
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.execution_role.permissions
+      operator: exists
+      expected: true
+    - path: properties.execution_role.policy_statements
+      operator: exists
+      expected: true
+    - path: properties.execution_role.managed_policies
+      operator: contains
+      expected: AWSLambdaBasicExecutionRole
+    - path: properties.execution_role.inline_policies.actions
+      operator: equals
+      expected: minimal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_version_published_and_immutable
+  name: 'AZURE AZURE Serverless_version: Published And Immutable'
+  severity: LOW
+  for_each: serverless_versions
+  param: serverless_version
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.state
+      operator: equals
+      expected: Published
+    - path: properties.immutable
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: serverless_version_rollforward_rollback_controls_present
+  name: 'AZURE AZURE Serverless_version: Rollforward Rollback Controls Present'
+  severity: LOW
+  for_each: serverless_versions
+  param: serverless_version
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.deploymentConfiguration.rolloutConfiguration
+      operator: exists
+      expected: true
+    - path: properties.deploymentConfiguration.rolloutConfiguration.strategy
+      operator: exists
+      expected: true
+    - path: properties.deploymentConfiguration.rollbackConfiguration
+      operator: exists
+      expected: true
+    - path: properties.deploymentConfiguration.rollbackConfiguration.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_analytics_application_streaming_analytics_checkpoints_and_outputs_encrypted
+  name: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Checkpoints
+    And'
+  severity: MEDIUM
+  for_each: streaming_analytics_applications
+  param: streaming_analytics_application
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.outputs_policy.checkpoint_policy.checkpoint_storage_encryption
+      operator: equals
+      expected: true
+    - path: properties.outputs_policy.output_encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.data_locale_encryption
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_analytics_application_streaming_analytics_network_private_only
+  name: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Network
+    Private'
+  severity: MEDIUM
+  for_each: streaming_analytics_applications
+  param: streaming_analytics_application
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.cluster.properties.capacityAllocated
+      operator: exists
+      expected: true
+    - path: properties.outputStartMode
+      operator: equals
+      expected: CustomTime
+    - path: properties.eventsOutOfOrderPolicy
+      operator: equals
+      expected: Drop
+    - path: properties.outputErrorPolicy
+      operator: equals
+      expected: Drop
+    - path: properties.compatibilityLevel
+      operator: equals
+      expected: '1.2'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_analytics_application_streaming_analytics_role_least_privilege
+  name: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Role Least
+    Priv'
+  severity: HIGH
+  for_each: streaming_analytics_applications
+  param: streaming_analytics_application
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.outputStartMode
+      operator: equals
+      expected: JobStartTime
+    - path: identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.jobType
+      operator: equals
+      expected: Cloud
+    - path: properties.outputErrorPolicy
+      operator: equals
+      expected: Stop
+    - path: properties.eventsOutOfOrderPolicy
+      operator: equals
+      expected: Adjust
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_firehose_destination_encrypted
+  name: 'AZURE AZURE Streaming_firehose: Destination Encrypted'
+  severity: MEDIUM
+  for_each: streaming_firehoses
+  param: streaming_firehose
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destination.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.destination.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_firehose_destination_least_privilege
+  name: 'AZURE AZURE Streaming_firehose: Destination Least Privilege'
+  severity: HIGH
+  for_each: streaming_firehoses
+  param: streaming_firehose
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.destination.roleArn
+      operator: exists
+      expected: true
+    - path: properties.destination.roleArn
+      operator: contains
+      expected: 'arn:aws:iam::'
+    - path: properties.destination.bucketArn
+      operator: exists
+      expected: true
+    - path: properties.destination.prefix
+      operator: exists
+      expected: true
+    - path: properties.destination.errorOutputPrefix
+      operator: exists
+      expected: true
+    - path: properties.destination.encryptionConfiguration.noEncryptionConfig
+      operator: equals
+      expected: NoEncryption
+    - path: properties.destination.compressionFormat
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_firehose_logging_enabled
+  name: 'AZURE AZURE Streaming_firehose: Logging Enabled'
+  severity: MEDIUM
+  for_each: streaming_firehoses
+  param: streaming_firehose
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.deliveryStreamConfiguration.cloudWatchLoggingOptions.enabled
+      operator: equals
+      expected: true
+    - path: properties.deliveryStreamConfiguration.processingConfiguration.processors[0].parameters.cloudWatchLoggingOptions.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_stream_consumer_auth_required
+  name: 'AZURE AZURE Streaming_stream: Consumer Auth Required'
+  severity: LOW
+  for_each: streaming_streams
+  param: streaming_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authentication.type
+      operator: exists
+      expected: true
+    - path: properties.authentication.type
+      operator: equals
+      expected: SharedAccessKey
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_stream_encryption_at_rest_enabled
+  name: 'AZURE AZURE Streaming_stream: Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: streaming_streams
+  param: streaming_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_stream_private_network_only_where_supported
+  name: 'AZURE AZURE Streaming_stream: Private Network Only Where Supported'
+  severity: MEDIUM
+  for_each: streaming_streams
+  param: streaming_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_stream_consumer_streaming_consumer_access_least_privilege
+  name: 'AZURE AZURE Streaming_stream_consumer: Streaming Consumer Access Least Privilege'
+  severity: HIGH
+  for_each: streaming_stream_consumers
+  param: streaming_stream_consumer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.consumerAccessPolicies
+      operator: exists
+      expected: true
+    - path: properties.consumerAccessPolicies[].rights
+      operator: contains
+      expected: Read
+    - path: properties.consumerAccessPolicies[].rights
+      operator: equals
+      expected:
+      - Read
+    - path: properties.enableAutoInflate
+      operator: equals
+      expected: false
+    - path: properties.partitionCount
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_stream_consumer_streaming_consumer_auth_required
+  name: 'AZURE AZURE Streaming_stream_consumer: Streaming Consumer Auth Required'
+  severity: LOW
+  for_each: streaming_stream_consumers
+  param: streaming_stream_consumer
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.authenticationRequired
+      operator: equals
+      expected: true
+    - path: properties.consumerGroup.properties.authenticationRequired
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_video_stream_streaming_video_encryption_at_rest_enabled
+  name: 'AZURE AZURE Streaming_video_stream: Streaming Video Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: streaming_video_streams
+  param: streaming_video_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.type
+      operator: exists
+      expected: true
+    - path: properties.encryption.type
+      operator: equals
+      expected: SystemManaged
+    - path: properties.storageAuthentication
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_video_stream_streaming_video_encryption_in_transit_required
+  name: 'AZURE AZURE Streaming_video_stream: Streaming Video Encryption In Transit
+    Requir'
+  severity: HIGH
+  for_each: streaming_video_streams
+  param: streaming_video_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.enabledProtocols
+      operator: contains
+      expected: https
+    - path: properties.crossSiteAccessPolicies.clientAccessPolicy
+      operator: exists
+      expected: true
+    - path: properties.accessControl.defaultAction
+      operator: equals
+      expected: Allow
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: streaming_video_stream_streaming_video_retention_days_minimum_configured
+  name: 'AZURE AZURE Streaming_video_stream: Streaming Video Retention Days Minimum
+    Confi'
+  severity: LOW
+  for_each: streaming_video_streams
+  param: streaming_video_stream
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retention_policy.days
+      operator: exists
+      expected: true
+    - path: properties.retention_policy.days
+      operator: equals
+      expected: 30
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_custom_identifier_source_trusted
+  name: 'AZURE AZURE Threat_custom_identifier: Source Trusted'
+  severity: LOW
+  for_each: threat_custom_identifiers
+  param: threat_custom_identifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.source.trusted
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_custom_identifier_storage_encrypted
+  name: 'AZURE AZURE Threat_custom_identifier: Storage Encrypted'
+  severity: MEDIUM
+  for_each: threat_custom_identifiers
+  param: threat_custom_identifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.services.file.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_hub_auto_enroll_new_accounts
+  name: 'AZURE AZURE Threat_hub: Auto Enroll New Accounts'
+  severity: LOW
+  for_each: threat_hubs
+  param: threat_hub
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.autoEnrollNewAccounts
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_hub_master_member_configured
+  name: 'AZURE AZURE Threat_hub: Master Member Configured'
+  severity: LOW
+  for_each: threat_hubs
+  param: threat_hub
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.masterMember
+      operator: exists
+      expected: true
+    - path: properties.masterMember.status
+      operator: equals
+      expected: Active
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_ip_set_sources_trusted
+  name: 'AZURE AZURE Threat_ip_set: Sources Trusted'
+  severity: LOW
+  for_each: threat_ip_sets
+  param: threat_ip_set
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sources
+      operator: exists
+      expected: true
+    - path: properties.sources
+      operator: contains
+      expected: trusted
+    - path: properties.threat_intel_mode
+      operator: equals
+      expected: Alert
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_ip_set_storage_encrypted
+  name: 'AZURE AZURE Threat_ip_set: Storage Encrypted'
+  severity: MEDIUM
+  for_each: threat_ip_sets
+  param: threat_ip_set
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: threat_ip_set_used_by_detectors
+  name: 'AZURE AZURE Threat_ip_set: Used By Detectors'
+  severity: LOW
+  for_each: threat_ip_sets
+  param: threat_ip_set
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.detectors
+      operator: exists
+      expected: true
+    - path: properties.detectors
+      operator: contains
+      expected: '*'
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: vulnerability_automation_vuln_automation_change_audit_logging_enabled
+  name: 'AZURE AZURE Vulnerability_automation: Vuln Automation Change Audit Logging
+    Enabl'
+  severity: MEDIUM
+  for_each: vulnerability_automations
+  param: vulnerability_automation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.auditLogging.enabled
+      operator: equals
+      expected: true
+    - path: properties.auditLogging.changeTracking
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: vulnerability_automation_vuln_automation_execution_roles_least_privilege
+  name: 'AZURE AZURE Vulnerability_automation: Vuln Automation Execution Roles Least
+    Priv'
+  severity: HIGH
+  for_each: vulnerability_automations
+  param: vulnerability_automation
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.executionRoles
+      operator: exists
+      expected: true
+    - path: properties.executionRoles.length
+      operator: equals
+      expected: 1
+    - path: properties.executionRoles[0].permissions
+      operator: contains
+      expected: Reader
+    - path: properties.executionRoles[0].scope
+      operator: exists
+      expected: true
+    - path: properties.executionRoles[0].actions
+      operator: contains
+      expected: Microsoft.Security/assessments/read
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: vulnerability_maintenance_vuln_maintenance_execution_roles_least_privilege
+  name: 'AZURE AZURE Vulnerability_maintenance: Vuln Maintenance Execution Roles Least
+    Pr'
+  severity: HIGH
+  for_each: vulnerability_maintenances
+  param: vulnerability_maintenance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - path: properties.principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.scope
+      operator: contains
+      expected: /resourceGroups/
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: vulnerability_maintenance_vuln_maintenance_window_defined
+  name: 'AZURE AZURE Vulnerability_maintenance: Vuln Maintenance Window Defined'
+  severity: LOW
+  for_each: vulnerability_maintenances
+  param: vulnerability_maintenance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.maintenanceWindow
+      operator: exists
+      expected: true
+    - path: properties.maintenanceWindow.dayOfWeek
+      operator: exists
+      expected: true
+    - path: properties.maintenanceWindow.startHour
+      operator: exists
+      expected: true
+    - path: properties.maintenanceWindow.startMinute
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []

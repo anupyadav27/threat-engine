@@ -1,0 +1,78 @@
+resource:
+  version: '1.0'
+  provider: azure
+  service: resource
+  package: azure-mgmt-resource
+  client_class: ResourceManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.resource.skus
+    calls:
+    - client: resource
+      action: skus.list
+      save_as: skus
+  - discovery_id: azure.resource.managers
+    calls:
+    - client: resource
+      action: management_locks.list_at_subscription_level
+      save_as: managers
+  - discovery_id: azure.resource.resource_groups
+    calls:
+    - client: resource
+      action: resource_groups.list
+      save_as: groups_group
+  checks:
+  - check_id: azure.resource.sku.standard.enforcement
+    title: 'AZURE RESOURCE SKU: Standard Enforcement'
+    severity: low
+    for_each: azure.resource.skus
+    calls:
+    - action: skus.list
+      params: {}
+      fields:
+      - path: value[?(@.tier == 'Standard')].name
+        operator: exists
+  - check_id: azure.resource.manager.resource.lock.verification
+    title: 'AZURE RESOURCE Manager: Resource Lock Verification'
+    severity: low
+    for_each: azure.resource.managers
+    calls:
+    - action: management_locks.list_by_subscription
+      params: {}
+      fields:
+      - path: value[?(@.level == 'ReadOnly' || @.level == 'CanNotDelete')].id
+        operator: exists
+  - check_id: azure.resource.groups_group.governance_project_required_guardrail_policies_attached
+    title: 'AZURE RESOURCE Groups: Governance Project Required Guardrail Policies Attached'
+    severity: low
+    for_each: azure.resource.resource_groups
+    calls:
+    - action: policy_assignments.list_for_resource_group
+      params:
+        resource_group_name: '{{name}}'
+      fields:
+      - path: value[?(@.policy_definition_id contains 'guardrail')].id
+        operator: exists
+  - check_id: azure.resource.groups_group.governance_project_security_services_mandatory_enabled
+    title: 'AZURE RESOURCE Groups: Governance Project Security Services Mandatory Enabled'
+    severity: low
+    for_each: azure.resource.resource_groups
+    calls:
+    - action: security_contacts.list
+      params:
+        resource_group_name: '{{name}}'
+      fields:
+      - path: value[?(@.alert_notifications.state == 'On')].id
+        operator: exists
+  - check_id: azure.resource.groups_group.governance_project_no_public_admin_roles
+    title: 'AZURE RESOURCE Groups: Governance Project No Public Admin Roles'
+    severity: critical
+    for_each: azure.resource.resource_groups
+    calls:
+    - action: role_assignments.list_for_resource_group
+      params:
+        resource_group_name: '{{name}}'
+      fields:
+      - path: value[?(@.role_definition_id contains 'Owner' || @.role_definition_id contains 'Contributor')].principal_type
+        operator: equals
+        expected: User

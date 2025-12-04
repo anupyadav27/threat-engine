@@ -1,0 +1,299 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                AZURE COMPLIANCE ENGINE - QUICK REFERENCE                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 1. SETUP & INSTALLATION                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Install dependencies (~5 min, 45+ packages)
+pip install -r requirements.txt
+
+# Set environment variables
+export AZURE_SUBSCRIPTION_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Optional: Service Principal (for CI/CD)
+export AZURE_TENANT_ID="your-tenant-id"
+export AZURE_CLIENT_ID="your-client-id"
+export AZURE_CLIENT_SECRET="your-client-secret"
+
+# Test setup
+python test_azure_setup.py
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 2. USING THE CLIENT FACTORY                                                  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+from auth.azure_client_factory import get_azure_client
+
+# Simple usage (like boto3)
+compute = get_azure_client('compute')
+storage = get_azure_client('storage')
+network = get_azure_client('network')
+
+# List resources
+vms = compute.virtual_machines.list_all()
+accounts = storage.storage_accounts.list()
+vnets = network.virtual_networks.list_all()
+
+# Advanced: Factory instance
+from auth.azure_client_factory import AzureClientFactory
+
+factory = AzureClientFactory(subscription_id='...')
+client = factory.get_client('compute')
+factory.list_available_services()  # 70+ services
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 3. COMMON SERVICES & THEIR PACKAGES                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Service       Package                    Client Class
+───────────   ─────────────────────────  ────────────────────────────────
+compute       azure-mgmt-compute         ComputeManagementClient
+storage       azure-mgmt-storage         StorageManagementClient
+network       azure-mgmt-network         NetworkManagementClient
+aks           azure-mgmt-containerserv.  ContainerServiceClient
+sql           azure-mgmt-sql             SqlManagementClient
+cosmosdb      azure-mgmt-cosmosdb        CosmosDBManagementClient
+keyvault      azure-mgmt-keyvault        KeyVaultManagementClient
+security      azure-mgmt-security        SecurityCenter
+monitor       azure-mgmt-monitor         MonitorManagementClient
+aad           msgraph-sdk                GraphServiceClient
+webapp        azure-mgmt-web             WebSiteManagementClient
+function      azure-mgmt-web             WebSiteManagementClient
+
+Full list: See AZURE_SDK_MODULE_MAPPING.md
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 4. SERVICE GROUPING (24 GROUPS)                                              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Group                Services                          Rules    Package(s)
+──────────────────   ──────────────────────────────   ─────    ────────────
+Microsoft Graph      aad, ad, entra, user, password    50      msgraph-sdk
+Compute              compute, vm, virtualmachines      92      azure-mgmt-compute
+Containers           aks, kubernetes, container        29      azure-mgmt-containerservice
+Storage              storage, blob, files             108      azure-mgmt-storage
+Networking           network, nsg, vpn, lb, dns        87      azure-mgmt-network
+Databases            sql, mysql, cosmos, redis        101      azure-mgmt-sql, rdbms, cosmosdb
+Security             security, defender                70      azure-mgmt-security
+Monitoring           monitor, log, audit               78      azure-mgmt-monitor
+Key Vault            keyvault, key, certificates       29      azure-mgmt-keyvault
+Web Services         webapp, function, site            97      azure-mgmt-web
+Analytics            databricks, synapse, search      340      azure-mgmt-databricks, synapse...
+Backup               backup, recoveryservices          47      azure-mgmt-recoveryservices
+... and 12 more groups
+
+See AZURE_SERVICE_GROUPS.yaml for complete breakdown
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 5. AWS vs AZURE COMPARISON                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Aspect            AWS boto3                Azure SDK
+────────────────  ─────────────────────    ────────────────────────────────
+Packages          1 (boto3)                45+ (azure-mgmt-*)
+Import            import boto3             from azure.mgmt.X import XClient
+Client Creation   boto3.client('ec2')      XClient(credential, sub_id)
+Authentication    Session-based            Credential object
+Scope             Region                   Subscription + Resource Group
+List Resources    describe_instances()     virtual_machines.list_all()
+Pagination        Paginator objects        Iterator from .list()
+Errors            botocore.exceptions.*    azure.core.exceptions.*
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 6. COMMON CODE PATTERNS                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# List all VMs
+compute = get_azure_client('compute')
+for vm in compute.virtual_machines.list_all():
+    print(f"{vm.name}: {vm.location}")
+
+# List resources by resource group
+for rg in resource.resource_groups.list():
+    vms = compute.virtual_machines.list(rg.name)
+    for vm in vms:
+        print(f"RG:{rg.name} VM:{vm.name}")
+
+# Get storage account properties
+storage = get_azure_client('storage')
+for account in storage.storage_accounts.list():
+    props = storage.storage_accounts.get_properties(
+        resource_group_name=account.resource_group,
+        account_name=account.name
+    )
+    print(f"Encryption: {props.encryption.services.blob.enabled}")
+
+# Check security alerts
+security = get_azure_client('security')
+alerts = security.alerts.list()
+for alert in alerts:
+    print(f"{alert.alert_display_name}: {alert.status}")
+
+# List AAD users (Microsoft Graph)
+aad = get_azure_client('aad')
+users = aad.users.get()  # Note: Graph SDK is async
+for user in users.value:
+    print(f"{user.display_name}: {user.user_principal_name}")
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 7. ERROR HANDLING                                                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+from azure.core.exceptions import (
+    HttpResponseError,
+    ResourceNotFoundError,
+    ClientAuthenticationError
+)
+
+try:
+    client = get_azure_client('compute')
+    vms = client.virtual_machines.list_all()
+except ClientAuthenticationError:
+    # Credential issue
+    print("Authentication failed. Check credentials.")
+except ResourceNotFoundError:
+    # Resource doesn't exist
+    print("Resource not found.")
+except HttpResponseError as e:
+    # API error
+    print(f"HTTP {e.status_code}: {e.message}")
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 8. RULES YAML STRUCTURE (Azure Format)                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+version: '1.0'
+provider: azure
+service: compute
+package: azure-mgmt-compute                # NEW: Package name
+client_class: ComputeManagementClient      # NEW: Client class
+
+discovery:
+  - discovery_id: azure.compute.vms
+    calls:
+      - client: compute                    # Maps to factory service name
+        method: virtual_machines.list_all  # Azure SDK method
+        save_as: vms
+        on_error: continue
+        fields:
+          - name
+          - location
+          - properties.hardwareProfile
+    emit:
+      items_for: vms
+      as: vm
+      item:
+        id: '{{ vm.id }}'
+        name: '{{ vm.name }}'
+        location: '{{ vm.location }}'
+
+checks:
+  - check_id: azure.compute.vm.encryption.enabled
+    for_each: azure.compute.vms
+    condition: '{{ item.properties.storageProfile.osDisk.encryptionSettings.enabled == true }}'
+    compliant_when: true
+    severity: high
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 9. TROUBLESHOOTING                                                           ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Problem: "AZURE_SUBSCRIPTION_ID must be set"
+Fix:     export AZURE_SUBSCRIPTION_ID="your-subscription-id"
+
+Problem: "No module named 'azure.mgmt.compute'"
+Fix:     pip install azure-mgmt-compute
+         OR pip install -r requirements.txt
+
+Problem: "ClientAuthenticationError: Authentication failed"
+Fix:     Check credentials, run: az login
+         Or set service principal env vars
+
+Problem: "Service 'xyz' not supported"
+Fix:     Check available services:
+         python -c "from auth.azure_client_factory import AzureClientFactory; \
+                    print(AzureClientFactory().list_available_services())"
+
+Problem: "Cannot import name 'GraphServiceClient'"
+Fix:     pip install msgraph-sdk
+
+Problem: "list_all() method not found"
+Fix:     Check Azure SDK docs for correct method name
+         Pattern: resource_type.list() or resource_type.list_all()
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 10. KEY FILES & DOCUMENTATION                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+File                              Purpose
+───────────────────────────────   ──────────────────────────────────────
+auth/azure_client_factory.py      Client factory implementation
+requirements.txt                   All Azure SDK packages (45+)
+test_azure_setup.py                Test environment & factory
+AZURE_SDK_MODULE_MAPPING.md       Complete service → package mapping
+AZURE_SERVICE_GROUPS.yaml          Service grouping by package
+AZURE_IMPLEMENTATION_PLAN.md       7-phase implementation roadmap
+PLANNING_SUMMARY.md                High-level overview
+ARCHITECTURE.txt                   Visual architecture diagram
+QUICK_REFERENCE.txt                This file
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 11. USEFUL COMMANDS                                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Test client factory
+python auth/azure_client_factory.py
+
+# Run full test suite
+python test_azure_setup.py
+
+# List available services
+python -c "from auth.azure_client_factory import get_azure_client; \
+           from auth.azure_client_factory import AzureClientFactory; \
+           f = AzureClientFactory(); \
+           print('\n'.join(f.list_available_services()))"
+
+# Get service info
+python -c "from auth.azure_client_factory import AzureClientFactory; \
+           f = AzureClientFactory(); \
+           import json; \
+           print(json.dumps(f.get_service_info('compute'), indent=2))"
+
+# Check installed packages
+pip list | grep azure
+
+# Count rules by service
+find services -name "*.yaml" | cut -d'/' -f2 | sort | uniq -c | sort -rn
+
+# Login with Azure CLI (for DefaultAzureCredential)
+az login
+az account set --subscription "your-subscription-id"
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 12. NEXT STEPS                                                               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✅ Planning Complete (Phase 1)
+
+Next: Phase 2 - Service Cleanup (2-3 hours)
+  1. Remove AWS services (eks, lambda, s3)
+  2. Consolidate duplicates (vm→compute, functionapp→function, etc.)
+  3. Redistribute rules from generic "azure" folder
+
+Then: Phase 3 - Update Rules YAML (1-2 hours)
+  - Add package & client_class fields
+  - Update method names for Azure
+
+Then: Phase 4 - Adapt Engine (3-4 hours)
+  - Update engine to use AzureClientFactory
+  - Handle subscription & resource group iteration
+
+Timeline: 13-19 hours total, 2-3 day sprint
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    STATUS: ✅ READY FOR IMPLEMENTATION                       ║
+║              (Requires Azure credentials to run tests)                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+

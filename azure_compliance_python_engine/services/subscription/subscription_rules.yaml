@@ -1,0 +1,80 @@
+subscription:
+  version: '1.0'
+  provider: azure
+  service: subscription
+  package: azure-mgmt-subscription
+  client_class: SubscriptionClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.subscription.subscriptions
+    calls:
+    - client: subscription
+      action: subscriptions.list
+      save_as: subscriptions
+  - discovery_id: azure.subscription.tenants
+    calls:
+    - client: subscription
+      action: tenants.list
+      save_as: tenants
+  - discovery_id: azure.subscription.operations
+    calls:
+    - client: subscription
+      action: operations.list
+      save_as: operations
+  - discovery_id: azure.subscription.locations
+    calls:
+    - client: subscription
+      action: subscriptions.list_locations
+      save_as: locations
+  checks:
+  - check_id: azure.subscription.owner.count.check
+    title: 'AZURE SUBSCRIPTION Owner: Count Check'
+    severity: low
+    for_each: azure.subscription.subscriptions
+    calls:
+    - action: role_assignments.list_for_subscription
+      params: {}
+      fields:
+      - path: value[?(@.properties.role_definition_id =~ /.*8e3af657-a8ff-443c-a75c-2fe8c4bcb635$/)].properties.principal_id
+        operator: exists
+  - check_id: azure.subscription.state.active.check
+    title: 'AZURE SUBSCRIPTION State: Active Check'
+    severity: high
+    for_each: azure.subscription.subscriptions
+    calls:
+    - action: subscriptions.get
+      params: {}
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.subscription.spending.limit.check
+    title: 'AZURE SUBSCRIPTION Spending: Limit Check'
+    severity: medium
+    for_each: azure.subscription.subscriptions
+    calls:
+    - action: subscriptions.get
+      params: {}
+      fields:
+      - path: subscription_policies.spending_limit
+        operator: exists
+  - check_id: azure.subscription.quota.usage.check
+    title: 'AZURE SUBSCRIPTION Quota: Usage Check'
+    severity: medium
+    for_each: azure.subscription.subscriptions
+    calls:
+    - action: quotas.list
+      params: {}
+      fields:
+      - path: value[0].properties.limit
+        operator: exists
+  - check_id: azure.subscription.policy.assignment.check
+    title: 'AZURE SUBSCRIPTION Policy: Assignment Check'
+    severity: medium
+    for_each: azure.subscription.subscriptions
+    calls:
+    - action: policy_assignments.list
+      params: {}
+      fields:
+      - path: value[0].properties.policy_definition_id
+        operator: exists

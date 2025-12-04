@@ -1,0 +1,888 @@
+api:
+  version: '1.0'
+  provider: azure
+  service: api
+  package: azure-mgmt-apimanagement
+  client_class: ApiManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.api.management_services
+    calls:
+    - client: api_management_service
+      action: list_by_subscription
+      save_as: api_services
+  - discovery_id: azure.api.authorizers
+    calls:
+    - client: authorization_server
+      action: list_by_service
+      save_as: authorizers
+  - discovery_id: azure.api.endpoints
+    calls:
+    - client: api
+      action: list_by_service
+      save_as: api_endpoints
+  - discovery_id: azure.api.policies
+    calls:
+    - client: policy
+      action: list_by_service
+      save_as: policies
+  - discovery_id: azure.api.rate_limits
+    calls:
+    - client: product_policy
+      action: list_by_product
+      save_as: rate_limit_policies
+  checks:
+  - check_id: azure.api.authorization_policy.tls_min_1_2_enforced
+    title: 'AZURE API Authorization Policy: TLS Min 1.2 Enforced'
+    severity: medium
+    for_each: azure.api.authorizers
+    calls:
+    - action: authorization_server.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        authsid: '{{authorization_server_id}}'
+      fields:
+      - path: client_authentication_method
+        operator: exists
+      - path: token_endpoint
+        operator: contains
+        expected: https
+  - check_id: azure.api.authorization_policy.token_audience_restricted
+    title: 'AZURE API Authorization Policy: Token Audience Restricted'
+    severity: low
+    for_each: azure.api.authorizers
+    calls:
+    - action: authorization_server.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        authsid: '{{authorization_server_id}}'
+      fields:
+      - path: default_scope
+        operator: exists
+      - path: resource_owner_username
+        operator: exists
+  - check_id: azure.api.api_endpoint.private_networking_enforced
+    title: 'AZURE API Endpoint: Private Networking Enforced'
+    severity: medium
+    for_each: azure.api.api_endpoints
+    calls:
+    - action: api.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: protocols
+        operator: not_contains
+        expected: http
+      - path: service_url
+        operator: contains
+        expected: https
+  - check_id: azure.api.api_endpoint.waf_attached
+    title: 'AZURE API Endpoint: WAF Attached'
+    severity: low
+    for_each: azure.api.api_endpoints
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: ip-filter
+  - check_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_throttle_overrides_not_unbounded
+    title: 'AZURE API Management Rate Limit Policy: Rate Limiting API Stage Throttle Overrides Not Unbounded'
+    severity: medium
+    for_each: azure.api.rate_limit_policies
+    calls:
+    - action: product_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        product_id: '{{product_id}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit
+      - path: value
+        operator: not_contains
+        expected: calls="-1"
+  - check_id: azure.api.management_validation_policy.request_validation_enabled
+    title: 'AZURE API Management Validation Policy: Request Validation Enabled'
+    severity: high
+    for_each: azure.api.policies
+    calls:
+    - action: policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-content
+  - check_id: azure.api.management_validation_policy.response_validation_enabled
+    title: 'AZURE API Management Validation Policy: Response Validation Enabled'
+    severity: medium
+    for_each: azure.api.policies
+    calls:
+    - action: policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-status-code
+  - check_id: azure.api.management_validation_policy.schema_validation_enforced
+    title: 'AZURE API Management Validation Policy: Schema Validation Enforced'
+    severity: medium
+    for_each: azure.api.policies
+    calls:
+    - action: api_schema.list_by_api
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value[0].content_type
+        operator: exists
+      - path: value[0].document
+        operator: exists
+  - check_id: azure.api.management_restapi_waf_acl_attached
+    title: 'AZURE API Management REST API: WAF ACL Attached'
+    severity: high
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: virtual_network_configuration
+        operator: exists
+      - path: virtual_network_type
+        operator: equals
+        expected: Internal
+  - check_id: azure.api.platform_api_key.rotation_policy_enabled
+    title: 'AZURE API Platform API Key: Rotation Policy Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: subscription.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: value[0].state
+        operator: equals
+        expected: active
+      - path: value[0].expiration_date
+        operator: exists
+  - check_id: azure.api.service.diagnostic_logging_enabled
+    title: 'AZURE API Service: Diagnostic Logging Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: diagnostic.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.api.service.backup_configured
+    title: 'AZURE API Service: Backup Configured'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: backup
+        operator: exists
+  - check_id: azure.api.service.managed_identity_enabled
+    title: 'AZURE API Service: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+      - path: identity.principal_id
+        operator: exists
+  - check_id: azure.api.service.custom_domain_ssl_configured
+    title: 'AZURE API Service: Custom Domain SSL Configured'
+    severity: high
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: hostname_configurations[0].certificate_source
+        operator: exists
+      - path: hostname_configurations[0].negotiate_client_certificate
+        operator: equals
+        expected: true
+  - check_id: azure.api.service.minimum_api_version_enforced
+    title: 'AZURE API Service: Minimum API Version Enforced'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: api_version_constraint.min_api_version
+        operator: exists
+  - check_id: azure.api.gateway.public_ip_disabled
+    title: 'AZURE API Gateway: Public IP Disabled'
+    severity: high
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: public_ip_address_id
+        operator: not_exists
+  - check_id: azure.api.gateway.client_certificate_validation_enabled
+    title: 'AZURE API Gateway: Client Certificate Validation Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: custom_properties["Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10"]
+        operator: equals
+        expected: 'false'
+      - path: custom_properties["Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11"]
+        operator: equals
+        expected: 'false'
+  - check_id: azure.api.product.approval_required
+    title: 'AZURE API Product: Approval Required'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: product.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].approval_required
+        operator: equals
+        expected: true
+  - check_id: azure.api.product.subscription_required
+    title: 'AZURE API Product: Subscription Required'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: product.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].subscription_required
+        operator: equals
+        expected: true
+  - check_id: azure.api.backend.ssl_certificate_validation_enabled
+    title: 'AZURE API Backend: SSL Certificate Validation Enabled'
+    severity: high
+    for_each: azure.api.api_services
+    calls:
+    - action: backend.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].tls.validate_certificate_chain
+        operator: equals
+        expected: true
+      - path: value[0].tls.validate_certificate_name
+        operator: equals
+        expected: true
+  - check_id: azure.api.cache.redis_ssl_enabled
+    title: 'AZURE API Cache: Redis SSL Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: cache.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].use_from_location
+        operator: exists
+      - path: value[0].connection_string
+        operator: contains
+        expected: ssl=True
+  - check_id: azure.api.user.email_confirmation_required
+    title: 'AZURE API User: Email Confirmation Required'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: sign_up_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: terms_of_service.require_consent
+        operator: equals
+        expected: true
+  - check_id: azure.api.notification.admin_email_configured
+    title: 'AZURE API Notification: Admin Email Configured'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: notification.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].recipients.emails[0]
+        operator: exists
+  - check_id: azure.api.logger.application_insights_configured
+    title: 'AZURE API Logger: Application Insights Configured'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: logger.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].logger_type
+        operator: equals
+        expected: applicationInsights
+      - path: value[0].credentials.instrumentation_key
+        operator: exists
+  - check_id: azure.api.certificate.expiration_monitoring_enabled
+    title: 'AZURE API Certificate: Expiration Monitoring Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: certificate.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: value[0].expiration_date
+        operator: exists
+  - check_id: azure.api.tenant.git_access_disabled
+    title: 'AZURE API Tenant: Git Access Disabled'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: tenant_access.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+        access_name: access
+      fields:
+      - path: enabled
+        operator: equals
+        expected: false
+  - check_id: azure.api.operation.anonymous_access_disabled
+    title: 'AZURE API Operation: Anonymous Access Disabled'
+    severity: high
+    for_each: azure.api.api_endpoints
+    calls:
+    - action: api_operation.list_by_api
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value[0].policies
+        operator: contains
+        expected: authentication-managed-identity
+  - check_id: azure.api.quota.usage_monitoring_enabled
+    title: 'AZURE API Quota: Usage Monitoring Enabled'
+    severity: medium
+    for_each: azure.api.api_services
+    calls:
+    - action: quota_by_counter_keys.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+        quota_counter_key: ba
+      fields:
+      - path: value[0].limit
+        operator: gte
+        expected: 1
+  - check_id: azure.api.tag.resource_tagging_enforced
+    title: 'AZURE API Tag: Resource Tagging Enforced'
+    severity: low
+    for_each: azure.api.api_services
+    calls:
+    - action: self
+      fields:
+      - path: tags.Environment
+        operator: exists
+      - path: tags.Owner
+        operator: exists
+  - check_id: azure.api.network.ddos_protection_enabled
+    title: 'AZURE API Network: DDoS Protection Enabled'
+    severity: high
+    for_each: azure.api.api_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: virtual_network_configuration.subnet_resource_id
+        operator: exists
+  - check_id: azure.api.api_endpoint.authn_required
+    title: 'AZURE AZURE Platform_api_endpoint: Authn Required'
+    severity: low
+    for_each: azure.api.endpoints
+    calls:
+    - action: api.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: authentication_settings
+        operator: exists
+      - path: authentication_settings.o_auth2
+        operator: exists
+  - check_id: azure.api.api_endpoint.authz_policies_enforced
+    title: 'AZURE AZURE Platform_api_endpoint: Authz Policies Enforced'
+    severity: low
+    for_each: azure.api.endpoints
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: authorization
+  - check_id: azure.api.api_version.logging_enabled
+    title: 'AZURE AZURE Platform_stage: Logging Enabled'
+    severity: medium
+    for_each: azure.api.stages
+    calls:
+    - action: logger.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: value
+        operator: not_empty
+    - action: diagnostic.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        diagnostic_id: '{{diagnostic_id}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.api.api_version.require_usage_plan_for_api_keys
+    title: 'AZURE AZURE Platform_stage: Require Usage Plan For API Keys'
+    severity: high
+    for_each: azure.api.stages
+    calls:
+    - action: product.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: value
+        operator: not_empty
+    - action: product.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        product_id: '{{product_id}}'
+      fields:
+      - path: subscription_required
+        operator: equals
+        expected: true
+  - check_id: azure.api.api_version.throttling_enabled
+    title: 'AZURE AZURE Platform_stage: Throttling Enabled'
+    severity: low
+    for_each: azure.api.stages
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit
+  - check_id: azure.api.authorization_policy.cache_ttl_reasonable
+    title: 'AZURE AZURE Platform_authorizer: Cache Ttl Reasonable'
+    severity: low
+    for_each: azure.api.authorizers
+    calls:
+    - action: authorization_server.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        authsid: '{{authorization_server_id}}'
+      fields:
+      - path: token_endpoint
+        operator: exists
+      - path: client_secret
+        operator: exists
+  - check_id: azure.api.management_authorization_enabled:az.api_management_rate_limit_policy.api_security_rate_limiting_api_stage_throttle_overrides_not_unbounded
+    title: 'AZURE API Management_authorization_enabled:az: API Management Rate Limit Policy API Security Rate Limiting API
+      Stage Throttle Overrides Not Unbounded'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit-by-key
+      - path: value
+        operator: not_contains
+        expected: calls="0"
+  - check_id: azure.api.management_monitoring.monitoring_api_access_log_fields_identity_present
+    title: 'AZURE API Management_monitoring: Monitoring API Access Log Fields Identity Present'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: diagnostic.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        diagnostic_id: '{{diagnostic_id}}'
+      fields:
+      - path: frontend.request.headers
+        operator: exists
+      - path: frontend.response.headers
+        operator: exists
+  - check_id: azure.api.management_monitoring.monitoring_api_access_log_sink_configured
+    title: 'AZURE API Management_monitoring: Monitoring API Access Log Sink Configured'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: logger.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: value
+        operator: not_empty
+    - action: logger.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        logger_id: '{{logger_id}}'
+      fields:
+      - path: logger_type
+        operator: in
+        expected:
+        - applicationInsights
+        - azureEventHub
+  - check_id: azure.api.management_monitoring.monitoring_api_access_logging_enabled
+    title: 'AZURE API Management_monitoring: Monitoring API Access Logging Enabled'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: diagnostic.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        diagnostic_id: '{{diagnostic_id}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: logger_id
+        operator: exists
+  - check_id: azure.api.management_monitoring.monitoring_api_execution_logging_level_minimum_error
+    title: 'AZURE API Management_monitoring: Monitoring API Execution Logging Level Minimum Error'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: diagnostic.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        diagnostic_id: '{{diagnostic_id}}'
+      fields:
+      - path: verbosity
+        operator: in
+        expected:
+        - error
+        - information
+        - verbose
+  - check_id: azure.api.management_monitoring.monitoring_api_logs_retention_days_minimum
+    title: 'AZURE API Management_monitoring: Monitoring API Logs Retention Days Minimum'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: logger.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        logger_id: '{{logger_id}}'
+      fields:
+      - path: credentials.retention_in_days
+        operator: gte
+        expected: 30
+  - check_id: azure.api.management_rate_limit_policy.rate_limiting_api_quota_limit_configured
+    title: 'AZURE API Management_rate_limit_policy: Rate Limiting API Quota Limit Configured'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: product_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        product_id: '{{product_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: quota
+  - check_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_burst_limit_configured
+    title: 'AZURE API Management_rate_limit_policy: Rate Limiting API Stage Burst Limit Configured'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit
+      - path: value
+        operator: contains
+        expected: calls=
+  - check_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_rate_limit_configured
+    title: 'AZURE API Management_rate_limit_policy: Rate Limiting API Stage Rate Limit Configured'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit
+      - path: value
+        operator: regex
+        expected: calls="\d+"
+  - check_id: azure.api.management_rate_limit_policy.rate_limiting_api_usage_plan_required_for_api_keys
+    title: 'AZURE API Management_rate_limit_policy: Rate Limiting API Usage Plan Required For API Keys'
+    severity: high
+    for_each: azure.api.management_services
+    calls:
+    - action: product.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        product_id: '{{product_id}}'
+      fields:
+      - path: subscription_required
+        operator: equals
+        expected: true
+      - path: approval_required
+        operator: equals
+        expected: true
+  - check_id: azure.api.management_restapi_waf_acl_attached:az.api_management_monitoring.api_security_monitoring_api_access_logging_enabled
+    title: 'AZURE API Management_restapi_waf_acl_attached:az: API Management Monitoring API Security Monitoring API Access
+      Logging Enabled'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: diagnostic.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        diagnostic_id: '{{diagnostic_id}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: sampling.sampling_type
+        operator: exists
+  - check_id: azure.api.management_validation_policy.validation_api_content_type_whitelist_enforced
+    title: 'AZURE API Management_validation_policy: Validation API Content Type Whitelist Enforced'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-content
+  - check_id: azure.api.management_validation_policy.validation_api_parameters_validation_enabled
+    title: 'AZURE API Management_validation_policy: Validation API Parameters Validation Enabled'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-parameters
+  - check_id: azure.api.management_validation_policy.validation_api_request_body_size_limit_configured
+    title: 'AZURE API Management_validation_policy: Validation API Request Body Size Limit Configured'
+    severity: medium
+    for_each: azure.api.management_services
+    calls:
+    - action: api_policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        api_id: '{{api_id}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: set-body
+      - path: value
+        operator: regex
+        expected: size="\d+"
+  - check_id: azure.api.management_validation_policy.validation_api_request_schema_validation_enabled
+    title: 'AZURE API Management_validation_policy: Validation API Request Schema Validation Enabled'
+    severity: medium
+    for_each: azure.api.management_validation_policies
+    calls:
+    - action: policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-content
+      - path: value
+        operator: contains
+        expected: validate-parameters
+  - check_id: azure.api.management_validation_policy.validation_api_required_security_headers_enforced
+    title: 'AZURE API Management_validation_policy: Validation API Required Security Headers Enforced'
+    severity: medium
+    for_each: azure.api.management_validation_policies
+    calls:
+    - action: policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-headers
+      - path: value
+        operator: contains
+        expected: X-Content-Type-Options
+      - path: value
+        operator: contains
+        expected: X-Frame-Options
+  - check_id: azure.api.management_validation_policy.validation_api_response_schema_validation_enabled
+    title: 'AZURE API Management_validation_policy: Validation API Response Schema Validation Enabled'
+    severity: medium
+    for_each: azure.api.management_validation_policies
+    calls:
+    - action: policy.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        policy_id: policy
+      fields:
+      - path: value
+        operator: contains
+        expected: validate-content
+      - path: value
+        operator: contains
+        expected: response
+  - check_id: azure.api.subscription_key.expiration_required
+    title: 'AZURE AZURE Platform_api_key: Expiration Required'
+    severity: medium
+    for_each: azure.api.subscription_keys
+    calls:
+    - action: subscription.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        sid: '{{subscription_name}}'
+      fields:
+      - path: expiration_date
+        operator: exists
+      - path: expiration_date
+        operator: not_null
+  - check_id: azure.api.subscription_key.rotation_policy_defined
+    title: 'AZURE AZURE Platform_api_key: Rotation Policy Defined'
+    severity: medium
+    for_each: azure.api.subscription_keys
+    calls:
+    - action: subscription.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        sid: '{{subscription_name}}'
+      fields:
+      - path: allow_tracing
+        operator: equals
+        expected: false
+      - path: state
+        operator: equals
+        expected: active
+  - check_id: azure.api.subscription_key.scopes_least_privilege
+    title: 'AZURE AZURE Platform_api_key: Scopes Least Privilege'
+    severity: high
+    for_each: azure.api.subscription_keys
+    calls:
+    - action: subscription.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        sid: '{{subscription_name}}'
+      fields:
+      - path: scope
+        operator: exists
+      - path: scope
+        operator: not_equals
+        expected: /

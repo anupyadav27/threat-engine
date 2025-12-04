@@ -1,0 +1,853 @@
+cdn:
+  version: '1.0'
+  provider: azure
+  service: cdn
+  package: azure-mgmt-cdn
+  client_class: CdnManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.cdn.profiles
+    calls:
+    - client: cdn
+      action: profiles.list
+      save_as: profiles
+  - discovery_id: azure.cdn.endpoints
+    calls:
+    - client: cdn
+      action: endpoints.list_by_profile
+      save_as: endpoints
+  - discovery_id: azure.cdn.custom_domains
+    calls:
+    - client: cdn
+      action: custom_domains.list_by_endpoint
+      save_as: custom_domains
+  - discovery_id: azure.cdn.rule_sets
+    calls:
+    - client: cdn
+      action: rule_sets.list_by_profile
+      save_as: rule_sets
+  checks:
+  - check_id: azure.cdn.custom_domain.edge_ip_set_cidrs_valid_and_minimized
+    title: 'AZURE CDN Custom Domain: Edge IP Set CIDRs Valid And Minimized'
+    severity: low
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: custom_https_parameters.certificate_source_parameters.certificate_type
+        operator: exists
+  - check_id: azure.cdn.profile.edge_tls_min_1_2_enforced
+    title: 'AZURE CDN Profile: Edge TLS Min 1.2 Enforced'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: front_door_id
+        operator: exists
+  - check_id: azure.cdn.endpoint.edge_origin_request_policy_no_secret_headers_forwarded
+    title: 'AZURE CDN Endpoint: Edge Origin Request Policy No Secret Headers Forwarded'
+    severity: high
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[?(@.name=='ModifyRequestHeader')].parameters.header_action
+        operator: exists
+  - check_id: azure.cdn.profile.edge_cache_key_excludes_sensitive_headers
+    title: 'AZURE CDN Profile: Edge Cache Key Excludes Sensitive Headers'
+    severity: high
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: origin_response_timeout_seconds
+        operator: gte
+        expected: 30
+  - check_id: azure.cdn.profile.edge_valid_trusted_certificate_attached
+    title: 'AZURE CDN Profile: Edge Valid Trusted Certificate Attached'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: exists
+  - check_id: azure.cdn.endpoint.https_redirect_enabled
+    title: 'AZURE CDN Endpoint: HTTPS Redirect Enabled'
+    severity: high
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: is_http_allowed
+        operator: equals
+        expected: false
+  - check_id: azure.cdn.endpoint.compression_enabled
+    title: 'AZURE CDN Endpoint: Compression Enabled'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: is_compression_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.cdn.endpoint.query_string_caching_behavior_configured
+    title: 'AZURE CDN Endpoint: Query String Caching Behavior Configured'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: query_string_caching_behavior
+        operator: exists
+  - check_id: azure.cdn.profile.waf_policy_attached
+    title: 'AZURE CDN Profile: WAF Policy Attached'
+    severity: high
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: extended_properties
+        operator: exists
+  - check_id: azure.cdn.profile.logging_enabled
+    title: 'AZURE CDN Profile: Logging Enabled'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Active
+  - check_id: azure.cdn.rule_set.security_headers_configured
+    title: 'AZURE CDN Rule Set: Security Headers Configured'
+    severity: high
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: rule_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{name}}'
+      fields:
+      - path: deployment_status
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.rule_set.rate_limiting_enabled
+    title: 'AZURE CDN Rule Set: Rate Limiting Enabled'
+    severity: medium
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.custom_domain.certificate_validation_enabled
+    title: 'AZURE CDN Custom Domain: Certificate Validation Enabled'
+    severity: high
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: custom_https_provisioning_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.cdn.endpoint.origin_host_header_configured
+    title: 'AZURE CDN Endpoint: Origin Host Header Configured'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: origin_host_header
+        operator: exists
+  - check_id: azure.cdn.endpoint.geo_filtering_configured
+    title: 'AZURE CDN Endpoint: Geo Filtering Configured'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: geo_filters
+        operator: exists
+  - check_id: azure.cdn.profile.resource_state_active
+    title: 'AZURE CDN Profile: Resource State Active'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Active
+  - check_id: azure.cdn.endpoint.optimization_type_configured
+    title: 'AZURE CDN Endpoint: Optimization Type Configured'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: optimization_type
+        operator: exists
+  - check_id: azure.cdn.endpoint.content_types_to_compress_configured
+    title: 'AZURE CDN Endpoint: Content Types To Compress Configured'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: content_types_to_compress
+        operator: exists
+  - check_id: azure.cdn.endpoint.delivery_policy_rules_configured
+    title: 'AZURE CDN Endpoint: Delivery Policy Rules Configured'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules
+        operator: exists
+  - check_id: azure.cdn.endpoint.web_application_firewall_policy_link_configured
+    title: 'AZURE CDN Endpoint: Web Application Firewall Policy Link Configured'
+    severity: high
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: web_application_firewall_policy_link
+        operator: exists
+  - check_id: azure.cdn.endpoint.default_origin_group_configured
+    title: 'AZURE CDN Endpoint: Default Origin Group Configured'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: default_origin_group
+        operator: exists
+  - check_id: azure.cdn.endpoint.url_signing_keys_configured
+    title: 'AZURE CDN Endpoint: URL Signing Keys Configured'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: url_signing_keys
+        operator: exists
+  - check_id: azure.cdn.profile.front_door_id_configured
+    title: 'AZURE CDN Profile: Front Door ID Configured'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: front_door_id
+        operator: exists
+  - check_id: azure.cdn.custom_domain.provisioning_state_succeeded
+    title: 'AZURE CDN Custom Domain: Provisioning State Succeeded'
+    severity: medium
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.rule_set.resource_state_active
+    title: 'AZURE CDN Rule Set: Resource State Active'
+    severity: medium
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: rule_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Active
+  - check_id: azure.cdn.endpoint.probe_path_configured
+    title: 'AZURE CDN Endpoint: Probe Path Configured'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: probe_path
+        operator: exists
+  - check_id: azure.cdn.endpoint.resource_state_running
+    title: 'AZURE CDN Endpoint: Resource State Running'
+    severity: high
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Running
+  - check_id: azure.cdn.endpoint.provisioning_state_succeeded
+    title: 'AZURE CDN Endpoint: Provisioning State Succeeded'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.profile.provisioning_state_succeeded
+    title: 'AZURE CDN Profile: Provisioning State Succeeded'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.custom_domain.resource_state_active
+    title: 'AZURE CDN Custom Domain: Resource State Active'
+    severity: medium
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Active
+  - check_id: azure.cdn.endpoint.origin_path_configured
+    title: 'AZURE CDN Endpoint: Origin Path Configured'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: origin_path
+        operator: exists
+  - check_id: azure.cdn.rule_set.provisioning_state_succeeded
+    title: 'AZURE CDN Rule Set: Provisioning State Succeeded'
+    severity: medium
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.cdn.profile.kind_configured
+    title: 'AZURE CDN Profile: Kind Configured'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: self
+      fields:
+      - path: kind
+        operator: exists
+  - check_id: azure.cdn.custom_domain.edge_ip_set_cross_account_sharing_restricted
+    title: 'AZURE CDN Custom_domain: Edge Ip Set Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: custom_https_parameters.certificate_source_parameters.resource_group_name
+        operator: equals
+        expected: '{{resource_group}}'
+  - check_id: azure.cdn.custom_domain.edge_ip_set_not_empty
+    title: 'AZURE CDN Custom_domain: Edge Ip Set Not Empty'
+    severity: low
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: custom_https_parameters.certificate_source_parameters
+        operator: exists
+  - check_id: azure.cdn.custom_domain.edge_ip_set_used_by_at_least_one_rule
+    title: 'AZURE CDN Custom_domain: Edge Ip Set Used By At Least One Rule'
+    severity: low
+    for_each: azure.cdn.custom_domains
+    calls:
+    - action: custom_domains.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        custom_domain_name: '{{name}}'
+      fields:
+      - path: custom_https_provisioning_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.cdn.endpoint.deprecated_ssl_protocols
+    title: 'AZURE CDN Resource: Distributions Using Deprecated SSL Protocols'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.minimum_tls_version
+        operator: not_in
+        expected:
+        - '1.0'
+        - '1.1'
+  - check_id: azure.cdn.endpoint.edge_cache_policy_allowlists_minimal_query_headers_cookies
+    title: 'AZURE CDN Endpoint: Edge Cache Policy Allowlists Minimal Query Headers Cookies'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.query_string_behavior
+        operator: equals
+        expected: IgnoreQueryString
+  - check_id: azure.cdn.endpoint.edge_cache_policy_no_sensitive_headers_cached
+    title: 'AZURE CDN Endpoint: Edge Cache Policy No Sensitive Headers Cached'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.header_action
+        operator: not_equals
+        expected: Append
+  - check_id: azure.cdn.endpoint.edge_cache_policy_respects_cache_control_no_store_private
+    title: 'AZURE CDN Endpoint: Edge Cache Policy Respects Cache Control No Store Private'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.cache_behavior
+        operator: equals
+        expected: HonorOrigin
+  - check_id: azure.cdn.endpoint.edge_origin_request_policy_forward_cookies_minimal
+    title: 'AZURE CDN Endpoint: Edge Origin Request Policy Forward Cookies Minimal'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.cookie_behavior
+        operator: equals
+        expected: Disabled
+  - check_id: azure.cdn.endpoint.edge_origin_request_policy_forward_headers_minimal
+    title: 'AZURE CDN Endpoint: Edge Origin Request Policy Forward Headers Minimal'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].parameters.header_action
+        operator: not_equals
+        expected: Overwrite
+  - check_id: azure.cdn.endpoint.edge_origin_request_policy_forward_querystrings_minimal
+    title: 'AZURE CDN Endpoint: Edge Origin Request Policy Forward Querystrings Minimal'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: query_string_caching_behavior
+        operator: equals
+        expected: IgnoreQueryString
+  - check_id: azure.cdn.endpoint.edge_regex_set_no_overly_broad_patterns
+    title: 'AZURE CDN Endpoint: Edge Regex Set No Overly Broad Patterns'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].conditions[*].parameters.match_values
+        operator: not_contains
+        expected: .*
+  - check_id: azure.cdn.endpoint.edge_regex_set_not_empty
+    title: 'AZURE CDN Endpoint: Edge Regex Set Not Empty'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].conditions
+        operator: not_empty
+  - check_id: azure.cdn.endpoint.edge_regex_set_used_by_at_least_one_rule
+    title: 'AZURE CDN Endpoint: Edge Regex Set Used By At Least One Rule'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules
+        operator: not_empty
+  - check_id: azure.cdn.endpoint.https_required
+    title: 'AZURE CDN Resource: Cloudfront HTTPS Required'
+    severity: low
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: is_http_allowed
+        operator: equals
+        expected: false
+  - check_id: azure.cdn.endpoint.logging_enabled
+    title: 'AZURE CDN Resource: Distributions Logging Enabled'
+    severity: medium
+    for_each: azure.cdn.endpoints
+    calls:
+    - action: endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        endpoint_name: '{{name}}'
+      fields:
+      - path: delivery_policy.rules[*].actions[*].name
+        operator: contains
+        expected: ModifyResponseHeader
+  - check_id: azure.cdn.profile.edge_access_logging_enabled
+    title: 'AZURE CDN Profile: Edge Access Logging Enabled'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: log_scrubbing.state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.cdn.profile.edge_cache_key_minimal_query_and_cookie_variants
+    title: 'AZURE CDN Profile: Edge Cache Key Minimal Query And Cookie Variants'
+    severity: high
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: origin_response_timeout_seconds
+        operator: less_than
+        expected: 300
+  - check_id: azure.cdn.profile.edge_hsts_enabled
+    title: 'AZURE CDN Profile: Edge Hsts Enabled'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: front_door_id
+        operator: exists
+  - check_id: azure.cdn.profile.edge_https_only_viewer_protocol
+    title: 'AZURE CDN Profile: Edge HTTPS Only Viewer Protocol'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: self
+      fields:
+      - path: sku.name
+        operator: in
+        expected:
+        - Premium_Verizon
+        - Premium_AzureFrontDoor
+  - check_id: azure.cdn.profile.edge_origin_access_restricted
+    title: 'AZURE CDN Profile: Edge Origin Access Restricted'
+    severity: medium
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: resource_state
+        operator: equals
+        expected: Active
+  - check_id: azure.cdn.profile.edge_signed_urls_or_headers_required_for_private_content
+    title: 'AZURE CDN Profile: Edge Signed Urls Or Headers Required For Private Content'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: origin_response_timeout_seconds
+        operator: exists
+      - path: delivery_policy.rules
+        operator: contains
+        expected: UrlSigning
+  - check_id: azure.cdn.profile.edge_waf_web_acl_attached
+    title: 'AZURE CDN Profile: Edge Waf Web ACL Attached'
+    severity: low
+    for_each: azure.cdn.profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: front_door_id
+        operator: exists
+      - path: web_application_firewall_policy_link
+        operator: exists
+  - check_id: azure.cdn.rule.edge_has_effective_action_not_count_only
+    title: 'AZURE CDN Rule: Edge Has Effective Action Not Count Only'
+    severity: low
+    for_each: azure.cdn.rules
+    calls:
+    - action: rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{rule_set_name}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: actions
+        operator: not_empty
+      - path: actions[*].name
+        operator: not_equals
+        expected: Count
+  - check_id: azure.cdn.rule.edge_priority_unique_within_web_acl
+    title: 'AZURE CDN Rule: Edge Priority Unique Within Web ACL'
+    severity: low
+    for_each: azure.cdn.rules
+    calls:
+    - action: rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{rule_set_name}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: order
+        operator: exists
+      - path: order
+        operator: unique_within_parent
+  - check_id: azure.cdn.rule.edge_references_valid_ip_or_regex_sets_only
+    title: 'AZURE CDN Rule: Edge References Valid Ip Or Regex Sets Only'
+    severity: low
+    for_each: azure.cdn.rules
+    calls:
+    - action: rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{rule_set_name}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: conditions[*].parameters.match_values
+        operator: matches_pattern
+        expected: ^((\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?|.*\.(com|net|org).*|\^.*\$)$
+  - check_id: azure.cdn.rule_set.edge_rule_group_no_permit_all_rule
+    title: 'AZURE CDN Rule_set: Edge Rule Group No Permit All Rule'
+    severity: low
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: rule_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{name}}'
+      fields:
+      - path: deployment_status
+        operator: exists
+      - path: rules[*].actions[*].name
+        operator: not_contains
+        expected: Allow
+  - check_id: azure.cdn.rule_set.edge_rule_group_references_only_approved_managed_sets_where_used
+    title: 'AZURE CDN Rule_set: Edge Rule Group References Only Approved Managed Sets Where Used'
+    severity: low
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: rule_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{name}}'
+      fields:
+      - path: rules[*].conditions[*].parameters.operator
+        operator: in
+        expected:
+        - IPMatch
+        - GeoMatch
+        - Equal
+  - check_id: azure.cdn.rule_set.edge_rule_group_unique_priorities
+    title: 'AZURE CDN Rule_set: Edge Rule Group Unique Priorities'
+    severity: low
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: rule_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{profile_name}}'
+        rule_set_name: '{{name}}'
+      fields:
+      - path: properties.rules[*].order
+        operator: unique_values
+  - check_id: azure.cdn.rule_set.edge_rule_group_visibility_config_enabled
+    title: 'AZURE CDN Rule_set: Edge Rule Group Visibility Config Enabled'
+    severity: low
+    for_each: azure.cdn.rule_sets
+    calls:
+    - action: self
+      fields:
+      - path: properties.deployment_status
+        operator: equals
+        expected: Succeeded
+      - path: properties.provisioning_state
+        operator: equals
+        expected: Succeeded

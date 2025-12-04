@@ -1,0 +1,395 @@
+event:
+  version: '1.0'
+  provider: azure
+  service: event
+  package: azure-mgmt-eventgrid
+  client_class: EventGridManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.event.grid_subscriptions
+    calls:
+    - client: event
+      action: event_subscriptions.list_global_by_subscription
+      save_as: grid_subscriptions
+  - discovery_id: azure.event.streaming_streams
+    calls:
+    - client: event
+      action: topics.list_by_subscription
+      save_as: streaming_streams
+  - discovery_id: azure.event.streaming_consumers
+    calls:
+    - client: event
+      action: domain_topics.list_by_domain
+      save_as: streaming_consumers
+  checks:
+  - check_id: azure.event.grid_subscription.data_analytics_subscription_destination_least_privilege
+    title: 'AZURE EVENT Grid Subscription: Data Analytics Subscription Destination Least Privilege'
+    severity: high
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: destination.resource_id
+        operator: exists
+      - path: destination.endpoint_type
+        operator: equals
+        expected: eventhub
+  - check_id: azure.event.grid_subscription.data_warehouse_subscription_destination_least_privilege
+    title: 'AZURE EVENT Grid Subscription: Data Warehouse Subscription Destination Least Privilege'
+    severity: high
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: destination.resource_id
+        operator: exists
+      - path: destination.endpoint_type
+        operator: equals
+        expected: storagequeue
+  - check_id: azure.event.grid_subscription.advanced_filtering_enabled
+    title: 'AZURE EVENT Grid Subscription: Advanced Filtering Enabled'
+    severity: medium
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: filter.advanced_filters
+        operator: exists
+  - check_id: azure.event.grid_subscription.dead_letter_destination_configured
+    title: 'AZURE EVENT Grid Subscription: Dead Letter Destination Configured'
+    severity: medium
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: dead_letter_destination
+        operator: exists
+  - check_id: azure.event.grid_subscription.retry_policy_configured
+    title: 'AZURE EVENT Grid Subscription: Retry Policy Configured'
+    severity: low
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: retry_policy.max_delivery_attempts
+        operator: gte
+        expected: 1
+  - check_id: azure.event.grid_subscription.event_ttl_configured
+    title: 'AZURE EVENT Grid Subscription: Event TTL Configured'
+    severity: low
+    for_each: azure.event.grid_subscriptions
+    calls:
+    - action: event_subscriptions.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        event_subscription_name: '{{event_subscription_name}}'
+      fields:
+      - path: retry_policy.event_time_to_live_in_minutes
+        operator: gte
+        expected: 1
+  - check_id: azure.event.streaming_stream.private_network_only_where_supported
+    title: 'AZURE EVENT Streaming Stream: Private Network Only Where Supported'
+    severity: medium
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.event.streaming_stream.encryption_at_rest_enabled
+    title: 'AZURE EVENT Streaming Stream: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: exists
+  - check_id: azure.event.streaming_stream.consumer_auth_required
+    title: 'AZURE EVENT Streaming Stream: Consumer Auth Required'
+    severity: low
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: topics.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        topic_name: '{{topic_name}}'
+      fields:
+      - path: disable_local_auth
+        operator: equals
+        expected: true
+  - check_id: azure.event.streaming_stream.managed_identity_enabled
+    title: 'AZURE EVENT Streaming Stream: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.event.streaming_stream.input_schema_validation
+    title: 'AZURE EVENT Streaming Stream: Input Schema Validation'
+    severity: low
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: topics.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        topic_name: '{{name}}'
+      fields:
+      - path: properties.input_schema
+        operator: exists
+  - check_id: azure.event.streaming_stream_consumer.access_key_rotation_enabled
+    title: 'AZURE EVENT Streaming Stream Consumer: Access Key Rotation Enabled'
+    severity: high
+    for_each: azure.event.streaming_consumers
+    calls:
+    - action: domain_topics.list_shared_access_keys
+      params:
+        resource_group_name: '{{resource_group}}'
+        domain_name: '{{domain_name}}'
+        domain_topic_name: '{{name}}'
+      fields:
+      - path: key1
+        operator: exists
+      - path: key2
+        operator: exists
+  - check_id: azure.event.topic.system_assigned_identity_configured
+    title: 'AZURE EVENT Topic: System Assigned Identity Configured'
+    severity: medium
+    for_each: azure.event.streaming_streams
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+  - check_id: azure.event.event_hub_consumer.streaming_consumer_auth_required
+    title: 'AZURE AZURE Streaming_stream_consumer: Streaming Consumer Auth Required'
+    severity: low
+    for_each: azure.event.streaming_stream_consumer
+    calls:
+    - action: self
+      fields:
+      - path: properties.authenticationRequired
+        operator: equals
+        expected: true
+  - check_id: azure.event.grid_subscription.data_warehouse_subscription_destination_encrypted
+    title: 'AZURE EVENT Grid_subscription: Data Warehouse Subscription Destination Encrypted'
+    severity: medium
+    for_each: azure.event.grid_subscription
+    calls:
+    - action: self
+      fields:
+      - path: properties.destination.properties.enableSslVerification
+        operator: equals
+        expected: true
+      - path: properties.destination.properties.preferHttps
+        operator: equals
+        expected: true
+  - check_id: azure.event.event_hub.private_network_only_where_supported
+    title: 'AZURE AZURE Streaming_stream: Private Network Only Where Supported'
+    severity: medium
+    for_each: azure.event.streaming_stream
+    calls:
+    - action: self
+      fields:
+      - path: properties.publicNetworkAccess
+        operator: equals
+        expected: Disabled
+      - path: properties.privateEndpointConnections
+        operator: not_empty
+  - check_id: azure.event.event_hub.consumer_auth_required
+    title: 'AZURE AZURE Streaming_stream: Consumer Auth Required'
+    severity: low
+    for_each: azure.event.streaming_stream
+    calls:
+    - action: self
+      fields:
+      - path: properties.requiresAuthentication
+        operator: equals
+        expected: true
+  - check_id: azure.event.event_hub.encryption_at_rest_enabled
+    title: 'AZURE AZURE Streaming_stream: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.event.streaming_stream
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.keySource
+        operator: not_equals
+        expected: None
+      - path: properties.encryption.keyVaultProperties
+        operator: exists
+        expected: true
+  - check_id: azure.event.hubs_eventhub.data_protection_storage_stream_private_network_only_where_supported
+    title: 'AZURE EVENT Hubs_eventhub: Data Protection Storage Stream Private Network Only Where Supported'
+    severity: medium
+    for_each: azure.event.hubs_eventhub
+    calls:
+    - action: self
+      fields:
+      - path: properties.publicNetworkAccess
+        operator: equals
+        expected: Disabled
+      - path: properties.networkRuleSets.defaultAction
+        operator: equals
+        expected: Deny
+  - check_id: azure.event.hubs_eventhub.data_protection_storage_stream_encryption_at_rest_enabled
+    title: 'AZURE EVENT Hubs_eventhub: Data Protection Storage Stream Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.event.hubs_eventhub
+    calls:
+    - action: self
+      fields:
+      - path: properties.status
+        operator: equals
+        expected: Active
+      - path: properties.captureDescription.enabled
+        operator: equals
+        expected: true
+      - path: properties.captureDescription.encoding
+        operator: equals
+        expected: Avro
+  - check_id: azure.event.grid_subscription.data_analytics_subscription_cross_account_sharing_restricted
+    title: 'AZURE EVENT Grid_subscription: Data Analytics Subscription Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.event.grid_subscription
+    calls:
+    - action: self
+      fields:
+      - path: destination.properties.resource_id
+        operator: starts_with
+        expected: /subscriptions/{{ subscription_id }}
+      - path: destination.endpoint_type
+        operator: not_equals
+        expected: webhook
+    - action: eventgrid_management_client.event_subscriptions.get
+      parameters:
+        scope: '{{ scope }}'
+        event_subscription_name: '{{ name }}'
+      fields:
+      - path: destination.properties.resource_id
+        operator: regex_match
+        expected: ^/subscriptions/{{ subscription_id }}/.*
+  - check_id: azure.event.grid_subscription.data_warehouse_subscription_cross_account_sharing_restricted
+    title: 'AZURE EVENT Grid_subscription: Data Warehouse Subscription Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.event.grid_subscription
+    calls:
+    - action: self
+      fields:
+      - path: properties.destination.properties.resourceId
+        operator: starts_with
+        expected: /subscriptions/{{ subscription_id }}
+      - path: properties.eventDeliverySchema
+        operator: not_equals
+        expected: CloudEventSchemaV1_0
+    - action: eventgrid.event_subscriptions.get
+      fields:
+      - path: properties.destination.endpointType
+        operator: not_in
+        expected:
+        - StorageQueue
+        - ServiceBusQueue
+        - ServiceBusTopic
+      - path: properties.filter.subjectBeginsWith
+        operator: contains
+        expected: datawarehouse
+  - check_id: azure.event.grid_subscription.data_analytics_subscription_destination_encrypted
+    title: 'AZURE EVENT Grid_subscription: Data Analytics Subscription Destination Encrypted'
+    severity: medium
+    for_each: azure.event.grid_subscription
+    calls:
+    - action: self
+      fields:
+      - path: destination.properties.enableDataResidency
+        operator: equals
+        expected: true
+      - path: destination.properties.storageQueueMessage.properties.enableBatchedOperations
+        operator: not_null
+        condition: when
+        when_path: destination.endpointType
+        when_operator: equals
+        when_value: storagequeue
+      - path: destination.properties.serviceBusQueueProperties.requiresEncryption
+        operator: equals
+        expected: true
+        condition: when
+        when_path: destination.endpointType
+        when_operator: equals
+        when_value: servicebusqueue
+      - path: destination.properties.serviceBusTopicProperties.requiresEncryption
+        operator: equals
+        expected: true
+        condition: when
+        when_path: destination.endpointType
+        when_operator: equals
+        when_value: servicebustopic
+  - check_id: azure.event.hubs_eventhub.data_protection_storage_stream_consumer_auth_required
+    title: 'AZURE EVENT Hubs_eventhub: Data Protection Storage Stream Consumer Auth Required'
+    severity: medium
+    for_each: azure.event.hubs_eventhub
+    calls:
+    - action: self
+      fields:
+      - path: properties.status
+        operator: equals
+        expected: Active
+      - path: properties.captureDescription.enabled
+        operator: equals
+        expected: true
+      - path: properties.captureDescription.destination.storageAccountResourceId
+        operator: exists
+        expected: true
+    - action: eventhubs.consumer_groups.list
+      fields:
+      - path: value[*].properties.userMetadata
+        operator: contains
+        expected: authRequired
+  - check_id: azure.event.event_hub_consumer.streaming_consumer_access_least_privilege
+    title: 'AZURE AZURE Streaming_stream_consumer: Streaming Consumer Access Least Privilege'
+    severity: high
+    for_each: azure.event.streaming_stream_consumer
+    calls:
+    - action: eventhub_management_client.consumer_groups.get
+      fields:
+      - path: properties.user_metadata
+        operator: not_empty
+    - action: self
+      fields:
+      - path: authorization_rules
+        operator: all_match
+        conditions:
+        - path: rights
+          operator: not_contains
+          expected: Manage
+        - path: rights
+          operator: subset_of
+          expected:
+          - Listen
+      - path: shared_access_policies
+        operator: all_match
+        conditions:
+        - path: permissions
+          operator: not_contains
+          expected: Send
+        - path: permissions
+          operator: equals
+          expected: Listen

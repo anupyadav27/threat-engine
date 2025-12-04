@@ -1,0 +1,64 @@
+traffic:
+  version: '1.0'
+  provider: azure
+  service: traffic
+  package: azure-mgmt-trafficmanager
+  client_class: TrafficManagerManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.traffic.manager_profiles
+    calls:
+    - client: traffic
+      action: profiles.list_by_subscription
+      save_as: manager_profiles
+  checks:
+  - check_id: azure.traffic.manager_profile.dns_policy_policy_documents_encrypted_and_private
+    title: 'AZURE TRAFFIC Manager Profile: DNS Policy Documents Encrypted And Private'
+    severity: medium
+    for_each: azure.traffic.manager_profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: dns_config.ttl
+        operator: gte
+        expected: 300
+      - path: profile_status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.traffic.manager_profile.dns_policy_targets_approved_domains_only
+    title: 'AZURE TRAFFIC Manager Profile: DNS Policy Targets Approved Domains Only'
+    severity: medium
+    for_each: azure.traffic.manager_profiles
+    calls:
+    - action: endpoints.list_by_type
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+        type: azureEndpoints
+      fields:
+      - path: value[*].target
+        operator: exists
+      - path: value[*].endpoint_status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.traffic.manager_profile.dns_policy_health_checks_required_for_failover
+    title: 'AZURE TRAFFIC Manager Profile: DNS Policy Health Checks Required For Failover'
+    severity: medium
+    for_each: azure.traffic.manager_profiles
+    calls:
+    - action: profiles.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        profile_name: '{{name}}'
+      fields:
+      - path: monitor_config.protocol
+        operator: exists
+      - path: monitor_config.port
+        operator: exists
+      - path: monitor_config.path
+        operator: exists
+      - path: traffic_routing_method
+        operator: exists

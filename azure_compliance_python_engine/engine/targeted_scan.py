@@ -12,6 +12,7 @@ from azure_compliance_python_engine.engine.azure_sdk_engine import (
     run_global_service,
     run_subscription_service,
     run_regional_service,
+    run_tenant_service,
     load_enabled_services_with_scope,
     load_service_rules,
     load_service_scope_from_rules,
@@ -100,7 +101,13 @@ def run_targeted_scan(
             continue
         scope = load_service_scope_from_rules(service_name) or _scope or 'subscription'
         try:
-            if scope == 'global':
+            if scope == 'tenant':
+                # tenant: run once per tenant (e.g., AAD, Entra ID)
+                res = run_tenant_service(service_name, tenant, credential)
+                if req_checks or resource_name:
+                    res = {**res, 'checks': _filter_checks(res.get('checks') or [], req_checks, resource_name, resource_param)}
+                outputs.append(res)
+            elif scope == 'global':
                 # global: run once per subscription context (pass subscription if required by service semantics)
                 res = run_global_service(service_name, tenant, (subscriptions[0] if subscriptions else None), credential)
                 if req_checks or resource_name:

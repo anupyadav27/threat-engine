@@ -1,0 +1,1597 @@
+data:
+  version: '1.0'
+  provider: azure
+  service: data
+  package: azure-mgmt-datafactory
+  client_class: DataFactoryManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.data.factories
+    calls:
+    - client: data
+      action: factories.list_by_subscription
+      save_as: factories
+  - discovery_id: azure.data.datasets
+    calls:
+    - client: data
+      action: datasets.list_by_factory
+      save_as: datasets
+  - discovery_id: azure.data.pipelines
+    calls:
+    - client: data
+      action: pipelines.list_by_factory
+      save_as: pipelines
+  - discovery_id: azure.data.linked_services
+    calls:
+    - client: data
+      action: linked_services.list_by_factory
+      save_as: linked_services
+  - discovery_id: azure.data.integration_runtimes
+    calls:
+    - client: data
+      action: integration_runtimes.list_by_factory
+      save_as: integration_runtimes
+  checks:
+  - check_id: azure.data.lake_analytics_job.datalake_crawler_scope_restricted_to_allowlist
+    title: 'AZURE DATA Lake Analytics Job: Datalake Crawler Scope Restricted To Allowlist'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.script_path
+        operator: exists
+  - check_id: azure.data.lake_analytics_classifier.datalake_classifier_source_trusted
+    title: 'AZURE DATA Lake Analytics Classifier: Datalake Classifier Source Trusted'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: linked_services.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.account_name
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_max_length_defined_where_applicable
+    title: 'AZURE DATA Factory Pipeline Parameter: Pipeline Parameter Max Length Defined Where Applicable'
+    severity: medium
+    for_each: azure.data.pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        pipeline_name: '{{name}}'
+      fields:
+      - path: properties.parameters[*].type
+        operator: exists
+  - check_id: azure.data.lake_analytics_quality.datalake_quality_role_least_privilege
+    title: 'AZURE DATA Lake Analytics Quality: Datalake Quality Role Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: integration_runtimes.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='Managed')].properties.type_properties.compute_properties.data_flow_properties.compute_type
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_allowlist_defined_when_applicable
+    title: 'AZURE DATA Factory Pipeline Parameter: Pipeline Parameter Constraint Allowlist Defined When Applicable'
+    severity: medium
+    for_each: azure.data.pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        pipeline_name: '{{name}}'
+      fields:
+      - path: properties.parameters[*].default_value
+        operator: exists
+  - check_id: azure.data.factory_dataset.dataset_encryption_enabled
+    title: 'AZURE DATA Factory Dataset: Dataset Encryption Enabled'
+    severity: high
+    for_each: azure.data.datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.encrypted_credential
+        operator: exists
+  - check_id: azure.data.lake_analytics_schema.schema_validation_enabled
+    title: 'AZURE DATA Lake Analytics Schema: Schema Validation Enabled'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: datasets.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='AzureDataLakeStoreFile')].properties.type_properties.format.type
+        operator: exists
+  - check_id: azure.data.lake_analytics_compute_policy.compute_policy_resource_limits_defined
+    title: 'AZURE DATA Lake Analytics Compute Policy: Compute Policy Resource Limits Defined'
+    severity: medium
+    for_each: azure.data.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.compute_properties.max_parallel_executions_per_node
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_type_validation
+    title: 'AZURE DATA Factory Pipeline Parameter: Pipeline Parameter Type Validation'
+    severity: low
+    for_each: azure.data.pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        pipeline_name: '{{name}}'
+      fields:
+      - path: properties.parameters[*].type
+        operator: equals
+        expected: String
+  - check_id: azure.data.factory.managed_identity_enabled
+    title: 'AZURE DATA Factory: Managed Identity Enabled'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.data.factory.public_network_access_disabled
+    title: 'AZURE DATA Factory: Public Network Access Disabled'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.linked_service.key_vault_integration_enabled
+    title: 'AZURE DATA Linked Service: Key Vault Integration Enabled'
+    severity: medium
+    for_each: azure.data.linked_services
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.encrypted_credential
+        operator: exists
+  - check_id: azure.data.integration_runtime.auto_update_enabled
+    title: 'AZURE DATA Integration Runtime: Auto Update Enabled'
+    severity: low
+    for_each: azure.data.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.auto_update
+        operator: equals
+        expected: true
+  - check_id: azure.data.pipeline.activity_timeout_configured
+    title: 'AZURE DATA Pipeline: Activity Timeout Configured'
+    severity: medium
+    for_each: azure.data.pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        pipeline_name: '{{name}}'
+      fields:
+      - path: properties.activities[*].policy.timeout
+        operator: exists
+  - check_id: azure.data.dataset.schema_reference_defined
+    title: 'AZURE DATA Dataset: Schema Reference Defined'
+    severity: low
+    for_each: azure.data.datasets
+    calls:
+    - action: datasets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        dataset_name: '{{name}}'
+      fields:
+      - path: properties.schema
+        operator: exists
+  - check_id: azure.data.factory.git_configuration_enabled
+    title: 'AZURE DATA Factory: Git Configuration Enabled'
+    severity: low
+    for_each: azure.data.factories
+    calls:
+    - action: factories.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: repo_configuration.type
+        operator: exists
+  - check_id: azure.data.pipeline.retry_policy_configured
+    title: 'AZURE DATA Pipeline: Retry Policy Configured'
+    severity: medium
+    for_each: azure.data.pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{factory_name}}'
+        pipeline_name: '{{name}}'
+      fields:
+      - path: properties.activities[*].policy.retry
+        operator: gte
+        expected: 1
+  - check_id: azure.data.linked_service.connection_string_encrypted
+    title: 'AZURE DATA Linked Service: Connection String Encrypted'
+    severity: high
+    for_each: azure.data.linked_services
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.connection_string.type
+        operator: equals
+        expected: AzureKeyVaultSecret
+  - check_id: azure.data.integration_runtime.vnet_integration_configured
+    title: 'AZURE DATA Integration Runtime: VNet Integration Configured'
+    severity: medium
+    for_each: azure.data.integration_runtimes
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.v_net_properties.v_net_id
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_pattern_defined_when_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Constraint Pattern Defined When Applicable'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[?(@.type=='String')].constraint.pattern
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_default_not_sensitive
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Default Not Sensitive'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[*].default_value
+        operator: not_contains
+        expected:
+        - password
+        - secret
+        - key
+        - token
+        - credential
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_disallowed_attribute_keys_blocked
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Metadata Disallowed Attribute Keys Blocked'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[*].metadata
+        operator: not_contains_keys
+        expected:
+        - password
+        - secret
+        - privateKey
+        - accessToken
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_sensitive_keys_require_secret_type
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Metadata Sensitive Keys Require Secret Type'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[?(@.metadata && (@.metadata.sensitive || @.metadata.secret))].type
+        operator: equals
+        expected: SecureString
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_values_not_plaintext_secret
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Metadata Values Not Plaintext Secret'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[*].metadata[*]
+        operator: not_regex
+        expected: ^[A-Za-z0-9+/]{20,}={0,2}$
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_min_length_defined_where_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Min Length Defined Where Applicable'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[?(@.type=='String')].constraint.min_length
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_pattern_defined_where_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Pattern Defined Where Applicable'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[?(@.type=='String')].constraint.pattern
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_type_set
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Type Set'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[*].type
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_value_from_secrets_manager_when_sensitive
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Value From Secrets Manager When Sensitive'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.parameters[?(@.type=='SecureString')].default_value.type
+        operator: equals
+        expected: AzureKeyVaultSecret
+  - check_id: azure.data.factory_pipeline_run.analytics_snapshot_encrypted_at_rest_cmek
+    title: 'AZURE DATA Factory_pipeline_run: Analytics Snapshot Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipeline_runs.query_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.encryption.key_vault_properties.key_name
+        operator: exists
+  - check_id: azure.data.factory_pipeline_run.analytics_snapshot_kms_key_policy_least_privilege
+    title: 'AZURE DATA Factory_pipeline_run: Analytics Snapshot KMS Key Policy Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipeline_runs.query_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.encryption.key_vault_properties.key_permissions
+        operator: not_contains
+        expected:
+        - '*'
+        - all
+  - check_id: azure.data.factory_pipeline_run.analytics_snapshot_not_publicly_shared
+    title: 'AZURE DATA Factory_pipeline_run: Analytics Snapshot Not Publicly Shared'
+    severity: critical
+    for_each: azure.data.factories
+    calls:
+    - action: pipeline_runs.query_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+        filter_parameters: {}
+      fields:
+      - path: value[*].properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.lake_analytics_catalog.datalake_catalog_audit_logging_enabled
+    title: 'AZURE DATA Lake_analytics_catalog: Datalake Catalog Audit Logging Enabled'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.audit_logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.data.lake_analytics_catalog.datalake_catalog_cross_account_sharing_restricted
+    title: 'AZURE DATA Lake_analytics_catalog: Datalake Catalog Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.cross_account_sharing
+        operator: equals
+        expected: false
+  - check_id: azure.data.lake_analytics_catalog.datalake_catalog_metaencryption_enabled
+    title: 'AZURE DATA Lake_analytics_catalog: Datalake Catalog Metaencryption Enabled'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.type
+        operator: equals
+        expected: CustomerManagedKey
+  - check_id: azure.data.lake_analytics_catalog.datalake_catalog_rbac_least_privilege
+    title: 'AZURE DATA Lake_analytics_catalog: Datalake Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: catalog.list_permissions
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].permissions
+        operator: not_contains
+        expected:
+        - '*'
+        - FullControl
+        - Owner
+  - check_id: azure.data.lake_analytics_classifier.datalake_classifier_definition_version_pinned
+    title: 'AZURE DATA Lake_analytics_classifier: Datalake Classifier Definition Version Pinned'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: data_lake_store_accounts.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.definition_version
+        operator: not_equals
+        expected: latest
+  - check_id: azure.data.lake_analytics_classifier.datalake_classifier_rbac_least_privilege
+    title: 'AZURE DATA Lake_analytics_classifier: Datalake Classifier RBAC Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: data_lake_store_accounts.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.permissions
+        operator: not_contains
+        expected:
+        - '*'
+        - FullControl
+        - Owner
+  - check_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_encrypted
+    title: 'AZURE DATA Lake_analytics_compute_policy: Datalake Dev Endpoint Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.encryption_in_transit
+        operator: equals
+        expected: true
+  - check_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_no_public_access
+    title: 'AZURE DATA Lake_analytics_compute_policy: Datalake Dev Endpoint No Public Access'
+    severity: critical
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_compute_policy: Datalake Dev Endpoint Role Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.object_type
+        operator: equals
+        expected: User
+      - path: value[*].properties.max_degree_of_parallelism_per_job
+        operator: less_than_or_equal
+        expected: 10
+  - check_id: azure.data.lake_analytics_connection.datalake_connection_credentials_in_secrets_manager
+    title: 'AZURE DATA Lake_analytics_connection: Datalake Connection Credentials In Secrets Manager'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: linked_services.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.account_name
+        operator: exists
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.service_principal_key.type
+        operator: equals
+        expected: AzureKeyVaultSecret
+  - check_id: azure.data.lake_analytics_connection.datalake_connection_private_networking_enforced
+    title: 'AZURE DATA Lake_analytics_connection: Datalake Connection Private Networking Enforced'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+      - path: firewall_allow_azure_ips
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.lake_analytics_connection.datalake_connection_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_connection: Datalake Connection Role Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: linked_services.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.service_principal_id
+        operator: exists
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.tenant
+        operator: exists
+  - check_id: azure.data.lake_analytics_connection.datalake_connection_tls_required
+    title: 'AZURE DATA Lake_analytics_connection: Datalake Connection TLS Required'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: min_supported_tls_version
+        operator: greater_than_or_equal
+        expected: '1.2'
+  - check_id: azure.data.lake_analytics_database.datalake_database_cross_account_sharing_restricted
+    title: 'AZURE DATA Lake_analytics_database: Datalake Database Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: catalog.list_databases
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].external_data_sources
+        operator: not_exists
+  - check_id: azure.data.lake_analytics_database.datalake_database_encrypted
+    title: 'AZURE DATA Lake_analytics_database: Datalake Database Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: data_lake_store_accounts[*].encryption_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.data.lake_analytics_database.datalake_database_policy_least_privilege
+    title: 'AZURE DATA Lake_analytics_database: Datalake Database Policy Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].max_degree_of_parallelism_per_job
+        operator: less_than_or_equal
+        expected: 20
+      - path: value[*].min_priority_per_job
+        operator: greater_than_or_equal
+        expected: 1
+  - check_id: azure.data.lake_analytics_job.datalake_crawler_logs_enabled
+    title: 'AZURE DATA Lake_analytics_job: Datalake Crawler Logs Enabled'
+    severity: low
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.degree_of_parallelism
+        operator: exists
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.priority
+        operator: exists
+  - check_id: azure.data.lake_analytics_job.datalake_crawler_network_private_only
+    title: 'AZURE DATA Lake_analytics_job: Datalake Crawler Network Private Only'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: public_data_lake_analytics_uri
+        operator: not_exists
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.data.lake_analytics_job.datalake_crawler_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_job: Datalake Crawler Role Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].object_type
+        operator: in
+        expected:
+        - User
+        - Group
+      - path: value[*].max_degree_of_parallelism_per_job
+        operator: less_than_or_equal
+        expected: 5
+  - check_id: azure.data.lake_analytics_job.datalake_job_logs_and_metrics_enabled
+    title: 'AZURE DATA Lake_analytics_job: Datalake Job Logs And Metrics Enabled'
+    severity: low
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: debug_data_access_level
+        operator: equals
+        expected: All
+  - check_id: azure.data.lake_analytics_job.datalake_job_network_private_only
+    title: 'AZURE DATA Lake_analytics_job: Datalake Job Network Private Only'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+      - path: firewall_allow_azure_ips
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.lake_analytics_job.datalake_job_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_job: Datalake Job Role Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: linked_services.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.service_principal_id
+        operator: exists
+      - path: value[?(@.properties.type=='AzureDataLakeAnalytics')].properties.type_properties.resource_uri
+        operator: exists
+  - check_id: azure.data.lake_analytics_job.datalake_job_script_location_private_and_encrypted
+    title: 'AZURE DATA Lake_analytics_job: Datalake Job Script Location Private And Encrypted'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.script_path
+        operator: starts_with
+        expected: adl://
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.script_linked_service
+        operator: exists
+  - check_id: azure.data.lake_analytics_lineage.datalake_lineage_access_rbac_least_privilege
+    title: 'AZURE DATA Lake_analytics_lineage: Datalake Lineage Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.object_type
+        operator: in
+        expected:
+        - User
+        - Group
+        - ServicePrincipal
+      - path: value[*].properties.max_degree_of_parallelism_per_job
+        operator: less_than_or_equal
+        expected: 10
+  - check_id: azure.data.lake_analytics_lineage.datalake_lineage_capture_enabled
+    title: 'AZURE DATA Lake_analytics_lineage: Datalake Lineage Capture Enabled'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: debug_data_access_level
+        operator: in
+        expected:
+        - All
+        - Customer
+  - check_id: azure.data.lake_analytics_lineage.datalake_lineage_export_destination_encrypted
+    title: 'AZURE DATA Lake_analytics_lineage: Datalake Lineage Export Destination Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: data_lake_store_accounts[*].properties.encryption_state
+        operator: equals
+        expected: Enabled
+      - path: storage_accounts[*].properties.access_key
+        operator: not_exists
+  - check_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_logs_enabled
+    title: 'AZURE DATA Lake_analytics_ml_transform: Datalake Ml Transform Logs Enabled'
+    severity: low
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.runtime_version
+        operator: exists
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.compilation_mode
+        operator: exists
+  - check_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_network_private_only
+    title: 'AZURE DATA Lake_analytics_ml_transform: Datalake Ml Transform Network Private Only'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+      - path: firewall_rules[*].properties.start_ip_address
+        operator: not_equals
+        expected: 0.0.0.0
+  - check_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_ml_transform: Datalake Ml Transform Role Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.degree_of_parallelism
+        operator: lte
+        expected: 5
+      - path: value[*].properties.activities[?(@.type=='DataLakeAnalyticsU-SQL')].type_properties.priority
+        operator: gte
+        expected: 100
+  - check_id: azure.data.lake_analytics_partition.datalake_partition_access_policies_least_privilege
+    title: 'AZURE DATA Lake_analytics_partition: Datalake Partition Access Policies Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: suffix
+        operator: not_contains
+        expected: '*'
+      - path: name
+        operator: not_equals
+        expected: public
+  - check_id: azure.data.lake_analytics_partition.datalake_partition_catalog_encrypted
+    title: 'AZURE DATA Lake_analytics_partition: Datalake Partition Catalog Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: default_data_lake_store_account_settings.encryption_config.type
+        operator: equals
+        expected: ServiceManaged
+  - check_id: azure.data.lake_analytics_quality.datalake_quality_logs_enabled
+    title: 'AZURE DATA Lake_analytics_quality: Datalake Quality Logs Enabled'
+    severity: low
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: debug_data_access_level
+        operator: not_equals
+        expected: None
+      - path: query_store_retention
+        operator: gte
+        expected: 30
+  - check_id: azure.data.lake_analytics_quality.datalake_quality_output_location_private_and_encrypted
+    title: 'AZURE DATA Lake_analytics_quality: Datalake Quality Output Location Private And Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption_state
+        operator: equals
+        expected: Enabled
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.data.lake_analytics_registry.datalake_registry_cross_account_sharing_restricted
+    title: 'AZURE DATA Lake_analytics_registry: Datalake Registry Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: object_type
+        operator: not_equals
+        expected: User
+      - path: max_degree_of_parallelism_per_job
+        operator: exists
+  - check_id: azure.data.lake_analytics_registry.datalake_registry_metaencryption_enabled
+    title: 'AZURE DATA Lake_analytics_registry: Datalake Registry Metaencryption Enabled'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption_config.type
+        operator: in
+        expected:
+        - ServiceManaged
+        - UserManaged
+      - path: encryption_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.data.lake_analytics_registry.datalake_registry_rbac_least_privilege
+    title: 'AZURE DATA Lake_analytics_registry: Datalake Registry RBAC Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: max_degree_of_parallelism_per_job
+        operator: lte
+        expected: 10
+      - path: min_priority_per_job
+        operator: gte
+        expected: 1
+  - check_id: azure.data.lake_analytics_schema.datalake_schema_encrypted
+    title: 'AZURE DATA Lake_analytics_schema: Datalake Schema Encrypted'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: type_properties.encrypted_credential
+        operator: exists
+      - path: linked_service_name.reference_name
+        operator: exists
+  - check_id: azure.data.lake_analytics_schema.datalake_schema_rbac_least_privilege
+    title: 'AZURE DATA Lake_analytics_schema: Datalake Schema RBAC Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: compute_policies.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: object_type
+        operator: equals
+        expected: Group
+      - path: max_degree_of_parallelism_per_job
+        operator: exists
+  - check_id: azure.data.lake_analytics_schema.datalake_schema_version_immutability_enforced
+    title: 'AZURE DATA Lake_analytics_schema: Datalake Schema Version Immutability Enforced'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: schema.type
+        operator: exists
+      - path: type_properties.version
+        operator: exists
+  - check_id: azure.data.lake_analytics_table.datalake_table_access_policies_least_privilege
+    title: 'AZURE DATA Lake_analytics_table: Datalake Table Access Policies Least Privilege'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: data_lake_store_accounts.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: firewall_allow_azure_ips
+        operator: equals
+        expected: Disabled
+      - path: firewall_rules
+        operator: exists
+  - check_id: azure.data.lake_analytics_table.datalake_table_column_level_access_controls_enabled
+    title: 'AZURE DATA Lake_analytics_table: Datalake Table Column Level Access Controls Enabled'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: properties.schema[*].name
+        operator: exists
+      - path: properties.type_properties.column_delimiter
+        operator: exists
+  - check_id: azure.data.lake_analytics_table.datalake_table_encrypted
+    title: 'AZURE DATA Lake_analytics_table: Datalake Table Encrypted'
+    severity: medium
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption_state
+        operator: equals
+        expected: Enabled
+      - path: encryption_provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.data.lake_analytics_table.datalake_table_public_sharing_disabled
+    title: 'AZURE DATA Lake_analytics_table: Datalake Table Public Sharing Disabled'
+    severity: critical
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: data_lake_store_accounts.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: firewall_state
+        operator: equals
+        expected: Enabled
+      - path: firewall_allow_azure_ips
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.lake_analytics_trigger.datalake_trigger_event_sources_restricted
+    title: 'AZURE DATA Lake_analytics_trigger: Datalake Trigger Event Sources Restricted'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.scope
+        operator: not_contains
+        expected: '*'
+      - path: properties.type_properties.events
+        operator: exists
+  - check_id: azure.data.lake_analytics_trigger.datalake_trigger_logs_enabled
+    title: 'AZURE DATA Lake_analytics_trigger: Datalake Trigger Logs Enabled'
+    severity: low
+    for_each: azure.data.factories
+    calls:
+    - action: factories.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: properties.repo_configuration.type
+        operator: exists
+      - path: properties.global_parameters
+        operator: exists
+  - check_id: azure.data.lake_analytics_trigger.datalake_trigger_targets_least_privilege
+    title: 'AZURE DATA Lake_analytics_trigger: Datalake Trigger Targets Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: properties.pipelines[*].pipeline_reference.reference_name
+        operator: exists
+      - path: properties.type_properties.max_concurrency
+        operator: lte
+        expected: 5
+  - check_id: azure.data.lake_analytics_workflow.datalake_workflow_cross_account_trusts_restricted
+    title: 'AZURE DATA Lake_analytics_workflow: Datalake Workflow Cross Account Trusts Restricted'
+    severity: medium
+    for_each: azure.data.factories
+    calls:
+    - action: self
+      fields:
+      - path: properties.type_properties.subscription_id
+        operator: equals
+        expected: '{{subscription_id}}'
+      - path: properties.type_properties.tenant
+        operator: exists
+  - check_id: azure.data.lake_analytics_workflow.datalake_workflow_execution_role_least_privilege
+    title: 'AZURE DATA Lake_analytics_workflow: Datalake Workflow Execution Role Least Privilege'
+    severity: high
+    for_each: azure.data.factories
+    calls:
+    - action: pipelines.list_by_factory
+      params:
+        resource_group_name: '{{resource_group}}'
+        factory_name: '{{name}}'
+      fields:
+      - path: properties.activities[*].type_properties.degree_of_parallelism
+        operator: lte
+        expected: 10
+      - path: properties.concurrency
+        operator: lte
+        expected: 5
+  - check_id: azure.data.lake_analytics_workflow.datalake_workflow_kms_encryption_enabled
+    title: 'AZURE DATA Lake_analytics_workflow: Datalake Workflow KMS Encryption Enabled'
+    severity: high
+    for_each: azure.data.lake_analytics_accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_config.type
+        operator: equals
+        expected: ServiceManaged
+      - path: properties.encryption_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.data.media_stream.streaming_video_encryption_at_rest_enabled
+    title: 'AZURE AZURE Streaming_video_stream: Streaming Video Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.data.media_services
+    calls:
+    - action: streaming_policies.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].common_encryption_cenc.enabled_protocols
+        operator: exists
+      - path: value[*].envelope_encryption.enabled_protocols
+        operator: exists
+  - check_id: azure.data.media_stream.streaming_video_encryption_in_transit_required
+    title: 'AZURE AZURE Streaming_video_stream: Streaming Video Encryption In Transit Required'
+    severity: high
+    for_each: azure.data.media_services
+    calls:
+    - action: streaming_endpoints.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].cdn_enabled
+        operator: equals
+        expected: true
+      - path: value[*].custom_host_names
+        operator: exists
+  - check_id: azure.data.media_stream.streaming_video_retention_days_minimum
+    title: 'AZURE AZURE Streaming_video_stream: Streaming Video Retention Days Minimum Configured'
+    severity: low
+    for_each: azure.data.media_services
+    calls:
+    - action: assets.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].storage_account_name
+        operator: exists
+      - path: value[*].container
+        operator: exists
+  - check_id: azure.data.stream_analytics.destination_encrypted
+    title: 'AZURE AZURE Streaming_firehose: Destination Encrypted'
+    severity: medium
+    for_each: azure.data.stream_analytics_jobs
+    calls:
+    - action: outputs.list_by_streaming_job
+      params:
+        resource_group_name: '{{resource_group}}'
+        job_name: '{{name}}'
+      fields:
+      - path: value[*].datasource.storage_accounts[*].account_key
+        operator: exists
+      - path: value[*].serialization.encoding
+        operator: equals
+        expected: UTF8
+  - check_id: azure.data.stream_analytics.destination_least_privilege
+    title: 'AZURE AZURE Streaming_firehose: Destination Least Privilege'
+    severity: high
+    for_each: azure.data.stream_analytics_jobs
+    calls:
+    - action: streaming_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        job_name: '{{name}}'
+      fields:
+      - path: output_start_mode
+        operator: equals
+        expected: JobStartTime
+      - path: events_out_of_order_policy
+        operator: equals
+        expected: Adjust
+  - check_id: azure.data.stream_analytics_job.streaming_analytics_checkpoints_and_outputs_encrypted
+    title: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Checkpoints And Outputs Encrypted'
+    severity: medium
+    for_each: azure.data.stream_analytics_jobs
+    calls:
+    - action: streaming_jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        job_name: '{{name}}'
+      fields:
+      - path: content_storage_policy
+        operator: equals
+        expected: JobStorageAccount
+      - path: job_storage_account.authentication_mode
+        operator: equals
+        expected: Msi
+  - check_id: azure.data.stream_analytics_job.streaming_analytics_network_private_only
+    title: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Network Private Only'
+    severity: medium
+    for_each: azure.data.stream_analytics_jobs
+    calls:
+    - action: private_endpoints.list_by_streaming_job
+      params:
+        resource_group_name: '{{resource_group}}'
+        job_name: '{{name}}'
+      fields:
+      - path: value[*].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+      - path: value[*].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.data.stream_analytics_job.streaming_analytics_role_least_privilege
+    title: 'AZURE AZURE Streaming_analytics_application: Streaming Analytics Role Least Privilege'
+    severity: high
+    for_each: azure.data.stream_analytics_jobs
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+      - path: cluster.id
+        operator: not_exists
+  - check_id: azure.data.stream_analytics.logging_enabled
+    title: 'AZURE AZURE Streaming_firehose: Logging Enabled'
+    severity: medium
+    for_each: azure.data.streaming_firehose
+    calls:
+    - action: self
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_min_length_defined_when_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Constraint Min Length Defined When Applicable'
+    severity: medium
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: type
+        operator: equals
+        expected: String
+      - path: constraints.minLength
+        operator: exists
+        expected: true
+  - check_id: azure.data.factory_dataset.pipeline_object_environment_no_plaintext_secrets
+    title: 'AZURE DATA Factory_dataset: Pipeline Object Environment No Plaintext Secrets'
+    severity: high
+    for_each: azure.data.factory_dataset
+    calls:
+    - action: self
+      fields:
+      - path: properties.linkedServiceName.parameters
+        operator: not_contains_pattern
+        expected: (?i)(password|secret|key|token)\s*[=:]\s*["']?[^\s"']+["']?
+      - path: properties.parameters
+        operator: not_contains_pattern
+        expected: (?i)(password|secret|key|token)\s*[=:]\s*["']?[^\s"']+["']?
+      - path: properties.typeProperties
+        operator: not_contains_pattern
+        expected: (?i)(password|secret|key|token)\s*[=:]\s*["']?[^\s"']+["']?
+  - check_id: azure.data.factory_pipeline.pipeline_pipeline_artifacts_private_and_encrypted
+    title: 'AZURE DATA Factory_pipeline: Pipeline Pipeline Artifacts Private And Encrypted'
+    severity: medium
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: datafactory_management_client.pipelines.get
+      fields:
+      - path: properties.policy.elapsedTimeMetric.duration
+        operator: exists
+      - path: properties.activities[*].typeProperties.linkedServiceName.referenceName
+        operator: not_contains
+        expected: public
+      - path: properties.activities[*].typeProperties.dataset.referenceName
+        operator: not_contains
+        expected: public
+    - action: datafactory_management_client.linked_services.get
+      fields:
+      - path: properties.typeProperties.encryptedCredential
+        operator: exists
+      - path: properties.typeProperties.connectionString
+        operator: not_regex
+        expected: .*AccountKey=.*
+  - check_id: azure.data.factory_dataset.pipeline_object_network_private_only
+    title: 'AZURE DATA Factory_dataset: Pipeline Object Network Private Only'
+    severity: medium
+    for_each: azure.data.factory_dataset
+    calls:
+    - action: self
+      fields:
+      - path: properties.linkedServiceName.referenceName
+        operator: exists
+    - action: service_operation.get_linked_service
+      parameters:
+        resourceGroupName: '{{ resource_group_name }}'
+        factoryName: '{{ factory_name }}'
+        linkedServiceName: '{{ properties.linkedServiceName.referenceName }}'
+      fields:
+      - path: properties.typeProperties.connectVia.referenceName
+        operator: exists
+      - path: properties.typeProperties.connectVia.type
+        operator: equals
+        expected: IntegrationRuntimeReference
+    - action: service_operation.get_integration_runtime
+      parameters:
+        resourceGroupName: '{{ resource_group_name }}'
+        factoryName: '{{ factory_name }}'
+        integrationRuntimeName: '{{ properties.typeProperties.connectVia.referenceName }}'
+      fields:
+      - path: properties.type
+        operator: equals
+        expected: SelfHosted
+  - check_id: azure.data.factory_dataset.pipeline_object_logging_enabled
+    title: 'AZURE DATA Factory_dataset: Pipeline Object Logging Enabled'
+    severity: medium
+    for_each: azure.data.factory_dataset
+    calls:
+    - action: self
+      fields:
+      - path: properties.parameters.enableLogging
+        operator: equals
+        expected: true
+      - path: properties.annotations
+        operator: contains
+        expected: logging
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_secret_refs_resolved_at_runtime
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Binding Secret Refs Resolved At Runtime'
+    severity: high
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: default_value.type
+        operator: not_equals
+        expected: SecureString
+      - path: default_value.value
+        operator: not_contains
+        expected: '@Microsoft.KeyVault('
+      - path: type
+        operator: not_equals
+        expected: SecureString
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_allowed_values_defined_where_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Allowed Values Defined Where Applicable'
+    severity: medium
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: properties.parameters
+        operator: exists
+    - action: self
+      fields:
+      - path: properties.parameters[*].allowedValues
+        operator: exists
+        condition: properties.parameters[*].type == "String" || properties.parameters[*].type == "Array"
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_max_length_defined_when_applicable
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Constraint Max Length Defined When Applicable'
+    severity: medium
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: type
+        operator: in
+        expected:
+        - String
+        - SecureString
+      - path: constraints.maxLength
+        operator: exists
+        expected: true
+  - check_id: azure.data.factory_pipeline.pipeline_pipeline_execution_roles_least_privilege
+    title: 'AZURE DATA Factory_pipeline: Pipeline Pipeline Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: datafactory_management_client.pipelines.get
+      fields:
+      - path: properties.activities[*].typeProperties.linkedServiceName.referenceName
+        operator: exists
+        expected: true
+      - path: properties.activities[*].policy.secureInput
+        operator: equals
+        expected: true
+      - path: properties.activities[*].policy.secureOutput
+        operator: equals
+        expected: true
+    - action: datafactory_management_client.linked_services.get
+      fields:
+      - path: properties.typeProperties.servicePrincipalId
+        operator: not_contains
+        expected: Owner
+      - path: properties.typeProperties.authenticationType
+        operator: in
+        expected:
+        - ServicePrincipal
+        - MSI
+  - check_id: azure.data.factory_pipeline.pipeline_pipeline_private_networking_enforced
+    title: 'AZURE DATA Factory_pipeline: Pipeline Pipeline Private Networking Enforced'
+    severity: medium
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: service_operation.get_data_factory
+      fields:
+      - path: properties.publicNetworkAccess
+        operator: equals
+        expected: Disabled
+  - check_id: azure.data.factory_pipeline.pipeline_pipeline_kms_encryption_enabled
+    title: 'AZURE DATA Factory_pipeline: Pipeline Pipeline KMS Encryption Enabled'
+    severity: high
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: self
+      fields:
+      - path: properties.policy.elapsedTimeMetric.duration
+        operator: exists
+      - path: properties.activities[*].typeProperties.encryptedCredential
+        operator: exists
+    - action: datafactory.factories.get
+      fields:
+      - path: properties.encryption.identity.type
+        operator: equals
+        expected: SystemAssigned
+      - path: properties.encryption.keyName
+        operator: exists
+      - path: properties.encryption.keyVersion
+        operator: exists
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_attributes_no_plaintext_secrets
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Attributes No Plaintext Secrets'
+    severity: high
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: type
+        operator: not_equals
+        expected: String
+        when:
+        - path: default_value
+          operator: regex_match
+          expected: (?i)(password|secret|key|token|credential|auth)
+      - path: type
+        operator: equals
+        expected: SecureString
+        when:
+        - path: default_value
+          operator: regex_match
+          expected: (?i)(password|secret|key|token|credential|auth)
+  - check_id: azure.data.factory_dataset.pipeline_object_execution_role_least_privilege
+    title: 'AZURE DATA Factory_dataset: Pipeline Object Execution Role Least Privilege'
+    severity: high
+    for_each: azure.data.factory_dataset
+    calls:
+    - action: authorization_client.role_assignments_list_for_resource
+      fields:
+      - path: value[*].properties.roleDefinitionId
+        operator: not_contains
+        expected: /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - path: value[*].properties.roleDefinitionId
+        operator: not_contains
+        expected: /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - action: self
+      fields:
+      - path: properties.linkedServiceName.referenceName
+        operator: exists
+        expected: true
+      - path: properties.type
+        operator: not_equals
+        expected: AzureSqlTable
+        condition: and
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_sensitive_params_not_logged
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Binding Sensitive Params Not Logged'
+    severity: low
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: properties.parameters
+        operator: not_contains_key_with_value
+        expected:
+          key_pattern: (?i).*(password|secret|key|token|credential).*
+          value_pattern: .*\$\{.*\}.*
+      - path: properties.activities[*].typeProperties
+        operator: not_contains_sensitive_parameter_binding
+        expected:
+          sensitive_patterns:
+          - password
+          - secret
+          - key
+          - token
+          - credential
+          - connectionString
+          binding_pattern: \$\{parameters\.
+  - check_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_only_expected_params_bound
+    title: 'AZURE DATA Factory_pipeline_parameter: Pipeline Parameter Binding Only Expected Params Bound'
+    severity: medium
+    for_each: azure.data.factory_pipeline_parameter
+    calls:
+    - action: self
+      fields:
+      - path: parameters
+        operator: subset_of
+        expected: pipeline.definition.parameters
+      - path: parameter_bindings
+        operator: all_keys_in
+        expected: pipeline.definition.parameters.keys()
+  - check_id: azure.data.factory_pipeline.pipeline_definition_storage_private
+    title: 'AZURE DATA Factory_pipeline: Pipeline Definition Storage Private'
+    severity: low
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: azure.mgmt.datafactory.operations.DataFactoryManagementClient.factories.get
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+    - action: azure.mgmt.datafactory.operations.DataFactoryManagementClient.managed_virtual_networks.list_by_factory
+      fields:
+      - path: properties.is_managed_virtual_network_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.data.factory_pipeline.pipeline_definition_version_immutability_enforced
+    title: 'AZURE DATA Factory_pipeline: Pipeline Definition Version Immutability Enforced'
+    severity: medium
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: service_operation.get_pipeline
+      fields:
+      - path: properties.policy.elapsedTimeMetric.duration
+        operator: exists
+      - path: properties.annotations
+        operator: contains
+        expected: immutable-version
+    - action: self
+      fields:
+      - path: properties.folder.name
+        operator: regex_match
+        expected: ^v\d+\.\d+\.\d+$
+      - path: properties.description
+        operator: contains
+        expected: version-locked
+  - check_id: azure.data.factory_pipeline.pipeline_pipeline_logs_and_metrics_enabled
+    title: 'AZURE DATA Factory_pipeline: Pipeline Pipeline Logs And Metrics Enabled'
+    severity: low
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: datafactory_management_client.diagnostic_settings.list
+      parameters:
+        resource_uri: '{{.resource_id}}'
+      fields:
+      - path: value
+        operator: not_empty
+      - path: value[*].properties.logs[?(@.category=='PipelineRuns')].enabled
+        operator: contains
+        expected: true
+      - path: value[*].properties.metrics[?(@.category=='AllMetrics')].enabled
+        operator: contains
+        expected: true
+  - check_id: azure.data.factory_pipeline.pipeline_definition_signed_and_verified
+    title: 'AZURE DATA Factory_pipeline: Pipeline Definition Signed And Verified'
+    severity: medium
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: self
+      fields:
+      - path: properties.policy.elapsedTimeMetric.duration
+        operator: exists
+      - path: properties.annotations
+        operator: contains
+        expected: signed
+      - path: properties.parameters
+        operator: has_key
+        expected: signatureValidation
+    - action: datafactory.pipelines.get
+      fields:
+      - path: properties.activities[*].typeProperties.signature
+        operator: exists
+      - path: properties.activities[*].typeProperties.signatureVerified
+        operator: equals
+        expected: true
+  - check_id: azure.data.factory_pipeline.pipeline_definition_storage_encrypted
+    title: 'AZURE DATA Factory_pipeline: Pipeline Definition Storage Encrypted'
+    severity: medium
+    for_each: azure.data.factory_pipeline
+    calls:
+    - action: service_operation.get_data_factory
+      fields:
+      - path: properties.encryption.identity.type
+        operator: not_equals
+        expected: null
+      - path: properties.encryption.keyVaultProperties.keyName
+        operator: not_equals
+        expected: null
+      - path: properties.encryption.keyVaultProperties.vaultBaseUrl
+        operator: not_equals
+        expected: null

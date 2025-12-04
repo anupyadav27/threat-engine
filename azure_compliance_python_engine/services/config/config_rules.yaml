@@ -1,0 +1,23 @@
+config:
+  version: '1.0'
+  provider: azure
+  service: config
+  package: azure-mgmt-appconfiguration
+  client_class: AppConfigurationManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.config.resources
+    calls:
+    - client: config
+      action: configuration_stores.list_by_subscription
+      save_as: resources
+  checks:
+  - check_id: azure.config.policy.cis_7_16_needs_development
+    title: 'AZURE CONFIG Policy: CIS 7.16 Needs Development'
+    severity: low
+    for_each: azure.config.resources
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_vault_properties
+        operator: exists

@@ -1,0 +1,1020 @@
+function:
+  version: '1.0'
+  provider: azure
+  service: function
+  package: azure-mgmt-web
+  client_class: WebSiteManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.function.apps
+    calls:
+    - client: function
+      action: web_apps.list
+      save_as: function_apps
+  - discovery_id: azure.function.app_settings
+    calls:
+    - client: function
+      action: web_apps.list_application_settings
+      save_as: app_settings
+  - discovery_id: azure.function.site_configs
+    calls:
+    - client: function
+      action: web_apps.get_configuration
+      save_as: site_configs
+  - discovery_id: azure.function.vnet_connections
+    calls:
+    - client: function
+      action: web_apps.list_vnet_connections
+      save_as: vnet_connections
+  checks:
+  - check_id: azure.function.function_version.published_and_immutable
+    title: 'AZURE FUNCTION Function Version: Published And Immutable'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: function_app_scale_limit
+        operator: exists
+      - path: functions_runtime_scale_monitoring_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.functionapp.vnet.routing.enabled.check
+    title: 'AZURE FUNCTIONAPP Vnet: Routing Enabled Check'
+    severity: low
+    for_each: azure.function.vnet_connections
+    calls:
+    - action: web_apps.get_vnet_connection
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+        vnet_name: '{{vnet_name}}'
+      fields:
+      - path: is_swift
+        operator: equals
+        expected: true
+      - path: routes
+        operator: exists
+  - check_id: azure.function.app.managed.identity.configured
+    title: 'AZURE FUNCTION App: Managed Identity Configured'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+      - path: identity.principal_id
+        operator: exists
+  - check_id: azure.functionapp.ftps.state.compliance.check
+    title: 'AZURE FUNCTIONAPP Ftps: State Compliance Check'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: ftps_state
+        operator: equals
+        expected: FtpsOnly
+  - check_id: azure.functionapp.basic.auth.publishing.disabled
+    title: 'AZURE FUNCTIONAPP Basic: Auth Publishing Disabled'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_scm_allowed
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: allow
+        operator: equals
+        expected: false
+  - check_id: azure.function.app.https.only.enabled
+    title: 'AZURE FUNCTION App: HTTPS Only Enabled'
+    severity: high
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: https_only
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.client.certificate.enabled
+    title: 'AZURE FUNCTION App: Client Certificate Enabled'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: client_cert_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.minimum.tls.version.check
+    title: 'AZURE FUNCTION App: Minimum TLS Version Check'
+    severity: high
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: min_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.function.app.remote.debugging.disabled
+    title: 'AZURE FUNCTION App: Remote Debugging Disabled'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: remote_debugging_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.function.app.cors.wildcard.restriction
+    title: 'AZURE FUNCTION App: CORS Wildcard Restriction'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: cors.allowed_origins
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.function.app.authentication.enabled
+    title: 'AZURE FUNCTION App: Authentication Enabled'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_auth_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.diagnostic.logs.enabled
+    title: 'AZURE FUNCTION App: Diagnostic Logs Enabled'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_diagnostic_logs_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: application_logs.file_system.level
+        operator: exists
+      - path: http_logs.file_system.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.backup.configuration.check
+    title: 'AZURE FUNCTION App: Backup Configuration Check'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_backup_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: backup_schedule.frequency_interval
+        operator: exists
+  - check_id: azure.function.app.slot.swap.auto.disabled
+    title: 'AZURE FUNCTION App: Slot Swap Auto Disabled'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: auto_swap_slot_name
+        operator: not_exists
+  - check_id: azure.function.app.always.on.disabled
+    title: 'AZURE FUNCTION App: Always On Disabled'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: always_on
+        operator: equals
+        expected: false
+  - check_id: azure.function.app.runtime.version.supported
+    title: 'AZURE FUNCTION App: Runtime Version Supported'
+    severity: medium
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties.FUNCTIONS_EXTENSION_VERSION
+        operator: exists
+      - path: properties.FUNCTIONS_WORKER_RUNTIME
+        operator: exists
+  - check_id: azure.function.app.storage.account.secure
+    title: 'AZURE FUNCTION App: Storage Account Secure'
+    severity: high
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties.AzureWebJobsStorage
+        operator: contains
+        expected: https://
+  - check_id: azure.function.app.key.vault.references.check
+    title: 'AZURE FUNCTION App: Key Vault References Check'
+    severity: medium
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties
+        operator: contains_key_pattern
+        expected: '@Microsoft.KeyVault'
+  - check_id: azure.function.app.connection.strings.encrypted
+    title: 'AZURE FUNCTION App: Connection Strings Encrypted'
+    severity: high
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.list_connection_strings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties
+        operator: all_values_contain
+        expected: '@Microsoft.KeyVault'
+  - check_id: azure.function.app.ip.restrictions.configured
+    title: 'AZURE FUNCTION App: IP Restrictions Configured'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: ip_security_restrictions
+        operator: exists
+      - path: ip_security_restrictions[0].ip_address
+        operator: exists
+  - check_id: azure.function.app.scm.ip.restrictions.enabled
+    title: 'AZURE FUNCTION App: SCM IP Restrictions Enabled'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: scm_ip_security_restrictions
+        operator: exists
+      - path: scm_ip_security_restrictions_use_main
+        operator: equals
+        expected: false
+  - check_id: azure.function.app.vnet.integration.enabled
+    title: 'AZURE FUNCTION App: VNet Integration Enabled'
+    severity: low
+    for_each: azure.function.vnet_connections
+    calls:
+    - action: web_apps.list_vnet_connections
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: value[0].vnet_resource_id
+        operator: exists
+  - check_id: azure.function.app.private.endpoint.configured
+    title: 'AZURE FUNCTION App: Private Endpoint Configured'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.list_private_endpoint_connections
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.function.app.public.network.access.disabled
+    title: 'AZURE FUNCTION App: Public Network Access Disabled'
+    severity: high
+    for_each: azure.function.apps
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.function.app.custom.domain.ssl.binding
+    title: 'AZURE FUNCTION App: Custom Domain SSL Binding'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.list_host_name_bindings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: value[0].ssl_state
+        operator: equals
+        expected: SniEnabled
+  - check_id: azure.function.app.deployment.slot.settings.sticky
+    title: 'AZURE FUNCTION App: Deployment Slot Settings Sticky'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.list_slot_configuration_names
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: app_setting_names
+        operator: exists
+      - path: connection_string_names
+        operator: exists
+  - check_id: azure.function.app.health.check.enabled
+    title: 'AZURE FUNCTION App: Health Check Enabled'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: health_check_path
+        operator: exists
+  - check_id: azure.function.app.application.insights.enabled
+    title: 'AZURE FUNCTION App: Application Insights Enabled'
+    severity: medium
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties.APPINSIGHTS_INSTRUMENTATIONKEY
+        operator: exists
+  - check_id: azure.function.app.consumption.plan.timeout.limit
+    title: 'AZURE FUNCTION App: Consumption Plan Timeout Limit'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: function_app_scale_limit
+        operator: lte
+        expected: 200
+  - check_id: azure.function.app.daily.memory.time.quota
+    title: 'AZURE FUNCTION App: Daily Memory Time Quota'
+    severity: low
+    for_each: azure.function.apps
+    calls:
+    - action: web_apps.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: daily_memory_time_quota
+        operator: exists
+      - path: daily_memory_time_quota
+        operator: gte
+        expected: 0
+  - check_id: azure.function.app.premium.plan.vnet.trigger.enabled
+    title: 'AZURE FUNCTION App: Premium Plan VNet Trigger Enabled'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: vnet_private_ports_count
+        operator: gte
+        expected: 2
+  - check_id: azure.function.app.runtime.scale.monitoring.enabled
+    title: 'AZURE FUNCTION App: Runtime Scale Monitoring Enabled'
+    severity: low
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: functions_runtime_scale_monitoring_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.website.content.availability.check
+    title: 'AZURE FUNCTION App: Website Content Availability Check'
+    severity: medium
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties.WEBSITE_CONTENTAZUREFILECONNECTIONSTRING
+        operator: exists
+      - path: properties.WEBSITE_CONTENTSHARE
+        operator: exists
+  - check_id: azure.function.app.zip.deployment.enabled
+    title: 'AZURE FUNCTION App: ZIP Deployment Enabled'
+    severity: low
+    for_each: azure.function.app_settings
+    calls:
+    - action: web_apps.list_application_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: properties.WEBSITE_RUN_FROM_PACKAGE
+        operator: equals
+        expected: '1'
+  - check_id: azure.function.app.node.version.supported
+    title: 'AZURE FUNCTION App: Node Version Supported'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: node_version
+        operator: gte
+        expected: ~14
+  - check_id: azure.function.app.python.version.supported
+    title: 'AZURE FUNCTION App: Python Version Supported'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: python_version
+        operator: gte
+        expected: '3.8'
+  - check_id: azure.function.app.java.version.supported
+    title: 'AZURE FUNCTION App: Java Version Supported'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: java_version
+        operator: gte
+        expected: '11'
+  - check_id: azure.function.app.dotnet.framework.version.supported
+    title: 'AZURE FUNCTION App: DotNet Framework Version Supported'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: net_framework_version
+        operator: gte
+        expected: v6.0
+  - check_id: azure.function.app.powershell.version.supported
+    title: 'AZURE FUNCTION App: PowerShell Version Supported'
+    severity: medium
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: power_shell_version
+        operator: gte
+        expected: '7.0'
+  - check_id: azure.function.app.container.registry.authentication
+    title: 'AZURE FUNCTION App: Container Registry Authentication'
+    severity: high
+    for_each: azure.function.site_configs
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: linux_fx_version
+        operator: contains
+        expected: .azurecr.io
+  - check_id: azure.function.app.system.assigned.identity.enabled
+    title: 'AZURE FUNCTION App: System Assigned Identity Enabled'
+    severity: medium
+    for_each: azure.function.apps
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: contains
+        expected: SystemAssigned
+  - check_id: azure.function.app.minimum.tls.version
+    title: 'AZURE FUNCTION App: Minimum TLS Version'
+    severity: medium
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.min_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.functionapp.client.cert.required.check
+    title: 'AZURE FUNCTIONAPP Client: Cert Required Check'
+    severity: low
+    for_each: azure.function.client
+    calls:
+    - action: self
+      fields:
+      - path: client_cert_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.functions.app.restrict_public_access
+    title: 'AZURE FUNCTIONS App: Restrict Public Access'
+    severity: critical
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.ip_security_restrictions
+        operator: not_empty
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.functionapp.https.only.check
+    title: 'AZURE FUNCTIONAPP Https: Only Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: properties.httpsOnly
+        operator: equals
+        expected: true
+  - check_id: azure.function.function_version.rollforward_rollback_controls_present
+    title: 'AZURE AZURE Serverless_version: Rollforward Rollback Controls Present'
+    severity: low
+    for_each: azure.function.serverless_version
+    calls:
+    - action: web_apps.get_slot
+      fields:
+      - path: properties.siteConfig.autoSwapSlotName
+        operator: not_null
+    - action: web_apps.list_deployment_slots
+      fields:
+      - path: value
+        operator: length_greater_than
+        expected: 1
+    - action: self
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+      - path: properties.state
+        operator: equals
+        expected: Running
+  - check_id: azure.functionapp.python.version.check
+    title: 'AZURE FUNCTIONAPP Python: Version Check'
+    severity: low
+    for_each: azure.function.python
+    calls:
+    - action: self
+      fields:
+      - path: site_config.python_version
+        operator: in
+        expected:
+        - '3.8'
+        - '3.9'
+        - '3.10'
+        - '3.11'
+  - check_id: azure.functionapp.deployment.slot.vnet.integration.check
+    title: 'AZURE FUNCTIONAPP Deployment: Slot Vnet Integration Check'
+    severity: low
+    for_each: azure.function.deployment
+    calls:
+    - action: web_apps.list_slot_configurations_slot
+      fields:
+      - path: virtual_network_name
+        operator: not_null
+      - path: vnet_route_all_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.functionapp.deployment.slot.java.version.check
+    title: 'AZURE FUNCTIONAPP Deployment: Slot Java Version Check'
+    severity: low
+    for_each: azure.function.deployment
+    calls:
+    - action: web_apps.get_configuration_slot
+      fields:
+      - path: java_version
+        operator: in
+        expected:
+        - '11'
+        - '17'
+        - '21'
+      - path: java_version
+        operator: not_equals
+        expected: '1.8'
+  - check_id: azure.functionapp.deployment.slot.minimum.tls.version.check
+    title: 'AZURE FUNCTIONAPP Deployment: Slot Minimum TLS Version Check'
+    severity: medium
+    for_each: azure.function.deployment
+    calls:
+    - action: web_apps.get_slot
+      fields:
+      - path: site_config.min_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+  - check_id: azure.function.app.deployment.slot.access.restrictions.disabled
+    title: 'AZURE FUNCTION App: Deployment Slot Access Restrictions Disabled'
+    severity: medium
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_slots
+      fields:
+      - path: value
+        for_each: true
+        calls:
+        - action: web_apps.get_configuration_slot
+          parameters:
+            slot: name
+          fields:
+          - path: ip_security_restrictions
+            operator: empty
+            expected: true
+          - path: scm_ip_security_restrictions
+            operator: empty
+            expected: true
+  - check_id: azure.functionapp.authentication.enabled
+    title: 'AZURE FUNCTIONAPP Authentication: Enabled'
+    severity: medium
+    for_each: azure.function.authentication
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.vnet.integration.routing.enabled
+    title: 'AZURE FUNCTION App: Vnet Integration Routing Enabled'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: properties.vnetRouteAllEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.function_restrict_public_access
+    title: 'AZURE FUNCTION App: Function Restrict Public Access'
+    severity: critical
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.ip_security_restrictions
+        operator: not_empty
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.functionapp.deployment.slot.identity.check
+    title: 'AZURE FUNCTIONAPP Deployment: Slot Identity Check'
+    severity: medium
+    for_each: azure.function.deployment
+    calls:
+    - action: web_apps.get_slot
+      fields:
+      - path: identity.type
+        operator: not_equals
+        expected: None
+      - path: identity.type
+        operator: in
+        expected:
+        - SystemAssigned
+        - UserAssigned
+        - SystemAssigned,UserAssigned
+  - check_id: azure.function.serverless_function.dead_letter_queue
+    title: 'AZURE AZURE Serverless_function: Dead Letter Queue Configured'
+    severity: low
+    for_each: azure.function.serverless_function
+    calls:
+    - action: self
+      fields:
+      - path: properties.siteConfig.appSettings
+        operator: contains
+        expected:
+          name: AzureWebJobs.EventHubTrigger.MaxDeliveryCount
+      - path: properties.siteConfig.appSettings
+        operator: contains
+        expected:
+          name: AzureWebJobs.ServiceBusTrigger.MaxDeliveryCount
+  - check_id: azure.functionapp.incoming.client.certificates.required
+    title: 'AZURE FUNCTIONAPP Incoming: Client Certificates Required'
+    severity: medium
+    for_each: azure.function.incoming
+    calls:
+    - action: self
+      fields:
+      - path: client_cert_mode
+        operator: equals
+        expected: Required
+  - check_id: azure.function.app.deployment.slot.http.version.check
+    title: 'AZURE FUNCTION App: Deployment Slot Http Version Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_slots
+      fields:
+      - path: value[*].properties.siteConfig.httpVersion
+        operator: equals
+        expected: '2.0'
+  - check_id: azure.function.app.http.version.2.0.check
+    title: 'AZURE FUNCTION App: Http Version 2 0 Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.http20_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.e2e.tls.enabled
+    title: 'AZURE FUNCTION App: E2e TLS Enabled'
+    severity: medium
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.ftps_state
+        operator: equals
+        expected: FtpsOnly
+      - path: https_only
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.deployment.slot.cors.restriction
+    title: 'AZURE FUNCTION App: Deployment Slot CORS Restriction'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_deployment_slots
+      args:
+        resource_group_name: '{{ item.resource_group }}'
+        name: '{{ item.name }}'
+      for_each: slots
+      calls:
+      - action: web_apps.list_configuration
+        args:
+          resource_group_name: '{{ item.resource_group }}'
+          name: '{{ item.name }}'
+          slot: '{{ slots.name }}'
+        fields:
+        - path: cors.allowed_origins
+          operator: not_contains
+          expected: '*'
+        - path: cors.allowed_origins
+          operator: not_empty
+  - check_id: azure.function.app.deployment.slot.remote.debugging.disabled
+    title: 'AZURE FUNCTION App: Deployment Slot Remote Debugging Disabled'
+    severity: low
+    for_each: azure.function.app.deployment.slot
+    calls:
+    - action: web_apps.get_configuration_slot
+      fields:
+      - path: remote_debugging_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.functionapp.tls.encryption.in.transit.check
+    title: 'AZURE FUNCTIONAPP Tls: Encryption In Transit Check'
+    severity: high
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.min_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+      - path: https_only
+        operator: equals
+        expected: true
+  - check_id: azure.functionapp.deployment.slots.basic.auth.disabled
+    title: 'AZURE FUNCTIONAPP Deployment: Slots Basic Auth Disabled'
+    severity: low
+    for_each: azure.function.deployment
+    calls:
+    - action: web_apps.get_configuration_slot
+      fields:
+      - path: properties.basic_auth_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.function.serverless_function.env_no_plaintext_secrets
+    title: 'AZURE AZURE Serverless_function: Env No Plaintext Secrets'
+    severity: high
+    for_each: azure.function.serverless_function
+    calls:
+    - action: web_apps.list_application_settings
+      fields:
+      - path: properties
+        operator: not_contains_secrets
+        expected: true
+  - check_id: azure.function.app.function_url_authentication
+    title: 'AZURE FUNCTION App: Function Url Authentication'
+    severity: high
+    for_each: azure.function.app
+    calls:
+    - action: web.list_functions
+      fields:
+      - path: value[*].properties.config.authLevel
+        operator: not_equals
+        expected: anonymous
+  - check_id: azure.function.serverless_function.vpc_private_networking_enabled
+    title: 'AZURE AZURE Serverless_function: VPC Private Networking Enabled'
+    severity: medium
+    for_each: azure.function.serverless_function
+    calls:
+    - action: self
+      fields:
+      - path: properties.virtualNetworkSubnetId
+        operator: not_null
+        expected: true
+  - check_id: azure.function.app.vnet.integration.check
+    title: 'AZURE FUNCTION App: Vnet Integration Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: properties.virtualNetworkSubnetId
+        operator: not_equals
+        expected: null
+  - check_id: azure.functions.app.url_public
+    title: 'AZURE FUNCTIONS App: Url Public'
+    severity: critical
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.ip_security_restrictions
+        operator: exists
+        expected: true
+      - path: site_config.ip_security_restrictions
+        operator: not_empty
+        expected: true
+  - check_id: azure.function.serverless_function.logging_and_tracing_enabled
+    title: 'AZURE AZURE Serverless_function: Logging And Tracing Enabled'
+    severity: medium
+    for_each: azure.function.serverless_function
+    calls:
+    - action: self
+      fields:
+      - path: site_config.app_insights_instrumentation_key
+        operator: not_empty
+      - path: site_config.application_insights_connection_string
+        operator: not_empty
+    - action: web_apps.list_application_settings
+      fields:
+      - path: properties.APPINSIGHTS_INSTRUMENTATIONKEY
+        operator: not_empty
+      - path: properties.APPLICATIONINSIGHTS_CONNECTION_STRING
+        operator: not_empty
+  - check_id: azure.function.serverless_function.role_least_privilege
+    title: 'AZURE AZURE Serverless_function: Role Least Privilege'
+    severity: high
+    for_each: azure.function.serverless_function
+    calls:
+    - action: authorization_client.role_assignments.list_for_scope
+      fields:
+      - path: properties.roleDefinitionId
+        operator: not_contains
+        expected: /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - path: properties.roleDefinitionId
+        operator: not_contains
+        expected: /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+      - path: properties.roleDefinitionId
+        operator: not_contains
+        expected: /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/18d7d88d-d35e-4fb5-a5c3-7773c20a72d9
+  - check_id: azure.function.app.remote.debugging.check
+    title: 'AZURE FUNCTION App: Remote Debugging Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: self
+      fields:
+      - path: site_config.remote_debugging_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.function.app.deployment.slot.vnet.route.all.enabled
+    title: 'AZURE FUNCTION App: Deployment Slot Vnet Route All Enabled'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_slots
+      fields:
+      - path: value[*].properties.siteConfig.vnetRouteAllEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.functionapp.java.supported.version.check
+    title: 'AZURE FUNCTIONAPP Java: Supported Version Check'
+    severity: low
+    for_each: azure.function.java
+    calls:
+    - action: self
+      fields:
+      - path: site_config.java_version
+        operator: in
+        expected:
+        - '1.8'
+        - '11'
+        - '17'
+        - '21'
+  - check_id: azure.function.app.cors.no.wildcard.origins
+    title: 'AZURE FUNCTION App: CORS No Wildcard Origins'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.get_configuration
+      fields:
+      - path: cors.allowed_origins
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.function.app.deployment.slot.vnet.routing.config.check
+    title: 'AZURE FUNCTION App: Deployment Slot Vnet Routing Config Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_deployment_slots
+      fields:
+      - path: value[*].properties.siteConfig.vnetRouteAllEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.function.app.deployment.slot.python.version.check
+    title: 'AZURE FUNCTION App: Deployment Slot Python Version Check'
+    severity: low
+    for_each: azure.function.app
+    calls:
+    - action: web_apps.list_deployment_slots
+      fields:
+      - path: value[*].properties.siteConfig.pythonVersion
+        operator: not_empty
+      - path: value[*].properties.siteConfig.pythonVersion
+        operator: regex_match
+        expected: ^3\.(8|9|10|11)$

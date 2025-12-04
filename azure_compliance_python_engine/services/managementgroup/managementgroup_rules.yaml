@@ -1,0 +1,25 @@
+managementgroup:
+  version: '1.0'
+  provider: azure
+  service: managementgroup
+  package: azure-mgmt-managementgroups
+  client_class: ManagementGroupsAPI
+  scope: tenant
+  discovery:
+  - discovery_id: azure.managementgroup.subscriptions
+    calls:
+    - client: subscription
+      action: subscriptions.list
+      save_as: subscriptions
+  checks:
+  - check_id: azure.managementgroup.subscription.part_of_management_group
+    title: 'AZURE MANAGEMENTGROUP Subscription: Part Of Management Group'
+    severity: low
+    for_each: azure.managementgroup.subscriptions
+    calls:
+    - action: entities.list
+      params:
+        api_version: '2021-04-01'
+      fields:
+      - path: value[?(@.type == '/providers/Microsoft.Management/managementGroups')]
+        operator: exists

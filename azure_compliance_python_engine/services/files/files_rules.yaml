@@ -1,0 +1,42 @@
+files:
+  version: '1.0'
+  provider: azure
+  service: files
+  package: azure-storage-file-share
+  client_class: ShareServiceClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.files.storage_accounts
+    calls:
+    - client: storage
+      action: storage_accounts.list
+      save_as: storage_accounts
+  - discovery_id: azure.files.file_shares
+    calls:
+    - client: files
+      action: file_shares.list
+      save_as: file_shares
+  checks:
+  - check_id: azure.storage.file.encryption_at_rest_enabled
+    title: 'AZURE STORAGE File: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.files.storage_accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.services.file.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.storage.file.backup_enabled
+    title: 'AZURE STORAGE File: Have Backup Enabled'
+    severity: medium
+    for_each: azure.files.file_shares
+    calls:
+    - action: shares.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        share_name: '{{name}}'
+      fields:
+      - path: properties.enabled_protocols
+        operator: exists

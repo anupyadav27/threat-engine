@@ -1,0 +1,74 @@
+logic:
+  version: '1.0'
+  provider: azure
+  service: logic
+  package: azure-mgmt-logic
+  client_class: LogicManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.logic.workflows
+    calls:
+    - client: logic
+      action: workflows.list_by_subscription
+      save_as: workflows
+  - discovery_id: azure.logic.workflow_details
+    calls:
+    - client: logic
+      action: workflows.get
+      parameters:
+        resource_group_name: '{{ item.resource_group }}'
+        workflow_name: '{{ item.name }}'
+      for_each: workflows
+      save_as: workflow_details
+  checks:
+  - check_id: azure.logic.apps_workflow.incident_workflow_kms_encryption_enabled
+    title: 'AZURE LOGIC Apps Workflow: Incident Workflow KMS Encryption Enabled'
+    severity: high
+    for_each: azure.logic.workflows
+    calls:
+    - action: workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workflow_name: '{{name}}'
+      fields:
+      - path: properties.integration_service_environment.properties.encryption_configuration.encryption_key_reference
+        operator: exists
+  - check_id: azure.logic.apps_workflow.incident_workflow_integrations_least_privilege
+    title: 'AZURE LOGIC Apps Workflow: Incident Workflow Integrations Least Privilege'
+    severity: high
+    for_each: azure.logic.workflows
+    calls:
+    - action: workflow_access_keys.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workflow_name: '{{name}}'
+      fields:
+      - path: value[*].properties.permissions
+        operator: exists
+    - action: workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workflow_name: '{{name}}'
+      fields:
+      - path: properties.definition.triggers[*].conditions.permissions
+        operator: exists
+  - check_id: azure.logic.apps_workflow.incident_workflow_approval_steps_required_for_destructive_actions
+    title: 'AZURE LOGIC Apps Workflow: Incident Workflow Approval Steps Required For Destructive Actions'
+    severity: low
+    for_each: azure.logic.workflows
+    calls:
+    - action: workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workflow_name: '{{name}}'
+      fields:
+      - path: properties.definition.actions[?(@.type == 'ApiConnection' && @.inputs.host.operationId =~ /delete|remove|destroy/)].runAfter
+        operator: exists
+    - action: workflow_runs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workflow_name: '{{name}}'
+      fields:
+      - path: value[*].properties.workflow.triggers[*].approvalRequired
+        operator: equals
+        expected: true

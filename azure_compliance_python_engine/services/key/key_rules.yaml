@@ -1,0 +1,171 @@
+key:
+  version: '1.0'
+  provider: azure
+  service: key
+  package: azure-keyvault-keys
+  client_class: KeyClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.key.vaults
+    calls:
+    - client: key
+      action: vaults.list_by_subscription
+      save_as: vaults
+  - discovery_id: azure.key.keys
+    calls:
+    - client: key
+      action: keys.list
+      save_as: keys
+  - discovery_id: azure.key.resources
+    calls:
+    - client: key
+      action: resources.list_by_resource_group
+      save_as: resources
+  checks:
+  - check_id: azure.key.vault.secrets_kms_not_publicly_accessible
+    title: 'AZURE KEY Vault: Secrets KMS Not Publicly Accessible'
+    severity: critical
+    for_each: azure.key.vaults
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.network_acls.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.key.key.lifecycle_policy
+    title: 'AZURE KEY Key: Lifecycle Policy'
+    severity: medium
+    for_each: azure.key.keys
+    calls:
+    - action: get_key
+      params:
+        vault_url: '{{vault_url}}'
+        name: '{{name}}'
+      fields:
+      - path: attributes.enabled
+        operator: equals
+        expected: true
+      - path: policy.key_ops
+        operator: exists
+  - check_id: azure.key.key.expiration_set
+    title: 'AZURE KEY Key: Expiration Set'
+    severity: medium
+    for_each: azure.key.keys
+    calls:
+    - action: get_key
+      params:
+        vault_url: '{{vault_url}}'
+        name: '{{name}}'
+      fields:
+      - path: attributes.expires_on
+        operator: exists
+  - check_id: azure.keyvault.key.cmk_rotation_enabled
+    title: 'AZURE KEYVAULT Key: CMK Rotation Enabled'
+    severity: medium
+    for_each: azure.key.resources
+    calls:
+    - action: get_key_rotation_policy
+      params:
+        vault_url: '{{vault_url}}'
+        name: '{{name}}'
+      fields:
+      - path: expires_in
+        operator: exists
+      - path: lifetime_actions[0].trigger.time_after_create
+        operator: exists
+  - check_id: azure.key.vault.secrets_kms_rotation_enabled
+    title: 'AZURE KEY Vault: Secrets KMS Rotation Enabled'
+    severity: high
+    for_each: azure.key.vault
+    calls:
+    - action: keyvault_client.get_secret_properties
+      fields:
+      - path: rotation_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.key.vault.secrets_kms_deletion_requires_waiting_period
+    title: 'AZURE KEY Vault: Secrets KMS Deletion Requires Waiting Period'
+    severity: high
+    for_each: azure.key.vault
+    calls:
+    - action: self
+      fields:
+      - path: properties.enableSoftDelete
+        operator: equals
+        expected: true
+      - path: properties.softDeleteRetentionInDays
+        operator: greater_than_or_equal
+        expected: 7
+  - check_id: azure.key.vault_vault.secrets_kms_logging_enabled
+    title: 'AZURE KEY Vault_vault: Secrets KMS Logging Enabled'
+    severity: high
+    for_each: azure.key.vault_vault
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: contains
+        expected:
+          logs:
+          - category: AuditEvent
+            enabled: true
+          - category: AzurePolicyEvaluationDetails
+            enabled: true
+  - check_id: azure.key.vault_vault.secrets_kms_default_keys_disabled_where_cmek_required
+    title: 'AZURE KEY Vault_vault: Secrets KMS Default Keys Disabled Where Cmek Required'
+    severity: high
+    for_each: azure.key.vault_vault
+    calls:
+    - action: keyvault_management_client.secrets.list
+      fields:
+      - path: value[*].attributes.kty
+        operator: not_equals
+        expected: RSA-HSM
+      - path: value[*].attributes.kty
+        operator: not_equals
+        expected: EC-HSM
+      - path: value[*].managed
+        operator: not_equals
+        expected: true
+    - action: self
+      fields:
+      - path: properties.enableSoftDelete
+        operator: equals
+        expected: true
+      - path: properties.enablePurgeProtection
+        operator: equals
+        expected: true
+  - check_id: azure.key.vault.secrets_kms_policy_least_privilege
+    title: 'AZURE KEY Vault: Secrets KMS Policy Least Privilege'
+    severity: high
+    for_each: azure.key.vault
+    calls:
+    - action: keyvault_management_client.vaults.get_access_policy
+      fields:
+      - path: properties.access_policies
+        operator: all_match
+        conditions:
+        - path: permissions.secrets
+          operator: not_contains_all
+          expected:
+          - all
+          - '*'
+        - path: permissions.secrets
+          operator: subset_of
+          expected:
+          - get
+          - list
+          - set
+          - delete
+          - backup
+          - restore
+          - recover
+          - purge
+    - action: self
+      fields:
+      - path: properties.enable_rbac_authorization
+        operator: equals
+        expected: true

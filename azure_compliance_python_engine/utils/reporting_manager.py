@@ -88,6 +88,12 @@ def _match_scope(val: str | None, pattern: str | None) -> bool:
 
 
 def save_reporting_bundle(results: List[Dict[str, Any]], tenant: str | None = None) -> str:
+    """
+    Save reporting bundle in AWS-compatible format
+    
+    AWS: reporting_TIMESTAMP/account_ID/ACCOUNTID_scope_service_checks.json
+    Azure: reporting_TIMESTAMP/subscription_ID/SUBID_scope_service_checks.json
+    """
     folder = create_report_folder()
     svc_ex = _load_service_exceptions()
     chk_ex = _load_check_exceptions()
@@ -95,20 +101,30 @@ def save_reporting_bundle(results: List[Dict[str, Any]], tenant: str | None = No
     selected = _load_actions_selection()
     standard_actions = actions_cfg.get("standard_actions") or {}
 
-    inventories: List[Dict[str, Any]] = []
-    checks_main: List[Dict[str, Any]] = []
-    checks_skipped: List[Dict[str, Any]] = []
+    # Group by subscription (like AWS groups by account)
+    by_subscription: Dict[str, Dict[str, Any]] = {}
 
     for r in results:
         service = r.get("service")
-        sub = r.get("subscription")
+        sub = r.get("subscription") or 'default'
         region = r.get("region")
-        inventories.append({
+        scope = r.get("scope", "subscription")
+        
+        if sub not in by_subscription:
+            by_subscription[sub] = {
+                'inventories': [],
+                'checks_main': [],
+                'checks_skipped': []
+            }
+        
+        # Add inventory
+        by_subscription[sub]['inventories'].append({
             "subscription": sub,
             "service": service,
-            "scope": r.get("scope"),
+            "scope": scope,
             "inventory": r.get("inventory") or r.get("discovery") or {},
         })
+        
         for c in r.get("checks", []) or []:
             item = {**c}
             item.setdefault("service", service)
@@ -158,21 +174,63 @@ def save_reporting_bundle(results: List[Dict[str, Any]], tenant: str | None = No
 
             if reporting_result == "SKIPPED":
                 item["reporting_result"] = "SKIPPED"
-                checks_skipped.append(item)
+                by_subscription[sub]['checks_skipped'].append(item)
             else:
-                checks_main.append(item)
-
-    with open(os.path.join(folder, "inventories.json"), "w") as fh:
-        json.dump({"metadata": _meta(tenant, folder), "inventories": inventories}, fh, indent=2, default=str)
-    with open(os.path.join(folder, "main_checks.json"), "w") as fh:
-        json.dump({"metadata": _meta(tenant, folder), "checks": checks_main}, fh, indent=2, default=str)
-    with open(os.path.join(folder, "skipped_checks.json"), "w") as fh:
-        json.dump({"metadata": _meta(tenant, folder), "checks": checks_skipped}, fh, indent=2, default=str)
+                by_subscription[sub]['checks_main'].append(item)
+    
+    # Create AWS-compatible folder structure per subscription
+    subscription_folders = []
+    total_checks = 0
+    
+    for sub_id, sub_data in by_subscription.items():
+        # Create subscription folder (like AWS account folder)
+        sub_folder_name = f"subscription_{sub_id[:8]}" if sub_id != 'default' else 'subscription_default'
+        sub_folder = os.path.join(folder, sub_folder_name)
+        os.makedirs(sub_folder, exist_ok=True)
+        subscription_folders.append(sub_folder_name)
+        
+        # Group by service for file naming
+        service_checks = {}
+        service_inventory = {}
+        
+        for inv in sub_data['inventories']:
+            svc = inv.get('service', 'unknown')
+            service_inventory[svc] = inv
+        
+        for check in sub_data['checks_main'] + sub_data['checks_skipped']:
+            svc = check.get('service', 'unknown')
+            service_checks.setdefault(svc, []).append(check)
+        
+        # Save per service in AWS format: {subscription}_{scope}_{service}_checks.json
+        for svc, checks in service_checks.items():
+            scope = service_inventory.get(svc, {}).get('scope', 'subscription')
+            
+            # Checks file
+            checks_file = os.path.join(sub_folder, f"{sub_id[:8]}_{scope}_{svc}_checks.json")
+            with open(checks_file, 'w') as fh:
+                json.dump(checks, fh, indent=2, default=str)
+            total_checks += len(checks)
+            
+            # Inventory file
+            if svc in service_inventory:
+                inv_file = os.path.join(sub_folder, f"{sub_id[:8]}_{scope}_{svc}_inventory.json")
+                with open(inv_file, 'w') as fh:
+                    json.dump(service_inventory[svc], fh, indent=2, default=str)
+    
+    # Create index matching AWS format
     with open(os.path.join(folder, "index.json"), "w") as fh:
         json.dump({
-            "metadata": _meta(tenant, folder),
-            "summary": {"inventories": len(inventories), "checks_main": len(checks_main), "checks_skipped": len(checks_skipped)},
-            "files": {"inventories": "inventories.json", "checks_main": "main_checks.json", "checks_skipped": "skipped_checks.json", "index": "index.json"}
+            "metadata": {
+                "subscription_id": list(by_subscription.keys())[0] if by_subscription else None,
+                "generated_at": datetime.utcnow().isoformat() + 'Z',
+                "report_folder": os.path.abspath(folder)
+            },
+            "summary": {
+                "total_checks": total_checks,
+                "total_subscriptions": len(by_subscription)
+            },
+            "subscription_folders": subscription_folders,
+            "files": {"index": "index.json"}
         }, fh, indent=2, default=str)
 
     return os.path.abspath(folder) 

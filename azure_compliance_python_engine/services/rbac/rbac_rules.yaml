@@ -1,0 +1,256 @@
+rbac:
+  version: '1.0'
+  provider: azure
+  service: rbac
+  package: azure-mgmt-authorization
+  client_class: AuthorizationManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.rbac.role_definitions
+    calls:
+    - client: rbac
+      action: role_definitions.list
+      save_as: role_definitions
+  - discovery_id: azure.rbac.role_assignments
+    calls:
+    - client: rbac
+      action: role_assignments.list
+      save_as: role_assignments
+  - discovery_id: azure.rbac.permissions
+    calls:
+    - client: rbac
+      action: permissions.list_for_resource_group
+      save_as: permissions
+  checks:
+  - check_id: azure.rbac.role_definition.identity_access_role_trust_principals_allowlist_only
+    title: 'AZURE RBAC Role Definition: Identity Access Role Trust Principals Allowlist Only'
+    severity: medium
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: role_definitions.get
+      params:
+        role_definition_id: '{{role_definition_id}}'
+      fields:
+      - path: assignable_scopes
+        operator: exists
+      - path: permissions[0].actions
+        operator: exists
+  - check_id: azure.rbac.vulnerability_automation.vuln_automation_execution_roles_least_privilege
+    title: 'AZURE RBAC Vulnerability Automation: Vuln Automation Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.rbac.role_assignments
+    calls:
+    - action: role_assignments.get
+      params:
+        role_assignment_id: '{{role_assignment_id}}'
+      fields:
+      - path: role_definition_id
+        operator: exists
+      - path: principal_type
+        operator: equals
+        expected: ServicePrincipal
+  - check_id: azure.rbac.role.resource.lock.check
+    title: 'AZURE RBAC Role: Resource Lock Check'
+    severity: medium
+    for_each: azure.rbac.role_assignments
+    calls:
+    - action: management_locks.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group_name}}'
+      fields:
+      - path: value[0].level
+        operator: exists
+  - check_id: azure.rbac.vulnerability_maintenance.vuln_maintenance_execution_roles_least_privilege
+    title: 'AZURE RBAC Vulnerability Maintenance: Vuln Maintenance Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: role_definitions.get
+      params:
+        role_definition_id: '{{role_definition_id}}'
+      fields:
+      - path: permissions[0].actions
+        operator: exists
+      - path: permissions[0].not_actions
+        operator: exists
+  - check_id: azure.rbac.role_definition.identity_access_role_trust_requires_external_id_or_audience_condition_where_supported
+    title: 'AZURE RBAC Role Definition: Identity Access Role Trust Requires External Id Or Audience Condition Where Supported'
+    severity: medium
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: self
+      fields:
+      - path: type
+        operator: equals
+        expected: CustomRole
+      - path: assignable_scopes[0]
+        operator: exists
+  - check_id: azure.rbac.role_definition.custom_role_permissions_validation
+    title: 'AZURE RBAC Role Definition: Custom Role Permissions Validation'
+    severity: medium
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: role_definitions.get
+      params:
+        role_definition_id: '{{role_definition_id}}'
+      fields:
+      - path: permissions[0].actions
+        operator: exists
+      - path: role_name
+        operator: exists
+  - check_id: azure.rbac.role_definition.builtin_role_modification_check
+    title: 'AZURE RBAC Role Definition: Builtin Role Modification Check'
+    severity: high
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: self
+      fields:
+      - path: type
+        operator: equals
+        expected: BuiltInRole
+      - path: permissions[0].actions
+        operator: exists
+  - check_id: azure.rbac.role_definition.privileged_access_management_validation
+    title: 'AZURE RBAC Role Definition: Privileged Access Management Validation'
+    severity: high
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: role_definitions.get
+      params:
+        role_definition_id: '{{role_definition_id}}'
+      fields:
+      - path: permissions[0].actions[?(@=='*')]
+        operator: exists
+      - path: assignable_scopes
+        operator: exists
+  - check_id: azure.rbac.serverless_provisioned_concurrency.execution_role_permissions
+    title: 'AZURE RBAC Serverless Provisioned Concurrency: Execution Role Permissions'
+    severity: medium
+    for_each: azure.rbac.role_assignments
+    calls:
+    - action: role_assignments.get
+      params:
+        role_assignment_id: '{{role_assignment_id}}'
+      fields:
+      - path: scope
+        operator: exists
+      - path: principal_id
+        operator: exists
+  - check_id: azure.rbac.role_definition.data_actions_permissions_review
+    title: 'AZURE RBAC Role Definition: Data Actions Permissions Review'
+    severity: medium
+    for_each: azure.rbac.role_definitions
+    calls:
+    - action: role_definitions.get
+      params:
+        role_definition_id: '{{role_definition_id}}'
+      fields:
+      - path: permissions[0].data_actions
+        operator: exists
+      - path: permissions[0].not_data_actions
+        operator: exists
+  - check_id: azure.rbac.role_definition.identity_access_role_no_inline_policies
+    title: 'AZURE RBAC Role_definition: Identity Access Role No Inline Policies'
+    severity: medium
+    for_each: azure.rbac.role_definition
+    calls:
+    - action: self
+      fields:
+      - path: properties.type
+        operator: equals
+        expected: BuiltInRole
+      - path: properties.permissions[*].actions
+        operator: not_contains_any
+        expected:
+        - Microsoft.Authorization/roleDefinitions/write
+        - Microsoft.Authorization/roleAssignments/write
+        - Microsoft.Authorization/*/write
+        - '*'
+  - check_id: azure.rbac.role_definition.identity_access_role_attached_policies_not_admin_star
+    title: 'AZURE RBAC Role_definition: Identity Access Role Attached Policies Not Admin Star'
+    severity: critical
+    for_each: azure.rbac.role_definition
+    calls:
+    - action: self
+      fields:
+      - path: properties.permissions[].actions[]
+        operator: not_contains
+        expected: '*'
+      - path: properties.permissions[].data_actions[]
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.rbac.role_definition.identity_access_role_session_duration_reasonable_where_applicable
+    title: 'AZURE RBAC Role_definition: Identity Access Role Session Duration Reasonable Where Applicable'
+    severity: medium
+    for_each: azure.rbac.role_definition
+    calls:
+    - action: self
+      fields:
+      - path: properties.permissions[*].actions[*]
+        operator: contains_any
+        expected:
+        - Microsoft.Authorization/roleAssignments/write
+        - Microsoft.Authorization/*/write
+        - '*'
+      conditions:
+      - if: previous_result == true
+        then:
+        - path: properties.assignable_scopes
+          operator: not_contains
+          expected: /
+        - path: properties.type
+          operator: equals
+          expected: CustomRole
+  - check_id: azure.rbac.serverless_provisioned_concurrency.serverless_prov_conc_execution_role_least_privilege
+    title: 'AZURE AZURE Serverless_provisioned_concurrency: Serverless Prov Conc Execution Role Least Privilege'
+    severity: high
+    for_each: azure.rbac.serverless_provisioned_concurrency
+    calls:
+    - action: authorization_client.role_assignments_list_for_scope
+      fields:
+      - path: properties.principal_id
+        operator: equals
+        expected: '{{ item.identity.principal_id }}'
+    - action: self
+      fields:
+      - path: role_definition.permissions[*].actions
+        operator: not_contains
+        expected: '*'
+      - path: role_definition.permissions[*].actions
+        operator: not_contains
+        expected: Microsoft.*/write
+      - path: role_definition.permissions[*].actions
+        operator: not_contains
+        expected: Microsoft.*/delete
+      - path: role_definition.assignable_scopes
+        operator: not_contains
+        expected: /
+  - check_id: azure.rbac.role_definition.identity_access_role_max_session_duration_reasonable
+    title: 'AZURE RBAC Role_definition: Identity Access Role Max Session Duration Reasonable'
+    severity: medium
+    for_each: azure.rbac.role_definition
+    calls:
+    - action: self
+      fields:
+      - path: properties.type
+        operator: equals
+        expected: CustomRole
+      - path: properties.permissions[*].actions[*]
+        operator: contains_any
+        expected:
+        - Microsoft.Authorization/*/read
+        - Microsoft.Authorization/*/write
+        - '*/read'
+        - '*/write'
+      - path: properties.assignable_scopes[*]
+        operator: not_empty
+    - action: authorization_management_client.role_definitions.get
+      parameters:
+        role_definition_id: '{{ item.id }}'
+      fields:
+      - path: properties.permissions[*].not_actions
+        operator: not_contains
+        expected: Microsoft.Authorization/elevateAccess/Action
+      - path: properties.created_on
+        operator: date_within_days
+        expected: 365

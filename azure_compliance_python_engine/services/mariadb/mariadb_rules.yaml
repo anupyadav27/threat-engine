@@ -1,0 +1,27 @@
+mariadb:
+  version: '1.0'
+  provider: azure
+  service: mariadb
+  package: azure-mgmt-rdbms
+  client_class: MariaDBManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.mariadb.servers
+    calls:
+    - client: mariadb
+      action: servers.list
+      save_as: servers
+  checks:
+  - check_id: azure.mariadb.server.geo_redundant_backup
+    title: 'AZURE MARIADB Server: Geo Redundant Backup Enabled'
+    severity: medium
+    for_each: azure.mariadb.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: storage_profile.geo_redundant_backup
+        operator: equals
+        expected: Enabled

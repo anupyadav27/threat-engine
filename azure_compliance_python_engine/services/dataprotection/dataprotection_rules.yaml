@@ -1,0 +1,80 @@
+dataprotection:
+  version: '1.0'
+  provider: azure
+  service: dataprotection
+  package: azure-mgmt-dataprotection
+  client_class: DataProtectionClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.dataprotection.backup_vaults
+    calls:
+    - client: dataprotection
+      action: backup_vaults.list_in_subscription
+      save_as: backup_vaults
+  - discovery_id: azure.dataprotection.backup_instances
+    calls:
+    - client: dataprotection
+      action: backup_instances.list
+      save_as: backup_instances
+  - discovery_id: azure.dataprotection.backup_policies
+    calls:
+    - client: dataprotection
+      action: backup_policies.list
+      save_as: backup_policies
+  checks:
+  - check_id: azure.dataprotection.backup.vault.immutability.check
+    title: 'AZURE DATAPROTECTION Backup: Vault Immutability Check'
+    severity: medium
+    for_each: azure.dataprotection.backup
+    calls:
+    - action: self
+      fields:
+      - path: properties.securitySettings.immutabilitySettings.state
+        operator: equals
+        expected: Locked
+  - check_id: azure.dataprotection.backup.vault.cross.region.restore.enabled
+    title: 'AZURE DATAPROTECTION Backup: Vault Cross Region Restore Enabled'
+    severity: medium
+    for_each: azure.dataprotection.backup
+    calls:
+    - action: self
+      fields:
+      - path: properties.feature_settings.cross_region_restore_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.dataprotection.backupvault.infrastructure.encryption.enabled
+    title: 'AZURE DATAPROTECTION Backupvault: Infrastructure Encryption Enabled'
+    severity: high
+    for_each: azure.dataprotection.backupvault
+    calls:
+    - action: self
+      fields:
+      - path: properties.security_settings.encryption_settings.infrastructure_encryption
+        operator: equals
+        expected: Enabled
+  - check_id: azure.dataprotection.backup.vault.soft.delete.compliance.check
+    title: 'AZURE DATAPROTECTION Backup: Vault Soft Delete Compliance Check'
+    severity: medium
+    for_each: azure.dataprotection.backup
+    calls:
+    - action: self
+      fields:
+      - path: properties.securitySettings.softDeleteSettings.state
+        operator: equals
+        expected: 'On'
+      - path: properties.securitySettings.softDeleteSettings.retentionDurationInDays
+        operator: greater_than_or_equal
+        expected: 14
+  - check_id: azure.dataprotection.backup.vault.encryption.cmk.enabled
+    title: 'AZURE DATAPROTECTION Backup: Vault Encryption CMK Enabled'
+    severity: high
+    for_each: azure.dataprotection.backup
+    calls:
+    - action: self
+      fields:
+      - path: properties.securitySettings.encryptionSettings.kekIdentity.identityType
+        operator: equals
+        expected: UserAssigned
+      - path: properties.securitySettings.encryptionSettings.state
+        operator: equals
+        expected: Enabled

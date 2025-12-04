@@ -1,0 +1,2932 @@
+version: '1.0'
+provider: azure
+service: purview
+discovery: []
+checks:
+- check_id: purview_catalog_data_catalog_audit_logging_enabled
+  name: 'AZURE PURVIEW Catalog: Data Catalog Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.auditConfig.enabled
+      operator: equals
+      expected: true
+    - path: properties.auditConfig.categories
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_catalog_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Catalog: Data Catalog Cross Account Sharing Restricted'
+  severity: LOW
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupName
+      operator: exists
+      expected: true
+    - path: properties.crossTenantAccessPolicy.enabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_catalog_metadata_encryption_enabled
+  name: 'AZURE PURVIEW Catalog: Data Catalog Metadata Encryption Enabled'
+  severity: HIGH
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_catalog_rbac_least_privilege
+  name: 'AZURE PURVIEW Catalog: Data Catalog RBAC Least Privilege'
+  severity: HIGH
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: contains
+      expected: /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/8a3c2885-9b38-4fd2-9d99-91af537c1347
+    - path: properties.roleAssignments.*.principalType
+      operator: equals
+      expected: User
+    - path: properties.managedResourceGroupName
+      operator: exists
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_governance_change_audit_logging_enabled
+  name: 'AZURE PURVIEW Catalog: Data Governance Change Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diagnosticSettings
+      operator: exists
+      expected: true
+    - path: properties.diagnosticSettings.logs
+      operator: contains
+      expected: DataGovernanceAuditEvents
+    - path: properties.diagnosticSettings.logs.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_governance_cross_account_sharing_review_required
+  name: 'AZURE PURVIEW Catalog: Data Governance Cross Account Sharing Review Required'
+  severity: MEDIUM
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernance.crossAccountSharingReviewRequired
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_data_governance_update_rbac_least_privilege
+  name: 'AZURE PURVIEW Catalog: Data Governance Update RBAC Least Privilege'
+  severity: HIGH
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments
+      operator: contains
+      expected: Data Curator
+    - path: properties.roleAssignments
+      operator: contains
+      expected: Data Reader
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupName
+      operator: exists
+      expected: true
+    - path: identity.type
+      operator: equals
+      expected: SystemAssigned
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_lineage_audit_logging_enabled
+  name: 'AZURE PURVIEW Catalog: Lineage Audit Logging Enabled'
+  severity: MEDIUM
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageAuditLogging.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_lineage_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Catalog: Lineage Cross Account Sharing Restricted'
+  severity: LOW
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.crossAccountSharingEnabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Catalog: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: contains
+      expected: Data Reader
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: contains
+      expected: Data Curator
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupConfiguration.name
+      operator: exists
+      expected: true
+    - path: properties.cloudConnectors
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_catalog_lineage_store_encrypted
+  name: 'AZURE PURVIEW Catalog: Lineage Store Encrypted'
+  severity: MEDIUM
+  for_each: catalogs
+  param: catalog
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classification_data_governance_auto_classification_enabled_where_supported
+  name: 'AZURE PURVIEW Classification: Data Governance Auto Classification Enabled
+    Where '
+  severity: MEDIUM
+  for_each: classifications
+  param: classification
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.autoClassificationEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classification_data_governance_policy_blocks_public_for_sensitive
+  name: 'AZURE PURVIEW Classification: Data Governance Policy Blocks Public For Sensitive'
+  severity: CRITICAL
+  for_each: classifications
+  param: classification
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernancePolicy.blockPublicAccess
+      operator: equals
+      expected: true
+    - path: properties.dataGovernancePolicy.sensitiveDataProtection.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernancePolicy.publicAccessPolicy.restrictSensitiveData
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classification_data_governance_required_sensitivity_tags_present
+  name: 'AZURE PURVIEW Classification: Data Governance Required Sensitivity Tags Present'
+  severity: MEDIUM
+  for_each: classifications
+  param: classification
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.sensitivityLabels
+      operator: exists
+      expected: true
+    - path: properties.sensitivityLabels
+      operator: contains
+      expected: Confidential
+    - path: properties.dataGovernanceTags
+      operator: exists
+      expected: true
+    - path: properties.dataGovernanceTags.classification
+      operator: exists
+      expected: true
+    - path: properties.dataGovernanceTags.retention
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_data_catalog_definition_version_pinned
+  name: 'AZURE PURVIEW Classifier: Data Catalog Definition Version Pinned'
+  severity: LOW
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogDefinition.versionPinned
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_data_catalog_rbac_least_privilege
+  name: 'AZURE PURVIEW Classifier: Data Catalog RBAC Least Privilege'
+  severity: HIGH
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.principalType
+      operator: exists
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupName
+      operator: exists
+      expected: true
+    - path: properties.catalogAdminPermissions.*.principalId
+      operator: exists
+      expected: true
+    - path: properties.catalogAdminPermissions.*.principalType
+      operator: equals
+      expected: User
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_data_catalog_source_trusted
+  name: 'AZURE PURVIEW Classifier: Data Catalog Source Trusted'
+  severity: LOW
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogSource.trusted
+      operator: equals
+      expected: true
+    - path: properties.dataCatalogSource.sourceType
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogSource.configuration.trustLevel
+      operator: equals
+      expected: trusted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_lineage_definition_version_pinned
+  name: 'AZURE PURVIEW Classifier: Lineage Definition Version Pinned'
+  severity: LOW
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageDefinitionVersion
+      operator: exists
+      expected: true
+    - path: properties.lineageDefinitionVersion
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Classifier: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.rbac.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineage.rbac.permissions
+      operator: exists
+      expected: true
+    - path: properties.lineage.rbac.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.lineage.rbac.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.lineage.rbac.principalType
+      operator: contains
+      expected: User
+    - path: properties.lineage.rbac.scope
+      operator: equals
+      expected: minimal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_classifier_lineage_source_trusted
+  name: 'AZURE PURVIEW Classifier: Lineage Source Trusted'
+  severity: LOW
+  for_each: classifiers
+  param: classifier
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.sourceTrusted
+      operator: equals
+      expected: true
+    - path: properties.lineage.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_compliance_data_governance_access_rbac_least_privilege
+  name: 'AZURE PURVIEW Compliance: Data Governance Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: compliances
+  param: compliance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.*.roleDefinitionId
+      operator: contains
+      expected: /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/8a3c2885-9b38-4fd2-b83a-e5fae23b68ec
+    - path: properties.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceAccess.rbacConfiguration.enableLeastPrivilege
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceAccess.accessLevel
+      operator: equals
+      expected: Restricted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_compliance_data_governance_export_destinations_private
+  name: 'AZURE PURVIEW Compliance: Data Governance Export Destinations Private'
+  severity: LOW
+  for_each: compliances
+  param: compliance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernance.exportDestinations.privateEndpointEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernance.exportDestinations.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_compliance_data_governance_reports_storage_encrypted
+  name: 'AZURE PURVIEW Compliance: Data Governance Reports Storage Encrypted'
+  severity: MEDIUM
+  for_each: compliances
+  param: compliance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.storageAccount.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.storageAccount.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.storageAccount.encryption.services.file.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceReports.storageEncryption.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_data_catalog_credentials_in_secrets_manager
+  name: 'AZURE PURVIEW Connection: Data Catalog Credentials In Secrets Manager'
+  severity: HIGH
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.credential.type
+      operator: equals
+      expected: ManagedIdentity
+    - path: properties.credential.secretsManagerConfiguration
+      operator: exists
+      expected: true
+    - path: properties.credential.secretsManagerConfiguration.keyVaultUrl
+      operator: exists
+      expected: true
+    - path: properties.credential.referenceName
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_data_catalog_private_networking_enforced
+  name: 'AZURE PURVIEW Connection: Data Catalog Private Networking Enforced'
+  severity: MEDIUM
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.catalogPrivateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_data_catalog_role_least_privilege
+  name: 'AZURE PURVIEW Connection: Data Catalog Role Least Privilege'
+  description: Validates that AZURE purview connection has data catalog role least
+    privilege configured according to security best practices. Proper configuration
+    reduces security risks, prevents unauthorized access
+  service: purview
+  resource: connection
+  severity: HIGH
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.dataCatalogRole
+      operator: equals
+      expected: Reader
+    - path: properties.permissions.dataCatalogPermissions
+      operator: contains
+      expected: Read
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_data_catalog_tls_required
+  name: 'AZURE PURVIEW Connection: Data Catalog TLS Required'
+  severity: MEDIUM
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalog.enableTls
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_lineage_credentials_in_secrets_manager
+  name: 'AZURE PURVIEW Connection: Lineage Credentials In Secrets Manager'
+  severity: HIGH
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageCredentials.credentialType
+      operator: equals
+      expected: SecretManager
+    - path: properties.lineageCredentials.keyVaultUri
+      operator: exists
+      expected: true
+    - path: properties.lineageCredentials.secretName
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_lineage_private_networking_enforced
+  name: 'AZURE PURVIEW Connection: Lineage Private Networking Enforced'
+  severity: MEDIUM
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.privateNetworkingEnforced
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_lineage_role_least_privilege
+  name: 'AZURE PURVIEW Connection: Lineage Role Least Privilege'
+  severity: HIGH
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.lineageSettings.minimumPrivilegeEnabled
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.roleAssignments[*].role
+      operator: contains
+      expected: Reader
+    - path: properties.lineageSettings.explicitPermissionsOnly
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_connection_lineage_tls_required
+  name: 'AZURE PURVIEW Connection: Lineage TLS Required'
+  severity: MEDIUM
+  for_each: connections
+  param: connection
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.tlsRequired
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_catalog_logs_enabled
+  name: 'AZURE PURVIEW Data_quality: Data Catalog Logs Enabled'
+  severity: LOW
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diagnosticSettings.logs.enabled
+      operator: equals
+      expected: true
+    - path: properties.diagnosticSettings.logs.categories
+      operator: contains
+      expected: DataCatalog
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_catalog_output_location_private_and_encrypted
+  name: 'AZURE PURVIEW Data_quality: Data Catalog Output Location Private And Encrypted'
+  severity: MEDIUM
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.catalogOutputLocation.privateEndpoint.enabled
+      operator: equals
+      expected: true
+    - path: properties.catalogOutputLocation.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.catalogOutputLocation.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.catalogOutputLocation.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_catalog_role_least_privilege
+  name: 'AZURE PURVIEW Data_quality: Data Catalog Role Least Privilege'
+  severity: HIGH
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Data Reader
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupConfiguration.name
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_governance_quality_jobs_role_least_privilege
+  name: 'AZURE PURVIEW Data_quality: Data Governance Quality Jobs Role Least Privilege'
+  severity: HIGH
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].principalType
+      operator: contains
+      expected: User
+    - path: properties.roleAssignments[*].roleDefinitionName
+      operator: equals
+      expected: Data Quality Reader
+    - path: properties.dataGovernanceSettings.qualityJobsEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceSettings.leastPrivilegeEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_governance_quality_logs_enabled
+  name: 'AZURE PURVIEW Data_quality: Data Governance Quality Logs Enabled'
+  severity: LOW
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernanceQualityLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_data_governance_quality_outputs_encrypted_and_private
+  name: 'AZURE PURVIEW Data_quality: Data Governance Quality Outputs Encrypted And
+    Privat'
+  severity: MEDIUM
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourcesPublicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_lineage_logs_enabled
+  name: 'AZURE PURVIEW Data_quality: Lineage Logs Enabled'
+  severity: LOW
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.loggingEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_lineage_output_location_private_and_encrypted
+  name: 'AZURE PURVIEW Data_quality: Lineage Output Location Private And Encrypted'
+  severity: MEDIUM
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.outputLocation.storageAccount.enableHttpsTrafficOnly
+      operator: equals
+      expected: true
+    - path: properties.lineage.outputLocation.storageAccount.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.lineage.outputLocation.networkAccess
+      operator: equals
+      expected: Private
+    - path: properties.lineage.outputLocation.encryption.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_lineage_role_least_privilege
+  name: 'AZURE PURVIEW Data_quality: Lineage Role Least Privilege'
+  severity: HIGH
+  for_each: data_qualitys
+  param: data_quality
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].principalType
+      operator: contains
+      expected: User
+    - path: properties.roleAssignments[*].roleDefinitionName
+      operator: contains
+      expected: Data Quality Reader
+    - path: properties.lineageConfiguration.enableLineageAccess
+      operator: equals
+      expected: true
+    - path: properties.lineageConfiguration.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.accessControl.enableRoleBasedAccess
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_access_rbac_least_privilege
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Access RBAC
+    Least P'
+  severity: HIGH
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.rbacConfiguration.dataQualityRecommendationAccess.principalType
+      operator: equals
+      expected: User
+    - path: properties.rbacConfiguration.dataQualityRecommendationAccess.permissions
+      operator: contains
+      expected: Read
+    - path: properties.rbacConfiguration.dataQualityRecommendationAccess.scope
+      operator: equals
+      expected: Resource
+    - path: properties.rbacConfiguration.leastPrivilegeEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_outputs_encrypted_and_private
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Outputs Encrypted
+    A'
+  severity: MEDIUM
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.outputSettings.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.outputSettings.accessLevel
+      operator: equals
+      expected: private
+    - path: properties.outputSettings.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_run_execution_role_least_privilege
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Execution
+    Role'
+  severity: HIGH
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.executionRole
+      operator: equals
+      expected: DataQualityReader
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.permissions.read
+      operator: equals
+      expected: true
+    - path: properties.permissions.write
+      operator: equals
+      expected: false
+    - path: properties.permissions.execute
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_run_logs_enabled
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Logs Enabled'
+  severity: LOW
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataQualitySettings.recommendationRunLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_run_metadata_logging_enabled
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Metadata
+    Loggin'
+  severity: MEDIUM
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataQualityRecommendationRunMetadataLoggingEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_data_quality_recommendation_run_output_encrypted_private
+  name: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Output Encrypte'
+  severity: MEDIUM
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataQualityRecommendationRunOutput.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataQualityRecommendationRunOutput.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.dataQualityRecommendationRunOutput.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_definition_version_pinned
+  name: 'AZURE PURVIEW Data_quality_rule: Definition Version Pinned'
+  severity: MEDIUM
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.definitionVersion
+      operator: exists
+      expected: true
+    - path: properties.definitionVersion
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_parameters_no_plaintext_secrets
+  name: 'AZURE PURVIEW Data_quality_rule: Parameters No Plaintext Secrets'
+  severity: HIGH
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.parameters
+      operator: exists
+      expected: true
+    - path: properties.parameters
+      operator: contains
+      expected: password
+    - path: properties.parameters
+      operator: contains
+      expected: secret
+    - path: properties.parameters
+      operator: contains
+      expected: key
+    - path: properties.parameters
+      operator: contains
+      expected: token
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_rule_source_trusted
+  name: 'AZURE PURVIEW Data_quality_rule: Source Trusted'
+  severity: MEDIUM
+  for_each: data_quality_rules
+  param: data_quality_rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.source.trusted
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_ruleset_encrypted_at_rest
+  name: 'AZURE PURVIEW Data_quality_ruleset: Encrypted At Rest'
+  severity: MEDIUM
+  for_each: data_quality_rulesets
+  param: data_quality_ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_ruleset_rbac_least_privilege
+  name: 'AZURE PURVIEW Data_quality_ruleset: RBAC Least Privilege'
+  severity: HIGH
+  for_each: data_quality_rulesets
+  param: data_quality_ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessControlList
+      operator: exists
+      expected: true
+    - path: properties.accessControlList.permissions
+      operator: contains
+      expected: Read
+    - path: properties.accessControlList.permissions
+      operator: contains
+      expected: Execute
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_data_quality_ruleset_version_immutable
+  name: 'AZURE PURVIEW Data_quality_ruleset: Version Immutable'
+  severity: MEDIUM
+  for_each: data_quality_rulesets
+  param: data_quality_ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.versionImmutable
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_data_catalog_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Database: Data Catalog Cross Account Sharing Restricted'
+  severity: LOW
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.crossAccountSharingEnabled
+      operator: equals
+      expected: false
+    - path: properties.dataCatalog.crossTenantAccessEnabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_data_catalog_encrypted
+  name: 'AZURE PURVIEW Database: Data Catalog Encrypted'
+  severity: MEDIUM
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_data_catalog_policy_least_privilege
+  name: 'AZURE PURVIEW Database: Data Catalog Policy Least Privilege'
+  severity: HIGH
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogPolicy.accessPolicy.privilegeLevel
+      operator: equals
+      expected: Reader
+    - path: properties.dataCatalogPolicy.accessPolicy.permissions
+      operator: contains
+      expected: read
+    - path: properties.dataCatalogPolicy.accessPolicy.permissions
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogPolicy.principalType
+      operator: equals
+      expected: User
+    - path: properties.dataCatalogPolicy.roleAssignments
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_lineage_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Database: Lineage Cross Account Sharing Restricted'
+  severity: MEDIUM
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.crossAccountSharingEnabled
+      operator: equals
+      expected: false
+    - path: properties.lineage.externalSharingRestricted
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_lineage_encrypted
+  name: 'AZURE PURVIEW Database: Lineage Encrypted'
+  severity: MEDIUM
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineage.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_database_lineage_policy_least_privilege
+  name: 'AZURE PURVIEW Database: Lineage Policy Least Privilege'
+  severity: HIGH
+  for_each: databases
+  param: database
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.policy.access_level
+      operator: equals
+      expected: minimal
+    - path: properties.lineage.policy.permission_scope
+      operator: equals
+      expected: restricted
+    - path: properties.lineage.policy.role_based_access
+      operator: equals
+      expected: true
+    - path: properties.lineage.policy.default_permissions
+      operator: equals
+      expected: read_only
+    - path: properties.lineage.policy.administrative_access
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_governance_data_policy_admin_change_audit_logging_enabled
+  name: 'AZURE PURVIEW Governance: Data Policy Admin Change Audit Logging Enabled'
+  severity: CRITICAL
+  for_each: governances
+  param: governance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.auditSettings.dataPolicyAdminChangeLoggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.auditSettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_governance_data_policy_admin_mfa_required
+  name: 'AZURE PURVIEW Governance: Data Policy Admin MFA Required'
+  severity: CRITICAL
+  for_each: governances
+  param: governance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataPolicySettings.adminMfaRequired
+      operator: equals
+      expected: true
+    - path: properties.dataPolicySettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_governance_data_policy_admin_rbac_least_privilege
+  name: 'AZURE PURVIEW Governance: Data Policy Admin RBAC Least Privilege'
+  severity: CRITICAL
+  for_each: governances
+  param: governance
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b7ffb4c8-29da-4c30-932f-4b40ea4b4cb5
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.minimumRequiredPermissions
+      operator: equals
+      expected: true
+    - path: properties.dataPolicy.adminRoles
+      operator: exists
+      expected: true
+    - path: properties.dataPolicy.adminRoles[*].members
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_data_catalog_logs_and_metrics_enabled
+  name: 'AZURE PURVIEW Job: Data Catalog Logs And Metrics Enabled'
+  severity: LOW
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.diagnosticSettings.logs.enabled
+      operator: equals
+      expected: true
+    - path: properties.diagnosticSettings.metrics.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataCatalog.loggingEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataCatalog.metricsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_data_catalog_network_private_only
+  name: 'AZURE PURVIEW Job: Data Catalog Network Private Only'
+  severity: MEDIUM
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.managedVirtualNetworkConfiguration.vnetState
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_data_catalog_role_least_privilege
+  name: 'AZURE PURVIEW Job: Data Catalog Role Least Privilege'
+  description: Validates that AZURE purview job has data catalog role least privilege
+    configured according to security best practices. Proper configuration reduces
+    security risks, prevents unauthorized access, and e
+  severity: HIGH
+  service: purview
+  resource_type: job
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Data Catalog Reader
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.minimumPermissions
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_data_catalog_script_location_private_and_encrypted
+  name: 'AZURE PURVIEW Job: Data Catalog Script Location Private And Encrypted'
+  severity: MEDIUM
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.script.location.private_endpoint_enabled
+      operator: equals
+      expected: true
+    - path: properties.script.location.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.script.location.encryption.key_source
+      operator: equals
+      expected: Microsoft.Keyvault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_lineage_logs_and_metrics_enabled
+  name: 'AZURE PURVIEW Job: Lineage Logs And Metrics Enabled'
+  severity: LOW
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageLogsEnabled
+      operator: equals
+      expected: true
+    - path: properties.metricsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_lineage_network_private_only
+  name: 'AZURE PURVIEW Job: Lineage Network Private Only'
+  severity: MEDIUM
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageNetworkSettings.networkAccess
+      operator: equals
+      expected: Private
+    - path: properties.lineageNetworkSettings.enablePublicNetworkAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_lineage_role_least_privilege
+  name: 'AZURE PURVIEW Job: Lineage Role Least Privilege'
+  severity: HIGH
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments.lineageRole
+      operator: equals
+      expected: Reader
+    - path: properties.security.principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.security.permissions.lineage.write
+      operator: equals
+      expected: false
+    - path: properties.security.permissions.lineage.admin
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_job_lineage_script_location_private_and_encrypted
+  name: 'AZURE PURVIEW Job: Lineage Script Location Private And Encrypted'
+  severity: MEDIUM
+  for_each: jobs
+  param: job
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.scriptLocation.storageAccountSettings.isPrivate
+      operator: equals
+      expected: true
+    - path: properties.lineage.scriptLocation.storageAccountSettings.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineage.scriptLocation.storageAccountSettings.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lifecycle_data_governance_expiration_rules_defined
+  name: 'AZURE PURVIEW Lifecycle: Data Governance Expiration Rules Defined'
+  severity: MEDIUM
+  for_each: lifecycles
+  param: lifecycle
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernance.expirationRules
+      operator: exists
+      expected: true
+    - path: properties.dataGovernance.expirationRules
+      operator: contains
+      expected: enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lifecycle_data_governance_immutable_retention_locked_where_required
+  name: 'AZURE PURVIEW Lifecycle: Data Governance Immutable Retention Locked Where
+    Requir'
+  severity: MEDIUM
+  for_each: lifecycles
+  param: lifecycle
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernance.immutableRetention.isLocked
+      operator: equals
+      expected: true
+    - path: properties.dataGovernance.immutableRetention.retentionPeriod
+      operator: exists
+      expected: true
+    - path: properties.dataGovernance.immutableRetention.policyType
+      operator: equals
+      expected: TimeBasedRetention
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lifecycle_data_governance_versioning_enabled_where_supported
+  name: 'AZURE PURVIEW Lifecycle: Data Governance Versioning Enabled Where Supported'
+  severity: LOW
+  for_each: lifecycles
+  param: lifecycle
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernance.versioning.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernance.versioning.supportedDataTypes
+      operator: exists
+      expected: true
+    - path: properties.dataGovernance.versioning.retentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lineage_data_governance_access_rbac_least_privilege
+  name: 'AZURE PURVIEW Lineage: Data Governance Access RBAC Least Privilege'
+  severity: HIGH
+  for_each: lineages
+  param: lineage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinition.permissions[*].actions
+      operator: contains
+      expected: Microsoft.Purview/accounts/data/read
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.roleAssignments[*].scope
+      operator: contains
+      expected: /subscriptions/
+    - path: properties.enablePublicNetworkAccess
+      operator: equals
+      expected: false
+    - path: properties.managedResourceGroupName
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lineage_data_governance_capture_enabled
+  name: 'AZURE PURVIEW Lineage: Data Governance Capture Enabled'
+  severity: MEDIUM
+  for_each: lineages
+  param: lineage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataGovernanceCapture.enabled
+      operator: equals
+      expected: true
+    - path: properties.dataGovernanceCapture.configuration.captureLevel
+      operator: exists
+      expected: true
+    - path: properties.dataGovernanceCapture.configuration.retentionPeriod
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_lineage_data_governance_export_destination_encrypted
+  name: 'AZURE PURVIEW Lineage: Data Governance Export Destination Encrypted'
+  severity: MEDIUM
+  for_each: lineages
+  param: lineage
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.exportConfiguration.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.exportConfiguration.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.exportConfiguration.destination.encryptionSettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_data_catalog_logs_enabled
+  name: 'AZURE PURVIEW Ml_transform: Data Catalog Logs Enabled'
+  severity: LOW
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.dataCatalogLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_data_catalog_network_private_only
+  name: 'AZURE PURVIEW Ml_transform: Data Catalog Network Private Only'
+  severity: MEDIUM
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.managedResourceGroupConfiguration.name
+      operator: exists
+      expected: true
+    - path: properties.catalogAdminUsers
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_data_catalog_role_least_privilege
+  name: 'AZURE PURVIEW Ml_transform: Data Catalog Role Least Privilege'
+  severity: HIGH
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Data Catalog Reader
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.accessLevel
+      operator: equals
+      expected: ReadOnly
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_lineage_logs_enabled
+  name: 'AZURE PURVIEW Ml_transform: Lineage Logs Enabled'
+  severity: LOW
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_lineage_network_private_only
+  name: 'AZURE PURVIEW Ml_transform: Lineage Network Private Only'
+  severity: MEDIUM
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageNetworkAccess
+      operator: equals
+      expected: Private
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ml_transform_lineage_role_least_privilege
+  name: 'AZURE PURVIEW Ml_transform: Lineage Role Least Privilege'
+  severity: HIGH
+  for_each: ml_transforms
+  param: ml_transform
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionId
+      operator: contains
+      expected: Data Curator
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.lineageAccess.permissions
+      operator: contains
+      expected: read
+    - path: properties.lineageAccess.scope
+      operator: equals
+      expected: minimal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_partition_data_catalog_access_policies_least_privilege
+  name: 'AZURE PURVIEW Partition: Data Catalog Access Policies Least Privilege'
+  severity: HIGH
+  for_each: partitions
+  param: partition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogAccessPolicies
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogAccessPolicies.enableLeastPrivilege
+      operator: equals
+      expected: true
+    - path: properties.dataCatalogAccessPolicies.defaultPermissions
+      operator: equals
+      expected: read
+    - path: properties.dataCatalogAccessPolicies.adminAccess.principalType
+      operator: equals
+      expected: User
+    - path: properties.dataCatalogAccessPolicies.adminAccess.permissions
+      operator: contains
+      expected: admin
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_partition_data_catalog_catalog_encrypted
+  name: 'AZURE PURVIEW Partition: Data Catalog Catalog Encrypted'
+  severity: MEDIUM
+  for_each: partitions
+  param: partition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.catalog.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.catalog.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_partition_lineage_access_policies_least_privilege
+  name: 'AZURE PURVIEW Partition: Lineage Access Policies Least Privilege'
+  severity: HIGH
+  for_each: partitions
+  param: partition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageAccessPolicies
+      operator: exists
+      expected: true
+    - path: properties.lineageAccessPolicies.minimumPermissions
+      operator: equals
+      expected: true
+    - path: properties.lineageAccessPolicies.restrictedAccess
+      operator: equals
+      expected: true
+    - path: properties.lineageAccessPolicies.userRoleAssignments
+      operator: exists
+      expected: true
+    - path: properties.lineageAccessPolicies.inheritanceBlocked
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_partition_lineage_catalog_encrypted
+  name: 'AZURE PURVIEW Partition: Lineage Catalog Encrypted'
+  severity: MEDIUM
+  for_each: partitions
+  param: partition
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageCatalog.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineageCatalog.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_data_catalog_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Registry: Data Catalog Cross Account Sharing Restricted'
+  severity: LOW
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.crossTenantAccess.enabled
+      operator: equals
+      expected: false
+    - path: properties.dataCatalogSettings.crossAccountSharingEnabled
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_data_catalog_metadata_encryption_enabled
+  name: 'AZURE PURVIEW Registry: Data Catalog Metadata Encryption Enabled'
+  severity: HIGH
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_data_catalog_rbac_least_privilege
+  name: 'AZURE PURVIEW Registry: Data Catalog RBAC Least Privilege'
+  severity: HIGH
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.managedResourceGroupConfiguration.name
+      operator: exists
+      expected: true
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.cloudConnectors
+      operator: exists
+      expected: false
+    - path: properties.managedResources.resourceGroup
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_lineage_cross_account_sharing_restricted
+  name: 'AZURE PURVIEW Registry: Lineage Cross Account Sharing Restricted'
+  severity: LOW
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.crossAccountLineageSharing.enabled
+      operator: equals
+      expected: false
+    - path: properties.crossAccountLineageSharing.allowedAccounts
+      operator: exists
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_lineage_metadata_encryption_enabled
+  name: 'AZURE PURVIEW Registry: Lineage Metadata Encryption Enabled'
+  severity: HIGH
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.lineageMetadataEncryption.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_registry_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Registry: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: registrys
+  param: registry
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.rbacConfiguration.minimumPrivilegeAccess
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.inheritanceBlocked
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.defaultDataSourceAccess
+      operator: equals
+      expected: Reader
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_retention_policy_data_governance_retention_enforced_on_sensitive_datasets
+  name: 'AZURE PURVIEW Retention_policy: Data Governance Retention Enforced On Sensitive'
+  severity: LOW
+  for_each: retention_policys
+  param: retention_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.isEnabled
+      operator: equals
+      expected: true
+    - path: properties.retentionSettings.dataGovernanceEnabled
+      operator: equals
+      expected: true
+    - path: properties.retentionSettings.sensitiveDataRetentionEnabled
+      operator: equals
+      expected: true
+    - path: properties.retentionSettings.retentionPeriodDays
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_retention_policy_data_governance_retention_policies_defined
+  name: 'AZURE PURVIEW Retention_policy: Data Governance Retention Policies Defined'
+  severity: LOW
+  for_each: retention_policys
+  param: retention_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.retentionRules
+      operator: exists
+      expected: true
+    - path: properties.status
+      operator: equals
+      expected: Active
+    - path: properties.retentionRules[*].retentionPeriod
+      operator: exists
+      expected: true
+    - path: properties.retentionRules[*].action
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_retention_policy_data_governance_retention_protected_from_public_override
+  name: 'AZURE PURVIEW Retention_policy: Data Governance Retention Protected From
+    Public'
+  severity: CRITICAL
+  for_each: retention_policys
+  param: retention_policy
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.retentionPolicy.isProtected
+      operator: equals
+      expected: true
+    - path: properties.retentionPolicy.allowPublicOverride
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_rule_lineage_definition_version_pinned
+  name: 'AZURE PURVIEW Rule: Lineage Definition Version Pinned'
+  severity: LOW
+  for_each: rules
+  param: rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageDefinitionVersion
+      operator: exists
+      expected: true
+    - path: properties.lineageDefinitionVersion
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_rule_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Rule: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: rules
+  param: rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.rbacEnabled
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.minimumPrivileges
+      operator: equals
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.lineageSettings.rbacConfiguration.inheritPermissions
+      operator: equals
+      expected: false
+    - path: properties.lineageSettings.accessControl.enableFinegrainedAccess
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_rule_lineage_source_trusted
+  name: 'AZURE PURVIEW Rule: Lineage Source Trusted'
+  severity: LOW
+  for_each: rules
+  param: rule
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageSettings.sourceSettings.trustedSources
+      operator: exists
+      expected: true
+    - path: properties.lineageSettings.sourceSettings.trustedSources
+      operator: contains
+      expected: verified
+    - path: properties.lineageSettings.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_data_catalog_encrypted_at_rest
+  name: 'AZURE PURVIEW Ruleset: Data Catalog Encrypted At Rest'
+  severity: MEDIUM
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_data_catalog_rbac_least_privilege
+  name: 'AZURE PURVIEW Ruleset: Data Catalog RBAC Least Privilege'
+  severity: HIGH
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].roleDefinitionName
+      operator: contains
+      expected: Data Reader
+    - path: properties.roleAssignments[*].roleDefinitionName
+      operator: contains
+      expected: Data Curator
+    - path: properties.roleAssignments[*].principalType
+      operator: equals
+      expected: User
+    - path: properties.inheritPermissions
+      operator: equals
+      expected: false
+    - path: properties.minimumAccessLevel
+      operator: equals
+      expected: Read
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_data_catalog_version_pinned
+  name: 'AZURE PURVIEW Ruleset: Data Catalog Version Pinned'
+  severity: LOW
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogVersion
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogVersion
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_lineage_encrypted_at_rest
+  name: 'AZURE PURVIEW Ruleset: Lineage Encrypted At Rest'
+  severity: MEDIUM
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.encryption.status
+      operator: equals
+      expected: Enabled
+    - path: properties.lineage.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.lineage.encryptionAtRest.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Ruleset: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageRbac.enableRoleBasedAccess
+      operator: equals
+      expected: true
+    - path: properties.lineageRbac.minimumPermissions
+      operator: equals
+      expected: read
+    - path: properties.lineageRbac.inheritPermissions
+      operator: equals
+      expected: false
+    - path: properties.lineageRbac.roleAssignments
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_ruleset_lineage_version_pinned
+  name: 'AZURE PURVIEW Ruleset: Lineage Version Pinned'
+  severity: LOW
+  for_each: rulesets
+  param: ruleset
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageVersionPinned
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_data_catalog_crawler_logs_enabled
+  name: 'AZURE PURVIEW Scan: Data Catalog Crawler Logs Enabled'
+  severity: LOW
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.scanRuleset.properties.enableLogging
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_data_catalog_crawler_network_private_only
+  name: 'AZURE PURVIEW Scan: Data Catalog Crawler Network Private Only'
+  severity: MEDIUM
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.connectedVia.referenceName
+      operator: exists
+      expected: true
+    - path: properties.connectedVia.integrationRuntimeType
+      operator: equals
+      expected: SelfHosted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_data_catalog_crawler_role_least_privilege
+  name: 'AZURE PURVIEW Scan: Data Catalog Crawler Role Least Privilege'
+  severity: HIGH
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.credential.referenceName
+      operator: exists
+      expected: true
+    - path: properties.credential.credentialType
+      operator: equals
+      expected: ManagedIdentity
+    - path: properties.collection.referenceName
+      operator: exists
+      expected: true
+    - path: properties.scanRuleset.scanningRule.customFileExtensions
+      operator: exists
+      expected: false
+    - path: properties.scanRuleset.scanningRule.fileExtensions
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_data_catalog_crawler_scope_restricted_to_allowlist
+  name: 'AZURE PURVIEW Scan: Data Catalog Crawler Scope Restricted To Allowlist'
+  severity: LOW
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.scanRulesetType
+      operator: equals
+      expected: Custom
+    - path: properties.collection.referenceName
+      operator: exists
+      expected: true
+    - path: properties.kind
+      operator: equals
+      expected: DataSource
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_lineage_crawler_logs_enabled
+  name: 'AZURE PURVIEW Scan: Lineage Crawler Logs Enabled'
+  severity: LOW
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.scanRuleset.properties.scanningRules
+      operator: exists
+      expected: true
+    - path: properties.scanRuleset.properties.scanningRules.lineageCrawlerLogEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_lineage_crawler_network_private_only
+  name: 'AZURE PURVIEW Scan: Lineage Crawler Network Private Only'
+  severity: MEDIUM
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageCrawler.networkSettings.accessType
+      operator: equals
+      expected: Private
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_lineage_crawler_role_least_privilege
+  name: 'AZURE PURVIEW Scan: Lineage Crawler Role Least Privilege'
+  severity: HIGH
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.scanRulesetName
+      operator: exists
+      expected: true
+    - path: properties.credential.referenceName
+      operator: exists
+      expected: true
+    - path: properties.credential.credentialType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.scanRuleset.scanningRule.customFileExtensions
+      operator: exists
+      expected: true
+    - path: properties.connectedVia.referenceName
+      operator: exists
+      expected: true
+    - path: properties.scanRuleset.scanningRule.includeFileTypes
+      operator: contains
+      expected:
+      - parquet
+      - json
+      - csv
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_scan_lineage_crawler_scope_restricted_to_allowlist
+  name: 'AZURE PURVIEW Scan: Lineage Crawler Scope Restricted To Allowlist'
+  severity: LOW
+  for_each: scans
+  param: scan
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageCrawler.scope.restrictToAllowlist
+      operator: equals
+      expected: true
+    - path: properties.lineageCrawler.allowlist
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_data_catalog_encrypted
+  name: 'AZURE PURVIEW Schema: Data Catalog Encrypted'
+  severity: MEDIUM
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.encryption.status
+      operator: equals
+      expected: Enabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_data_catalog_rbac_least_privilege
+  name: 'AZURE PURVIEW Schema: Data Catalog RBAC Least Privilege'
+  description: Validates that AZURE purview schema has data catalog rbac least privilege
+    configured according to security best practices. Proper configuration reduces
+    security risks, prevents unauthorized access, an
+  service: purview
+  resource_type: schema
+  severity: HIGH
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.roleAssignments
+      operator: exists
+      expected: true
+    - path: properties.roleAssignments[*].principalType
+      operator: contains
+      expected: User
+    - path: properties.roleAssignments[*].roleDefinitionName
+      operator: equals
+      expected: Data Reader
+    - path: properties.permissions.read
+      operator: equals
+      expected: true
+    - path: properties.permissions.write
+      operator: equals
+      expected: false
+    - path: properties.permissions.delete
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_data_catalog_version_immutability_enforced
+  name: 'AZURE PURVIEW Schema: Data Catalog Version Immutability Enforced'
+  severity: LOW
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.versionImmutabilityEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataCatalogSettings.versionControl.immutable
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_lineage_encrypted
+  name: 'AZURE PURVIEW Schema: Lineage Encrypted'
+  severity: MEDIUM
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineage.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_lineage_rbac_least_privilege
+  name: 'AZURE PURVIEW Schema: Lineage RBAC Least Privilege'
+  severity: HIGH
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageConfiguration.rbacConfiguration.enableLeastPrivilege
+      operator: equals
+      expected: true
+    - path: properties.lineageConfiguration.rbacConfiguration.restrictedAccess
+      operator: equals
+      expected: true
+    - path: properties.lineageConfiguration.rbacConfiguration.minimumPermissions
+      operator: exists
+      expected: true
+    - path: properties.lineageConfiguration.rbacConfiguration.roleAssignments
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_schema_lineage_version_immutability_enforced
+  name: 'AZURE PURVIEW Schema: Lineage Version Immutability Enforced'
+  severity: LOW
+  for_each: schemas
+  param: schema
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageVersionImmutabilityEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_data_catalog_access_policies_least_privilege
+  name: 'AZURE PURVIEW Table: Data Catalog Access Policies Least Privilege'
+  severity: HIGH
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogAccessPolicies
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogAccessPolicies.minimumAccessLevel
+      operator: equals
+      expected: read
+    - path: properties.dataCatalogAccessPolicies.roleBasedAccessEnabled
+      operator: equals
+      expected: true
+    - path: properties.dataCatalogAccessPolicies.inheritanceDisabled
+      operator: equals
+      expected: false
+    - path: properties.dataCatalogAccessPolicies.explicitPermissions
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_data_catalog_encrypted
+  name: 'AZURE PURVIEW Table: Data Catalog Encrypted'
+  severity: MEDIUM
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_data_catalog_public_sharing_disabled
+  name: 'AZURE PURVIEW Table: Data Catalog Public Sharing Disabled'
+  severity: CRITICAL
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.catalogSettings.publicSharingEnabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_lineage_access_policies_least_privilege
+  name: 'AZURE PURVIEW Table: Lineage Access Policies Least Privilege'
+  severity: HIGH
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageAccessPolicies
+      operator: exists
+      expected: true
+    - path: properties.lineageAccessPolicies.minimumPrivilege
+      operator: equals
+      expected: true
+    - path: properties.lineageAccessPolicies.explicitPermissions
+      operator: equals
+      expected: true
+    - path: properties.lineageAccessPolicies.inheritanceDisabled
+      operator: equals
+      expected: false
+    - path: properties.accessControl.dataAccess
+      operator: equals
+      expected: restricted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_lineage_encrypted
+  name: 'AZURE PURVIEW Table: Lineage Encrypted'
+  severity: MEDIUM
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.encryption.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineage.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_table_lineage_public_sharing_disabled
+  name: 'AZURE PURVIEW Table: Lineage Public Sharing Disabled'
+  severity: CRITICAL
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.publicSharingEnabled
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_data_catalog_event_sources_restricted
+  name: 'AZURE PURVIEW Trigger: Data Catalog Event Sources Restricted'
+  severity: LOW
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.eventSourceConfiguration.restrictedSources
+      operator: exists
+      expected: true
+    - path: properties.eventSourceConfiguration.allowedEventSources
+      operator: exists
+      expected: true
+    - path: properties.eventSourceConfiguration.enableSourceRestriction
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_data_catalog_logs_enabled
+  name: 'AZURE PURVIEW Trigger: Data Catalog Logs Enabled'
+  severity: LOW
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_data_catalog_targets_least_privilege
+  name: 'AZURE PURVIEW Trigger: Data Catalog Targets Least Privilege'
+  severity: HIGH
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.dataCatalogTargets
+      operator: exists
+      expected: true
+    - path: properties.dataCatalogTargets[*].permissions
+      operator: contains
+      expected: Read
+    - path: properties.dataCatalogTargets[*].permissions
+      operator: contains
+      expected: Write
+    - path: properties.dataCatalogTargets[*].roleAssignments[*].principalType
+      operator: equals
+      expected: ServicePrincipal
+    - path: properties.dataCatalogTargets[*].roleAssignments[*].roleDefinitionId
+      operator: exists
+      expected: true
+    - path: properties.accessControl.enableRoleBasedAccess
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_lineage_event_sources_restricted
+  name: 'AZURE PURVIEW Trigger: Lineage Event Sources Restricted'
+  severity: LOW
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageEventSourcesRestricted
+      operator: equals
+      expected: true
+    - path: properties.lineageEventSources
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_lineage_logs_enabled
+  name: 'AZURE PURVIEW Trigger: Lineage Logs Enabled'
+  severity: LOW
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageLogsEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_trigger_lineage_targets_least_privilege
+  name: 'AZURE PURVIEW Trigger: Lineage Targets Least Privilege'
+  severity: HIGH
+  for_each: triggers
+  param: trigger
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageConfiguration.permissions
+      operator: exists
+      expected: true
+    - path: properties.lineageConfiguration.permissions.read
+      operator: equals
+      expected: minimal
+    - path: properties.lineageConfiguration.permissions.write
+      operator: equals
+      expected: restricted
+    - path: properties.lineageConfiguration.targetAccess
+      operator: equals
+      expected: least_privilege
+    - path: properties.lineageConfiguration.scopeRestriction
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_data_catalog_cross_account_trusts_restricted
+  name: 'AZURE PURVIEW Workflow: Data Catalog Cross Account Trusts Restricted'
+  severity: LOW
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.crossAccountTrusts.enabled
+      operator: equals
+      expected: false
+    - path: properties.crossAccountTrusts.restrictedAccounts
+      operator: exists
+      expected: true
+    - path: properties.datacatalog.crossTenantAccess.restrictionMode
+      operator: equals
+      expected: restricted
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_data_catalog_execution_role_least_privilege
+  name: 'AZURE PURVIEW Workflow: Data Catalog Execution Role Least Privilege'
+  severity: HIGH
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.triggers
+      operator: exists
+      expected: true
+    - path: properties.triggers[*].properties.scope
+      operator: contains
+      expected: /subscriptions/
+    - path: properties.definition.actions
+      operator: exists
+      expected: true
+    - path: properties.definition.actions[*].inputs.roleDefinitionId
+      operator: contains
+      expected: Reader
+    - path: properties.definition.actions[*].inputs.principalType
+      operator: equals
+      expected: ServicePrincipal
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_data_catalog_kms_encryption_enabled
+  name: 'AZURE PURVIEW Workflow: Data Catalog KMS Encryption Enabled'
+  severity: HIGH
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.encryption.keyVaultProperties.keyName
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyVaultProperties.keyVaultUri
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_lineage_cross_account_trusts_restricted
+  name: 'AZURE PURVIEW Workflow: Lineage Cross Account Trusts Restricted'
+  severity: LOW
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineage.crossAccountTrustsEnabled
+      operator: equals
+      expected: false
+    - path: properties.lineage.crossAccountTrustRestrictions
+      operator: exists
+      expected: true
+    - path: properties.lineage.restrictExternalAccess
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_lineage_execution_role_least_privilege
+  name: 'AZURE PURVIEW Workflow: Lineage Execution Role Least Privilege'
+  severity: HIGH
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.identity.type
+      operator: equals
+      expected: SystemAssigned
+    - path: properties.triggers
+      operator: exists
+      expected: true
+    - path: properties.definition.actions
+      operator: exists
+      expected: true
+    - path: properties.state
+      operator: equals
+      expected: Enabled
+    - path: properties.integrationAccount.id
+      operator: exists
+      expected: true
+    - path: properties.accessControl.triggers.open.allowedCallerIpAddresses
+      operator: exists
+      expected: true
+    - path: properties.accessControl.actions.open.allowedCallerIpAddresses
+      operator: exists
+      expected: true
+    - path: properties.definition.parameters
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: purview_workflow_lineage_kms_encryption_enabled
+  name: 'AZURE PURVIEW Workflow: Lineage KMS Encryption Enabled'
+  severity: HIGH
+  for_each: workflows
+  param: workflow
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lineageConfiguration.encryptionConfiguration.keySource
+      operator: equals
+      expected: Microsoft.KeyVault
+    - path: properties.lineageConfiguration.encryptionConfiguration.enabled
+      operator: equals
+      expected: true
+    - path: properties.lineageConfiguration.encryptionConfiguration.keyVaultProperties.keyIdentifier
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []

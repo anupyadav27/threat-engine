@@ -1,0 +1,2019 @@
+version: '1.0'
+provider: azure
+service: storage
+discovery: []
+checks:
+- check_id: storage_account_access_key_rotation_check
+  name: 'AZURE STORAGE Account: Access Key Rotation Check'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keyPolicy.keyExpirationPeriodInDays
+      operator: exists
+      expected: true
+    - path: properties.keyPolicy.keyExpirationPeriodInDays
+      operator: equals
+      expected: 90
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_access_keys_rotation_check
+  name: 'AZURE STORAGE Account: Access Keys Rotation Check'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keyCreationTime.key1
+      operator: exists
+      expected: true
+    - path: properties.keyCreationTime.key2
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_allow_blob_anonymous_access_disabled
+  name: 'AZURE STORAGE Account: Allow Blob Anonymous Access Disabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_blob_anonymous_access_disabled
+  name: 'AZURE STORAGE Account: Blob Anonymous Access Disabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: allow_blob_public_access
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_blob_logging_read_write_delete_enabled
+  name: 'AZURE STORAGE Account: Blob Logging Read Write Delete Enabled'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.logging.delete
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_blob_soft_delete_enabled
+  name: 'AZURE STORAGE Account: Blob Soft Delete Enabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.deleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_blob_versioning_check
+  name: 'AZURE STORAGE Account: Blob Versioning Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_blob_versioning_enabled
+  name: 'AZURE STORAGE Account: Blob Versioning Enabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_cannot_delete_lock_applied
+  name: 'AZURE STORAGE Account: Cannot Delete Lock Applied'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.locks
+      operator: exists
+      expected: true
+    - path: properties.locks
+      operator: contains
+      expected: CanNotDelete
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_cannot_delete_lock_check
+  name: 'AZURE STORAGE Account: Cannot Delete Lock Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: locks
+      operator: exists
+      expected: true
+    - path: locks[?level=='CanNotDelete']
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_cross_tenant_replication_disabled
+  name: 'AZURE STORAGE Account: Cross Tenant Replication Disabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowCrossTenantReplication
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_access_logging_enabled
+  name: 'AZURE STORAGE Account: Data Protection Bucket Access Logging Enabled'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.logging.delete
+      operator: equals
+      expected: true
+    - path: properties.logging.retentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_block_public_access_enabled
+  name: 'AZURE STORAGE Account: Data Protection Bucket Block Public Access Enabled'
+  severity: CRITICAL
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_cmk_cmek_configured
+  name: 'AZURE STORAGE Account: Data Protection Bucket CMK Cmek Configured'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_encryption_at_rest_enabled
+  name: 'AZURE STORAGE Account: Data Protection Bucket Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.services.file.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_notification_cross_destinations_restricted
+  name: 'AZURE STORAGE Account: Data Protection Bucket Notification Cross Destinations
+    Re'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowCrossTenantReplication
+      operator: equals
+      expected: false
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_notification_destination_encrypted
+  name: 'AZURE STORAGE Account: Data Protection Bucket Notification Destination Encrypted'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.services.queue.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_notification_destination_least_privilege
+  name: 'AZURE STORAGE Account: Data Protection Bucket Notification Destination Least
+    Pri'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.eventGridFilters
+      operator: exists
+      expected: true
+    - path: properties.eventGridFilters.subjectBeginsWith
+      operator: exists
+      expected: true
+    - path: properties.eventGridFilters.subjectEndsWith
+      operator: exists
+      expected: true
+    - path: properties.eventGridFilters.includedEventTypes
+      operator: exists
+      expected: true
+    - path: properties.blobServices.default.cors.corsRules
+      operator: exists
+      expected: true
+    - path: properties.networkRuleSet.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.networkRuleSet.bypass
+      operator: equals
+      expected: AzureServices
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_policy_denies_public_and_insecure
+  name: 'AZURE STORAGE Account: Data Protection Bucket Policy Denies Public And Insecure'
+  severity: CRITICAL
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_policy_deny_insecure_transport
+  name: 'AZURE STORAGE Account: Data Protection Bucket Policy Deny Insecure Transport'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_policy_deny_unencrypted_puts
+  name: 'AZURE STORAGE Account: Data Protection Bucket Policy Deny Unencrypted Puts'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_policy_no_public_principals
+  name: 'AZURE STORAGE Account: Data Protection Bucket Policy No Public Principals'
+  severity: CRITICAL
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_policy_no_wildcards_on_actions_or_principals
+  name: 'AZURE STORAGE Account: Data Protection Bucket Policy No Wildcards On Actions
+    Or Principals'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.resourceAccessRules
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.resourceAccessRules[*].resourceId
+      operator: contains
+      expected: '*'
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_require_tls_in_transit
+  name: 'AZURE STORAGE Account: Data Protection Bucket Require TLS In Transit'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_data_protection_bucket_versioning_enabled
+  name: 'AZURE STORAGE Account: Data Protection Bucket Versioning Enabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+    - path: properties.changeFeed.enabled
+      operator: equals
+      expected: true
+    - path: properties.deleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_default_network_access_rule_set_to_deny
+  name: 'AZURE STORAGE Account: Default Network Access Rule Set To Deny'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_default_to_microsoft_entra_authorization_enabled
+  name: 'AZURE STORAGE Account: Default To Microsoft Entra Authorization Enabled'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.defaultToOAuthAuthentication
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_disable_shared_key_access_check
+  name: 'AZURE STORAGE Account: Disable Shared Key Access Check'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_encryption_at_rest_microsoft_managed_keys_enabled
+  name: 'AZURE STORAGE Account: Encryption At Rest Microsoft Managed Keys Enabled'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.services.file.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_encryption_at_rest_with_cmk
+  name: 'AZURE STORAGE Account: Encryption At Rest With CMK'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_encryption_cmk_check
+  name: 'AZURE STORAGE Account: Encryption CMK Check'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_encryption_with_customer_managed_keys
+  name: 'AZURE STORAGE Account: Encryption With Customer Managed Keys'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyvaultproperties.keyname
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyvaultproperties.keyvaulturi
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_file_shares_soft_delete_retention_policy
+  name: 'AZURE STORAGE Account: File Shares Soft Delete Retention Policy'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.protocolSettings.smb.shareDeleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.protocolSettings.smb.shareDeleteRetentionPolicy.days
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_geo_redundancy_check
+  name: 'AZURE STORAGE Account: Geo Redundancy Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: sku.name
+      operator: contains
+      expected: GRS
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_https_traffic_only_check
+  name: 'AZURE STORAGE Account: HTTPS Traffic Only Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_infrastructure_encryption_enabled
+  name: 'AZURE STORAGE Account: Infrastructure Encryption Enabled'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.requireInfrastructureEncryption
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_key_rotation_reminder_enabled
+  name: 'AZURE STORAGE Account: Key Rotation Reminder Enabled'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.keyPolicy.keyExpirationPeriodInDays
+      operator: exists
+      expected: true
+    - path: properties.keyPolicy.keyExpirationPeriodInDays
+      operator: equals
+      expected: 90
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_minimum_tls_version
+  name: 'AZURE STORAGE Account: Minimum TLS Version'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.minimumTlsVersion
+      operator: exists
+      expected: true
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_network_access_deny_by_default_check
+  name: 'AZURE STORAGE Account: Network Access Deny By Default Check'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_network_access_public_disabled
+  name: 'AZURE STORAGE Account: Network Access Public Disabled'
+  severity: CRITICAL
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_network_bypass_services_enabled
+  name: 'AZURE STORAGE Account: Network Bypass Azure Services Enabled'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.bypass
+      operator: contains
+      expected: AzureServices
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_network_rule_trusted_services_check
+  name: 'AZURE STORAGE Account: Network Rule Trusted Services Check'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.bypass
+      operator: contains
+      expected: AzureServices
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_private_endpoint_approved
+  name: 'AZURE STORAGE Account: Private Endpoint Approved'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.privateEndpointConnections[*].properties.privateLinkServiceConnectionState.status
+      operator: equals
+      expected: Approved
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_public_network_access_disabled
+  name: 'AZURE STORAGE Account: Public Network Access Disabled'
+  severity: CRITICAL
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_readonly_lock_check
+  name: 'AZURE STORAGE Account: Readonly Lock Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.locks
+      operator: exists
+      expected: true
+    - path: properties.locks[0].properties.level
+      operator: equals
+      expected: ReadOnly
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_readonly_lock_compliance_check
+  name: 'AZURE STORAGE Account: Readonly Lock Compliance Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lock.level
+      operator: equals
+      expected: ReadOnly
+    - path: properties.lock.notes
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_redundancy_check_geo_redundant
+  name: 'AZURE STORAGE Account: Redundancy Check Geo Redundant'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: sku.name
+      operator: contains
+      expected: GRS
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_sas_https_only
+  name: 'AZURE STORAGE Account: Sas HTTPS Only'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+    - path: properties.sasPolicy.sasExpirationPolicy.sasExpirationAction
+      operator: equals
+      expected: Log
+    - path: properties.sasPolicy.expirationAction
+      operator: equals
+      expected: Log
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_secure_transfer_enabled
+  name: 'AZURE STORAGE Account: Secure Transfer Enabled'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_secure_transport_policy
+  name: 'AZURE STORAGE Account: Secure Transport Policy'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_secure_transport_policy:nan
+  name: 'AZURE STORAGE Account: Secure Transport Policy:nan'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_shared_key_access_disabled_check
+  name: 'AZURE STORAGE Account: Shared Key Access Disabled Check'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_smb_channel_encryption_in_transit_aes256gcm
+  name: 'AZURE STORAGE Account: Smb Channel Encryption In Transit Aes256gcm'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.protocolSettings.smb.channelEncryption
+      operator: equals
+      expected: AES-256-GCM
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_smb_channel_encryption_in_transit
+  name: 'AZURE STORAGE Account: Smb Channel Encryption In Transit'
+  severity: HIGH
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.azureFilesIdentityBasedAuthentication.activeDirectoryProperties.domainName
+      operator: exists
+      expected: true
+    - path: properties.largeFileSharesState
+      operator: equals
+      expected: Enabled
+    - path: properties.supportsHttpsTrafficOnly
+      operator: equals
+      expected: true
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_smb_minimum_version_enforcement
+  name: 'AZURE STORAGE Account: Smb Minimum Version Enforcement'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.protocolSettings.smb.versions
+      operator: exists
+      expected: true
+    - path: properties.protocolSettings.smb.versions
+      operator: contains
+      expected: SMB3.0
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_smb_protocol_version_check
+  name: 'AZURE STORAGE Account: Smb Protocol Version Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.protocolSettings.smb.versions
+      operator: contains
+      expected: SMB3.0
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_soft_delete_configuration_check
+  name: 'AZURE STORAGE Account: Soft Delete Configuration Check'
+  severity: LOW
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.deleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.deleteRetentionPolicy.days
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_account_table_service_logging_rw_delete_enabled
+  name: 'AZURE STORAGE Account: Table Service Logging Rw Delete Enabled'
+  severity: MEDIUM
+  for_each: accounts
+  param: account
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.table_service_properties.logging.delete
+      operator: equals
+      expected: true
+    - path: properties.table_service_properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.table_service_properties.logging.write
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_accounts_private_endpoints_verification
+  name: 'AZURE STORAGE Accounts: Private Endpoints Verification'
+  severity: LOW
+  for_each: accounts
+  param: accounts
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_blob_data_protection_object_encrypted_at_rest
+  name: 'AZURE STORAGE Blob: Data Protection Object Encrypted At Rest'
+  severity: MEDIUM
+  for_each: blobs
+  param: blob
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.services.blob.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_blob_data_protection_object_not_publicly_readable
+  name: 'AZURE STORAGE Blob: Data Protection Object Not Publicly Readable'
+  severity: CRITICAL
+  for_each: blobs
+  param: blob
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicAccess
+      operator: equals
+      expected: None
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_blob_data_protection_object_object_lock_or_immutability_enabled_where_supported
+  name: 'AZURE STORAGE Blob: Data Protection Object Object Lock Or Immutability Enabled
+    W'
+  severity: LOW
+  for_each: blobs
+  param: blob
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.immutabilityPolicy.state
+      operator: exists
+      expected: true
+    - path: properties.legalHold.hasLegalHold
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: storage_bucket_cross_region_replication,_compute_ebs_public_snapshot,_sql_instance_no_public_access,_aks_endpoints_not_publicly_accessible,_virtual_network_endpoint_for_ec2_enabled,_storage_account_level_public_access_blocks,_awslambda_function_not_publicly_accessible,_hdinsight_cluster_master_nodes_no_public_ip,_compute_instance_public_ip,_sql_snapshots_public_access,_search_service_domains_not_publicly_accessible,_synapse_cluster_public_access,_awslambda_function_inside_vpc,_compute_securitygroup_allow_ingress_from_internet_to_tcp_port_22,_database_migration_instance_no_public_access,_machine_learning_notebook_instance_without_direct_internet_access_configured,_automation_managed_compliant_patching,_sql_cluster_default_admin,_sql_instance_default_admin
+  name: 'AZURE STORAGE Bucket: Cross Region Replication, Azure Compute Ebs Public
+    Snapsho'
+  severity: CRITICAL
+  for_each: buckets
+  param: bucket
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.replication.statusType
+      operator: equals
+      expected: GRS
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: enable_https_traffic_only
+      operator: equals
+      expected: true
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+    - path: properties.accessTier
+      operator: exists
+      expected: true
+    - path: properties.isHnsEnabled
+      operator: equals
+      expected: false
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+    - path: properties.allowCrossTenantReplication
+      operator: equals
+      expected: false
+    - path: properties.isSftpEnabled
+      operator: equals
+      expected: false
+    - path: properties.isLocalUserEnabled
+      operator: equals
+      expected: false
+    - path: properties.largeFileSharesState
+      operator: equals
+      expected: Disabled
+    - path: properties.routingPreference.routingChoice
+      operator: equals
+      expected: MicrosoftRouting
+    - path: properties.azureFilesIdentityBasedAuthentication.directoryServiceOptions
+      operator: equals
+      expected: AADDS
+    - path: properties.supportsHttpsTrafficOnly
+      operator: equals
+      expected: true
+    - path: properties.networkAcls.bypass
+      operator: contains
+      expected: AzureServices
+    - path: properties.blobRestorePolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_bucket_lifecycle_enabled,_compute_ebs_volume_protected_by_backup_plan,_sql_instance_backup_enabled,_sql_instance_protected_by_backup_plan,_cosmos_db_table_protected_by_backup_plan,_synapse_cluster_automated_snapshot,_cache_redis_cluster_backup_enabled,_cosmos_db_tables_pitr_enabled,_storage_bucket_object_versioning,_storage_bucket_cross_region_replication
+  name: 'AZURE STORAGE Bucket: Lifecycle Enabled, Azure Compute Ebs Volume Protected
+    By B'
+  severity: MEDIUM
+  for_each: buckets
+  param: bucket
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.lifecycleManagementPolicy.properties.policy.rules
+      operator: exists
+      expected: true
+    - path: properties.enableVersioning
+      operator: equals
+      expected: true
+    - path: properties.geoReplicationStats.status
+      operator: equals
+      expected: Live
+    - path: properties.backupPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.backup.retentionDays
+      operator: exists
+      expected: true
+    - path: properties.pointInTimeRestore.enabled
+      operator: equals
+      expected: true
+    - path: properties.automatedBackupRetentionPeriod
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_bucket_object_versioning
+  name: 'AZURE STORAGE Bucket: Object Versioning'
+  severity: LOW
+  for_each: buckets
+  param: bucket
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_bucket_server_access_logging_enabled,_monitor_s3_dataevents_read_enabled,_monitor_multi_region_enabled,_monitor_cloudwatch_logging_enabled,_synapse_cluster_audit_logging,_policy_recorder_all_regions_enabled,_storage_bucket_object_versioning,_monitor_log_file_validation_enabled,_storage_bucket_cross_region_replication
+  name: 'AZURE STORAGE Bucket: Server Access Logging Enabled, Azure Monitor S3 Dataevents'
+  severity: MEDIUM
+  for_each: buckets
+  param: bucket
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.logging.delete
+      operator: equals
+      expected: true
+    - path: properties.cors
+      operator: exists
+      expected: true
+    - path: properties.deleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.restorePolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+    - path: properties.changeFeed.enabled
+      operator: equals
+      expected: true
+    - path: properties.geoReplicationStats.status
+      operator: equals
+      expected: Live
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_bucket_server_access_logging_enabled,_monitor_s3_dataevents_read_enabled,_monitor_multi_region_enabled,_monitor_cloudwatch_logging_enabled,_synapse_cluster_audit_logging
+  name: 'AZURE STORAGE Bucket: Server Access Logging Enabled, Azure Monitor S3 Dataevents'
+  severity: MEDIUM
+  for_each: buckets
+  param: bucket
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.delete
+      operator: equals
+      expected: true
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.metrics.enabled
+      operator: equals
+      expected: true
+    - path: properties.cors.corsRules
+      operator: exists
+      expected: true
+    - path: properties.deleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.isVersioningEnabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_container_locked_immutability_policy_enabled
+  name: 'AZURE STORAGE Container: Locked Immutability Policy Enabled'
+  severity: MEDIUM
+  for_each: containers
+  param: container
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.immutabilityPolicy.properties.state
+      operator: equals
+      expected: Locked
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_disk_data_protection_volume_cmk_cmek_configured
+  name: 'AZURE STORAGE Disk: Data Protection Volume CMK Cmek Configured'
+  severity: MEDIUM
+  for_each: disks
+  param: disk
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.type
+      operator: equals
+      expected: EncryptionAtRestWithCustomerKey
+    - path: properties.encryption.diskEncryptionSetId
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_disk_data_protection_volume_encryption_at_rest_enabled
+  name: 'AZURE STORAGE Disk: Data Protection Volume Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: disks
+  param: disk
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.type
+      operator: equals
+      expected: EncryptionAtRestWithPlatformKey
+    - path: properties.encryptionSettingsCollection.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_disk_data_protection_volume_snapshots_encrypted
+  name: 'AZURE STORAGE Disk: Data Protection Volume Snapshots Encrypted'
+  severity: MEDIUM
+  for_each: disks
+  param: disk
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryptionSettingsCollection.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryptionSettingsCollection.encryptionSettings
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_file_share_soft_delete_enabled
+  name: 'AZURE STORAGE File: Share Soft Delete Enabled'
+  severity: LOW
+  for_each: files
+  param: file
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.shareDeleteRetentionPolicy.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_file_share_data_protection_fileshare_encryption_at_rest_enabled
+  name: 'AZURE STORAGE File_share: Data Protection Fileshare Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: file_shares
+  param: file_share
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.enabledProtocols
+      operator: exists
+      expected: true
+    - path: properties.accessTier
+      operator: exists
+      expected: true
+    - path: properties.enableSmbMultichannel
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_file_share_data_protection_fileshare_kms_key_policy_least_privilege
+  name: 'AZURE STORAGE File_share: Data Protection Fileshare KMS Key Policy Least
+    Privile'
+  severity: HIGH
+  for_each: file_shares
+  param: file_share
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Keyvault
+    - path: properties.encryption.keyVaultProperties.keyName
+      operator: exists
+      expected: true
+    - path: properties.encryption.keyVaultProperties.keyVaultUri
+      operator: exists
+      expected: true
+    - path: properties.encryption.requireInfrastructureEncryption
+      operator: equals
+      expected: true
+    - path: properties.accessPolicy.permissions
+      operator: contains
+      expected: r
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_file_share_data_protection_fileshare_private_network_only
+  name: 'AZURE STORAGE File_share: Data Protection Fileshare Private Network Only'
+  severity: MEDIUM
+  for_each: file_shares
+  param: file_share
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.accessPolicy.permissions
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.networkAcls.bypass
+      operator: equals
+      expected: None
+    - path: properties.publicAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_file_share_data_protection_fileshare_snapshots_enabled
+  name: 'AZURE STORAGE File_share: Data Protection Fileshare Snapshots Enabled'
+  severity: LOW
+  for_each: file_shares
+  param: file_share
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.shareSnapshot
+      operator: exists
+      expected: true
+    - path: properties.enabledProtocols
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_geo_redundant
+  name: 'AZURE STORAGE Resource: Geo Redundant'
+  severity: LOW
+  for_each: resources
+  param: resource
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: sku.name
+      operator: contains
+      expected: GRS
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_geo_redundant:nan
+  name: 'AZURE STORAGE Resource: Geo Redundant:nan'
+  severity: LOW
+  for_each: resources
+  param: resource
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: sku.name
+      operator: contains
+      expected: GRS
+    - path: sku.name
+      operator: contains
+      expected: RAGRS
+  multi_step: false
+  logic: OR
+  errors_as_fail: []
+- check_id: storage_nfs_root_squash_check
+  name: 'AZURE STORAGE Nfs: Root Squash Check'
+  severity: CRITICAL
+  for_each: nfss
+  param: nfs
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.rootSquash
+      operator: equals
+      expected: RootSquash
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_private_endpoint_presence_and_configuration_check
+  name: 'AZURE STORAGE Private: Endpoint Presence And Configuration Check'
+  severity: LOW
+  for_each: privates
+  param: private
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.privateEndpointConnections
+      operator: exists
+      expected: true
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_queue_data_protection_auth_required
+  name: 'AZURE STORAGE Queue: Data Protection Auth Required'
+  severity: MEDIUM
+  for_each: queues
+  param: queue
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+    - path: properties.supportsHttpsTrafficOnly
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_queue_data_protection_cross_account_send_receive_restricted
+  name: 'AZURE STORAGE Queue: Data Protection Cross Account Send Receive Restricted'
+  severity: MEDIUM
+  for_each: queues
+  param: queue
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.allowCrossTenantReplication
+      operator: equals
+      expected: false
+    - path: properties.networkAcls.bypass
+      operator: equals
+      expected: AzureServices
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_queue_data_protection_encryption_at_rest_enabled
+  name: 'AZURE STORAGE Queue: Data Protection Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: queues
+  param: queue
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.services.queue.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_queue_data_protection_private_network_only_where_supported
+  name: 'AZURE STORAGE Queue: Data Protection Private Network Only Where Supported'
+  severity: MEDIUM
+  for_each: queues
+  param: queue
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_queue_logging_read_write_delete_enabled
+  name: 'AZURE STORAGE Queue: Logging Read Write Delete Enabled'
+  severity: MEDIUM
+  for_each: queues
+  param: queue
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.logging.delete
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_s3_dataevents_read_enabled
+  name: 'AZURE STORAGE S3: Dataevents Read Enabled'
+  severity: MEDIUM
+  for_each: s3s
+  param: s3
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.read
+      operator: equals
+      expected: true
+    - path: properties.logging.dataEvents.read.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_s3_dataevents_write_enabled
+  name: 'AZURE STORAGE S3: Dataevents Write Enabled'
+  severity: MEDIUM
+  for_each: s3s
+  param: s3
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.logging.write
+      operator: equals
+      expected: true
+    - path: properties.logging.dataEvents.write.enabled
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_sas_expiration_check
+  name: 'AZURE STORAGE Sas: Expiration Check'
+  severity: LOW
+  for_each: sass
+  param: sas
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.expiry
+      operator: exists
+      expected: true
+    - path: properties.expiry
+      operator: contains
+      expected: T
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_sas_https_only_check
+  name: 'AZURE STORAGE Sas: HTTPS Only Check'
+  severity: LOW
+  for_each: sass
+  param: sas
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.httpsOnly
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_sas_linked_to_stored_access_policy
+  name: 'AZURE STORAGE Sas: Linked To Stored Access Policy'
+  severity: MEDIUM
+  for_each: sass
+  param: sas
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.stored_access_policy_identifier
+      operator: exists
+      expected: true
+    - path: properties.stored_access_policy_identifier
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_sas_policy_compliance_check
+  name: 'AZURE STORAGE Sas: Policy Compliance Check'
+  severity: LOW
+  for_each: sass
+  param: sas
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.signedProtocol
+      operator: equals
+      expected: https
+    - path: properties.signedStart
+      operator: exists
+      expected: true
+    - path: properties.signedExpiry
+      operator: exists
+      expected: true
+    - path: properties.signedPermissions
+      operator: exists
+      expected: true
+    - path: properties.signedIp
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_sas_token_expiration_check
+  name: 'AZURE STORAGE Sas: Token Expiration Check'
+  severity: LOW
+  for_each: sass
+  param: sas
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.signedExpiry
+      operator: exists
+      expected: true
+    - path: properties.signedExpiry
+      operator: equals
+      expected: ''
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_snapshot_data_protection_cross_region_copy_encrypted
+  name: 'AZURE STORAGE Snapshot: Data Protection Cross Region Copy Encrypted'
+  severity: MEDIUM
+  for_each: snapshots
+  param: snapshot
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.type
+      operator: equals
+      expected: EncryptionAtRestWithPlatformKey
+    - path: properties.copyCompletionError
+      operator: exists
+      expected: false
+    - path: properties.incremental
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_snapshot_data_protection_encrypted
+  name: 'AZURE STORAGE Snapshot: Data Protection Encrypted'
+  severity: MEDIUM
+  for_each: snapshots
+  param: snapshot
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_snapshot_data_protection_not_public
+  name: 'AZURE STORAGE Snapshot: Data Protection Not Public'
+  severity: CRITICAL
+  for_each: snapshots
+  param: snapshot
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.publicAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_encryption_at_rest_enabled
+  name: 'AZURE STORAGE Table: Data Protection Encryption At Rest Enabled'
+  severity: HIGH
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.keySource
+      operator: exists
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_global_cross_region_replication_encrypted
+  name: 'AZURE STORAGE Table: Data Protection Global Cross Region Replication Encrypted'
+  severity: MEDIUM
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.geoReplication.status
+      operator: equals
+      expected: Live
+    - path: properties.encryption.services.table.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_global_encryption_at_rest_all_regions
+  name: 'AZURE STORAGE Table: Data Protection Global Encryption At Rest All Regions'
+  severity: HIGH
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.encryption.services.table.enabled
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+    - path: properties.encryption.requireInfrastructureEncryption
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_global_pitr_enabled_where_supported
+  name: 'AZURE STORAGE Table: Data Protection Global Pitr Enabled Where Supported'
+  severity: MEDIUM
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.restorePolicy.enabled
+      operator: equals
+      expected: true
+    - path: properties.restorePolicy.days
+      operator: exists
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_private_network_only_where_supported
+  name: 'AZURE STORAGE Table: Data Protection Private Network Only Where Supported'
+  severity: MEDIUM
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.networkAcls.bypass
+      operator: contains
+      expected: AzureServices
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.supportsHttpsTrafficOnly
+      operator: equals
+      expected: true
+  multi_step: false
+  logic: AND
+  errors_as_fail: []
+- check_id: storage_table_data_protection_rbac_least_privilege
+  name: 'AZURE STORAGE Table: Data Protection RBAC Least Privilege'
+  severity: HIGH
+  for_each: tables
+  param: table
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: properties.minimumTlsVersion
+      operator: equals
+      expected: TLS1_2
+    - path: properties.allowBlobPublicAccess
+      operator: equals
+      expected: false
+    - path: properties.allowSharedKeyAccess
+      operator: equals
+      expected: false
+    - path: properties.publicNetworkAccess
+      operator: equals
+      expected: Disabled
+    - path: properties.networkAcls.defaultAction
+      operator: equals
+      expected: Deny
+    - path: properties.encryption.requireInfrastructureEncryption
+      operator: equals
+      expected: true
+    - path: properties.encryption.keySource
+      operator: equals
+      expected: Microsoft.Storage
+  multi_step: false
+  logic: AND
+  errors_as_fail: []

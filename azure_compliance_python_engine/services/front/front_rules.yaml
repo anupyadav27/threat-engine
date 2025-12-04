@@ -1,0 +1,76 @@
+front:
+  version: '1.0'
+  provider: azure
+  service: front
+  package: azure-mgmt-frontdoor
+  client_class: FrontDoorManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.front.door_waf_policies
+    calls:
+    - client: front
+      action: web_application_firewall_policies.list_by_subscription
+      save_as: door_waf_policies
+  checks:
+  - check_id: azure.front.door_waf_policy.edge_waf_ip_rate_limit_rules_configured_where_supported
+    title: 'AZURE FRONT Door Waf Policy: Edge Waf Ip Rate Limit Rules Configured Where Supported'
+    severity: medium
+    for_each: azure.front.door_waf_policies
+    calls:
+    - action: web_application_firewall_policies.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: custom_rules.rules[?(@.rule_type == 'RateLimitRule')].rate_limit_threshold
+        operator: exists
+  - check_id: azure.front.door_waf_policy.edge_waf_managed_rule_sets_enabled
+    title: 'AZURE FRONT Door Waf Policy: Edge Waf Managed Rule Sets Enabled'
+    severity: medium
+    for_each: azure.front.door_waf_policies
+    calls:
+    - action: web_application_firewall_policies.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: managed_rules.managed_rule_sets[0].rule_set_type
+        operator: exists
+  - check_id: azure.front.door_waf_policy.edge_waf_logging_enabled
+    title: 'AZURE FRONT Door Waf Policy: Edge Waf Logging Enabled'
+    severity: medium
+    for_each: azure.front.door_waf_policies
+    calls:
+    - action: web_application_firewall_policies.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: policy_settings.request_body_check
+        operator: equals
+        expected: Enabled
+  - check_id: azure.front.door_waf_policy.edge_waf_web_acl_attached_to_cdn
+    title: 'AZURE FRONT Door Waf Policy: Edge Waf Web ACL Attached To Cdn'
+    severity: medium
+    for_each: azure.front.door_waf_policies
+    calls:
+    - action: web_application_firewall_policies.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: frontend_endpoint_links[0].id
+        operator: exists
+  - check_id: azure.front.door_waf_policy.edge_waf_block_actions_not_count_only
+    title: 'AZURE FRONT Door Waf Policy: Edge Waf Block Actions Not Count Only'
+    severity: medium
+    for_each: azure.front.door_waf_policies
+    calls:
+    - action: web_application_firewall_policies.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        policy_name: '{{policy_name}}'
+      fields:
+      - path: policy_settings.mode
+        operator: equals
+        expected: Prevention

@@ -1,0 +1,111 @@
+notification:
+  version: '1.0'
+  provider: azure
+  service: notification
+  package: azure-mgmt-notificationhubs
+  client_class: NotificationHubsManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.notification.namespaces
+    calls:
+    - client: notification
+      action: namespaces.list
+      save_as: namespaces
+  - discovery_id: azure.notification.hubs
+    calls:
+    - client: notification
+      action: notification_hubs.list
+      save_as: hubs
+  - discovery_id: azure.notification.authorization_rules
+    calls:
+    - client: notification
+      action: namespaces.list_authorization_rules
+      save_as: authorization_rules
+  checks:
+  - check_id: azure.notification.hub.topic_subscription_configured
+    title: 'AZURE NOTIFICATION Hub: Topic Subscription Configured'
+    severity: low
+    for_each: azure.notification.hubs
+    calls:
+    - action: notification_hubs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        namespace_name: '{{namespace_name}}'
+        notification_hub_name: '{{name}}'
+      fields:
+      - path: apns_credential
+        operator: exists
+      - path: gcm_credential
+        operator: exists
+  - check_id: azure.notification.namespace.encryption.enabled
+    title: 'AZURE NOTIFICATION Namespace: Encryption Enabled'
+    severity: high
+    for_each: azure.notification.namespaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.notification.hub.access.policy.configured
+    title: 'AZURE NOTIFICATION Hub: Access Policy Configured'
+    severity: medium
+    for_each: azure.notification.hubs
+    calls:
+    - action: notification_hubs.list_authorization_rules
+      params:
+        resource_group_name: '{{resource_group}}'
+        namespace_name: '{{namespace_name}}'
+        notification_hub_name: '{{name}}'
+      fields:
+      - path: value[0].rights
+        operator: exists
+  - check_id: azure.notification.namespace.private.endpoint.configured
+    title: 'AZURE NOTIFICATION Namespace: Private Endpoint Configured'
+    severity: medium
+    for_each: azure.notification.namespaces
+    calls:
+    - action: namespaces.list_private_endpoint_connections
+      params:
+        resource_group_name: '{{resource_group}}'
+        namespace_name: '{{name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.notification.namespace.network.access.restricted
+    title: 'AZURE NOTIFICATION Namespace: Network Access Restricted'
+    severity: high
+    for_each: azure.notification.namespaces
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.notification.hub.registration.ttl.configured
+    title: 'AZURE NOTIFICATION Hub: Registration TTL Configured'
+    severity: low
+    for_each: azure.notification.hubs
+    calls:
+    - action: notification_hubs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        namespace_name: '{{namespace_name}}'
+        notification_hub_name: '{{name}}'
+      fields:
+      - path: registration_ttl
+        operator: exists
+  - check_id: azure.notification.namespace.zone.redundancy.enabled
+    title: 'AZURE NOTIFICATION Namespace: Zone Redundancy Enabled'
+    severity: medium
+    for_each: azure.notification.namespaces
+    calls:
+    - action: namespaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        namespace_name: '{{name}}'
+      fields:
+      - path: zone_redundancy
+        operator: equals
+        expected: Enabled

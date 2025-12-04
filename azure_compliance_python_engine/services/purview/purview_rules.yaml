@@ -1,0 +1,2284 @@
+purview:
+  version: '1.0'
+  provider: azure
+  service: purview
+  package: azure-mgmt-purview
+  client_class: PurviewManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.purview.accounts
+    calls:
+    - client: purview
+      action: accounts.list_by_subscription
+      save_as: accounts
+  - discovery_id: azure.purview.private_link_resources
+    calls:
+    - client: purview
+      action: private_link_resources.list_by_account
+      save_as: private_link_resources
+  - discovery_id: azure.purview.private_endpoint_connections
+    calls:
+    - client: purview
+      action: private_endpoint_connections.list_by_account
+      save_as: private_endpoint_connections
+  - discovery_id: azure.purview.features
+    calls:
+    - client: purview
+      action: features.list
+      save_as: features
+  checks:
+  - check_id: azure.purview.breach_detection.alert_destinations
+    title: 'AZURE PURVIEW Breach Detection: Alert Destinations Configured'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: privacy_breach_detection.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.alert_destinations
+        operator: exists
+  - check_id: azure.purview.data_quality.governance_logs_enabled
+    title: 'AZURE PURVIEW Data Quality: Data Governance Quality Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.governance_logs_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.data_quality.monitoring_enabled
+    title: 'AZURE PURVIEW Data Quality: Monitoring Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.monitoring_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.schema.lineage_version_immutability_enforced
+    title: 'AZURE PURVIEW Schema: Lineage Version Immutability Enforced'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: schema.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_version_immutability_enforced
+        operator: equals
+        expected: true
+  - check_id: azure.purview.rule.lineage_source_trusted
+    title: 'AZURE PURVIEW Rule: Lineage Source Trusted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_source_trusted
+        operator: equals
+        expected: true
+  - check_id: azure.purview.data_quality_rule.recommendation_run_metadata_logging_enabled
+    title: 'AZURE PURVIEW Data Quality Rule: Recommendation Run Metadata Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.recommendation_run_metadata_logging_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.ruleset.validation_enabled
+    title: 'AZURE PURVIEW Ruleset: Validation Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: rulesets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.validation_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.connection.encryption_enabled
+    title: 'AZURE PURVIEW Connection: Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.ml_transform.security_validation_enabled
+    title: 'AZURE PURVIEW ML Transform: Security Validation Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: ml_transforms.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.security_validation_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.privacy_audit.compliance_monitoring_enabled
+    title: 'AZURE PURVIEW Privacy Audit: Compliance Monitoring Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: privacy_audit.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.compliance_monitoring_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.account.managed_identity_enabled
+    title: 'AZURE PURVIEW Account: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.purview.account.public_network_access_disabled
+    title: 'AZURE PURVIEW Account: Public Network Access Disabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.purview.account.private_endpoint_configured
+    title: 'AZURE PURVIEW Account: Private Endpoint Configured'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_endpoint_connections.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.purview.account.encryption_at_rest_enabled
+    title: 'AZURE PURVIEW Account: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.purview.account.minimum_tls_version
+    title: 'AZURE PURVIEW Account: Minimum TLS Version 1.2'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: minimum_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.purview.account.soft_delete_enabled
+    title: 'AZURE PURVIEW Account: Soft Delete Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: soft_delete_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.account.backup_retention_configured
+    title: 'AZURE PURVIEW Account: Backup Retention Configured'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: backup_retention_days
+        operator: gte
+        expected: 30
+  - check_id: azure.purview.account.access_control_enabled
+    title: 'AZURE PURVIEW Account: Access Control Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: access_control_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.account.audit_logging_enabled
+    title: 'AZURE PURVIEW Account: Audit Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: audit_logging_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.audit_log.logs_centralized_and_encrypted
+    title: 'AZURE AZURE Privacy_audit: Logs Centralized And Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: privacy_audit.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.log_settings.centralized
+        operator: equals
+        expected: true
+      - path: properties.log_settings.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.audit_log.retention_days_minimum
+    title: 'AZURE AZURE Privacy_audit: Retention Days Minimum'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: privacy_audit.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.retention_policy.days
+        operator: gte
+        expected: 90
+  - check_id: azure.purview.breach_detection.integrations_authenticated
+    title: 'AZURE AZURE Privacy_breach_detection: Integrations Authenticated'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: privacy_breach_detection.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.integrations[*].authentication.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.data_catalog_audit_logging_enabled
+    title: 'AZURE PURVIEW Catalog: Data Catalog Audit Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.audit_logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.data_catalog_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Catalog: Data Catalog Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.cross_account_sharing.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.catalog.data_catalog_metadata_encryption_enabled
+    title: 'AZURE PURVIEW Catalog: Data Catalog Metadata Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.metadata_encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.data_catalog_rbac_least_privilege
+    title: 'AZURE PURVIEW Catalog: Data Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog_role_assignments.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: Owner
+      - path: value[*].properties.principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.catalog.data_governance_change_audit_logging_enabled
+    title: 'AZURE PURVIEW Catalog: Data Governance Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_governance.change_audit_logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.data_governance_cross_account_sharing_review_required
+    title: 'AZURE PURVIEW Catalog: Data Governance Cross Account Sharing Review Required'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_governance.cross_account_sharing.review_required
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.data_governance_update_rbac_least_privilege
+    title: 'AZURE PURVIEW Catalog: Data Governance Update RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: catalog_data_governance_role_assignments.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: Owner
+      - path: value[*].properties.permissions[*]
+        operator: not_contains
+        expected: Microsoft.Purview/accounts/catalog/dataGovernance/*
+  - check_id: azure.purview.catalog.lineage_audit_logging_enabled
+    title: 'AZURE PURVIEW Catalog: Lineage Audit Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.audit_logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.catalog.lineage_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Catalog: Lineage Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.cross_account_sharing.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.catalog.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Catalog: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_link_resources.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: Owner
+      - path: value[*].properties.principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.catalog.lineage_store_encrypted
+    title: 'AZURE PURVIEW Catalog: Lineage Store Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.classification.data_governance_auto_classification_enabled_where_supported
+    title: 'AZURE PURVIEW Classification: Data Governance Auto Classification Enabled Where Supported'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.auto_classification.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.classification.data_governance_policy_blocks_public_for_sensitive
+    title: 'AZURE PURVIEW Classification: Data Governance Policy Blocks Public For Sensitive'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_link_resources.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.rules[*].conditions.sensitivity_level
+        operator: exists
+      - path: value[*].properties.rules[*].actions.block_public_access
+        operator: equals
+        expected: true
+  - check_id: azure.purview.classification.data_governance_required_sensitivity_tags_present
+    title: 'AZURE PURVIEW Classification: Data Governance Required Sensitivity Tags Present'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.required_sensitivity_tags
+        operator: exists
+      - path: properties.required_sensitivity_tags
+        operator: not_empty
+  - check_id: azure.purview.classifier.data_catalog_definition_version_pinned
+    title: 'AZURE PURVIEW Classifier: Data Catalog Definition Version Pinned'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_link_resources.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.version
+        operator: not_equals
+        expected: latest
+  - check_id: azure.purview.classifier.data_catalog_rbac_least_privilege
+    title: 'AZURE PURVIEW Classifier: Data Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_link_resources.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: Owner
+      - path: value[*].properties.principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.classifier.data_catalog_source_trusted
+    title: 'AZURE PURVIEW Classifier: Data Catalog Source Trusted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: private_link_resources.list_by_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: value[*].properties.source.trusted
+        operator: equals
+        expected: true
+  - check_id: azure.purview.classifier.lineage_definition_version_pinned
+    title: 'AZURE PURVIEW Classifier: Lineage Definition Version Pinned'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_definitions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        classifier_name: '{{classifier_name}}'
+      fields:
+      - path: properties.version
+        operator: exists
+      - path: properties.version_pinned
+        operator: equals
+        expected: true
+  - check_id: azure.purview.classifier.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Classifier: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: role_assignments.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        classifier_name: '{{classifier_name}}'
+      fields:
+      - path: properties.permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.classifier.lineage_source_trusted
+    title: 'AZURE PURVIEW Classifier: Lineage Source Trusted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_sources.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        classifier_name: '{{classifier_name}}'
+      fields:
+      - path: properties.trusted_sources
+        operator: exists
+      - path: properties.source_validation
+        operator: equals
+        expected: enabled
+  - check_id: azure.purview.compliance.data_governance_access_rbac_least_privilege
+    title: 'AZURE PURVIEW Compliance: Data Governance Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: access_policies.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.compliance.data_governance_export_destinations_private
+    title: 'AZURE PURVIEW Compliance: Data Governance Export Destinations Private'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: export_destinations.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.destinations[*].network_access
+        operator: equals
+        expected: private
+      - path: properties.destinations[*].public_access
+        operator: equals
+        expected: false
+  - check_id: azure.purview.compliance.data_governance_reports_storage_encrypted
+    title: 'AZURE PURVIEW Compliance: Data Governance Reports Storage Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_source
+        operator: exists
+  - check_id: azure.purview.connection.data_catalog_credentials_in_secrets_manager
+    title: 'AZURE PURVIEW Connection: Data Catalog Credentials In Secrets Manager'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.credentials.type
+        operator: equals
+        expected: KeyVault
+      - path: properties.credentials.key_vault_reference
+        operator: exists
+  - check_id: azure.purview.connection.data_catalog_private_networking_enforced
+    title: 'AZURE PURVIEW Connection: Data Catalog Private Networking Enforced'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.purview.connection.data_catalog_role_least_privilege
+    title: 'AZURE PURVIEW Connection: Data Catalog Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: role_assignments.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_definition.permissions[*].actions
+        operator: not_contains
+        expected: '*'
+      - path: properties.scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.connection.data_catalog_tls_required
+    title: 'AZURE PURVIEW Connection: Data Catalog TLS Required'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.minimum_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+      - path: properties.require_tls
+        operator: equals
+        expected: true
+  - check_id: azure.purview.connection.lineage_credentials_in_secrets_manager
+    title: 'AZURE PURVIEW Connection: Lineage Credentials In Secrets Manager'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_connections
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.credentials.type
+        operator: equals
+        expected: KeyVault
+      - path: properties.credentials.key_vault_reference
+        operator: exists
+  - check_id: azure.purview.connection.lineage_private_networking_enforced
+    title: 'AZURE PURVIEW Connection: Lineage Private Networking Enforced'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.purview.connection.lineage_role_least_privilege
+    title: 'AZURE PURVIEW Connection: Lineage Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_definition.permissions[*].actions
+        operator: not_contains
+        expected: '*'
+      - path: properties.scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.connection.lineage_tls_required
+    title: 'AZURE PURVIEW Connection: Lineage TLS Required'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.minimum_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+      - path: properties.require_tls
+        operator: equals
+        expected: true
+  - check_id: azure.purview.data_masking.execution_roles_least_privilege
+    title: 'AZURE AZURE Privacy_masking: Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_masking_execution_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.role_assignments[*].scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.data_masking.policies_present_for_sensitive_fields
+    title: 'AZURE AZURE Privacy_masking: Policies Present For Sensitive Fields'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_masking_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.sensitive_data_policies
+        operator: exists
+      - path: properties.sensitive_data_policies[*].masking_rules
+        operator: exists
+  - check_id: azure.purview.data_policy.execution_roles_least_privilege
+    title: 'AZURE AZURE Privacy_rights: Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_policy_execution_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.role_assignments[*].scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.data_policy.workflow_storage_encrypted
+    title: 'AZURE AZURE Privacy_rights: Workflow Storage Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_source
+        operator: exists
+  - check_id: azure.purview.data_quality.data_catalog_logs_enabled
+    title: 'AZURE PURVIEW Data_quality: Data Catalog Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_quality_logging_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_catalog_logging.enabled
+        operator: equals
+        expected: true
+      - path: properties.log_retention_days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.purview.data_quality.data_catalog_output_location_private_and_encrypted
+    title: 'AZURE PURVIEW Data_quality: Data Catalog Output Location Private And Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_quality_output_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.output_location.network_access
+        operator: equals
+        expected: private
+      - path: properties.output_location.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.purview.data_quality.data_catalog_role_least_privilege
+    title: 'AZURE PURVIEW Data_quality: Data Catalog Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.catalog_roles[*].permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.catalog_roles[*].scope
+        operator: equals
+        expected: minimal
+  - check_id: azure.purview.data_quality.data_governance_quality_jobs_role_least_privilege
+    title: 'AZURE PURVIEW Data_quality: Data Governance Quality Jobs Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_job_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.job_execution_roles[*].permissions
+        operator: not_contains
+        expected: admin
+      - path: properties.job_execution_roles[*].principal_type
+        operator: equals
+        expected: ServicePrincipal
+  - check_id: azure.purview.data_quality.data_governance_quality_logs_enabled
+    title: 'AZURE PURVIEW Data_quality: Data Governance Quality Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_logging
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.log_level
+        operator: in
+        expected:
+        - INFO
+        - DEBUG
+        - WARN
+  - check_id: azure.purview.data_quality.data_governance_quality_outputs_encrypted_and_private
+    title: 'AZURE PURVIEW Data_quality: Data Governance Quality Outputs Encrypted And Private'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+      - path: properties.public_access
+        operator: equals
+        expected: false
+  - check_id: azure.purview.data_quality.lineage_logs_enabled
+    title: 'AZURE PURVIEW Data_quality: Lineage Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_lineage_logging
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.audit_trail_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.data_quality.lineage_output_location_private_and_encrypted
+    title: 'AZURE PURVIEW Data_quality: Lineage Output Location Private And Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_lineage_outputs
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.storage_encryption.enabled
+        operator: equals
+        expected: true
+      - path: properties.network_access
+        operator: equals
+        expected: private
+  - check_id: azure.purview.data_quality.lineage_role_least_privilege
+    title: 'AZURE PURVIEW Data_quality: Lineage Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality.get_lineage_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_roles[*].permissions
+        operator: not_contains
+        expected: full_control
+      - path: properties.lineage_roles[*].scope
+        operator: not_equals
+        expected: global
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_access_rbac_least_privilege
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_recommendation_access
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.rbac_roles[*].permissions
+        operator: not_contains
+        expected: owner
+      - path: properties.rbac_roles[*].scope
+        operator: equals
+        expected: resource
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_outputs_encrypted_and_private
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Outputs Encrypted And Private'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_recommendation_outputs
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.output_encryption.enabled
+        operator: equals
+        expected: true
+      - path: properties.public_endpoint.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_run_execution_role_least_privilege
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Execution Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_run_execution_roles
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.execution_roles[*].permissions
+        operator: not_contains
+        expected: admin
+      - path: properties.execution_roles[*].inherited_permissions
+        operator: equals
+        expected: false
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_run_logs_enabled
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_run_logging
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.run_logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.log_retention_days
+        operator: greater_than
+        expected: 30
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_run_metadata_logging_enabled
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Metadata Logging Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_run_metadata_logging
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.metadata_logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.detailed_metrics
+        operator: equals
+        expected: true
+  - check_id: azure.purview.data_quality_rule.data_quality_recommendation_run_output_encrypted_private
+    title: 'AZURE PURVIEW Data_quality_rule: Data Quality Recommendation Run Output Encrypted Private'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.type
+        operator: equals
+        expected: CustomerManaged
+      - path: properties.network_access
+        operator: equals
+        expected: private
+  - check_id: azure.purview.data_quality_rule.definition_version_pinned
+    title: 'AZURE PURVIEW Data_quality_rule: Definition Version Pinned'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_definitions
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.version
+        operator: not_equals
+        expected: latest
+      - path: properties.auto_update
+        operator: equals
+        expected: false
+  - check_id: azure.purview.data_quality_rule.parameters_no_plaintext_secrets
+    title: 'AZURE PURVIEW Data_quality_rule: Parameters No Plaintext Secrets'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_parameters
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.parameters[*].type
+        operator: not_equals
+        expected: plaintext
+      - path: properties.parameters[*].secret_reference
+        operator: exists
+  - check_id: azure.purview.data_quality_rule.source_trusted
+    title: 'AZURE PURVIEW Data_quality_rule: Source Trusted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rules.get_sources
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.sources[*].trusted
+        operator: equals
+        expected: true
+      - path: properties.sources[*].verification_status
+        operator: equals
+        expected: verified
+  - check_id: azure.purview.data_quality_ruleset.encrypted_at_rest
+    title: 'AZURE PURVIEW Data_quality_ruleset: Encrypted At Rest'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_at_rest.enabled
+        operator: equals
+        expected: true
+      - path: properties.encryption_at_rest.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.purview.data_quality_ruleset.rbac_least_privilege
+    title: 'AZURE PURVIEW Data_quality_ruleset: RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rulesets.get_rbac
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].permissions
+        operator: not_contains
+        expected: full_access
+      - path: properties.role_assignments[*].principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.data_quality_ruleset.version_immutable
+    title: 'AZURE PURVIEW Data_quality_ruleset: Version Immutable'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_quality_rulesets.get_versioning
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.immutable_versions
+        operator: equals
+        expected: true
+      - path: properties.allow_version_overwrite
+        operator: equals
+        expected: false
+  - check_id: azure.purview.database.data_catalog_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Database: Data Catalog Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: databases.get_sharing
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.cross_account_sharing_enabled
+        operator: equals
+        expected: false
+      - path: properties.external_sharing_restrictions
+        operator: exists
+  - check_id: azure.purview.database.data_catalog_encrypted
+    title: 'AZURE PURVIEW Database: Data Catalog Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_state
+        operator: equals
+        expected: Enabled
+      - path: properties.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.purview.database.data_catalog_policy_least_privilege
+    title: 'AZURE PURVIEW Database: Data Catalog Policy Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_catalog_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.access_policies[*].permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.access_policies[*].principals[*]
+        operator: not_contains
+        expected: Everyone
+  - check_id: azure.purview.database.lineage_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Database: Lineage Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_sharing_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.cross_account_sharing_enabled
+        operator: equals
+        expected: false
+      - path: properties.allowed_tenants
+        operator: exists
+  - check_id: azure.purview.database.lineage_encrypted
+    title: 'AZURE PURVIEW Database: Lineage Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_state
+        operator: equals
+        expected: Enabled
+      - path: properties.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.purview.database.lineage_policy_least_privilege
+    title: 'AZURE PURVIEW Database: Lineage Policy Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_access_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.policies[*].permissions
+        operator: not_contains
+        expected: FullControl
+      - path: properties.policies[*].scope
+        operator: not_equals
+        expected: Global
+  - check_id: azure.purview.governance.data_policy_admin_change_audit_logging_enabled
+    title: 'AZURE PURVIEW Governance: Data Policy Admin Change Audit Logging Enabled'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_audit_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.audit_log_categories
+        operator: contains
+        expected: PolicyAdminChanges
+      - path: properties.audit_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.governance.data_policy_admin_mfa_required
+    title: 'AZURE PURVIEW Governance: Data Policy Admin MFA Required'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_authentication_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.require_mfa_for_admins
+        operator: equals
+        expected: true
+      - path: properties.conditional_access_policies[*].require_mfa
+        operator: equals
+        expected: true
+  - check_id: azure.purview.governance.data_policy_admin_rbac_least_privilege
+    title: 'AZURE PURVIEW Governance: Data Policy Admin RBAC Least Privilege'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[?(@.role_definition_name=='Data Curator')].principal_type
+        operator: not_equals
+        expected: Everyone
+      - path: properties.role_assignments[?(@.role_definition_name=='Data Source Administrator')].scope
+        operator: not_equals
+        expected: /
+  - check_id: azure.purview.job.data_catalog_network_private_only
+    title: 'AZURE PURVIEW Job: Data Catalog Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.purview.job.data_catalog_role_least_privilege
+    title: 'AZURE PURVIEW Job: Data Catalog Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_catalog_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].permissions
+        operator: not_contains
+        expected: Write
+      - path: properties.role_assignments[*].scope
+        operator: not_equals
+        expected: Account
+  - check_id: azure.purview.job.data_catalog_script_location_private_and_encrypted
+    title: 'AZURE PURVIEW Job: Data Catalog Script Location Private And Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_data_catalog_script_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.script_location.storage_account_settings.public_access
+        operator: equals
+        expected: false
+      - path: properties.script_location.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.job.lineage_network_private_only
+    title: 'AZURE PURVIEW Job: Lineage Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections[*].properties.private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.purview.job.lineage_role_least_privilege
+    title: 'AZURE PURVIEW Job: Lineage Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_equals
+        expected: Owner
+      - path: properties.role_assignments[*].scope
+        operator: not_equals
+        expected: Global
+  - check_id: azure.purview.job.lineage_script_location_private_and_encrypted
+    title: 'AZURE PURVIEW Job: Lineage Script Location Private And Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_script_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.script_location.storage_settings.public_access
+        operator: equals
+        expected: false
+      - path: properties.script_location.encryption_settings.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.lifecycle.data_governance_expiration_rules_defined
+    title: 'AZURE PURVIEW Lifecycle: Data Governance Expiration Rules Defined'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_lifecycle_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.expiration_rules
+        operator: exists
+      - path: properties.expiration_rules[*].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.lifecycle.data_governance_immutable_retention_locked_where_required
+    title: 'AZURE PURVIEW Lifecycle: Data Governance Immutable Retention Locked Where Required'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_retention_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.immutable_retention_policies[*].lock_state
+        operator: equals
+        expected: Locked
+      - path: properties.immutable_retention_policies[*].retention_period
+        operator: greater_than
+        expected: 0
+  - check_id: azure.purview.lifecycle.data_governance_versioning_enabled_where_supported
+    title: 'AZURE PURVIEW Lifecycle: Data Governance Versioning Enabled Where Supported'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_governance_versioning_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.versioning_enabled
+        operator: equals
+        expected: true
+      - path: properties.max_versions
+        operator: greater_than
+        expected: 1
+  - check_id: azure.purview.lineage.data_governance_access_rbac_least_privilege
+    title: 'AZURE PURVIEW Lineage: Data Governance Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.get_lineage_access_control
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_equals
+        expected: Contributor
+      - path: properties.role_assignments[*].principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.lineage.data_governance_capture_enabled
+    title: 'AZURE PURVIEW Lineage: Data Governance Capture Enabled'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_configuration.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_governance_capture.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.lineage.data_governance_export_destination_encrypted
+    title: 'AZURE PURVIEW Lineage: Data Governance Export Destination Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_export_configuration.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.export_destination.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.ml_transform.data_catalog_network_private_only
+    title: 'AZURE PURVIEW Ml_transform: Data Catalog Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.purview.ml_transform.data_catalog_role_least_privilege
+    title: 'AZURE PURVIEW Ml_transform: Data Catalog Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: ml_transforms_data_catalog_role_assignments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.purview.ml_transform.lineage_network_private_only
+    title: 'AZURE PURVIEW Ml_transform: Lineage Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.purview.ml_transform.lineage_role_least_privilege
+    title: 'AZURE PURVIEW Ml_transform: Lineage Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: ml_transforms_lineage_role_assignments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.purview.partition.data_catalog_access_policies_least_privilege
+    title: 'AZURE PURVIEW Partition: Data Catalog Access Policies Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: partitions_data_catalog_access_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.access_policies[*].permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.partition.data_catalog_catalog_encrypted
+    title: 'AZURE PURVIEW Partition: Data Catalog Catalog Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.purview.partition.lineage_access_policies_least_privilege
+    title: 'AZURE PURVIEW Partition: Lineage Access Policies Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: partitions.get_access_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        partition_name: lineage
+      fields:
+      - path: properties.access_policies[*].permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.partition.lineage_catalog_encrypted
+    title: 'AZURE PURVIEW Partition: Lineage Catalog Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.purview.registry.data_catalog_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Registry: Data Catalog Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_sharing_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: dataCatalog
+      fields:
+      - path: properties.cross_account_sharing.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.registry.data_catalog_metadata_encryption_enabled
+    title: 'AZURE PURVIEW Registry: Data Catalog Metadata Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_encryption
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: dataCatalog
+      fields:
+      - path: properties.metadata_encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.registry.data_catalog_rbac_least_privilege
+    title: 'AZURE PURVIEW Registry: Data Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_rbac_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: dataCatalog
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.purview.registry.lineage_cross_account_sharing_restricted
+    title: 'AZURE PURVIEW Registry: Lineage Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_sharing_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: lineage
+      fields:
+      - path: properties.cross_account_sharing.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.registry.lineage_metadata_encryption_enabled
+    title: 'AZURE PURVIEW Registry: Lineage Metadata Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_encryption
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: lineage
+      fields:
+      - path: properties.metadata_encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.registry.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Registry: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: registry.get_rbac_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        registry_name: lineage
+      fields:
+      - path: properties.role_assignments[*].role_definition_name
+        operator: not_contains
+        expected: Owner
+  - check_id: azure.purview.retention_policy.data_governance_retention_enforced_on_sensitive_datasets
+    title: 'AZURE PURVIEW Retention_policy: Data Governance Retention Enforced On Sensitive Datasets'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: retention_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        retention_policy_name: dataGovernance
+      fields:
+      - path: properties.sensitive_data_retention.enforced
+        operator: equals
+        expected: true
+  - check_id: azure.purview.retention_policy.data_governance_retention_policies_defined
+    title: 'AZURE PURVIEW Retention_policy: Data Governance Retention Policies Defined'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: retention_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        retention_policy_name: dataGovernance
+      fields:
+      - path: properties.retention_policies
+        operator: exists
+  - check_id: azure.purview.retention_policy.data_governance_retention_protected_from_public_override
+    title: 'AZURE PURVIEW Retention_policy: Data Governance Retention Protected From Public Override'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: retention_policies.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: public_override_enabled
+        operator: equals
+        expected: false
+      - path: access_level
+        operator: not_equals
+        expected: public
+  - check_id: azure.purview.rule.lineage_definition_version_pinned
+    title: 'AZURE PURVIEW Rule: Lineage Definition Version Pinned'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_rules.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: definition_version
+        operator: exists
+      - path: definition_version
+        operator: not_equals
+        expected: latest
+  - check_id: azure.purview.rule.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Rule: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_rules.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: permissions
+        operator: not_contains
+        expected: '*'
+      - path: role_assignments[*].role
+        operator: not_equals
+        expected: Owner
+  - check_id: azure.purview.ruleset.data_catalog_encrypted_at_rest
+    title: 'AZURE PURVIEW Ruleset: Data Catalog Encrypted At Rest'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+      - path: encryption.key_source
+        operator: exists
+  - check_id: azure.purview.ruleset.data_catalog_rbac_least_privilege
+    title: 'AZURE PURVIEW Ruleset: Data Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_rulesets.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: permissions
+        operator: not_contains
+        expected: '*'
+      - path: role_assignments[*].role
+        operator: not_equals
+        expected: Owner
+  - check_id: azure.purview.ruleset.data_catalog_version_pinned
+    title: 'AZURE PURVIEW Ruleset: Data Catalog Version Pinned'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_rulesets.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: version
+        operator: exists
+      - path: version
+        operator: not_equals
+        expected: latest
+  - check_id: azure.purview.ruleset.lineage_encrypted_at_rest
+    title: 'AZURE PURVIEW Ruleset: Lineage Encrypted At Rest'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+      - path: encryption.key_source
+        operator: exists
+  - check_id: azure.purview.ruleset.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Ruleset: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_rulesets.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: permissions
+        operator: not_contains
+        expected: '*'
+      - path: role_assignments[*].role
+        operator: not_equals
+        expected: Owner
+  - check_id: azure.purview.ruleset.lineage_version_pinned
+    title: 'AZURE PURVIEW Ruleset: Lineage Version Pinned'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_rulesets.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: version
+        operator: exists
+      - path: version
+        operator: not_equals
+        expected: latest
+  - check_id: azure.purview.scan.data_catalog_crawler_logs_enabled
+    title: 'AZURE PURVIEW Scan: Data Catalog Crawler Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: scans.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: data_catalog_crawler.logging_enabled
+        operator: equals
+        expected: true
+      - path: data_catalog_crawler.log_level
+        operator: exists
+  - check_id: azure.purview.scan.data_catalog_crawler_network_private_only
+    title: 'AZURE PURVIEW Scan: Data Catalog Crawler Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_catalog_crawler.network_access
+        operator: equals
+        expected: Private
+      - path: properties.data_catalog_crawler.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.purview.scan.data_catalog_crawler_role_least_privilege
+    title: 'AZURE PURVIEW Scan: Data Catalog Crawler Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_catalog_crawler.service_role
+        operator: not_equals
+        expected: Owner
+      - path: properties.data_catalog_crawler.permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.scan.data_catalog_crawler_scope_restricted_to_allowlist
+    title: 'AZURE PURVIEW Scan: Data Catalog Crawler Scope Restricted To Allowlist'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.data_catalog_crawler.scope_restriction
+        operator: equals
+        expected: Allowlist
+      - path: properties.data_catalog_crawler.allowed_scopes
+        operator: exists
+  - check_id: azure.purview.scan.lineage_crawler_logs_enabled
+    title: 'AZURE PURVIEW Scan: Lineage Crawler Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_crawler.logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.lineage_crawler.log_level
+        operator: exists
+  - check_id: azure.purview.scan.lineage_crawler_network_private_only
+    title: 'AZURE PURVIEW Scan: Lineage Crawler Network Private Only'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_crawler.network_access
+        operator: equals
+        expected: Private
+      - path: properties.lineage_crawler.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.purview.scan.lineage_crawler_role_least_privilege
+    title: 'AZURE PURVIEW Scan: Lineage Crawler Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_crawler.service_role
+        operator: not_equals
+        expected: Owner
+      - path: properties.lineage_crawler.permissions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.scan.lineage_crawler_scope_restricted_to_allowlist
+    title: 'AZURE PURVIEW Scan: Lineage Crawler Scope Restricted To Allowlist'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_scans
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.lineage_crawler.scope_restriction
+        operator: equals
+        expected: Allowlist
+      - path: properties.lineage_crawler.allowed_scopes
+        operator: exists
+  - check_id: azure.purview.schema.data_catalog_encrypted
+    title: 'AZURE PURVIEW Schema: Data Catalog Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_key_uri
+        operator: exists
+  - check_id: azure.purview.schema.data_catalog_rbac_least_privilege
+    title: 'AZURE PURVIEW Schema: Data Catalog RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_data_catalog_schemas
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.permissions
+        operator: not_contains
+        expected: '*'
+      - path: properties.role_assignments[*].role
+        operator: not_equals
+        expected: Owner
+  - check_id: azure.purview.schema.data_catalog_version_immutability_enforced
+    title: 'AZURE PURVIEW Schema: Data Catalog Version Immutability Enforced'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: accounts.list_data_catalog_schemas
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+      fields:
+      - path: properties.version_immutability
+        operator: equals
+        expected: true
+      - path: properties.allow_version_override
+        operator: equals
+        expected: false
+  - check_id: azure.purview.schema.lineage_encrypted
+    title: 'AZURE PURVIEW Schema: Lineage Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.schema.lineage_rbac_least_privilege
+    title: 'AZURE PURVIEW Schema: Lineage RBAC Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_permissions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        schema_name: '{{schema_name}}'
+      fields:
+      - path: properties.permissions[*].principal_type
+        operator: not_equals
+        expected: Everyone
+      - path: properties.permissions[*].actions
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.table.data_catalog_access_policies_least_privilege
+    title: 'AZURE PURVIEW Table: Data Catalog Access Policies Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_access_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_name: '{{table_name}}'
+      fields:
+      - path: properties.policies[*].permissions
+        operator: not_contains
+        expected: FullControl
+      - path: properties.policies[*].principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.table.data_catalog_encrypted
+    title: 'AZURE PURVIEW Table: Data Catalog Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.table.data_catalog_public_sharing_disabled
+    title: 'AZURE PURVIEW Table: Data Catalog Public Sharing Disabled'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_sharing.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_name: '{{table_name}}'
+      fields:
+      - path: properties.public_access.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.table.lineage_access_policies_least_privilege
+    title: 'AZURE PURVIEW Table: Lineage Access Policies Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_access_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_name: '{{table_name}}'
+      fields:
+      - path: properties.policies[*].permissions
+        operator: not_contains
+        expected: FullControl
+      - path: properties.policies[*].principal_type
+        operator: not_equals
+        expected: Everyone
+  - check_id: azure.purview.table.lineage_encrypted
+    title: 'AZURE PURVIEW Table: Lineage Encrypted'
+    severity: medium
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.table.lineage_public_sharing_disabled
+    title: 'AZURE PURVIEW Table: Lineage Public Sharing Disabled'
+    severity: critical
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_sharing.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        table_name: '{{table_name}}'
+      fields:
+      - path: properties.public_access.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.purview.trigger.data_catalog_event_sources_restricted
+    title: 'AZURE PURVIEW Trigger: Data Catalog Event Sources Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.event_sources[*].allowed_sources
+        operator: exists
+      - path: properties.event_sources[*].allowed_sources
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.trigger.data_catalog_logs_enabled
+    title: 'AZURE PURVIEW Trigger: Data Catalog Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.trigger.data_catalog_targets_least_privilege
+    title: 'AZURE PURVIEW Trigger: Data Catalog Targets Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.targets[*].permissions
+        operator: not_contains
+        expected: FullControl
+      - path: properties.targets[*].scope
+        operator: not_equals
+        expected: All
+  - check_id: azure.purview.trigger.lineage_event_sources_restricted
+    title: 'AZURE PURVIEW Trigger: Lineage Event Sources Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.event_sources[*].allowed_sources
+        operator: exists
+      - path: properties.event_sources[*].allowed_sources
+        operator: not_contains
+        expected: '*'
+  - check_id: azure.purview.trigger.lineage_logs_enabled
+    title: 'AZURE PURVIEW Trigger: Lineage Logs Enabled'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.trigger.lineage_targets_least_privilege
+    title: 'AZURE PURVIEW Trigger: Lineage Targets Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_triggers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        trigger_name: '{{trigger_name}}'
+      fields:
+      - path: properties.targets[*].permissions
+        operator: not_contains
+        expected: FullControl
+      - path: properties.targets[*].scope
+        operator: not_equals
+        expected: All
+  - check_id: azure.purview.workflow.data_catalog_cross_account_trusts_restricted
+    title: 'AZURE PURVIEW Workflow: Data Catalog Cross Account Trusts Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        workflow_name: '{{workflow_name}}'
+      fields:
+      - path: properties.cross_account_trusts
+        operator: not_exists
+  - check_id: azure.purview.workflow.data_catalog_execution_role_least_privilege
+    title: 'AZURE PURVIEW Workflow: Data Catalog Execution Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: data_catalog_workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        workflow_name: '{{workflow_name}}'
+      fields:
+      - path: properties.execution_role.permissions
+        operator: not_contains
+        expected: Owner
+      - path: properties.execution_role.permissions
+        operator: not_contains
+        expected: Contributor
+  - check_id: azure.purview.workflow.data_catalog_kms_encryption_enabled
+    title: 'AZURE PURVIEW Workflow: Data Catalog KMS Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.workflow.lineage_cross_account_trusts_restricted
+    title: 'AZURE PURVIEW Workflow: Lineage Cross Account Trusts Restricted'
+    severity: low
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        workflow_name: '{{workflow_name}}'
+      fields:
+      - path: properties.cross_account_trusts
+        operator: not_exists
+  - check_id: azure.purview.workflow.lineage_execution_role_least_privilege
+    title: 'AZURE PURVIEW Workflow: Lineage Execution Role Least Privilege'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: lineage_workflows.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{name}}'
+        workflow_name: '{{workflow_name}}'
+      fields:
+      - path: properties.execution_role.permissions
+        operator: not_contains
+        expected: Owner
+      - path: properties.execution_role.permissions
+        operator: not_contains
+        expected: Contributor
+  - check_id: azure.purview.workflow.lineage_kms_encryption_enabled
+    title: 'AZURE PURVIEW Workflow: Lineage KMS Encryption Enabled'
+    severity: high
+    for_each: azure.purview.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+      - path: properties.encryption.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.ml_transform.lineage_logs_enabled
+    title: 'AZURE PURVIEW Ml_transform: Lineage Logs Enabled'
+    severity: low
+    for_each: azure.purview.ml_transform
+    calls:
+    - action: self
+      fields:
+      - path: properties.lineage.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.job.data_catalog_logs_and_metrics_enabled
+    title: 'AZURE PURVIEW Job: Data Catalog Logs And Metrics Enabled'
+    severity: low
+    for_each: azure.purview.job
+    calls:
+    - action: monitor.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+    - action: self
+      fields:
+      - path: properties.diagnosticSettings.logs.enabled
+        operator: equals
+        expected: true
+      - path: properties.diagnosticSettings.metrics.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.ml_transform.data_catalog_logs_enabled
+    title: 'AZURE PURVIEW Ml_transform: Data Catalog Logs Enabled'
+    severity: low
+    for_each: azure.purview.ml_transform
+    calls:
+    - action: self
+      fields:
+      - path: properties.logging.dataCatalogLogsEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.purview.job.lineage_logs_and_metrics_enabled
+    title: 'AZURE PURVIEW Job: Lineage Logs And Metrics Enabled'
+    severity: low
+    for_each: azure.purview.job
+    calls:
+    - action: self
+      fields:
+      - path: properties.lineage.logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.lineage.metrics_enabled
+        operator: equals
+        expected: true

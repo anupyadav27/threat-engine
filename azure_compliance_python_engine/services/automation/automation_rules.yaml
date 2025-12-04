@@ -1,0 +1,237 @@
+automation:
+  version: '1.0'
+  provider: azure
+  service: automation
+  package: azure-mgmt-automation
+  client_class: AutomationClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.automation.accounts
+    calls:
+    - client: automation
+      action: automation_account.list_by_subscription
+      save_as: automation_accounts
+  - discovery_id: azure.automation.runbooks
+    calls:
+    - client: automation
+      action: runbook.list_by_automation_account
+      save_as: runbooks
+  - discovery_id: azure.automation.managed_identities
+    calls:
+    - client: automation
+      action: automation_account.get
+      save_as: managed_identities
+  checks:
+  - check_id: azure.automation.runbook.incident_execution_roles_least_privilege
+    title: 'AZURE AUTOMATION Runbook: Incident Execution Roles Least Privilege'
+    severity: high
+    for_each: azure.automation.runbooks
+    calls:
+    - action: runbook.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{automation_account_name}}'
+        runbook_name: '{{name}}'
+      fields:
+      - path: runbook_type
+        operator: equals
+        expected: PowerShell
+      - path: log_verbose
+        operator: equals
+        expected: false
+  - check_id: azure.automation.runbook.dr_storage_encrypted_and_private
+    title: 'AZURE AUTOMATION Runbook: DR Storage Encrypted And Private'
+    severity: medium
+    for_each: azure.automation.runbooks
+    calls:
+    - action: self
+      fields:
+      - path: parameters
+        operator: exists
+      - path: creation_time
+        operator: exists
+  - check_id: azure.automation.runbook.dr_access_rbac_least_privilege
+    title: 'AZURE AUTOMATION Runbook: DR Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.automation.runbooks
+    calls:
+    - action: runbook.get_content
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{automation_account_name}}'
+        runbook_name: '{{name}}'
+      fields:
+      - path: state
+        operator: equals
+        expected: Published
+      - path: log_progress
+        operator: equals
+        expected: true
+  - check_id: azure.automation.runbook.secure_variable_encryption
+    title: 'AZURE AUTOMATION Runbook: Secure Variable Encryption'
+    severity: high
+    for_each: azure.automation.runbooks
+    calls:
+    - action: variable.list_by_automation_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{automation_account_name}}'
+      fields:
+      - path: value[?(@.is_encrypted == true)].name
+        operator: exists
+  - check_id: azure.automation.runbook.webhook_authentication_enabled
+    title: 'AZURE AUTOMATION Runbook: Webhook Authentication Enabled'
+    severity: medium
+    for_each: azure.automation.runbooks
+    calls:
+    - action: webhook.list_by_automation_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{automation_account_name}}'
+      fields:
+      - path: value[0].is_enabled
+        operator: equals
+        expected: true
+      - path: value[0].expiry_time
+        operator: exists
+  - check_id: azure.automation.runbook.job_execution_monitoring
+    title: 'AZURE AUTOMATION Runbook: Job Execution Monitoring'
+    severity: low
+    for_each: azure.automation.runbooks
+    calls:
+    - action: job.list_by_automation_account
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{automation_account_name}}'
+      fields:
+      - path: value[0].status
+        operator: exists
+      - path: value[0].start_time
+        operator: exists
+  - check_id: azure.automation.account.compliant_patching_enabled
+    title: 'AZURE AUTOMATION Account: Managed Compliant Patching'
+    severity: medium
+    for_each: azure.automation.automation_accounts
+    calls:
+    - action: software_update_configurations.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{name}}'
+      fields:
+      - path: value[0].update_configuration.operating_system
+        operator: exists
+      - path: value[0].schedule_info.is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.automation.patch.compliance
+    title: 'AZURE AUTOMATION Patch: Compliance'
+    severity: low
+    for_each: azure.automation.automation_accounts
+    calls:
+    - action: software_update_configuration_runs.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        automation_account_name: '{{name}}'
+      fields:
+      - path: value[0].status
+        operator: exists
+      - path: value[0].configured_duration
+        operator: exists
+  - check_id: azure.automation.managed.identity.system_assigned_enabled
+    title: 'AZURE AUTOMATION Managed: Identity System Assigned Enabled'
+    severity: medium
+    for_each: azure.automation.managed_identities
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+      - path: identity.principal_id
+        operator: exists
+  - check_id: azure.automation.runbook.incident_change_audit_logging_enabled
+    title: 'AZURE AUTOMATION Runbook: Incident Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.automation.runbook
+    calls:
+    - action: self
+      fields:
+      - path: properties.logVerbose
+        operator: equals
+        expected: true
+      - path: properties.logProgress
+        operator: equals
+        expected: true
+  - check_id: azure.automation.runbook.dr_change_audit_logging_enabled
+    title: 'AZURE AUTOMATION Runbook: DR Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.automation.runbook
+    calls:
+    - action: self
+      fields:
+      - path: properties.logVerbose
+        operator: equals
+        expected: true
+      - path: properties.logProgress
+        operator: equals
+        expected: true
+  - check_id: azure.automation.runbook.incident_artifacts_encrypted_and_private
+    title: 'AZURE AUTOMATION Runbook: Incident Artifacts Encrypted And Private'
+    severity: medium
+    for_each: azure.automation.runbook
+    calls:
+    - action: self
+      fields:
+      - path: properties.logVerbose
+        operator: equals
+        expected: false
+      - path: properties.logProgress
+        operator: equals
+        expected: false
+      - path: properties.outputTypes
+        operator: not_contains
+        expected: ActivityOutput
+    - action: automation_client.job.list_by_automation_account
+      parameters:
+        resource_group_name: '{{ resource_group_name }}'
+        automation_account_name: '{{ automation_account_name }}'
+        filter: properties/runbook/name eq '{{ name }}'
+      fields:
+      - path: properties.provisioningState
+        operator: equals
+        expected: Succeeded
+      - path: properties.jobOutputType
+        operator: not_equals
+        expected: Text
+  - check_id: azure.automation.managed.compliant.patching,.azure.aks.cluster.uses.a.supported.version,.azure.sql.cluster.minor.version.upgrade.enabled
+    title: 'AZURE AUTOMATION Managed: Compliant Patching, Azure Aks Cluster Uses A Supported Version, Azure Sql Cluster Minor
+      Version Upgrade Enabled'
+    severity: medium
+    for_each: azure.automation.managed
+    calls:
+    - action: automation_client.software_update_configurations.list
+      fields:
+      - path: properties.updateConfiguration.operatingSystem
+        operator: in
+        expected:
+        - Windows
+        - Linux
+      - path: properties.scheduleInfo.isEnabled
+        operator: equals
+        expected: true
+    - action: container_service_client.managed_clusters.list
+      fields:
+      - path: properties.kubernetesVersion
+        operator: matches_pattern
+        expected: ^1\.(2[4-9]|[3-9][0-9])\.
+      - path: properties.provisioningState
+        operator: equals
+        expected: Succeeded
+    - action: sql_client.managed_instances.list
+      fields:
+      - path: properties.minorVersion
+        operator: not_null
+        expected: true
+      - path: properties.maintenanceConfigurationId
+        operator: not_null
+        expected: true

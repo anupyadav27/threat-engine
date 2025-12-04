@@ -1,0 +1,94 @@
+management:
+  version: '1.0'
+  provider: azure
+  service: management
+  package: azure-mgmt-managementgroups
+  client_class: ManagementGroupsAPI
+  scope: tenant
+  discovery:
+  - discovery_id: azure.management.groups
+    calls:
+    - client: managementgroups
+      action: management_groups.list
+      save_as: management_groups
+  checks:
+  - check_id: azure.management.groups_group.governance_org_all_accounts_enrolled_in_org
+    title: 'AZURE MANAGEMENT: All Subscriptions Enrolled in Management Group'
+    severity: medium
+    for_each: azure.management.groups
+    calls:
+    - action: management_groups.get_descendants
+      params:
+        group_id: '{{group_id}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.management.groups_group.governance_org_block_leave_org_by_policy
+    title: 'AZURE MANAGEMENT: Block Subscription Removal Policy Enabled'
+    severity: high
+    for_each: azure.management.groups
+    calls:
+    - action: management_group_subscriptions.get_subscription_under_management_group
+      params:
+        group_id: '{{group_id}}'
+      fields:
+      - path: properties.require_authorization_for_group_creation
+        operator: equals
+        expected: true
+  - check_id: azure.management.groups_group.governance_org_restrict_region_usage_by_policy_where_required
+    title: 'AZURE MANAGEMENT: Region Restriction Policy Applied'
+    severity: medium
+    for_each: azure.management.groups
+    calls:
+    - action: policy_assignments.list_for_management_group
+      params:
+        management_group_id: '{{group_id}}'
+      fields:
+      - path: value[?(@.properties.display_name contains 'Allowed locations')]
+        operator: exists
+  - check_id: azure.management.groups_group.governance_org_scps_enabled
+    title: 'AZURE MANAGEMENT: Azure Policy Enabled at Management Group'
+    severity: high
+    for_each: azure.management.groups
+    calls:
+    - action: policy_assignments.list_for_management_group
+      params:
+        management_group_id: '{{group_id}}'
+      fields:
+      - path: value
+        operator: has_items
+  - check_id: azure.management.groups_group.governance_ou_auto_tag_policies_enabled_where_supported
+    title: 'AZURE MANAGEMENT: Auto-tagging Policies Enabled'
+    severity: low
+    for_each: azure.management.groups
+    calls:
+    - action: policy_assignments.list_for_management_group
+      params:
+        management_group_id: '{{group_id}}'
+      fields:
+      - path: value[?(@.properties.display_name contains 'tag' || @.properties.display_name contains 'Tag')]
+        operator: exists
+  - check_id: azure.management.groups_group.governance_ou_no_overly_permissive_exceptions
+    title: 'AZURE MANAGEMENT: No Overly Permissive Policy Exemptions'
+    severity: high
+    for_each: azure.management.groups
+    calls:
+    - action: policy_exemptions.list_for_management_group
+      params:
+        management_group_id: '{{group_id}}'
+      fields:
+      - path: value[?(@.properties.exemption_category == 'Waiver')]
+        operator: count_less_than
+        expected: 5
+  - check_id: azure.management.groups_group.governance_ou_required_scps_attached
+    title: 'AZURE MANAGEMENT: Required Azure Policies Attached'
+    severity: high
+    for_each: azure.management.groups
+    calls:
+    - action: policy_assignments.list_for_management_group
+      params:
+        management_group_id: '{{group_id}}'
+      fields:
+      - path: value
+        operator: count_greater_than
+        expected: 0

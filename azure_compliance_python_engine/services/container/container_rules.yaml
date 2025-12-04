@@ -1,0 +1,134 @@
+container:
+  version: '1.0'
+  provider: azure
+  service: container
+  package: azure-mgmt-containerinstance
+  client_class: ContainerInstanceManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.container.registries
+    calls:
+    - client: container_registry
+      action: registries.list
+      save_as: registries
+  - discovery_id: azure.container.instances_groups
+    calls:
+    - client: container_instance
+      action: container_groups.list
+      save_as: container_groups
+  - discovery_id: azure.container.instances
+    calls:
+    - client: container_instance
+      action: containers.list_by_container_group
+      save_as: containers
+  checks:
+  - check_id: azure.container.registry.encryption_enabled
+    title: Registry Repository Encryption Enabled
+    severity: high
+    for_each: azure.container.registries
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: enabled
+  - check_id: azure.container.instances_group.containers_kubernetes_instance_no_privileged_containers
+    title: Containers Kubernetes Instance No Privileged Containers
+    severity: high
+    for_each: azure.container.instances_groups
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{container_group_name}}'
+      fields:
+      - path: containers[*].security_context.privileged
+        operator: equals
+        expected: false
+  - check_id: azure.container.instance.logging_enabled
+    title: Instances Task Definition Logging Enabled
+    severity: medium
+    for_each: azure.container.instances
+    calls:
+    - action: containers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{container_group_name}}'
+        container_name: '{{container_name}}'
+      fields:
+      - path: diagnostics_config.log_analytics
+        operator: exists
+  - check_id: azure.container.instances_group.containers_kubernetes_instance_read_only_root_filesystem
+    title: Containers Kubernetes Instance Read Only Root Filesystem
+    severity: critical
+    for_each: azure.container.instances_groups
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{container_group_name}}'
+      fields:
+      - path: containers[*].security_context.read_only_root_filesystem
+        operator: equals
+        expected: true
+  - check_id: azure.container.instance.managed.identity.least.privilege.check
+    title: Managed Identity Least Privilege Check
+    severity: high
+    for_each: azure.container.instances
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+  - check_id: azure.container.registry.admin_user_disabled
+    title: Registry Admin User Disabled
+    severity: medium
+    for_each: azure.container.registries
+    calls:
+    - action: registries.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        registry_name: '{{registry_name}}'
+      fields:
+      - path: admin_user_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.container.instances_group.network_profile_configured
+    title: Container Group Network Profile Configured
+    severity: low
+    for_each: azure.container.instances_groups
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{container_group_name}}'
+      fields:
+      - path: network_profile
+        operator: exists
+  - check_id: azure.container.registry.image_scan_enabled
+    title: 'AZURE CONTAINER Resource: Registry Image Scan On Push Enabled'
+    severity: low
+    for_each: azure.container.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.policies.quarantinePolicy.status
+        operator: equals
+        expected: enabled
+      - path: properties.policies.trustPolicy.status
+        operator: equals
+        expected: enabled
+  - check_id: azure.container.instances_group.containers_kubernetes_instance_env_no_plaintext_secrets
+    title: 'AZURE CONTAINER Instances_group: Containers Kubernetes Instance Env No Plaintext Secrets'
+    severity: high
+    for_each: azure.container.instances_group
+    calls:
+    - action: self
+      fields:
+      - path: properties.containers[*].properties.environmentVariables[*].secureValue
+        operator: exists
+        expected: true
+      - path: properties.containers[*].properties.environmentVariables[*].value
+        operator: not_contains_secrets
+        expected: true

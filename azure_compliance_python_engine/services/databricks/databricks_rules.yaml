@@ -1,0 +1,154 @@
+databricks:
+  version: '1.0'
+  provider: azure
+  service: databricks
+  package: azure-mgmt-databricks
+  client_class: AzureDatabricksManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.databricks.workspaces
+    calls:
+    - client: databricks
+      action: workspaces.list_by_subscription
+      save_as: workspaces
+  - discovery_id: azure.databricks.vnet_peering
+    calls:
+    - client: databricks
+      action: vnet_peering.list_by_workspace
+      save_as: vnet_peering
+  - discovery_id: azure.databricks.private_endpoints
+    calls:
+    - client: databricks
+      action: private_endpoint_connections.list
+      save_as: private_endpoints
+  checks:
+  - check_id: azure.databricks.workspace.public.network.access.check
+    title: 'AZURE DATABRICKS Workspace: Public Network Access Check'
+    severity: critical
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.databricks.workspace.vnet.configuration.check
+    title: 'AZURE DATABRICKS Workspace: VNet Configuration Check'
+    severity: medium
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: parameters.custom_virtual_network_id
+        operator: exists
+  - check_id: azure.databricks.workspace.encryption.cmk.enabled
+    title: 'AZURE DATABRICKS Workspace: Encryption CMK Enabled'
+    severity: high
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: encryption.entities.managed_services.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+  - check_id: azure.databricks.workspace.private.endpoint.enabled
+    title: 'AZURE DATABRICKS Workspace: Private Endpoint Enabled'
+    severity: high
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: value[0].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.databricks.workspace.managed.identity.enabled
+    title: 'AZURE DATABRICKS Workspace: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.databricks.scim.sync.verification
+    title: 'AZURE DATABRICKS SCIM: Sync Verification'
+    severity: medium
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: authorizations[0].principal_id
+        operator: exists
+  - check_id: azure.databricks.pat.token.expiration.check
+    title: 'AZURE DATABRICKS PAT: Token Expiration Check'
+    severity: medium
+    for_each: azure.databricks.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: parameters.enable_no_public_ip.value
+        operator: equals
+        expected: true
+  - check_id: azure.databricks.workspace.check.no.public.ip.enabled
+    title: 'AZURE DATABRICKS Workspace: Check No Public Ip Enabled'
+    severity: critical
+    for_each: azure.databricks.workspace
+    calls:
+    - action: self
+      fields:
+      - path: properties.parameters.enableNoPublicIp.value
+        operator: equals
+        expected: true
+  - check_id: azure.databricks.pat.compliance.check
+    title: 'AZURE DATABRICKS Pat: Compliance Check'
+    severity: medium
+    for_each: azure.databricks.pat
+    calls:
+    - action: self
+      fields:
+      - path: lifetime_seconds
+        operator: less_than_or_equal
+        expected: 7776000
+      - path: comment
+        operator: not_empty
+        expected: true
+  - check_id: azure.databricks.workspace.private.endpoint.status.check
+    title: 'AZURE DATABRICKS Workspace: Private Endpoint Status Check'
+    severity: low
+    for_each: azure.databricks.workspace
+    calls:
+    - action: self
+      fields:
+      - path: properties.private_endpoint_connections
+        operator: exists
+      - path: properties.private_endpoint_connections[*].properties.private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.databricks.workspace.diagnostic.logging.configured
+    title: 'AZURE DATABRICKS Workspace: Diagnostic Logging Configured'
+    severity: medium
+    for_each: azure.databricks.workspace
+    calls:
+    - action: monitor.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+      - path: value[*].properties.logs
+        operator: not_empty
+        expected: true
+      - path: value[*].properties.logs[?(@.enabled == true)]
+        operator: not_empty
+        expected: true

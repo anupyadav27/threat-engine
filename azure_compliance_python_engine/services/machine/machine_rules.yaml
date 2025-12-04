@@ -1,0 +1,3009 @@
+machine:
+  version: '1.0'
+  provider: azure
+  service: machine
+  package: azure-mgmt-machinelearningservices
+  client_class: MachineLearningServicesManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.machine.workspaces
+    calls:
+    - client: machine
+      action: workspaces.list_by_subscription
+      save_as: workspaces
+  - discovery_id: azure.machine.models
+    calls:
+    - client: machine
+      action: model_versions.list
+      save_as: models
+  - discovery_id: azure.machine.endpoints
+    calls:
+    - client: machine
+      action: online_endpoints.list
+      save_as: endpoints
+  - discovery_id: azure.machine.jobs
+    calls:
+    - client: machine
+      action: jobs.list
+      save_as: jobs
+  - discovery_id: azure.machine.feature_stores
+    calls:
+    - client: machine
+      action: feature_store_entity_versions.list
+      save_as: feature_stores
+  checks:
+  - check_id: azure.machine.learning_model.data_governance_ai_model_registry_rbac_least_privilege
+    title: 'AZURE MACHINE Learning Model: Data Governance AI Model Registry RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.models
+    calls:
+    - action: self
+      fields:
+      - path: properties.flavors.azureml.model_format
+        operator: exists
+      - path: properties.tags.rbac_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_feature_store.ai_services_feature_store_offline_store_s3_encrypted
+    title: 'AZURE MACHINE Learning Feature Store: AI Services Feature Store Offline Store S3 Encrypted'
+    severity: medium
+    for_each: azure.machine.feature_stores
+    calls:
+    - action: self
+      fields:
+      - path: properties.offline_store_connection_string
+        operator: exists
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_job.ai_services_training_job_volume_encryption_enabled
+    title: 'AZURE MACHINE Learning Job: AI Services Training Job Volume Encryption Enabled'
+    severity: high
+    for_each: azure.machine.jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{id}}'
+      fields:
+      - path: properties.compute.target
+        operator: exists
+      - path: properties.environment_variables.AZURE_ML_ENCRYPTION_ENABLED
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_online_endpoint.data_privacy_ai_endpoint_private_networking_enforced
+    title: 'AZURE MACHINE Learning Online Endpoint: Data Privacy AI Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_model.data_privacy_ai_model_registry_rbac_least_privilege
+    title: 'AZURE MACHINE Learning Model: Data Privacy AI Model Registry RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.models
+    calls:
+    - action: self
+      fields:
+      - path: properties.is_anonymous
+        operator: equals
+        expected: false
+      - path: properties.tags.data_classification
+        operator: exists
+  - check_id: azure.machine.learning_workspace.encryption_customer_managed_keys
+    title: 'AZURE MACHINE Learning Workspace: Encryption Customer Managed Keys'
+    severity: high
+    for_each: azure.machine.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties.key_vault_arm_id
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.authentication_key_based_disabled
+    title: 'AZURE MACHINE Learning Endpoint: Authentication Key Based Disabled'
+    severity: medium
+    for_each: azure.machine.endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.auth_mode
+        operator: equals
+        expected: AMLToken
+      - path: properties.keys
+        operator: exists
+  - check_id: azure.machine.learning_model_package.vulnerability_scanning_enabled
+    title: 'AZURE MACHINE Learning Model Package: Vulnerability Scanning Enabled'
+    severity: medium
+    for_each: azure.machine.models
+    calls:
+    - action: self
+      fields:
+      - path: properties.container_registry
+        operator: exists
+      - path: properties.tags.vulnerability_scan_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_workspace.network_isolation_enabled
+    title: 'AZURE MACHINE Learning Workspace: Network Isolation Enabled'
+    severity: high
+    for_each: azure.machine.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.allow_public_access_when_behind_vnet
+        operator: equals
+        expected: false
+  - check_id: azure.machine.learning_job.compute_instance_idle_shutdown
+    title: 'AZURE MACHINE Learning Job: Compute Instance Idle Shutdown'
+    severity: low
+    for_each: azure.machine.jobs
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{compute_name}}'
+      fields:
+      - path: properties.properties.idle_time_before_shutdown
+        operator: exists
+      - path: properties.compute_type
+        operator: equals
+        expected: ComputeInstance
+  - check_id: azure.machine.learning_model.model_approval_workflow_enabled
+    title: 'AZURE MACHINE Learning Model: Model Approval Workflow Enabled'
+    severity: medium
+    for_each: azure.machine.models
+    calls:
+    - action: self
+      fields:
+      - path: properties.stage
+        operator: exists
+      - path: properties.tags.approval_status
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.traffic_splitting_configured
+    title: 'AZURE MACHINE Learning Endpoint: Traffic Splitting Configured'
+    severity: low
+    for_each: azure.machine.endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group_name}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.traffic
+        operator: exists
+      - path: properties.mirror_traffic
+        operator: exists
+  - check_id: azure.machine.learning_job.data_drift_monitoring_enabled
+    title: 'AZURE MACHINE Learning Job: Data Drift Monitoring Enabled'
+    severity: medium
+    for_each: azure.machine.jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.services.monitoring
+        operator: exists
+      - path: properties.tags.data_drift_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.lineage_tracking_enabled
+    title: 'AZURE MACHINE Learning Model: Lineage Tracking Enabled'
+    severity: low
+    for_each: azure.machine.models
+    calls:
+    - action: self
+      fields:
+      - path: properties.job_name
+        operator: exists
+      - path: properties.tags.parent_job_id
+        operator: exists
+  - check_id: azure.machine.learning_auto_ml_job.data_governance_ai_automl_logs_enabled
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Governance Ai Automl Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        job_name: '{{job_name}}'
+      fields:
+      - path: properties.services.tracking.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.properties.enable_logging
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.data_governance_ai_automl_private_networking_enforced
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Governance Ai Automl Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        job_name: '{{job_name}}'
+      fields:
+      - path: properties.compute.target
+        operator: exists
+      - path: properties.properties.private_network_access
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.data_governance_ai_automl_roles_least_privilege
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Governance Ai Automl Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.tags.rbac_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.data_privacy_ai_automl_logs_enabled
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Privacy Ai Automl Logs Enabled'
+    severity: medium
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        job_name: '{{job_name}}'
+      fields:
+      - path: properties.services.tracking.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.properties.data_privacy_logging
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.data_privacy_ai_automl_private_networking_enforced
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Privacy Ai Automl Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        job_name: '{{job_name}}'
+      fields:
+      - path: properties.properties.private_network_access
+        operator: equals
+        expected: 'true'
+      - path: properties.properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_auto_ml_job.data_privacy_ai_automl_roles_least_privilege
+    title: 'AZURE MACHINE Learning_auto_ml_job: Data Privacy Ai Automl Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.data_privacy_rbac
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.learning_automl_logs_enabled
+    title: 'AZURE MACHINE Learning_auto_ml_job: Learning Automl Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: services.tracking.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.enable_logging
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_auto_ml_job.learning_automl_private_networking_enforced
+    title: 'AZURE MACHINE Learning_auto_ml_job: Learning Automl Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.private_network_access
+        operator: equals
+        expected: 'true'
+      - path: compute.subnet_resource_id
+        operator: exists
+  - check_id: azure.machine.learning_auto_ml_job.learning_automl_roles_least_privilege
+    title: 'AZURE MACHINE Learning_auto_ml_job: Learning Automl Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_auto_ml_jobs
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.rbac_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_governance_ai_transform_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Governance Ai Transform Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_at_rest_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.encryption_in_transit_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_governance_ai_transform_job_logs_enabled
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Governance Ai Transform Job Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: batch_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.application_insights_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_governance_ai_transform_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Governance Ai Transform Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_batch_endpoint.data_governance_ai_transform_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Governance Ai Transform Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.rbac_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_privacy_ai_transform_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Privacy Ai Transform Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_at_rest_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.data_privacy_encryption
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_privacy_ai_transform_job_logs_enabled
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Privacy Ai Transform Job Logs Enabled'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: batch_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.data_privacy_logging
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_privacy_ai_transform_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Privacy Ai Transform Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.data_privacy_network_isolation
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.data_privacy_ai_transform_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_batch_endpoint: Data Privacy Ai Transform Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.data_privacy_rbac
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.learning_transform_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_batch_endpoint: Learning Transform Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption_at_rest_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.encryption_in_transit_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.learning_transform_job_logs_enabled
+    title: 'AZURE MACHINE Learning_batch_endpoint: Learning Transform Job Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: batch_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.application_insights_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_batch_endpoint.learning_transform_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_batch_endpoint: Learning Transform Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_batch_endpoint.learning_transform_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_batch_endpoint: Learning Transform Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_batch_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: auth_mode
+        operator: equals
+        expected: AMLToken
+      - path: tags.rbac_least_privilege
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_compute_instance.data_governance_ai_notebook_encrypted
+    title: 'AZURE MACHINE Learning_compute_instance: Data Governance Ai Notebook Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.vm_size
+        operator: exists
+      - path: properties.ssh_settings.ssh_public_access
+        operator: equals
+        expected: Disabled
+      - path: disable_local_auth
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_compute_instance.data_governance_ai_notebook_execution_role_least_privilege
+    title: 'AZURE MACHINE Learning_compute_instance: Data Governance Ai Notebook Execution Role Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.least_privilege_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_compute_instance.data_governance_ai_notebook_idle_shutdown_configured
+    title: 'AZURE MACHINE Learning_compute_instance: Data Governance Ai Notebook Idle Shutdown Configured'
+    severity: low
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: properties.idle_time_before_shutdown
+        operator: exists
+      - path: properties.idle_time_before_shutdown
+        operator: not_equals
+        expected: PT0S
+  - check_id: azure.machine.learning_compute_instance.data_governance_ai_notebook_no_public_access
+    title: 'AZURE MACHINE Learning_compute_instance: Data Governance Ai Notebook No Public Access'
+    severity: critical
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.ssh_settings.ssh_public_access
+        operator: equals
+        expected: Disabled
+      - path: properties.subnet.id
+        operator: exists
+  - check_id: azure.machine.learning_compute_instance.data_privacy_ai_notebook_encrypted
+    title: 'AZURE MACHINE Learning_compute_instance: Data Privacy Ai Notebook Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.vm_size
+        operator: exists
+      - path: disable_local_auth
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_compute_instance.data_privacy_ai_notebook_execution_role_least_privilege
+    title: 'AZURE MACHINE Learning_compute_instance: Data Privacy Ai Notebook Execution Role Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.privacy_role_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_compute_instance.data_privacy_ai_notebook_idle_shutdown_configured
+    title: 'AZURE MACHINE Learning_compute_instance: Data Privacy Ai Notebook Idle Shutdown Configured'
+    severity: medium
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: properties.idle_time_before_shutdown
+        operator: exists
+      - path: properties.idle_time_before_shutdown
+        operator: not_equals
+        expected: PT0S
+  - check_id: azure.machine.learning_compute_instance.data_privacy_ai_notebook_no_public_access
+    title: 'AZURE MACHINE Learning_compute_instance: Data Privacy Ai Notebook No Public Access'
+    severity: critical
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.ssh_settings.ssh_public_access
+        operator: equals
+        expected: Disabled
+      - path: properties.subnet.id
+        operator: exists
+  - check_id: azure.machine.learning_compute_instance.learning_notebook_encrypted
+    title: 'AZURE MACHINE Learning_compute_instance: Learning Notebook Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.vm_size
+        operator: exists
+      - path: disable_local_auth
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_compute_instance.learning_notebook_execution_role_least_privilege
+    title: 'AZURE MACHINE Learning_compute_instance: Learning Notebook Execution Role Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: tags.execution_role_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_compute_instance.learning_notebook_idle_shutdown_configured
+    title: 'AZURE MACHINE Learning_compute_instance: Learning Notebook Idle Shutdown Configured'
+    severity: low
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: self
+      fields:
+      - path: properties.idle_time_before_shutdown
+        operator: exists
+      - path: properties.idle_time_before_shutdown
+        operator: not_equals
+        expected: PT0S
+  - check_id: azure.machine.learning_compute_instance.learning_notebook_no_public_access
+    title: 'AZURE MACHINE Learning_compute_instance: Learning Notebook No Public Access'
+    severity: critical
+    for_each: azure.machine.learning_compute_instances
+    calls:
+    - action: compute.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        compute_name: '{{name}}'
+      fields:
+      - path: properties.ssh_settings.ssh_public_access
+        operator: equals
+        expected: Disabled
+      - path: properties.subnet.id
+        operator: exists
+  - check_id: azure.machine.learning_dataset.ai_services_ai_dataset_encrypted_at_rest_cmek
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Ai Dataset Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: dataset_type
+        operator: exists
+      - path: tags.cmek_encrypted
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_dataset.ai_services_ai_dataset_public_access_blocked
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Ai Dataset Public Access Blocked'
+    severity: critical
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: dataset_type
+        operator: exists
+      - path: tags.public_access_blocked
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_dataset.ai_services_dataset_access_logging_enabled
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Dataset Access Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.dataset_type
+        operator: exists
+      - path: properties.tags.access_logging_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_dataset.ai_services_dataset_lifecycle_policy_configured
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Dataset Lifecycle Policy Configured'
+    severity: medium
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.dataset_type
+        operator: exists
+      - path: properties.tags.lifecycle_policy_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_dataset.ai_services_dataset_s3_block_public_access
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Dataset S3 Block Public Access'
+    severity: critical
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.dataset_type
+        operator: exists
+      - path: properties.tags.s3_public_access_blocked
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_dataset.ai_services_dataset_s3_encrypted_at_rest
+    title: 'AZURE MACHINE Learning_dataset: Ai Services Dataset S3 Encrypted At Rest'
+    severity: medium
+    for_each: azure.machine.learning_datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.dataset_type
+        operator: exists
+      - path: properties.tags.s3_encrypted_at_rest
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_deployment.data_governance_ai_endpoint_config_content_type_whitelist_enforced
+    title: 'AZURE MACHINE Learning_deployment: Data Governance Ai Endpoint Config Content Type Whitelist Enforced'
+    severity: medium
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: self
+      fields:
+      - path: properties.endpoint_compute_type
+        operator: exists
+      - path: properties.tags.content_type_whitelist_enforced
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_deployment.data_governance_ai_endpoint_config_data_capture_bucket_encrypted_private
+    title: 'AZURE MACHINE Learning_deployment: Data Governance Ai Endpoint Config Data Capture Bucket Encrypted Private'
+    severity: medium
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: properties.data_collector.collections.model_data.destination.uri
+        operator: exists
+      - path: properties.data_collector.collections.model_data.destination.storage_account_settings.storage_account_encryption.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.data_collector.collections.model_data.destination.storage_account_settings.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_deployment.data_governance_ai_endpoint_config_kms_keys_restricted
+    title: 'AZURE MACHINE Learning_deployment: Data Governance Ai Endpoint Config KMS Keys Restricted'
+    severity: high
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: properties.endpoint_compute_type
+        operator: exists
+      - path: properties.model.environment_variables.AZURE_CLIENT_ID
+        operator: not_exists
+      - path: properties.code_configuration.scoring_script
+        operator: exists
+  - check_id: azure.machine.learning_deployment.data_privacy_ai_endpoint_config_capture_store_encrypted_and_private
+    title: 'AZURE MACHINE Learning_deployment: Data Privacy Ai Endpoint Config Capture Store Encrypted And Private'
+    severity: medium
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: properties.data_collector.collections.request_response.destination.storage_account_settings.storage_account_encryption.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.data_collector.collections.request_response.destination.storage_account_settings.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_deployment.data_privacy_ai_endpoint_config_content_type_whitelist_enforced
+    title: 'AZURE MACHINE Learning_deployment: Data Privacy Ai Endpoint Config Content Type Whitelist Enforced'
+    severity: medium
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: properties.request_settings.request_timeout
+        operator: exists
+      - path: properties.request_settings.max_concurrent_requests_per_instance
+        operator: exists
+      - path: properties.environment_variables.ALLOWED_CONTENT_TYPES
+        operator: exists
+  - check_id: azure.machine.learning_deployment.data_privacy_ai_endpoint_config_kms_keys_restricted
+    title: 'AZURE MACHINE Learning_deployment: Data Privacy Ai Endpoint Config KMS Keys Restricted'
+    severity: high
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: properties.model.environment_variables.AZURE_CLIENT_SECRET
+        operator: not_exists
+      - path: properties.model.environment_variables.AZURE_TENANT_ID
+        operator: not_exists
+      - path: properties.environment_variables.AZURE_KEY_VAULT_URL
+        operator: exists
+  - check_id: azure.machine.learning_deployment.learning_endpoint_config_content_type_whitelist_enforced
+    title: 'AZURE MACHINE Learning_deployment: Learning Endpoint Config Content Type Whitelist Enforced'
+    severity: low
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: request_settings.request_timeout
+        operator: less_than
+        expected: '300000'
+      - path: environment_variables.CONTENT_TYPE_VALIDATION
+        operator: equals
+        expected: enabled
+  - check_id: azure.machine.learning_deployment.learning_endpoint_config_data_capture_bucket_encrypted_private
+    title: 'AZURE MACHINE Learning_deployment: Learning Endpoint Config Data Capture Bucket Encrypted Private'
+    severity: medium
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: data_collector.collections.model_data.destination.storage_account_settings.storage_account_encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+      - path: data_collector.collections.model_data.destination.storage_account_settings.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_deployment.learning_endpoint_config_kms_keys_restricted
+    title: 'AZURE MACHINE Learning_deployment: Learning Endpoint Config KMS Keys Restricted'
+    severity: high
+    for_each: azure.machine.learning_deployments
+    calls:
+    - action: online_deployments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+        deployment_name: '{{deployment_name}}'
+      fields:
+      - path: model.environment_variables.AZURE_CLIENT_ID
+        operator: not_exists
+      - path: environment_variables.KEY_VAULT_ACCESS_POLICY
+        operator: equals
+        expected: restrictive
+  - check_id: azure.machine.learning_endpoint.ai_services_ai_endpoint_authn_required
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Ai Endpoint Authn Required'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: auth_mode
+        operator: not_equals
+        expected: NoAuth
+      - path: auth_mode
+        operator: in
+        expected:
+        - Key
+        - AMLToken
+  - check_id: azure.machine.learning_endpoint.ai_services_ai_endpoint_authz_policies_enforced
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Ai Endpoint Authz Policies Enforced'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: auth_mode
+        operator: equals
+        expected: AMLToken
+      - path: properties.azureml.onlineendpoint.traffic
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_ai_endpoint_private_networking_enforced
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Ai Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_ai_endpoint_rate_limiting_enabled
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Ai Endpoint Rate Limiting Enabled'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.azureml.onlineendpoint.max_concurrent_requests_per_instance
+        operator: exists
+      - path: properties.azureml.onlineendpoint.request_timeout_ms
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_ai_endpoint_waf_attached
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Ai Endpoint Waf Attached'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.azureml.onlineendpoint.waf_enabled
+        operator: equals
+        expected: 'true'
+      - path: tags.waf_policy_id
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_inference_endpoint_data_capture_s3_encrypted
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Inference Endpoint Data Capture S3 Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.azureml.onlineendpoint.data_capture_config.destination.storage_account_encryption.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.azureml.onlineendpoint.data_capture_config.destination.storage_account_encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+  - check_id: azure.machine.learning_endpoint.ai_services_inference_endpoint_group_restrictive
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Inference Endpoint Group Restrictive'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.azureml.onlineendpoint.network_security_group_rules
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_inference_endpoint_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Inference Endpoint KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.azureml.onlineendpoint.encryption.key_vault_properties.key_vault_arm_id
+        operator: exists
+      - path: properties.azureml.onlineendpoint.encryption.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_inference_endpoint_private_networking_enforced
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Inference Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: private_endpoint_connections[0].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.machine.learning_endpoint.ai_services_model_deployment_endpoint_in_vpc
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Model Deployment Endpoint In VPC'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.azureml.onlineendpoint.network_config.subnet_id
+        operator: exists
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_endpoint.ai_services_model_deployment_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Model Deployment KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.azureml.onlineendpoint.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.azureml.onlineendpoint.encryption.key_vault_properties.key_vault_arm_id
+        operator: exists
+  - check_id: azure.machine.learning_endpoint.ai_services_model_deployment_logging_enabled
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Model Deployment Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.azureml.onlineendpoint.application_insights.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.azureml.onlineendpoint.logging_level
+        operator: in
+        expected:
+        - Info
+        - Warning
+        - Error
+  - check_id: azure.machine.learning_endpoint.ai_services_prompt_gateway_authn_required
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Prompt Gateway Authn Required'
+    severity: low
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: auth_mode
+        operator: not_equals
+        expected: NoAuth
+      - path: properties.prompt_gateway_auth_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_endpoint.ai_services_prompt_gateway_private_networking_enforced
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Prompt Gateway Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.prompt_gateway_private_networking_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_endpoint.ai_services_prompt_gateway_token_scopes_least_privilege
+    title: 'AZURE MACHINE Learning_endpoint: Ai Services Prompt Gateway Token Scopes Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.token_scopes
+        operator: not_contains
+        expected: '*'
+      - path: properties.least_privilege_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_experiment.data_governance_ai_experiment_logs_enabled
+    title: 'AZURE MACHINE Learning_experiment: Data Governance Ai Experiment Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: 'true'
+      - path: data_governance_logs_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_experiment.data_governance_ai_experiment_metadata_store_encrypted
+    title: 'AZURE MACHINE Learning_experiment: Data Governance Ai Experiment Metadata Store Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: metadata_store.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: data_governance_encryption_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_experiment.data_governance_ai_experiment_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_experiment: Data Governance Ai Experiment RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.rbac_configuration.least_privilege
+        operator: equals
+        expected: true
+      - path: properties.data_governance_rbac_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_experiment.data_privacy_ai_experiment_logs_enabled
+    title: 'AZURE MACHINE Learning_experiment: Data Privacy Ai Experiment Logs Enabled'
+    severity: medium
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: true
+      - path: properties.data_privacy_logs_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_experiment.data_privacy_ai_experiment_metadata_store_encrypted
+    title: 'AZURE MACHINE Learning_experiment: Data Privacy Ai Experiment Metadata Store Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.metadata_store.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.data_privacy_encryption_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_experiment.data_privacy_ai_experiment_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_experiment: Data Privacy Ai Experiment RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.rbac_configuration.least_privilege
+        operator: equals
+        expected: true
+      - path: properties.data_privacy_rbac_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_experiment.logs_enabled
+    title: 'AZURE MACHINE Learning_experiment: Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.logging_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_experiment.metadata_store_encrypted
+    title: 'AZURE MACHINE Learning_experiment: Metadata Store Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.metadata_store.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_experiment.rbac_least_privilege
+    title: 'AZURE MACHINE Learning_experiment: RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_experiments
+    calls:
+    - action: experiments.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+      fields:
+      - path: properties.rbac_configuration.least_privilege
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_feature_store.ai_services_feature_store_offline_store_block_public_access
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Feature Store Offline Store Block Public Access'
+    severity: critical
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        feature_store_name: '{{feature_store_name}}'
+      fields:
+      - path: properties.offline_store.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.offline_store.block_public_access
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_feature_store.ai_services_feature_store_online_store_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Feature Store Online Store KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        feature_store_name: '{{feature_store_name}}'
+      fields:
+      - path: properties.online_store.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.online_store.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.machine.learning_feature_store.ai_services_feature_store_private_networking_enforced
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Feature Store Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_networking_enforced
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_feature_store.ai_services_feature_store_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Feature Store RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        name: '{{feature_store_name}}'
+      fields:
+      - path: properties.rbac_configuration.least_privilege
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_feature_store.ai_services_vector_index_authn_required
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Vector Index Authn Required'
+    severity: low
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        name: '{{feature_store_name}}'
+      fields:
+      - path: properties.vector_index.authentication_required
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_feature_store.ai_services_vector_index_encrypted_at_rest_cmek
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Vector Index Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        name: '{{feature_store_name}}'
+      fields:
+      - path: properties.vector_index.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.vector_index.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.machine.learning_feature_store.ai_services_vector_index_private_networking_enforced
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Vector Index Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        name: '{{feature_store_name}}'
+      fields:
+      - path: properties.vector_index.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_feature_store.ai_services_vector_index_rbac_tenant_isolation_enforced
+    title: 'AZURE MACHINE Learning_feature_store: Ai Services Vector Index RBAC Tenant Isolation Enforced'
+    severity: medium
+    for_each: azure.machine.learning_feature_stores
+    calls:
+    - action: feature_stores.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        name: '{{feature_store_name}}'
+      fields:
+      - path: properties.vector_index.tenant_isolation
+        operator: equals
+        expected: Enabled
+      - path: properties.vector_index.rbac_tenant_isolation_enforced
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_hyperdrive_run.data_governance_ai_hpo_logs_enabled
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Governance Ai Hpo Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: runs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+        run_id: '{{run_id}}'
+      fields:
+      - path: properties.log_files
+        operator: exists
+      - path: properties.run_definition.configuration.logging.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_hyperdrive_run.data_governance_ai_hpo_private_networking_enforced
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Governance Ai Hpo Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: runs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+        run_id: '{{run_id}}'
+      fields:
+      - path: properties.run_definition.configuration.target.properties.subnet
+        operator: exists
+      - path: properties.run_definition.configuration.target.properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_hyperdrive_run.data_governance_ai_hpo_roles_least_privilege
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Governance Ai Hpo Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: self
+      fields:
+      - path: properties.run_definition.configuration.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.tags.rbac_configured
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_hyperdrive_run.data_privacy_ai_hpo_logs_enabled
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Privacy Ai Hpo Logs Enabled'
+    severity: medium
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: runs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+        run_id: '{{run_id}}'
+      fields:
+      - path: properties.log_files
+        operator: exists
+      - path: properties.run_definition.configuration.logging.log_level
+        operator: in
+        expected:
+        - INFO
+        - DEBUG
+  - check_id: azure.machine.learning_hyperdrive_run.data_privacy_ai_hpo_private_networking_enforced
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Privacy Ai Hpo Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: runs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        experiment_name: '{{experiment_name}}'
+        run_id: '{{run_id}}'
+      fields:
+      - path: properties.run_definition.configuration.target.properties.subnet
+        operator: exists
+      - path: properties.run_definition.configuration.data_references.encryption_in_transit
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_hyperdrive_run.data_privacy_ai_hpo_roles_least_privilege
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Data Privacy Ai Hpo Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{run_id}}'
+      fields:
+      - path: properties.run_definition.configuration.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.run_definition.configuration.identity.user_assigned_identities
+        operator: exists
+  - check_id: azure.machine.learning_hyperdrive_run.learning_hpo_logs_enabled
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Learning Hpo Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{run_id}}'
+      fields:
+      - path: properties.log_files
+        operator: exists
+      - path: properties.status
+        operator: not_equals
+        expected: NotStarted
+  - check_id: azure.machine.learning_hyperdrive_run.learning_hpo_private_networking_enforced
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Learning Hpo Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{run_id}}'
+      fields:
+      - path: properties.run_definition.configuration.target.properties.subnet
+        operator: exists
+      - path: properties.run_definition.configuration.target.properties.ssl_configuration.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_hyperdrive_run.learning_hpo_roles_least_privilege
+    title: 'AZURE MACHINE Learning_hyperdrive_run: Learning Hpo Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_hyperdrive_runs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{run_id}}'
+      fields:
+      - path: properties.run_definition.configuration.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.created_by.user_object_id
+        operator: exists
+  - check_id: azure.machine.learning_job.ai_services_training_job_inter_container_traffic_encryption_enabled
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Job Inter Container Traffic Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.inter_container_communication.encryption_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.services.inter_container_communication.protocol
+        operator: equals
+        expected: https
+  - check_id: azure.machine.learning_job.ai_services_training_job_network_isolation_enabled
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Job Network Isolation Enabled'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.networking.subnet_id
+        operator: exists
+      - path: properties.services.networking.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_job.ai_services_training_job_output_encryption_enabled
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Job Output Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.outputs.encryption_at_rest.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.outputs.encryption_in_transit.enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_job.ai_services_training_job_vpc_configured
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Job VPC Configured'
+    severity: low
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.networking.subnet_id
+        operator: exists
+      - path: properties.services.networking.virtual_network_id
+        operator: exists
+  - check_id: azure.machine.learning_job.ai_services_training_pipeline_private_networking_enforced
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Pipeline Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.networking.subnet_id
+        operator: exists
+      - path: properties.services.networking.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_job.ai_services_training_pipeline_secrets_from_vault_only
+    title: 'AZURE MACHINE Learning_job: Ai Services Training Pipeline Secrets From Vault Only'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.environment_variables.secret_source
+        operator: equals
+        expected: KeyVault
+      - path: properties.secrets.key_vault_id
+        operator: exists
+  - check_id: azure.machine.learning_job.data_governance_ai_training_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_job: Data Governance Ai Training Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.inputs.encryption_at_rest.enabled
+        operator: equals
+        expected: true
+      - path: properties.outputs.encryption_at_rest.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_job.data_governance_ai_training_job_logs_enabled
+    title: 'AZURE MACHINE Learning_job: Data Governance Ai Training Job Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.logging.enabled
+        operator: equals
+        expected: true
+      - path: properties.services.logging.log_level
+        operator: exists
+  - check_id: azure.machine.learning_job.data_governance_ai_training_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_job: Data Governance Ai Training Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.networking.subnet_id
+        operator: exists
+      - path: properties.services.networking.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_job.data_governance_ai_training_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_job: Data Governance Ai Training Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.identity.user_assigned_identities
+        operator: exists
+  - check_id: azure.machine.learning_job.data_privacy_ai_training_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_job: Data Privacy Ai Training Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.inputs.encryption_in_transit.enabled
+        operator: equals
+        expected: true
+      - path: properties.outputs.encryption_in_transit.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_job.data_privacy_ai_training_job_logs_enabled
+    title: 'AZURE MACHINE Learning_job: Data Privacy Ai Training Job Logs Enabled'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.services.tracking.enabled
+        operator: equals
+        expected: true
+      - path: properties.tags.privacy_logs_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_job.data_privacy_ai_training_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_job: Data Privacy Ai Training Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.compute.target
+        operator: exists
+      - path: properties.networking.isolation
+        operator: equals
+        expected: private
+      - path: properties.tags.private_networking_enforced
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_job.data_privacy_ai_training_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_job: Data Privacy Ai Training Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.tags.rbac_least_privilege
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_job.learning_training_job_input_output_encrypted
+    title: 'AZURE MACHINE Learning_job: Learning Training Job Input Output Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.inputs.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.outputs.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_job.learning_training_job_logs_enabled
+    title: 'AZURE MACHINE Learning_job: Learning Training Job Logs Enabled'
+    severity: low
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.services.tracking.enabled
+        operator: equals
+        expected: true
+      - path: properties.experiment_settings.log_verbosity
+        operator: not_equals
+        expected: 'Off'
+  - check_id: azure.machine.learning_job.learning_training_job_private_networking_enforced
+    title: 'AZURE MACHINE Learning_job: Learning Training Job Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.networking.isolation
+        operator: equals
+        expected: private
+      - path: properties.compute.subnet_id
+        operator: exists
+  - check_id: azure.machine.learning_job.learning_training_job_roles_least_privilege
+    title: 'AZURE MACHINE Learning_job: Learning Training Job Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_jobs
+    calls:
+    - action: self
+      fields:
+      - path: properties.identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: properties.tags.rbac_configured
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.ai_services_model_artifact_encrypted_at_rest
+    title: 'AZURE MACHINE Learning_model: Ai Services Model Artifact Encrypted At Rest'
+    severity: medium
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.flavors.azureml.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.tags.encryption_at_rest
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.ai_services_model_execution_role_least_privilege
+    title: 'AZURE MACHINE Learning_model: Ai Services Model Execution Role Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.tags.execution_role_configured
+        operator: equals
+        expected: 'true'
+      - path: properties.tags.least_privilege
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.ai_services_model_image_scan_passed
+    title: 'AZURE MACHINE Learning_model: Ai Services Model Image Scan Passed'
+    severity: low
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.tags.image_scan_status
+        operator: equals
+        expected: passed
+      - path: properties.flavors.azureml.security_scan.status
+        operator: equals
+        expected: passed
+  - check_id: azure.machine.learning_model.ai_services_model_kms_cmk_used
+    title: 'AZURE MACHINE Learning_model: Ai Services Model KMS CMK Used'
+    severity: medium
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.flavors.azureml.encryption.key_vault_key_id
+        operator: exists
+      - path: properties.tags.cmk_encryption
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.ai_services_model_registry_access_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_model: Ai Services Model Registry Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.tags.rbac_configured
+        operator: equals
+        expected: 'true'
+      - path: properties.tags.registry_access_restricted
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.data_governance_ai_model_registry_artifact_encryption_enabled
+    title: 'AZURE MACHINE Learning_model: Data Governance Ai Model Registry Artifact Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.flavors.azureml.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.tags.governance_encryption
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.data_governance_ai_model_registry_cross_account_sharing_restricted
+    title: 'AZURE MACHINE Learning_model: Data Governance Ai Model Registry Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.tags.cross_account_sharing
+        operator: equals
+        expected: restricted
+      - path: properties.flavors.azureml.sharing.cross_tenant
+        operator: equals
+        expected: false
+  - check_id: azure.machine.learning_model.data_privacy_ai_model_registry_artifact_encryption_enabled
+    title: 'AZURE MACHINE Learning_model: Data Privacy Ai Model Registry Artifact Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: properties.flavors.azureml.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.tags.privacy_encryption
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.data_privacy_ai_model_registry_cross_account_sharing_restricted
+    title: 'AZURE MACHINE Learning_model: Data Privacy Ai Model Registry Cross Account Sharing Restricted'
+    severity: medium
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: tags.privacy_sharing_restricted
+        operator: equals
+        expected: 'true'
+      - path: flavors.azureml.sharing.cross_tenant
+        operator: equals
+        expected: false
+  - check_id: azure.machine.learning_model.registry_artifact_encryption_enabled
+    title: 'AZURE MACHINE Learning_model: Registry Artifact Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: flavors.azureml.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: tags.artifact_encryption
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.registry_cross_account_sharing_restricted
+    title: 'AZURE MACHINE Learning_model: Registry Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: flavors.azureml.sharing.cross_tenant
+        operator: equals
+        expected: false
+      - path: tags.sharing_restricted
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model.registry_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_model: Registry RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_models
+    calls:
+    - action: self
+      fields:
+      - path: tags.rbac_configured
+        operator: equals
+        expected: 'true'
+      - path: flavors.azureml.access_control.least_privilege
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_model_package.artifact_signed_and_verified
+    title: 'AZURE MACHINE Learning_model_package: Artifact Signed And Verified'
+    severity: low
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: self
+      fields:
+      - path: signature.status
+        operator: equals
+        expected: verified
+      - path: tags.artifact_signed
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model_package.data_governance_ai_model_package_artifact_signed_and_verified
+    title: 'AZURE MACHINE Learning_model_package: Data Governance Ai Model Package Artifact Signed And Verified'
+    severity: medium
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: model_packages.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        package_name: '{{package_name}}'
+      fields:
+      - path: package_format.signature
+        operator: exists
+      - path: package_format.signature.verified
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model_package.data_governance_ai_model_package_encrypted
+    title: 'AZURE MACHINE Learning_model_package: Data Governance Ai Model Package Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_model_package.data_governance_ai_model_package_not_publicly_shared
+    title: 'AZURE MACHINE Learning_model_package: Data Governance Ai Model Package Not Publicly Shared'
+    severity: critical
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: model_packages.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        package_name: '{{package_name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_model_package.data_privacy_ai_model_package_artifact_signed_and_verified
+    title: 'AZURE MACHINE Learning_model_package: Data Privacy Ai Model Package Artifact Signed And Verified'
+    severity: medium
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: model_packages.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        package_name: '{{package_name}}'
+      fields:
+      - path: package_format.signature
+        operator: exists
+      - path: package_format.signature.verified
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model_package.data_privacy_ai_model_package_encrypted
+    title: 'AZURE MACHINE Learning_model_package: Data Privacy Ai Model Package Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_model_package.data_privacy_ai_model_package_not_publicly_shared
+    title: 'AZURE MACHINE Learning_model_package: Data Privacy Ai Model Package Not Publicly Shared'
+    severity: critical
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: model_packages.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        package_name: '{{package_name}}'
+      fields:
+      - path: properties.public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_model_package.encrypted
+    title: 'AZURE MACHINE Learning_model_package: Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_model_package.not_publicly_shared
+    title: 'AZURE MACHINE Learning_model_package: Not Publicly Shared'
+    severity: critical
+    for_each: azure.machine.learning_model_packages
+    calls:
+    - action: model_packages.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        package_name: '{{package_name}}'
+      fields:
+      - path: properties.public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_model_version.ai_services_model_artifact_encrypted_at_rest_cmek
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Model Artifact Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_model_version.ai_services_model_version_image_scan_passed
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Model Version Image Scan Passed'
+    severity: low
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: model_versions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        version: '{{version}}'
+      fields:
+      - path: properties.security_scan.status
+        operator: equals
+        expected: Passed
+  - check_id: azure.machine.learning_model_version.ai_services_model_version_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Model Version KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.machine.learning_model_version.ai_services_model_version_package_approved
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Model Version Package Approved'
+    severity: low
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: self
+      fields:
+      - path: properties.stage
+        operator: equals
+        expected: Production
+      - path: properties.tags.approval_status
+        operator: equals
+        expected: approved
+  - check_id: azure.machine.learning_model_version.ai_services_supply_chain_model_artifact_image_scanned_no_critical
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Supply Chain Model Artifact Image Scanned No Critical'
+    severity: low
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: model_versions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        version: '{{version}}'
+      fields:
+      - path: properties.security_scan.critical_vulnerabilities
+        operator: equals
+        expected: 0
+  - check_id: azure.machine.learning_model_version.ai_services_supply_chain_model_artifact_sbom_present
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Supply Chain Model Artifact Sbom Present'
+    severity: low
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: model_versions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        version: '{{version}}'
+      fields:
+      - path: properties.sbom
+        operator: exists
+      - path: properties.sbom.present
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_model_version.ai_services_supply_chain_model_artifact_signed_and_verified
+    title: 'AZURE MACHINE Learning_model_version: Ai Services Supply Chain Model Artifact Signed And Verified'
+    severity: low
+    for_each: azure.machine.learning_model_versions
+    calls:
+    - action: model_versions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        model_name: '{{model_name}}'
+        version: '{{version}}'
+      fields:
+      - path: properties.signature
+        operator: exists
+      - path: properties.signature.verified
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_online_endpoint.data_governance_ai_endpoint_authn_required
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Governance Ai Endpoint Authn Required'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.auth_mode
+        operator: not_equals
+        expected: AMLToken
+      - path: properties.auth_mode
+        operator: in
+        expected:
+        - Key
+        - AADToken
+  - check_id: azure.machine.learning_online_endpoint.data_governance_ai_endpoint_authz_policies_enforced
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Governance Ai Endpoint Authz Policies Enforced'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.auth_mode
+        operator: equals
+        expected: AADToken
+      - path: properties.identity
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_governance_ai_endpoint_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Governance Ai Endpoint KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_governance_ai_endpoint_logging_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Governance Ai Endpoint Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.request_logging.enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_online_endpoint.data_governance_ai_endpoint_private_networking_enforced
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Governance Ai Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_privacy_ai_endpoint_authn_required
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Privacy Ai Endpoint Authn Required'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.auth_mode
+        operator: not_equals
+        expected: NoAuth
+      - path: properties.keys
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_privacy_ai_endpoint_authz_policies_enforced
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Privacy Ai Endpoint Authz Policies Enforced'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.identity.type
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_privacy_ai_endpoint_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Privacy Ai Endpoint KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.data_privacy_ai_endpoint_logging_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Data Privacy Ai Endpoint Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: properties.mirror_traffic
+        operator: exists
+      - path: properties.tags.logging_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_online_endpoint.learning_endpoint_authn_required
+    title: 'AZURE MACHINE Learning_online_endpoint: Learning Endpoint Authn Required'
+    severity: low
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: online_endpoints.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        endpoint_name: '{{endpoint_name}}'
+      fields:
+      - path: properties.auth_mode
+        operator: in
+        expected:
+        - Key
+        - AMLToken
+  - check_id: azure.machine.learning_online_endpoint.learning_endpoint_authz_policies_enforced
+    title: 'AZURE MACHINE Learning_online_endpoint: Learning Endpoint Authz Policies Enforced'
+    severity: low
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: not_equals
+        expected: None
+      - path: identity.user_assigned_identities
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.learning_endpoint_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Learning Endpoint KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: encryption.status
+        operator: equals
+        expected: Enabled
+      - path: encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.machine.learning_online_endpoint.learning_endpoint_logging_enabled
+    title: 'AZURE MACHINE Learning_online_endpoint: Learning Endpoint Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: mirror_traffic
+        operator: greater_than
+        expected: 0
+      - path: tags.audit_logging
+        operator: equals
+        expected: enabled
+  - check_id: azure.machine.learning_online_endpoint.learning_endpoint_private_networking_enforced
+    title: 'AZURE MACHINE Learning_online_endpoint: Learning Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_online_endpoints
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.ai_services_agent_orchestrator_data_exfiltration_policies_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Agent Orchestrator Data Exfiltration Policies Enforced'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: settings.data_isolation
+        operator: equals
+        expected: Enabled
+      - path: tags.data_exfiltration_protection
+        operator: equals
+        expected: enforced
+  - check_id: azure.machine.learning_pipeline.ai_services_agent_orchestrator_secrets_isolation_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Agent Orchestrator Secrets Isolation Enabled'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: secrets_configuration.key_vault
+        operator: exists
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+  - check_id: azure.machine.learning_pipeline.ai_services_agent_orchestrator_tool_use_allowlist_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Agent Orchestrator Tool Use Allowlist Enforced'
+    severity: low
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: settings.allowed_tools
+        operator: exists
+      - path: tags.tool_allowlist_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_pipeline.ai_services_data_pipeline_access_controls_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Data Pipeline Access Controls Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+      - path: services.*.job_service_type
+        operator: not_equals
+        expected: Admin
+  - check_id: azure.machine.learning_pipeline.ai_services_data_pipeline_private_networking_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Data Pipeline Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{name}}'
+      fields:
+      - path: settings.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: networking.subnet_id
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.ai_services_pipeline_iam_role_least_privileged
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Pipeline IAM Role Least Privileged'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: not_equals
+        expected: SystemAssigned
+      - path: identity.user_assigned_identities
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.ai_services_pipeline_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Pipeline KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.ai_services_pipeline_logging_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Ai Services Pipeline Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.settings.enable_logging
+        operator: equals
+        expected: true
+      - path: properties.tags.logging_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_pipeline.artifacts_private_and_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Artifacts Private And Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: jobs.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        id: '{{job_name}}'
+      fields:
+      - path: properties.outputs.*.mode
+        operator: equals
+        expected: Upload
+      - path: properties.settings.artifact_encryption
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_human_review_artifacts_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Human Review Artifacts Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.outputs.*.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.tags.human_review_encryption
+        operator: equals
+        expected: enabled
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_human_review_ui_private_networking_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Human Review Ui Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.settings.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.tags.ui_private_access
+        operator: equals
+        expected: enforced
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_human_review_workteam_access_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Human Review Workteam Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.rbac_settings.human_review_workteam.access_level
+        operator: equals
+        expected: least_privilege
+      - path: properties.rbac_settings.human_review_workteam.enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_pipeline_artifacts_private_and_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Pipeline Artifacts Private And Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.artifacts.encryption.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.artifacts.network_access
+        operator: equals
+        expected: private
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_pipeline_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Pipeline KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_pipeline_logging_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Pipeline Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.logging.log_analytics_workspace_id
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.data_governance_ai_pipeline_roles_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Data Governance Ai Pipeline Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.rbac_settings.least_privilege_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.rbac_settings.role_assignments
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_human_review_artifacts_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Human Review Artifacts Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.artifacts.encryption.enabled
+        operator: equals
+        expected: true
+      - path: properties.human_review.artifacts.encryption.key_source
+        operator: equals
+        expected: Microsoft.KeyVault
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_human_review_ui_private_networking_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Human Review Ui Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.ui.network_access
+        operator: equals
+        expected: private
+      - path: properties.human_review.ui.private_endpoint_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_human_review_workteam_access_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Human Review Workteam Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.workteam.rbac.least_privilege_enabled
+        operator: equals
+        expected: true
+      - path: properties.human_review.workteam.access_control
+        operator: equals
+        expected: restricted
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_pipeline_artifacts_private_and_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Pipeline Artifacts Private And Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.artifacts.encryption.enabled
+        operator: equals
+        expected: true
+      - path: properties.artifacts.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_pipeline_kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Pipeline KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+      - path: properties.encryption.key_vault_properties.identity_client_id
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_pipeline_logging_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Pipeline Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.logging.audit_logs_enabled
+        operator: equals
+        expected: true
+      - path: properties.logging.data_privacy_compliant
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_pipeline.data_privacy_ai_pipeline_roles_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Data Privacy Ai Pipeline Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.rbac_settings.data_privacy.least_privilege_enabled
+        operator: equals
+        expected: true
+      - path: properties.rbac_settings.data_privacy.minimum_permissions
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_pipeline.kms_encryption_enabled
+    title: 'AZURE MACHINE Learning_pipeline: KMS Encryption Enabled'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.learning_human_review_artifacts_encrypted
+    title: 'AZURE MACHINE Learning_pipeline: Learning Human Review Artifacts Encrypted'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.artifacts.encryption_at_rest
+        operator: equals
+        expected: true
+      - path: properties.human_review.artifacts.encryption_in_transit
+        operator: equals
+        expected: true
+  - check_id: azure.machine.learning_pipeline.learning_human_review_ui_private_networking_enforced
+    title: 'AZURE MACHINE Learning_pipeline: Learning Human Review Ui Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.ui.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.human_review.ui.vnet_configuration
+        operator: exists
+  - check_id: azure.machine.learning_pipeline.learning_human_review_workteam_access_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Learning Human Review Workteam Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.human_review.workteam.rbac_configuration.least_privilege
+        operator: equals
+        expected: 'true'
+      - path: properties.human_review.workteam.permissions
+        operator: not_equals
+        expected: full
+  - check_id: azure.machine.learning_pipeline.logging_enabled
+    title: 'AZURE MACHINE Learning_pipeline: Logging Enabled'
+    severity: medium
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.logging.level
+        operator: in
+        expected:
+        - Information
+        - Warning
+        - Error
+  - check_id: azure.machine.learning_pipeline.roles_least_privilege
+    title: 'AZURE MACHINE Learning_pipeline: Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_pipelines
+    calls:
+    - action: pipelines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        pipeline_name: '{{pipeline_name}}'
+      fields:
+      - path: properties.rbac_settings.least_privilege_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.rbac_settings.inherit_workspace_permissions
+        operator: equals
+        expected: 'false'
+  - check_id: azure.machine.learning_workspace.ai_services_secrets_vault_access_rbac_least_privilege
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Secrets Vault Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: properties.key_vault.access_policies
+        operator: exists
+      - path: properties.key_vault.rbac_authorization
+        operator: equals
+        expected: 'true'
+      - path: properties.key_vault.enable_rbac_authorization
+        operator: equals
+        expected: 'true'
+  - check_id: azure.machine.learning_workspace.ai_services_secrets_vault_kms_encryption_and_rotation_enabled
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Secrets Vault KMS Encryption And Rotation Enabled'
+    severity: high
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.key_vault.key_uri
+        operator: exists
+      - path: properties.encryption.key_vault_properties.key_rotation_enabled
+        operator: equals
+        expected: 'true'
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_workspace.ai_services_secrets_vault_no_plaintext_secrets_in_config
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Secrets Vault No Plaintext Secrets In Config'
+    severity: high
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.key_vault
+        operator: exists
+      - path: properties.storage_account
+        operator: exists
+      - path: properties.application_insights
+        operator: exists
+      - path: properties.container_registry
+        operator: exists
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.machine.learning_workspace.ai_services_workspace_encryption_at_rest_enabled
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Workspace Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.status
+        operator: equals
+        expected: Enabled
+      - path: properties.encryption.key_vault_properties.key_vault_arm_id
+        operator: exists
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.machine.learning_workspace.ai_services_workspace_iam_role_least_privileged
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Workspace IAM Role Least Privileged'
+    severity: high
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: role_assignments.list_for_scope
+      params:
+        scope: /subscriptions/{{subscription_id}}/resourceGroups/{{resource_group}}/providers/Microsoft.MachineLearningServices/workspaces/{{workspace_name}}
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: /subscriptions/{{subscription_id}}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - path: value[*].properties.principal_type
+        operator: exists
+  - check_id: azure.machine.learning_workspace.ai_services_workspace_idle_shutdown_configured
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Workspace Idle Shutdown Configured'
+    severity: low
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: compute.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: value[*].properties.properties.idle_time_before_shutdown
+        operator: exists
+      - path: value[*].properties.properties.idle_time_before_shutdown
+        operator: greater_than
+        expected: 0
+  - check_id: azure.machine.learning_workspace.ai_services_workspace_private_networking_enforced
+    title: 'AZURE MACHINE Learning_workspace: Ai Services Workspace Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.learning_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.private_endpoint_connections
+        operator: exists
+      - path: properties.private_endpoint_connections[*].properties.private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.machine.ml_workspace.ml_ops_monitoring_outputs_encrypted_and_private
+    title: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Outputs Encrypted And Private'
+    severity: medium
+    for_each: azure.machine.mlops_monitoring
+    calls:
+    - action: datastores.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: value[*].properties.contents.account_name
+        operator: exists
+      - path: value[*].properties.contents.protocol
+        operator: equals
+        expected: https
+      - path: value[*].properties.is_default
+        operator: exists
+  - check_id: azure.machine.ml_workspace.ml_ops_monitoring_private_networking_enforced
+    title: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Private Networking Enforced'
+    severity: medium
+    for_each: azure.machine.mlops_monitoring
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+      - path: properties.allow_public_access_when_behind_vnet
+        operator: equals
+        expected: false
+      - path: properties.private_endpoint_connections
+        operator: exists
+  - check_id: azure.machine.ml_workspace.ml_ops_monitoring_roles_least_privilege
+    title: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Roles Least Privilege'
+    severity: high
+    for_each: azure.machine.mlops_monitoring
+    calls:
+    - action: role_assignments.list_for_scope
+      params:
+        scope: /subscriptions/{{subscription_id}}/resourceGroups/{{resource_group}}/providers/Microsoft.MachineLearningServices/workspaces/{{workspace_name}}
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_equals
+        expected: /subscriptions/{{subscription_id}}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - path: value[*].properties.scope
+        operator: starts_with
+        expected: /subscriptions/{{subscription_id}}/resourceGroups/{{resource_group}}
+  - check_id: azure.machine.ml_workspace.ml_ops_monitoring_logs_enabled
+    title: 'AZURE AZURE Mlops_monitoring: Ml Ops Monitoring Logs Enabled'
+    severity: medium
+    for_each: azure.machine.mlops_monitoring
+    calls:
+    - action: self
+      fields:
+      - path: properties.logging.enabled
+        operator: equals
+        expected: true

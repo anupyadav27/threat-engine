@@ -1,0 +1,1051 @@
+security:
+  version: '1.0'
+  provider: azure
+  service: security
+  package: azure-mgmt-security
+  client_class: SecurityCenter
+  scope: subscription
+  discovery:
+  - discovery_id: azure.security.pricings
+    calls:
+    - client: security
+      action: pricings.list
+      save_as: pricings
+  - discovery_id: azure.security.contacts
+    calls:
+    - client: security
+      action: security_contacts.list
+      save_as: security_contacts
+  - discovery_id: azure.security.auto_provisioning
+    calls:
+    - client: security
+      action: auto_provisioning_settings.list
+      save_as: auto_provisioning_settings
+  checks:
+  - check_id: azure.security.defender.additional_email_configured
+    title: 'AZURE SECURITY: Defender Additional Email Configured'
+    severity: medium
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: value[*].properties.emails
+        operator: exists
+  - check_id: azure.defender.agentless.scanning.status.check
+    title: 'AZURE DEFENDER: Agentless Scanning Status'
+    severity: medium
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: VirtualMachines
+      fields:
+      - path: properties.extensions[?(@.name == 'AgentlessVmScanning')].is_enabled
+        operator: equals
+        expected: Enabled
+  - check_id: azure.defender.app.services_is_on
+    title: 'AZURE DEFENDER: App Services Protection Enabled'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: AppServices
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.log_analytics_agent_auto_provisioning
+    title: 'AZURE SECURITY: Log Analytics Agent Auto Provisioning'
+    severity: medium
+    for_each: azure.security.auto_provisioning
+    calls:
+    - action: auto_provisioning_settings.list
+      params: {}
+      fields:
+      - path: value[?(@.name == 'default')].properties.auto_provision
+        operator: equals
+        expected: 'On'
+  - check_id: azure.defender.for.servers.pricing.tier.standard.check
+    title: 'AZURE DEFENDER: Servers Pricing Tier Standard'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: VirtualMachines
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.for.cloud.security.contact.email.check
+    title: 'AZURE DEFENDER: Security Contact Email Configured'
+    severity: medium
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: value[*].properties.emails
+        operator: not_empty
+  - check_id: azure.defender.for.containers.pricing.tier.and.extensions.enabled
+    title: 'AZURE DEFENDER: Containers Protection Enabled'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Containers
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.sql.server.pricing.tier.check
+    title: 'AZURE DEFENDER: SQL Server Protection Enabled'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: SqlServers
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.open.source.relational.databases.enabled
+    title: 'AZURE DEFENDER: Open Source Databases Protection Enabled'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: OpenSourceRelationalDatabases
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.storage.alerts.export.enabled
+    title: 'AZURE DEFENDER: Storage Alerts Export Enabled'
+    severity: medium
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: StorageAccounts
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.cspm.pricing.tier.standard.check
+    title: 'AZURE DEFENDER: CSPM Pricing Tier Standard'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: CloudPosture
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.resource.manager.pricing.standard.check
+    title: 'AZURE DEFENDER: Resource Manager Protection Enabled'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Arm
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.aad.lustre.filesystem_customer_managed_key_enabled
+    title: 'AZURE MANAGED Lustre: Filesystem Customer Managed Key Enabled'
+    severity: high
+    for_each: azure.lustre.filesystems
+    calls:
+    - action: self
+      fields:
+      - path: encryption_settings.key_encryption_key
+        operator: exists
+      - path: encryption_settings.key_encryption_key.source_vault
+        operator: exists
+  - check_id: azure.defender.app.services.status.check
+    title: 'AZURE DEFENDER App: Services Status Check'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: AppServices
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.defender.email.notifications.attack.paths.enabled
+    title: 'AZURE DEFENDER Email: Notifications Attack Paths Enabled'
+    severity: low
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: notifications_by_role.roles
+        operator: contains
+        expected: Owner
+  - check_id: azure.defender.email.notifications.owner.check
+    title: 'AZURE DEFENDER Email: Notifications Owner Check'
+    severity: low
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: emails
+        operator: exists
+      - path: notifications_by_role.state
+        operator: equals
+        expected: true
+  - check_id: azure.defender.email.notifications.severity.check
+    title: 'AZURE DEFENDER Email: Notifications Severity Check'
+    severity: low
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: alert_notifications.state
+        operator: equals
+        expected: true
+      - path: alert_notifications.minimal_severity
+        operator: in
+        expected:
+        - High
+        - Medium
+        - Low
+  - check_id: azure.defender.fim.status.check
+    title: 'AZURE DEFENDER Fim: Status Check'
+    severity: low
+    for_each: azure.security.settings
+    calls:
+    - action: settings.get
+      params:
+        setting_name: MCAS
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.defender.for.cloud.endpoint.protection.status.check
+    title: 'AZURE DEFENDER For: Cloud Endpoint Protection Status Check'
+    severity: low
+    for_each: azure.security.assessments
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: status.code
+        operator: equals
+        expected: Healthy
+        filter: name == '83f577bd-a1b6-b7e1-0891-12ca19d1e6df'
+  - check_id: azure.defender.vm.endpoint_protection_installed
+    title: 'AZURE DEFENDER Vm: Endpoint Protection Installed'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+        filter: type in ['IaaSAntimalware', 'EndpointSecurity']
+  - check_id: azure.defender.vm.os.updates.configured
+    title: 'AZURE DEFENDER Vm: OS Updates Configured'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: assessments.list
+      params:
+        filter: properties/resourceDetails/id contains '{{vm_id}}'
+      fields:
+      - path: value[?(@.name=='4ab6e3c2-c7bc-32c4-96b1-b4b549a2c3bc')].properties.status.code
+        operator: equals
+        expected: Healthy
+  - check_id: azure.defender.vulnerability.assessment.status.check
+    title: 'AZURE DEFENDER Vulnerability: Assessment Status Check'
+    severity: low
+    for_each: azure.security.assessments
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: value[?(@.properties.displayName contains 'Vulnerability assessment')].properties.status.code
+        operator: equals
+        expected: Healthy
+  - check_id: azure.security.center.enabled
+    title: 'AZURE SECURITY Resource: Center Enabled'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.list
+      params: {}
+      fields:
+      - path: value[*].properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.center.exploit_guard_enabled
+    title: 'AZURE SECURITYCENTER Resource: Exploit Guard Enabled'
+    severity: low
+    for_each: azure.security.settings
+    calls:
+    - action: settings.get
+      params:
+        setting_name: WDATP
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.security.center.guardduty_enabled
+    title: 'AZURE SECURITY Resource: Center Guardduty Enabled'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: CloudPosture
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.center.no_high_severity_findings
+    title: 'AZURE SECURITY Resource: Center No High Severity Findings'
+    severity: low
+    for_each: azure.security.alerts
+    calls:
+    - action: alerts.list
+      params: {}
+      fields:
+      - path: value[?(@.properties.severity=='High')].properties.status
+        operator: not_equals
+        expected: Active
+  - check_id: azure.security.center.vulnerability_assessment_enabled
+    title: 'AZURE SECURITY Resource: Center Vulnerability Assessment Enabled'
+    severity: medium
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: VirtualMachines
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+      - path: properties.sub_plan
+        operator: equals
+        expected: P2
+  - check_id: azure.security.center_alert.incident_response_access_rbac_least_privilege
+    title: 'AZURE SECURITY Center_alert: Incident Response Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.authorization.role_assignments
+    calls:
+    - action: role_assignments.list
+      params:
+        filter: principalType eq 'User'
+      fields:
+      - path: value[?(@.properties.roleDefinitionId contains 'Security Reader')].properties.scope
+        operator: not_equals
+        expected: /subscriptions/{{subscription_id}}
+  - check_id: azure.security.center_alert.incident_response_storage_encrypted_and_private
+    title: 'AZURE SECURITY Center_alert: Incident Response Storage Encrypted And Private'
+    severity: medium
+    for_each: azure.storage.accounts
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.security.center_alert.incident_response_versioning_and_immutability_enabled
+    title: 'AZURE SECURITY Center_alert: Incident Response Versioning And Immutability Enabled'
+    severity: low
+    for_each: azure.storage.blob_containers
+    calls:
+    - action: blob_containers.list_immutability_policies
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{storage_account_name}}'
+        container_name: '{{container_name}}'
+      fields:
+      - path: value[*].properties.state
+        operator: equals
+        expected: Locked
+  - check_id: azure.security.center_baseline.vuln_baseline_exemptions_have_expiry_and_owner
+    title: 'AZURE SECURITY Center_baseline: Vuln Baseline Exemptions Have Expiry And Owner'
+    severity: low
+    for_each: azure.security.exemptions
+    calls:
+    - action: assessment_metadata.list
+      params: {}
+      fields:
+      - path: policy_definition_id
+        operator: exists
+      - path: severity
+        operator: in
+        expected:
+        - High
+        - Medium
+        - Low
+  - check_id: azure.security.center_baseline.vuln_baseline_required_controls_present
+    title: 'AZURE SECURITY Center_baseline: Vuln Baseline Required Controls Present'
+    severity: low
+    for_each: azure.security.assessments
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: status.code
+        operator: in
+        expected:
+        - Healthy
+        - NotApplicable
+  - check_id: azure.security.center_detector.threat_detector_enabled_in_all_regions
+    title: 'AZURE SECURITY Center_detector: Threat Detector Enabled In All Regions'
+    severity: low
+    for_each: azure.security.center_detector
+    calls:
+    - action: settings.list
+      params: {}
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.security.center_detector.threat_detector_finding_export_encrypted_destination
+    title: 'AZURE SECURITY Center_detector: Threat Detector Finding Export Encrypted Destination'
+    severity: medium
+    for_each: azure.security.center_detector
+    calls:
+    - action: automations.list
+      params: {}
+      fields:
+      - path: actions[*].connection_string
+        operator: contains
+        expected: Encrypt=true
+  - check_id: azure.security.center_finding.threat_finding_alert_destinations_configured
+    title: 'AZURE SECURITY Center_finding: Threat Finding Alert Destinations Configured'
+    severity: low
+    for_each: azure.security.center_finding
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: emails
+        operator: exists
+  - check_id: azure.security.center_finding.threat_finding_archival_export_encrypted
+    title: 'AZURE SECURITY Center_finding: Threat Finding Archival Export Encrypted'
+    severity: medium
+    for_each: azure.security.center_finding
+    calls:
+    - action: automations.list
+      params: {}
+      fields:
+      - path: actions[*].workspace_resource_id
+        operator: exists
+      - path: actions[*].log_analytics.workspace_id
+        operator: exists
+  - check_id: azure.security.center_finding.threat_finding_suppression_rules_documented_and_scoped
+    title: 'AZURE SECURITY Center_finding: Threat Finding Suppression Rules Documented And Scoped'
+    severity: low
+    for_each: azure.security.center_finding
+    calls:
+    - action: alerts_suppression_rules.list
+      params: {}
+      fields:
+      - path: reason
+        operator: exists
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.security.center_patch_management.vuln_patch_approval_rules_defined
+    title: 'AZURE SECURITY Center_patch_management: Vuln Patch Approval Rules Defined'
+    severity: medium
+    for_each: azure.security.center_patch_management
+    calls:
+    - action: assessments.get
+      params:
+        assessment_name: 4ab6e3c2-c9c8-4a4c-8bc0-c2b38c1f132c
+      fields:
+      - path: status.code
+        operator: equals
+        expected: Healthy
+  - check_id: azure.security.center_patch_management.vuln_patch_baseline_defined_for_os_families
+    title: 'AZURE SECURITY Center_patch_management: Vuln Patch Baseline Defined For OS Families'
+    severity: medium
+    for_each: azure.security.center_patch_management
+    calls:
+    - action: assessments.get
+      params:
+        assessment_name: 4ab6e3c2-c9c8-4a4c-8bc0-c2b38c1f132c
+      fields:
+      - path: additional_data.patch_baseline_configured
+        operator: equals
+        expected: true
+  - check_id: azure.security.center_patch_management.vuln_patch_maintenance_windows_configured
+    title: 'AZURE SECURITY Center_patch_management: Vuln Patch Maintenance Windows Configured'
+    severity: medium
+    for_each: azure.security.center_patch_management
+    calls:
+    - action: settings.get
+      params:
+        setting_name: MCAS
+      fields:
+      - path: maintenance_window
+        operator: exists
+  - check_id: azure.security.center_vulnerability_assessment.vuln_assessment_policy_store_encrypted
+    title: 'AZURE SECURITY Center_vulnerability_assessment: Vuln Assessment Policy Store Encrypted'
+    severity: medium
+    for_each: azure.security.center_vulnerability_assessment
+    calls:
+    - action: server_vulnerability_assessments.list
+      params: {}
+      fields:
+      - path: value[*].properties.provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.security.center_vulnerability_assessment.vuln_assessment_roles_least_privilege
+    title: 'AZURE SECURITY Center_vulnerability_assessment: Vuln Assessment Roles Least Privilege'
+    severity: high
+    for_each: azure.security.center_vulnerability_assessment
+    calls:
+    - action: role_assignments.list
+      params: {}
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Security Reader')].properties.principal_type
+        operator: exists
+  - check_id: azure.security.center_vulnerability_scan.vuln_scan_agents_or_scanners_deployed
+    title: 'AZURE SECURITY Center_vulnerability_scan: Vuln Scan Agents Or Scanners Deployed'
+    severity: low
+    for_each: azure.security.center_vulnerability_scan
+    calls:
+    - action: self
+      fields:
+      - path: properties.provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.security.center_vulnerability_scan.vuln_scan_results_export_destination_encrypted
+    title: 'AZURE SECURITY Center_vulnerability_scan: Vuln Scan Results Export Destination Encrypted'
+    severity: medium
+    for_each: azure.security.center_vulnerability_scan
+    calls:
+    - action: automations.list
+      params: {}
+      fields:
+      - path: value[*].properties.actions[*].event_hub.connection_string
+        operator: contains
+        expected: EntityPath
+  - check_id: azure.security.center_vulnerability_scan.vuln_scan_scope_includes_all_asset_groups
+    title: 'AZURE SECURITY Center_vulnerability_scan: Vuln Scan Scope Includes All Asset Groups'
+    severity: low
+    for_each: azure.security.center_vulnerability_scan
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: value[*].properties.resource_details.source
+        operator: contains
+        expected: Azure
+  - check_id: azure.security.defender.arm_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Arm Is On'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Arm
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.container_scan_enabled
+    title: 'AZURE DEFENDER Resource: Container Images Scan Enabled'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: ContainerRegistry
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.container_vulnerabilities_resolved
+    title: 'AZURE DEFENDER Resource: Container Images Resolved Vulnerabilities'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: value[?(@.name=='dbd0cb49-b563-45e7-9724-889e799fa648')].properties.status.code
+        operator: equals
+        expected: Healthy
+  - check_id: azure.security.defender.containers_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Containers Is On'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Containers
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.cosmos_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Cosmosdb Is On'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: CosmosDbs
+      fields:
+      - path: properties.pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.databases_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Databases Is On'
+    severity: medium
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: SqlServers
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.dns_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Dns Is On'
+    severity: low
+    for_each: azure.security.resource
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Dns
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.enabled
+    title: 'AZURE DEFENDER Resource: Enabled'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.list
+      params: {}
+      fields:
+      - path: value[*].pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.for.apis.pricing.tier.standard
+    title: 'AZURE SECURITY Defender: For Apis Pricing Tier Standard'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: Api
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.high_severity_alerts_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Notify Alerts Severity Is High'
+    severity: low
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: value[*].alert_notifications.state
+        operator: equals
+        expected: true
+      - path: value[*].alert_notifications.minimal_severity
+        operator: equals
+        expected: High
+  - check_id: azure.security.defender.iot_hub_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Iot Hub Defender Is On'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: IoT
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.keyvault_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Keyvault Is On'
+    severity: high
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: KeyVaults
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.mcas_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Mcas Is Enabled'
+    severity: low
+    for_each: azure.security.settings
+    calls:
+    - action: settings.get
+      params:
+        setting_name: MCAS
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.security.defender.no_high_severity_findings
+    title: 'AZURE DEFENDER Resource: No High Severity Findings'
+    severity: low
+    for_each: azure.security.alerts
+    calls:
+    - action: alerts.list
+      params: {}
+      fields:
+      - path: value[?(@.severity == 'High')]
+        operator: empty
+  - check_id: azure.security.defender.notify_owners_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Notify Emails To Owners'
+    severity: low
+    for_each: azure.security.contacts
+    calls:
+    - action: security_contacts.list
+      params: {}
+      fields:
+      - path: value[*].notifications_by_role.state
+        operator: equals
+        expected: true
+      - path: value[*].notifications_by_role.roles
+        operator: contains
+        expected: Owner
+  - check_id: azure.security.defender.relational_db_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For OS Relational Databases Is On'
+    severity: medium
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: OpenSourceRelationalDatabases
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.server_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Server Is On'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: VirtualMachines
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.servers_protection_enabled
+    title: 'AZURE DEFENDER Resource: For Servers Enabled'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: VirtualMachines
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.sql_databases_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Azure Sql Databases Is On'
+    severity: medium
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: SqlServers
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.sql_servers_protection_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Defender For Sql Servers Is On'
+    severity: low
+    for_each: azure.security.pricings
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: SqlServerVirtualMachines
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+  - check_id: azure.security.defender.system_updates_applied
+    title: 'AZURE DEFENDER Resource: Ensure System Updates Are Applied'
+    severity: low
+    for_each: azure.security.assessments
+    calls:
+    - action: assessments.list
+      params: {}
+      fields:
+      - path: value[?(@.name == 'system-updates-should-be-installed-on-your-machines')].status.code
+        operator: not_equals
+        expected: Unhealthy
+  - check_id: azure.security.defender.vulnerability_assessment_auto_provisioning
+    title: 'AZURE DEFENDER Resource: Auto Provisioning Vulnerabilty Assessments Machines On'
+    severity: low
+    for_each: azure.security.auto_provisioning_settings
+    calls:
+    - action: auto_provisioning_settings.get
+      params:
+        setting_name: vulnerabilityAssessment
+      fields:
+      - path: auto_provision
+        operator: equals
+        expected: true
+  - check_id: azure.security.defender.wdatp_enabled
+    title: 'AZURE DEFENDER Resource: Ensure Wdatp Is Enabled'
+    severity: low
+    for_each: azure.security.settings
+    calls:
+    - action: settings.get
+      params:
+        setting_name: WDATP
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.security.paas_app.tls_min_1_2_enforced
+    title: 'AZURE AZURE Paas_app: TLS Min 1 2 Enforced'
+    severity: medium
+    for_each: azure.web.sites
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{site_name}}'
+      fields:
+      - path: min_tls_version
+        operator: greater_than_or_equal
+        expected: '1.2'
+  - check_id: azure.security.paas_application_version.paas_app_version_immutable
+    title: 'AZURE AZURE Paas_application_version: Paas App Version Immutable'
+    severity: low
+    for_each: azure.web.sites
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{site_name}}'
+      fields:
+      - path: vnet_route_all_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.security.platform_usage_plan.quota_limits
+    title: 'AZURE AZURE Platform_usage_plan: Quota Limits Configured'
+    severity: low
+    for_each: azure.apimanagement.service
+    calls:
+    - action: product.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+        product_id: '{{product_id}}'
+      fields:
+      - path: subscription_required
+        operator: equals
+        expected: true
+      - path: subscriptions_limit
+        operator: exists
+  - check_id: azure.security.platform_usage_plan.rate_limits
+    title: 'AZURE AZURE Platform_usage_plan: Rate Limits Configured'
+    severity: low
+    for_each: azure.apimanagement.service
+    calls:
+    - action: policy.list_by_service
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{service_name}}'
+      fields:
+      - path: value
+        operator: contains
+        expected: rate-limit
+  - check_id: azure.security.privacy_encryption.at_rest_cmek_enabled
+    title: 'AZURE AZURE Privacy_encryption: At Rest Cmek Enabled'
+    severity: medium
+    for_each: azure.security.privacy_encryption
+    calls:
+    - action: encryption_settings.list
+      params: {}
+      fields:
+      - path: value[*].encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+      - path: value[*].encryption.key_vault_properties
+        operator: exists
+  - check_id: azure.security.privacy_encryption.in_transit_tls_min_1_2
+    title: 'AZURE AZURE Privacy_encryption: In Transit TLS Min 1 2'
+    severity: medium
+    for_each: azure.security.privacy_encryption
+    calls:
+    - action: encryption_settings.list
+      params: {}
+      fields:
+      - path: value[*].minimum_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+  - check_id: azure.security.serverless_event_source.source_authenticated
+    title: 'AZURE AZURE Serverless_event_source: Source Authenticated'
+    severity: low
+    for_each: azure.security.serverless_event_source
+    calls:
+    - action: serverless_event_sources.list
+      params: {}
+      fields:
+      - path: value[*].authentication.enabled
+        operator: equals
+        expected: true
+      - path: value[*].authentication.type
+        operator: exists
+  - check_id: azure.security.serverless_layer.source_trusted
+    title: 'AZURE AZURE Serverless_layer: Source Trusted'
+    severity: low
+    for_each: azure.security.serverless_layer
+    calls:
+    - action: serverless_layers.list
+      params: {}
+      fields:
+      - path: value[*].source_repository.trusted
+        operator: equals
+        expected: true
+      - path: value[*].source_repository.verified
+        operator: equals
+        expected: true
+  - check_id: azure.security.serverless_layer.version_immutable
+    title: 'AZURE AZURE Serverless_layer: Version Immutable'
+    severity: low
+    for_each: azure.security.serverless_layer
+    calls:
+    - action: serverless_layers.list
+      params: {}
+      fields:
+      - path: value[*].version.immutable
+        operator: equals
+        expected: true
+      - path: value[*].version.locked
+        operator: equals
+        expected: true
+  - check_id: azure.security.storage.defender.pricing.check
+    title: 'AZURE SECURITY Storage: Defender Pricing Check'
+    severity: low
+    for_each: azure.security.storage
+    calls:
+    - action: pricings.get
+      params:
+        pricing_name: StorageAccounts
+      fields:
+      - path: pricing_tier
+        operator: equals
+        expected: Standard
+      - path: sub_plan
+        operator: exists
+  - check_id: azure.security.threat_custom_identifier.source_trusted
+    title: 'AZURE AZURE Threat_custom_identifier: Source Trusted'
+    severity: low
+    for_each: azure.security.threat_custom_identifier
+    calls:
+    - action: threat_custom_identifiers.list
+      params: {}
+      fields:
+      - path: value[*].source.trusted
+        operator: equals
+        expected: true
+      - path: value[*].source.verified
+        operator: equals
+        expected: true
+  - check_id: azure.security.threat_hub.auto_enroll_new_accounts
+    title: 'AZURE AZURE Threat_hub: Auto Enroll New Accounts'
+    severity: low
+    for_each: azure.security.threat_hub
+    calls:
+    - action: threat_hub.get
+      params: {}
+      fields:
+      - path: auto_enrollment.enabled
+        operator: equals
+        expected: true
+      - path: auto_enrollment.new_accounts
+        operator: equals
+        expected: true
+  - check_id: azure.security.threat_hub.master_member
+    title: 'AZURE AZURE Threat_hub: Master Member Configured'
+    severity: low
+    for_each: azure.security.threat_hub
+    calls:
+    - action: threat_hub.get
+      params: {}
+      fields:
+      - path: properties.master_account.configured
+        operator: equals
+        expected: true
+      - path: properties.master_account.account_id
+        operator: exists
+  - check_id: azure.security.threat_ip_set.sources_trusted
+    title: 'AZURE AZURE Threat_ip_set: Sources Trusted'
+    severity: low
+    for_each: azure.security.threat_ip_set
+    calls:
+    - action: threat_ip_sets.list
+      params: {}
+      fields:
+      - path: value[*].properties.sources[*].trusted
+        operator: equals
+        expected: true
+      - path: value[*].properties.sources[*].verified
+        operator: equals
+        expected: true
+  - check_id: azure.security.threat_ip_set.used_by_detectors
+    title: 'AZURE AZURE Threat_ip_set: Used By Detectors'
+    severity: low
+    for_each: azure.security.threat_ip_set
+    calls:
+    - action: threat_ip_sets.list
+      params: {}
+      fields:
+      - path: value[*].properties.used_by_detectors
+        operator: not_empty
+      - path: value[*].properties.detector_count
+        operator: greater_than
+        expected: 0
+  - check_id: azure.security.vulnerability_maintenance.vuln_maintenance_window_defined
+    title: 'AZURE AZURE Vulnerability_maintenance: Vuln Maintenance Window Defined'
+    severity: low
+    for_each: azure.security.vulnerability_maintenance
+    calls:
+    - action: vulnerability_maintenance_windows.list
+      params: {}
+      fields:
+      - path: value[*].properties.maintenance_window.defined
+        operator: equals
+        expected: true
+      - path: value[*].properties.maintenance_window.schedule
+        operator: exists

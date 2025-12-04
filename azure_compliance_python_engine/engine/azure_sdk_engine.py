@@ -138,7 +138,14 @@ def load_service_rules(service_name: str):
     rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, f"{service_name}_rules.yaml")
     with open(rules_path) as f:
         rules = yaml.safe_load(f)
-    return rules[service_name]
+    
+    # Handle both flat and nested structures
+    # Flat: {version, provider, service, discovery, checks}
+    # Nested: {service_name: {version, provider, discovery, checks}}
+    if service_name in rules:
+        return rules[service_name]  # Nested structure
+    else:
+        return rules  # Flat structure (AWS-compatible format)
 
 
 def load_service_scope_from_rules(service_name: str) -> Optional[str]:
@@ -146,9 +153,15 @@ def load_service_scope_from_rules(service_name: str) -> Optional[str]:
         rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, f"{service_name}_rules.yaml")
         with open(rules_path) as f:
             data = yaml.safe_load(f)
-        svc = data.get(service_name, {}) if isinstance(data, dict) else {}
+        
+        # Handle both flat and nested structures
+        if service_name in data:
+            svc = data[service_name]  # Nested
+        else:
+            svc = data  # Flat
+        
         scope = svc.get('scope')
-        if scope in ('regional', 'global', 'subscription', 'management_group'):
+        if scope in ('regional', 'global', 'subscription', 'management_group', 'tenant'):
             return scope
     except Exception:
         return None
@@ -268,16 +281,178 @@ def call_azure_cached(client_obj: Any, action: str, params: Optional[Dict[str, A
 
 def _build_client_for_service(service_name: str, subscription_id: str, credential):
     # Lazy import to avoid heavy deps on startup
+    # Generated for all 59 Azure services
+    if service_name == 'aad':
+        return None  # Graph API service, uses different auth
+    if service_name == 'aks':
+        from azure.mgmt.containerservice import ContainerServiceClient
+        return ContainerServiceClient(credential, subscription_id)
+    if service_name == 'api':
+        from azure.mgmt.apimanagement import ApiManagementClient
+        return ApiManagementClient(credential, subscription_id)
+    if service_name == 'automation':
+        from azure.mgmt.automation import AutomationClient
+        return AutomationClient(credential, subscription_id)
+    if service_name == 'backup':
+        from azure.mgmt.recoveryservices import RecoveryServicesClient
+        return RecoveryServicesClient(credential, subscription_id)
+    if service_name == 'batch':
+        from azure.mgmt.batch import BatchManagementClient
+        return BatchManagementClient(credential, subscription_id)
+    if service_name == 'billing':
+        from azure.mgmt.billing import BillingManagementClient
+        return BillingManagementClient(credential, subscription_id)
+    if service_name == 'blob':
+        from azure.storage.blob import BlobServiceClient
+        return BlobServiceClient(credential, subscription_id)
+    if service_name == 'cdn':
+        from azure.mgmt.cdn import CdnManagementClient
+        return CdnManagementClient(credential, subscription_id)
+    if service_name == 'certificates':
+        from azure.keyvault.certificates import CertificateClient
+        return CertificateClient(credential, subscription_id)
     if service_name == 'compute':
         from azure.mgmt.compute import ComputeManagementClient
         return ComputeManagementClient(credential, subscription_id)
-    if service_name == 'storage':
-        from azure.mgmt.storage import StorageManagementClient
-        return StorageManagementClient(credential, subscription_id)
+    if service_name == 'config':
+        from azure.mgmt.appconfiguration import AppConfigurationManagementClient
+        return AppConfigurationManagementClient(credential, subscription_id)
+    if service_name == 'container':
+        from azure.mgmt.containerinstance import ContainerInstanceManagementClient
+        return ContainerInstanceManagementClient(credential, subscription_id)
+    if service_name == 'containerregistry':
+        from azure.mgmt.containerregistry import ContainerRegistryManagementClient
+        return ContainerRegistryManagementClient(credential, subscription_id)
+    if service_name == 'cosmosdb':
+        from azure.mgmt.cosmosdb import CosmosDBManagementClient
+        return CosmosDBManagementClient(credential, subscription_id)
+    if service_name == 'cost':
+        from azure.mgmt.costmanagement import CostManagementClient
+        return CostManagementClient(credential, subscription_id)
+    if service_name == 'data':
+        from azure.mgmt.datafactory import DataFactoryManagementClient
+        return DataFactoryManagementClient(credential, subscription_id)
+    if service_name == 'databricks':
+        from azure.mgmt.databricks import AzureDatabricksManagementClient
+        return AzureDatabricksManagementClient(credential, subscription_id)
+    if service_name == 'dataprotection':
+        from azure.mgmt.dataprotection import DataProtectionClient
+        return DataProtectionClient(credential, subscription_id)
+    if service_name == 'devops':
+        return None  # DevOps uses different API
+    if service_name == 'dns':
+        from azure.mgmt.dns import DnsManagementClient
+        return DnsManagementClient(credential, subscription_id)
+    if service_name == 'elastic':
+        from azure.mgmt.elastic import ElasticClient
+        return ElasticClient(credential, subscription_id)
+    if service_name == 'event':
+        from azure.mgmt.eventgrid import EventGridManagementClient
+        return EventGridManagementClient(credential, subscription_id)
+    if service_name == 'files':
+        from azure.storage.fileshare import ShareServiceClient
+        return ShareServiceClient(credential, subscription_id)
+    if service_name == 'front':
+        from azure.mgmt.frontdoor import FrontDoorManagementClient
+        return FrontDoorManagementClient(credential, subscription_id)
+    if service_name == 'function':
+        from azure.mgmt.web import WebSiteManagementClient
+        return WebSiteManagementClient(credential, subscription_id)
+    if service_name == 'hdinsight':
+        from azure.mgmt.hdinsight import HDInsightManagementClient
+        return HDInsightManagementClient(credential, subscription_id)
+    if service_name == 'iam':
+        from azure.mgmt.authorization import AuthorizationManagementClient
+        return AuthorizationManagementClient(credential, subscription_id)
+    if service_name == 'intune':
+        return None  # Intune uses Graph API
+    if service_name == 'iot':
+        from azure.mgmt.iothub import IotHubClient
+        return IotHubClient(credential, subscription_id)
+    if service_name == 'key':
+        from azure.keyvault.keys import KeyClient
+        return KeyClient(credential, subscription_id)
+    if service_name == 'keyvault':
+        from azure.mgmt.keyvault import KeyVaultManagementClient
+        return KeyVaultManagementClient(credential, subscription_id)
+    if service_name == 'log':
+        from azure.mgmt.loganalytics import LogAnalyticsManagementClient
+        return LogAnalyticsManagementClient(credential, subscription_id)
+    if service_name == 'logic':
+        from azure.mgmt.logic import LogicManagementClient
+        return LogicManagementClient(credential, subscription_id)
+    if service_name == 'machine':
+        from azure.mgmt.machinelearningservices import MachineLearningServiceClient
+        return MachineLearningServiceClient(credential, subscription_id)
+    if service_name == 'management':
+        from azure.mgmt.managementgroups import ManagementGroupsAPI
+        return ManagementGroupsAPI(credential)
+    if service_name == 'managementgroup':
+        from azure.mgmt.managementgroups import ManagementGroupsAPI
+        return ManagementGroupsAPI(credential)
+    if service_name == 'mariadb':
+        from azure.mgmt.rdbms.mariadb import MariaDBManagementClient
+        return MariaDBManagementClient(credential, subscription_id)
+    if service_name == 'monitor':
+        from azure.mgmt.monitor import MonitorManagementClient
+        return MonitorManagementClient(credential, subscription_id)
+    if service_name == 'mysql':
+        from azure.mgmt.rdbms.mysql import MySQLManagementClient
+        return MySQLManagementClient(credential, subscription_id)
+    if service_name == 'netappfiles':
+        from azure.mgmt.netapp import NetAppManagementClient
+        return NetAppManagementClient(credential, subscription_id)
     if service_name == 'network':
         from azure.mgmt.network import NetworkManagementClient
         return NetworkManagementClient(credential, subscription_id)
-    # Add additional services here as you grow
+    if service_name == 'notification':
+        from azure.mgmt.notificationhubs import NotificationHubsManagementClient
+        return NotificationHubsManagementClient(credential, subscription_id)
+    if service_name == 'policy':
+        from azure.mgmt.resource import PolicyClient
+        return PolicyClient(credential, subscription_id)
+    if service_name == 'postgresql':
+        from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
+        return PostgreSQLManagementClient(credential, subscription_id)
+    if service_name == 'power':
+        from azure.mgmt.powerbidedicated import PowerBIDedicated
+        return PowerBIDedicated(credential, subscription_id)
+    if service_name == 'purview':
+        from azure.mgmt.purview import PurviewManagementClient
+        return PurviewManagementClient(credential, subscription_id)
+    if service_name == 'rbac':
+        from azure.mgmt.authorization import AuthorizationManagementClient
+        return AuthorizationManagementClient(credential, subscription_id)
+    if service_name == 'redis':
+        from azure.mgmt.redis import RedisManagementClient
+        return RedisManagementClient(credential, subscription_id)
+    if service_name == 'resource':
+        from azure.mgmt.resource import ResourceManagementClient
+        return ResourceManagementClient(credential, subscription_id)
+    if service_name == 'search':
+        from azure.mgmt.search import SearchManagementClient
+        return SearchManagementClient(credential, subscription_id)
+    if service_name == 'security':
+        from azure.mgmt.security import SecurityCenter
+        return SecurityCenter(credential, subscription_id)
+    if service_name == 'sql':
+        from azure.mgmt.sql import SqlManagementClient
+        return SqlManagementClient(credential, subscription_id)
+    if service_name == 'storage':
+        from azure.mgmt.storage import StorageManagementClient
+        return StorageManagementClient(credential, subscription_id)
+    if service_name == 'subscription':
+        from azure.mgmt.subscription import SubscriptionClient
+        return SubscriptionClient(credential)
+    if service_name == 'synapse':
+        from azure.mgmt.synapse import SynapseManagementClient
+        return SynapseManagementClient(credential, subscription_id)
+    if service_name == 'traffic':
+        from azure.mgmt.trafficmanager import TrafficManagerManagementClient
+        return TrafficManagerManagementClient(credential, subscription_id)
+    if service_name == 'webapp':
+        from azure.mgmt.web import WebSiteManagementClient
+        return WebSiteManagementClient(credential, subscription_id)
     raise ValueError(f"Unsupported service: {service_name}")
 
 
@@ -292,6 +467,45 @@ def _service_requires_rg(service_rules: Dict[str, Any]) -> bool:
                 if call.get('resource_group_param'):
                     return True
     return False
+
+
+def _substitute_templates(params: Dict[str, Any], resource: Any) -> Dict[str, Any]:
+    """Replace {{field}} templates in params with values from resource object"""
+    import re
+    
+    substituted = {}
+    for key, value in params.items():
+        if isinstance(value, str) and '{{' in value:
+            # Extract template variables like {{name}}, {{resource_group}}
+            template_pattern = r'\{\{(\w+)\}\}'
+            matches = re.findall(template_pattern, value)
+            
+            result = value
+            for field_name in matches:
+                # Try to get value from resource
+                field_value = None
+                
+                if isinstance(resource, dict):
+                    field_value = resource.get(field_name)
+                elif hasattr(resource, field_name):
+                    field_value = getattr(resource, field_name)
+                elif field_name == 'resource_group' and hasattr(resource, 'id'):
+                    # Extract resource group from Azure resource ID
+                    # Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/...
+                    resource_id = getattr(resource, 'id', '')
+                    if isinstance(resource_id, str) and '/resourceGroups/' in resource_id:
+                        parts = resource_id.split('/resourceGroups/')
+                        if len(parts) > 1:
+                            field_value = parts[1].split('/')[0]
+                
+                if field_value is not None:
+                    result = result.replace('{{' + field_name + '}}', str(field_value))
+            
+            substituted[key] = result
+        else:
+            substituted[key] = value
+    
+    return substituted
 
 
 def _inject_scoped_params(params: Dict[str, Any], action: Optional[str], region_param: Optional[str], region: Optional[str], rg_param: Optional[str], resource_group: Optional[str], mg_param: Optional[str] = None, management_group: Optional[str] = None):
@@ -381,9 +595,12 @@ def run_subscription_service(service_name: str, tenant_id: Optional[str], subscr
                 rg_param = call.get('resource_group_param') or check.get('resource_group_param')
                 mg_param = call.get('management_group_param') or check.get('management_group_param')
                 target = resource if action in (None, 'self') else client
-                params: Dict[str, Any] = {}
+                params: Dict[str, Any] = call.get('params', {}).copy()  # Get params from call definition
                 if param and action not in (None, 'self'):
                     params[param] = resource
+                # Substitute templates like {{name}}, {{resource_group}} with actual values
+                if resource is not None:
+                    params = _substitute_templates(params, resource)
                 # iterate each RG if applicable
                 rgs = resource_groups if (rg_param and action not in (None, 'self')) else [None]
                 for rg in rgs:

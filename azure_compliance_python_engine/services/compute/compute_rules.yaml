@@ -1,64 +1,1325 @@
 compute:
+  version: '1.0'
+  provider: azure
+  service: compute
+  package: azure-mgmt-compute
+  client_class: ComputeManagementClient
   scope: subscription
-  iterate_resource_groups: true
   discovery:
-    - discovery_id: vms
-      resource_group_param: resource_group_name
-      calls:
-        - action: virtual_machines.list
-          resource_group_param: resource_group_name
-          fields:
-            - path: __self__
-              var: vm
-            - path: name
-              var: vm_name
-            - path: id
-              var: vm_id
-    - discovery_id: critical_disks
-      resource_group_param: resource_group_name
-      calls:
-        - action: disks.list_by_resource_group
-          resource_group_param: resource_group_name
-          fields:
-            - path: __self__
-              var: disk
-            - path: encryption.type
-              var: encryption_type
-            - path: encryption.disk_encryption_set_id
-              var: disk_encryption_set_id
+  - discovery_id: azure.compute.virtual_machines
+    calls:
+    - client: compute
+      action: virtual_machines.list_all
+      save_as: virtual_machines
+  - discovery_id: azure.compute.disks
+    calls:
+    - client: compute
+      action: disks.list
+      save_as: disks
+  - discovery_id: azure.compute.snapshots
+    calls:
+    - client: compute
+      action: snapshots.list
+      save_as: snapshots
+  - discovery_id: azure.compute.dedicated_hosts
+    calls:
+    - client: compute
+      action: dedicated_hosts.list_by_host_group
+      save_as: dedicated_hosts
+  - discovery_id: azure.compute.security_groups
+    calls:
+    - client: network
+      action: network_security_groups.list_all
+      save_as: security_groups
   checks:
-    - check_id: vm_managed_disks
-      title: Ensure VMs use managed disks
-      severity: medium
-      for_each: vms
-      param: vm
-      calls:
-        - action: self
-          fields:
-            - path: storage_profile.os_disk.managed_disk
-              operator: exists
-              expected: true
-    - check_id: vm_no_public_ip
-      title: Ensure VMs do not have public IPs directly attached
-      severity: high
-      for_each: vms
-      param: vm
-      calls:
-        - action: self
-          fields:
-            - path: network_profile.network_interfaces[].id
-              operator: not_contains
-              expected: "/publicIPAddresses/"
-    - check_id: disk_encrypted_with_customer_managed_key
-      title: Ensure disk is encrypted with customer-managed key
-      severity: high
-      for_each: critical_disks
-      param: disk
-      calls:
-        - action: self
-          fields:
-            - path: encryption.type
-              operator: equals
-              expected: EncryptionAtRestWithCustomerKey
-            - path: encryption.disk_encryption_set_id
-              operator: exists 
+  - check_id: azure.compute.ebs.public.snapshot
+    title: 'AZURE COMPUTE EBS: Public Snapshot Check'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.virtual_machine.vm_imds_hardened
+    title: 'AZURE COMPUTE Virtual Machine: VM IMDS Hardened'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: security_profile.security_type
+        operator: exists
+  - check_id: azure.compute.virtual_machine.vm_ssh_key_based_auth_required
+    title: 'AZURE COMPUTE Virtual Machine: SSH Key Based Auth Required'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: os_profile.linux_configuration.disable_password_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.encryption_at_host_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Encryption At Host Enabled'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: security_profile.encryption_at_host
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.managed_identity_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: exists
+  - check_id: azure.compute.dedicated_host.instance_auto_placement_controlled
+    title: 'AZURE COMPUTE Dedicated Host: Instance Auto Placement Controlled'
+    severity: low
+    for_each: azure.compute.dedicated_hosts
+    calls:
+    - action: dedicated_hosts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        host_group_name: '{{host_group_name}}'
+        host_name: '{{name}}'
+      fields:
+      - path: auto_replace_on_failure
+        operator: equals
+        expected: false
+  - check_id: azure.compute.spot_virtual_machine.spot_instance_instance_profile_least_privilege
+    title: 'AZURE COMPUTE Spot Virtual Machine: Instance Profile Least Privilege'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: priority
+        operator: equals
+        expected: Spot
+      - path: identity.user_assigned_identities
+        operator: exists
+  - check_id: azure.compute.disk.encryption_enabled
+    title: 'AZURE COMPUTE Disk: Encryption Enabled'
+    severity: high
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: exists
+  - check_id: azure.compute.disk.public_access_disabled
+    title: 'AZURE COMPUTE Disk: Public Access Disabled'
+    severity: critical
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22
+    title: 'AZURE COMPUTE Security Group: SSH Access From Internet Restricted'
+    severity: critical
+    for_each: azure.compute.security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.destination_port_range=='22' && @.source_address_prefix=='*')].access
+        operator: equals
+        expected: Deny
+  - check_id: azure.compute.virtual_machine.boot_diagnostics_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Boot Diagnostics Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: diagnostics_profile.boot_diagnostics.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.backup_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Backup Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: recovery_services.backup_protected_items.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        fabric_name: Azure
+        container_name: iaasvmcontainer;iaasvmcontainerv2;{{resource_group}};{{name}}
+        protected_item_name: vm;iaasvmcontainerv2;{{resource_group}};{{name}}
+      fields:
+      - path: properties.protection_state
+        operator: equals
+        expected: Protected
+  - check_id: azure.compute.virtual_machine.antimalware_extension_installed
+    title: 'AZURE COMPUTE Virtual Machine: Antimalware Extension Installed'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machine_extensions.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: value[?(@.type_properties_type=='IaaSAntimalware')].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.compute.virtual_machine.monitoring_agent_installed
+    title: 'AZURE COMPUTE Virtual Machine: Monitoring Agent Installed'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machine_extensions.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: value[?(@.type_properties_type=='MicrosoftMonitoringAgent')].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.compute.virtual_machine.os_disk_encrypted
+    title: 'AZURE COMPUTE Virtual Machine: OS Disk Encrypted'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: storage_profile.os_disk.encryption_settings.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.data_disk_encrypted
+    title: 'AZURE COMPUTE Virtual Machine: Data Disk Encrypted'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: storage_profile.data_disks[*].encryption_settings.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.network_security_group_attached
+    title: 'AZURE COMPUTE Virtual Machine: Network Security Group Attached'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: network_interfaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_interface_name: '{{network_interface_name}}'
+      fields:
+      - path: network_security_group.id
+        operator: exists
+  - check_id: azure.compute.virtual_machine.automatic_updates_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Automatic Updates Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: os_profile.windows_configuration.enable_automatic_updates
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_agent_installed
+    title: 'AZURE COMPUTE Virtual Machine: VM Agent Installed'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.instance_view
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: vm_agent.vm_agent_version
+        operator: exists
+  - check_id: azure.compute.virtual_machine.patch_management_enabled
+    title: 'AZURE COMPUTE Virtual Machine: Patch Management Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: os_profile.windows_configuration.patch_settings.patch_mode
+        operator: equals
+        expected: AutomaticByPlatform
+  - check_id: azure.compute.dedicated_host.host_sharing_restricted
+    title: 'AZURE COMPUTE Dedicated_host: Host Sharing Restricted'
+    severity: low
+    for_each: azure.compute.dedicated_hosts
+    calls:
+    - action: dedicated_hosts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        host_group_name: '{{host_group_name}}'
+        host_name: '{{host_name}}'
+      fields:
+      - path: auto_replace_on_failure
+        operator: equals
+        expected: false
+  - check_id: azure.compute.disk.cmk_cmek_configured
+    title: 'AZURE COMPUTE Disk: CMK Cmek Configured'
+    severity: medium
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: equals
+        expected: CustomerManagedKey
+  - check_id: azure.compute.disk.encryption.cmk.check
+    title: 'AZURE COMPUTE Disk: Encryption CMK Check'
+    severity: high
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.disk_encryption_set_id
+        operator: not_null
+        expected: true
+  - check_id: azure.compute.disk.encryption_at_rest_enabled
+    title: 'AZURE COMPUTE Disk: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption_settings_collection.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.disk.encryption_enabled:az.compute_disk.compute_security_disk_encryption_at_rest_enabled
+    title: 'AZURE COMPUTE Disk: Encryption Enabled:az Compute Disk Compute Security Disk Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: encryption.type
+        operator: not_equals
+        expected: EncryptionAtRestWithPlatformKey
+  - check_id: azure.compute.disk.in_use
+    title: 'AZURE VM Volume: In Use'
+    severity: low
+    for_each: azure.compute.disks
+    calls:
+    - action: disks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        disk_name: '{{disk_name}}'
+      fields:
+      - path: disk_state
+        operator: equals
+        expected: Attached
+  - check_id: azure.compute.disk.snapshots_encrypted
+    title: 'AZURE COMPUTE Disk: Snapshots Encrypted'
+    severity: medium
+    for_each: azure.compute.snapshots
+    calls:
+    - action: self
+      fields:
+      - path: encryption_settings_collection.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.disk.snapshots_not_public
+    title: 'AZURE COMPUTE Disk: Snapshots Not Public'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{snapshot_name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.aks.endpoints.not.publicly.accessible,.azure.storage.account.level.public.access.blocks,.azure.awslambda.function.not.publicly.accessible,.azure.hdinsight.cluster.master.nodes.no.public.ip,.azure.compute.instance.public.ip,.azure.monitor.log.metric.filter.root.usage,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.storage.bucket.policy.public.write.access,.azure.storage.bucket.public.write.acl,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured
+    title: 'AZURE COMPUTE Ebs: Public Snapshot'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{snapshot_name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.aks.endpoints.not.publicly.accessible,.azure.virtual.network.endpoint.for.ec2.enabled,.azure.storage.account.level.public.access.blocks,.azure.awslambda.function.not.publicly.accessible,.azure.hdinsight.cluster.master.nodes.no.public.ip,.azure.compute.instance.public.ip,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.awslambda.function.inside.vpc,.azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured
+    title: 'AZURE COMPUTE Ebs: Public Snapshot'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{snapshot_name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.aks.endpoints.not.publicly.accessible,.azure.virtual.network.endpoint.for.ec2.enabled,.azure.storage.account.level.public.access.blocks,.azure.awslambda.function.not.publicly.accessible,.azure.hdinsight.cluster.master.nodes.no.public.ip,.azure.compute.instance.public.ip,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.awslambda.function.inside.vpc,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured,.azure.storage.bucket.policy.public.write.access,.azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22,.azure.storage.bucket.public.write.acl,.azure.compute.securitygroup.allow.ingress.from.internet.to.all.ports,.azure.compute.networkacl.allow.ingress.tcp.port.22,.azure.compute.networkacl.allow.ingress.tcp.port.3389,.azure.compute.securitygroup.default.restrict.traffic
+    title: 'AZURE COMPUTE Ebs: Public Snapshot'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.awslambda.function.not.publicly.accessible,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.storage.bucket.policy.public.write.access,.azure.awslambda.function.inside.vpc,.azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22,.azure.storage.bucket.public.write.acl,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured
+    title: 'AZURE COMPUTE Ebs: Public Snapshot'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.ebs.public.snapshot,.azure.sql.instance.no.public.access,.azure.compute.securitygroup.default.restrict.traffic,.azure.compute.securitygroup.allow.ingress.from.internet.to.all.ports,.azure.compute.networkacl.allow.ingress.tcp.port.22,.azure.awslambda.function.not.publicly.accessible,.azure.sql.snapshots.public.access,.azure.search.service.domains.not.publicly.accessible,.azure.synapse.cluster.public.access,.azure.storage.bucket.policy.public.write.access,.azure.awslambda.function.inside.vpc,.azure.compute.securitygroup.allow.ingress.from.internet.to.tcp.port.22,.azure.storage.bucket.public.write.acl,.azure.database.migration.instance.no.public.access,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured,.azure.compute.networkacl.allow.ingress.tcp.port.3389
+    title: 'AZURE COMPUTE Ebs: Public Snapshot'
+    severity: critical
+    for_each: azure.compute.snapshots
+    calls:
+    - action: snapshots.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        snapshot_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.image.approved_image_allowlist_enforced
+    title: 'AZURE COMPUTE Image: Approved Image Allowlist Enforced'
+    severity: low
+    for_each: azure.compute.images
+    calls:
+    - action: self
+      fields:
+      - path: tags.approved
+        operator: equals
+        expected: 'true'
+  - check_id: azure.compute.image.encrypted_cmek
+    title: 'AZURE COMPUTE Image: Encrypted Cmek'
+    severity: medium
+    for_each: azure.compute.images
+    calls:
+    - action: images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        image_name: '{{name}}'
+      fields:
+      - path: storage_profile.os_disk.disk_encryption_set.id
+        operator: not_null
+        expected: true
+  - check_id: azure.compute.image.image_signed_and_verified
+    title: 'AZURE COMPUTE Image: Image Signed And Verified'
+    severity: low
+    for_each: azure.compute.images
+    calls:
+    - action: self
+      fields:
+      - path: tags.signed
+        operator: equals
+        expected: 'true'
+  - check_id: azure.compute.image.not_publicly_shared
+    title: 'AZURE COMPUTE Image: Not Publicly Shared'
+    severity: critical
+    for_each: azure.compute.images
+    calls:
+    - action: images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        image_name: '{{name}}'
+      fields:
+      - path: public_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.image.vuln_scanned_no_critical
+    title: 'AZURE COMPUTE Image: Vuln Scanned No Critical'
+    severity: low
+    for_each: azure.compute.images
+    calls:
+    - action: self
+      fields:
+      - path: tags.vulnerability_scan_status
+        operator: equals
+        expected: passed
+  - check_id: azure.compute.instance.older_than_specific_days
+    title: 'AZURE COMPUTE Instance: Older Than Specific Days'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: time_created
+        operator: older_than_days
+        expected: 90
+  - check_id: azure.compute.instance.profile_attached
+    title: 'AZURE COMPUTE Instance: Profile Attached'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: not_null
+        expected: true
+  - check_id: azure.compute.networkacl.allow.ingress.tcp.port.22
+    title: 'AZURE COMPUTE Networkacl: Allow Ingress Tcp Port 22'
+    severity: medium
+    for_each: azure.compute.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.destination_port_range == '22' && @.access == 'Allow' && @.direction == 'Inbound')]
+        operator: empty
+        expected: true
+  - check_id: azure.compute.securitygroup.allow.ingress.from.internet.to.all.ports
+    title: 'AZURE COMPUTE Securitygroup: Allow Ingress From Internet To All Ports'
+    severity: medium
+    for_each: azure.compute.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.source_address_prefix == '*' && @.destination_port_range == '*' && @.access == 'Allow' &&
+          @.direction == 'Inbound')]
+        operator: empty
+        expected: true
+  - check_id: azure.compute.networkacl.allow.ingress.tcp.port.3389
+    title: 'AZURE COMPUTE Networkacl: Allow Ingress Tcp Port 3389'
+    severity: medium
+    for_each: azure.compute.network_security_groups
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{name}}'
+      fields:
+      - path: security_rules[?(@.destination_port_range == '3389' && @.access == 'Allow' && @.direction == 'Inbound')]
+        operator: empty
+        expected: true
+  - check_id: azure.machine.learning.notebook.instance.without.direct.internet.access.configured
+    title: 'AZURE COMPUTE: Machine Learning Notebook Instance Without Direct Internet Access'
+    severity: medium
+    for_each: azure.compute.machine_learning_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.compute.paas_lightsail_instance.paas_instance_disk_encrypted
+    title: 'AZURE COMPUTE Paas_lightsail_instance: Paas Instance Disk Encrypted'
+    severity: medium
+    for_each: azure.compute.container_instances
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{name}}'
+      fields:
+      - path: volumes[*].azure_file.storage_account_name
+        operator: exists
+        expected: true
+  - check_id: azure.compute.paas_lightsail_instance.paas_instance_no_public_ip_unless_required
+    title: 'AZURE COMPUTE Paas_lightsail_instance: Paas Instance No Public Ip Unless Required'
+    severity: critical
+    for_each: azure.compute.container_instances
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{name}}'
+      fields:
+      - path: ip_address.type
+        operator: not_equals
+        expected: Public
+  - check_id: azure.compute.paas_lightsail_instance.paas_instance_ssh_password_auth_disabled
+    title: 'AZURE COMPUTE Paas_lightsail_instance: Paas Instance Ssh Password Auth Disabled'
+    severity: low
+    for_each: azure.compute.container_instances
+    calls:
+    - action: container_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        container_group_name: '{{name}}'
+      fields:
+      - path: containers[*].environment_variables[?(@.name == 'SSH_PASSWORD_AUTH')]
+        operator: empty
+        expected: true
+  - check_id: azure.api.management.restapi.waf.acl.attached
+    title: 'AZURE COMPUTE: API Management RestAPI WAF ACL Attached'
+    severity: low
+    for_each: azure.compute.api_management_services
+    calls:
+    - action: api_management_service.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        service_name: '{{name}}'
+      fields:
+      - path: additional_locations[*].gateway_regional_url
+        operator: exists
+        expected: true
+  - check_id: azure.load.balancer.waf.acl.attached
+    title: 'AZURE COMPUTE: Load Balancer WAF ACL Attached'
+    severity: low
+    for_each: azure.compute.load_balancers
+    calls:
+    - action: load_balancers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        load_balancer_name: '{{name}}'
+      fields:
+      - path: frontend_ip_configurations[*].public_ip_address
+        operator: exists
+        expected: true
+  - check_id: azure.compute.spot_virtual_machine.spot_instance_no_public_ip_assigned
+    title: 'AZURE COMPUTE Spot_virtual_machine: Spot Instance No Public Ip Assigned'
+    severity: critical
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: priority
+        operator: equals
+        expected: Spot
+      - path: network_profile.network_interfaces[*].ip_configurations[*].public_ip_address
+        operator: empty
+        expected: true
+  - check_id: azure.compute.spot_virtual_machine.spot_instance_uses_approved_launch_template
+    title: 'AZURE COMPUTE Spot_virtual_machine: Spot Instance Uses Approved Launch Template'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: priority
+        operator: equals
+        expected: Spot
+      - path: storage_profile.image_reference.id
+        operator: exists
+        expected: true
+  - check_id: azure.compute.ssh_public_key.key_pair_disable_unused_keys
+    title: 'AZURE COMPUTE Ssh_public_key: Key Pair Disable Unused Keys'
+    severity: high
+    for_each: azure.compute.ssh_public_keys
+    calls:
+    - action: ssh_public_keys.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        ssh_public_key_name: '{{ssh_key_name}}'
+      fields:
+      - path: public_key
+        operator: exists
+        expected: true
+  - check_id: azure.compute.ssh_public_key.key_pair_max_age_days
+    title: 'AZURE COMPUTE Ssh_public_key: Key Pair Max Age Days'
+    severity: high
+    for_each: azure.compute.ssh_public_keys
+    calls:
+    - action: ssh_public_keys.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        ssh_public_key_name: '{{ssh_key_name}}'
+      fields:
+      - path: public_key
+        operator: age_days_less_than
+        expected: 365
+  - check_id: azure.compute.virtual_machine.vm_data_volumes_encrypted_cmek
+    title: 'AZURE COMPUTE Virtual_machine: VM Data Volumes Encrypted Cmek'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: storage_profile.data_disks[*].managed_disk.disk_encryption_set.id
+        operator: exists
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_no_public_ip_assigned
+    title: 'AZURE COMPUTE Virtual_machine: VM No Public Ip Assigned'
+    severity: critical
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: network_profile.network_interfaces[*].properties.ip_configurations[*].properties.public_ip_address
+        operator: empty
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_root_volume_encrypted_cmek
+    title: 'AZURE COMPUTE Virtual_machine: VM Root Volume Encrypted Cmek'
+    severity: critical
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: storage_profile.os_disk.managed_disk.disk_encryption_set.id
+        operator: exists
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_secure_boot_enabled
+    title: 'AZURE COMPUTE Virtual_machine: VM Secure Boot Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: security_profile.uefi_settings.secure_boot_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_security_group_inbound_restricted
+    title: 'AZURE COMPUTE Virtual_machine: VM Security Group Inbound Restricted'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: network_profile.network_interfaces[*].properties.network_security_group.id
+        operator: exists
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_serial_console_access_restricted
+    title: 'AZURE COMPUTE Virtual_machine: VM Serial Console Access Restricted'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: diagnostics_profile.boot_diagnostics.enabled
+        operator: equals
+        expected: false
+  - check_id: azure.compute.virtual_machine.vm_ssh_password_auth_disabled
+    title: 'AZURE COMPUTE Virtual_machine: VM Ssh Password Auth Disabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: os_profile.linux_configuration.disable_password_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_user_data_no_secrets
+    title: 'AZURE COMPUTE Virtual_machine: VM User Data No Secrets'
+    severity: high
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: os_profile.custom_data
+        operator: not_contains_secrets
+        expected: true
+  - check_id: azure.compute.virtual_machine.vm_vtpm_enabled
+    title: 'AZURE COMPUTE Virtual_machine: VM Vtpm Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: security_profile.uefi_settings.v_tpm_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine_scale_set.instance_group_instance_profile_least_privilege
+    title: 'AZURE COMPUTE Virtual_machine_scale_set: Instance Group Instance Profile Least Privilege'
+    severity: high
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: UserAssigned
+  - check_id: azure.compute.virtual_machine_scale_set.instance_group_no_public_ip_assigned
+    title: 'AZURE COMPUTE Virtual_machine_scale_set: Instance Group No Public Ip Assigned'
+    severity: critical
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: virtual_machine_scale_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_scale_set_name: '{{name}}'
+      fields:
+      - path: virtual_machine_profile.network_profile.network_interface_configurations[*].ip_configurations[*].public_ip_address_configuration
+        operator: empty
+        expected: true
+  - check_id: azure.compute.virtual_machine_scale_set.instance_group_uses_approved_launch_template
+    title: 'AZURE COMPUTE Virtual_machine_scale_set: Instance Group Uses Approved Launch Template'
+    severity: low
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: virtual_machine_scale_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_scale_set_name: '{{name}}'
+      fields:
+      - path: virtual_machine_profile.source_image_reference
+        operator: exists
+        expected: true
+  - check_id: azure.compute.virtual_machine_scale_set.instance_group_volumes_encrypted
+    title: 'AZURE COMPUTE Virtual_machine_scale_set: Instance Group Volumes Encrypted'
+    severity: medium
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: virtual_machine_scale_sets.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_scale_set_name: '{{name}}'
+      fields:
+      - path: virtual_machine_profile.storage_profile.os_disk.encryption_settings.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine_template.launch_template_imds_hardened
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template Imds Hardened'
+    severity: low
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: gallery_image_versions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gallery_name: '{{gallery_name}}'
+        gallery_image_name: '{{image_name}}'
+        gallery_image_version_name: '{{version}}'
+      fields:
+      - path: publishing_profile.replica_count
+        operator: greater_than
+        expected: 0
+  - check_id: azure.compute.virtual_machine_template.launch_template_instance_profile_least_privilege
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template Instance Profile Least Privilege'
+    severity: high
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: self
+      fields:
+      - path: identifier.publisher
+        operator: not_equals
+        expected: '*'
+  - check_id: azure.compute.virtual_machine_template.launch_template_no_public_ip_default
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template No Public Ip Default'
+    severity: critical
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: gallery_images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gallery_name: '{{gallery_name}}'
+        gallery_image_name: '{{image_name}}'
+      fields:
+      - path: features.is_accelerated_network_supported
+        operator: equals
+        expected: false
+  - check_id: azure.compute.virtual_machine_template.launch_template_root_volume_encrypted_by_default
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template Root Volume Encrypted By Default'
+    severity: critical
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: gallery_images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gallery_name: '{{gallery_name}}'
+        gallery_image_name: '{{image_name}}'
+      fields:
+      - path: features.is_hibernate_supported
+        operator: equals
+        expected: true
+  - check_id: azure.compute.virtual_machine_template.launch_template_security_groups_restrictive
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template Security Groups Restrictive'
+    severity: low
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: gallery_images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gallery_name: '{{gallery_name}}'
+        gallery_image_name: '{{image_name}}'
+      fields:
+      - path: privacy_statement_uri
+        operator: exists
+        expected: true
+  - check_id: azure.compute.virtual_machine_template.launch_template_user_data_no_secrets
+    title: 'AZURE COMPUTE Virtual_machine_template: Launch Template User Data No Secrets'
+    severity: high
+    for_each: azure.compute.virtual_machine_templates
+    calls:
+    - action: gallery_images.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        gallery_name: '{{gallery_name}}'
+        gallery_image_name: '{{image_name}}'
+      fields:
+      - path: description
+        operator: not_contains
+        expected: password
+  - check_id: azure.compute.vm.aslr_enabled
+    title: 'AZURE VM Resource: Aslr Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: security_profile.security_type
+        operator: equals
+        expected: TrustedLaunch
+  - check_id: azure.compute.vm.automation_compliance
+    title: 'AZURE VM Resource: Automation Association Compliance'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machine_extensions.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: value[?(@.type_properties_type=='MicrosoftMonitoringAgent')].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.compute.vm.backup_enabled
+    title: 'AZURE VM Resource: Backup Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: protected_items.get
+      params:
+        vault_name: '{{vault_name}}'
+        resource_group_name: '{{resource_group}}'
+        fabric_name: Azure
+        container_name: iaasvmcontainer;iaasvmcontainerv2;{{resource_group}};{{vm_name}}
+        protected_item_name: vm;iaasvmcontainerv2;{{resource_group}};{{vm_name}}
+      fields:
+      - path: protection_state
+        operator: equals
+        expected: Protected
+  - check_id: azure.compute.vm.dep_enabled
+    title: 'AZURE VM Resource: Dep Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: security_profile.encryption_at_host
+        operator: equals
+        expected: true
+  - check_id: azure.compute.vm.managed_disks_enabled
+    title: 'AZURE VM Resource: Ensure Using Managed Disks'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: storage_profile.os_disk.managed_disk
+        operator: exists
+        expected: true
+  - check_id: azure.compute.vm.patch_compliance
+    title: 'AZURE VM Resource: Patch Compliance'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: os_profile.windows_configuration.enable_automatic_updates
+        operator: equals
+        expected: true
+  - check_id: azure.compute.vm.stopped_instance
+    title: 'AZURE VM Resource: Stopped Instance'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.instance_view
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: statuses[?(@.code=='PowerState/running')].display_status
+        operator: not_equals
+        expected: VM running
+  - check_id: azure.compute.vm.trusted_launch_enabled
+    title: 'AZURE VM Resource: Trusted Launch Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+      fields:
+      - path: security_profile.security_type
+        operator: equals
+        expected: TrustedLaunch
+  - check_id: azure.compute.vm.unrestricted_ingress
+    title: 'AZURE VM Resource: Networkacl Unrestricted Ingress'
+    severity: critical
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{nsg_name}}'
+      fields:
+      - path: security_rules[?(@.source_address_prefix=='*' && @.access=='Allow')].direction
+        operator: not_equals
+        expected: Inbound
+  - check_id: azure.compute.vm.unrestricted_network_ingress
+    title: 'AZURE COMPUTE Resource: Networkacl Allow Ingress Any Port'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: network_security_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        network_security_group_name: '{{nsg_name}}'
+      fields:
+      - path: security_rules[?(@.destination_port_range=='*' && @.access=='Allow')].direction
+        operator: not_equals
+        expected: Inbound
+  - check_id: azure.compute.vmss.autoscale_enabled
+    title: 'AZURE VM Resource: Scale Set Autoscale Enabled'
+    severity: low
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: autoscale_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        autoscale_setting_name: '{{autoscale_name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.vmss.configured
+    title: 'AZURE VM Resource: Scale Set Configured'
+    severity: low
+    for_each: azure.compute.virtual_machine_scale_sets
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.disk.unattached.cmk.encryption.check
+    title: 'AZURE DISK Unattached: CMK Encryption Check'
+    severity: high
+    for_each: azure.compute.disks
+    calls:
+    - action: self
+      fields:
+      - path: managed_by
+        operator: equals
+        expected: null
+      - path: encryption.type
+        operator: equals
+        expected: EncryptionAtRestWithCustomerKey
+  - check_id: azure.virtualmachines.managed.by.automation
+    title: 'AZURE VIRTUALMACHINES Managed: By Automation'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: tags.ManagedBy
+        operator: equals
+        expected: Automation
+  - check_id: azure.vm.disk.data.access.auth.mode.check
+    title: 'AZURE VM Disk: Data Access Auth Mode Check'
+    severity: medium
+    for_each: azure.compute.disks
+    calls:
+    - action: disks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        disk_name: '{{disk_name}}'
+      fields:
+      - path: data_access_auth_mode
+        operator: equals
+        expected: AzureActiveDirectory
+  - check_id: azure.vm.disk.encrypted:az.compute_disk.compute_security_disk_snapshots_encrypted
+    title: 'AZURE VM Disk: Encrypted:az Compute Disk Compute Security Disk Snapshots Encrypted'
+    severity: medium
+    for_each: azure.compute.snapshots
+    calls:
+    - action: self
+      fields:
+      - path: encryption_settings_collection.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.vm.disk.network.access.policy.check
+    title: 'AZURE VM Disk: Network Access Policy Check'
+    severity: medium
+    for_each: azure.compute.disks
+    calls:
+    - action: disks.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        disk_name: '{{disk_name}}'
+      fields:
+      - path: network_access_policy
+        operator: equals
+        expected: DenyAll
+  - check_id: azure.vm.elastic.ip.unassigned
+    title: 'AZURE VM Elastic: Ip Unassigned'
+    severity: low
+    for_each: azure.network.public_ip_addresses
+    calls:
+    - action: public_ip_addresses.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        public_ip_address_name: '{{public_ip_name}}'
+      fields:
+      - path: ip_configuration
+        operator: equals
+        expected: null
+  - check_id: azure.vm.encryption.at.host.enabled
+    title: 'AZURE VM Encryption: At Host Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: security_profile.encryption_at_host
+        operator: equals
+        expected: true
+  - check_id: azure.vm.extensions.approved.check
+    title: 'AZURE VM Extensions: Approved Check'
+    severity: low
+    for_each: azure.compute.virtual_machine_extensions
+    calls:
+    - action: virtual_machine_extensions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{vm_name}}'
+        vm_extension_name: '{{name}}'
+      fields:
+      - path: publisher
+        operator: in
+        expected:
+        - Microsoft.Azure.Extensions
+        - Microsoft.Compute
+        - Microsoft.Azure.Security
+  - check_id: azure.vm.instance.detailed_monitoring_enabled
+    title: 'AZURE VM Instance: Detailed Monitoring Enabled'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: diagnostics_profile.boot_diagnostics.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.vm.instance.managed.by.ssm
+    title: 'AZURE VM Instance: Managed By Ssm'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.vm.managed.by.automation
+    title: 'AZURE VM Managed: By Automation'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: tags.AutomationManaged
+        operator: equals
+        expected: 'true'
+  - check_id: azure.vm.managed.by.ssm
+    title: 'AZURE VM Managed: By Ssm'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: tags.SSMManaged
+        operator: equals
+        expected: 'true'
+  - check_id: azure.vm.managed.disks.compliance.check
+    title: 'AZURE VM Managed: Disks Compliance Check'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: storage_profile.os_disk.managed_disk
+        operator: not_null
+        expected: true
+  - check_id: azure.vm.mfa.enabled.check
+    title: 'AZURE VM Mfa: Enabled Check'
+    severity: medium
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.vm.security.extensions.check
+    title: 'AZURE VM Security: Extensions Check'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.vm.ssm.managed
+    title: 'AZURE VM Ssm: Managed'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.vm.trusted.launch.secure.boot.vtpm.check
+    title: 'AZURE VM Trusted: Launch Secure Boot Vtpm Check'
+    severity: low
+    for_each: azure.compute.virtual_machines
+    calls:
+    - action: virtual_machines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        vm_name: '{{name}}'
+      fields:
+      - path: security_profile.security_type
+        operator: equals
+        expected: TrustedLaunch
+      - path: security_profile.uefi_settings.secure_boot_enabled
+        operator: equals
+        expected: true
+      - path: security_profile.uefi_settings.v_tpm_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.compute.securitygroup.allow.ingress.from.internet.to.all.ports,.azure.api.management.restapi.waf.acl.attached,.azure.load.balancer.waf.acl.attached
+    title: 'AZURE COMPUTE Securitygroup: Allow Ingress From Internet To All Ports, Azure API Management Restapi Waf ACL Attached,
+      Azure Load Balancer Waf ACL Attached'
+    severity: low
+    for_each: azure.compute.securitygroup
+    calls:
+    - action: self
+      fields:
+      - path: security_rules[?direction=='Inbound' && access=='Allow' && (source_address_prefix=='*' || source_address_prefix=='0.0.0.0/0'
+          || source_address_prefix=='Internet') && (destination_port_range=='*' || destination_port_ranges contains '*')]
+        operator: not_empty
+        expected: false
+  - check_id: azure.compute.networkacl.allow.ingress.tcp.port.22,.azure.compute.securitygroup.allow.ingress.from.internet.to.all.ports,.azure.compute.networkacl.allow.ingress.tcp.port.3389,.azure.machine.learning.notebook.instance.without.direct.internet.access.configured
+    title: 'AZURE COMPUTE Networkacl: Allow Ingress Tcp Port 22, Azure Compute Securitygroup Allow Ingress From Internet To
+      All Ports, Azure Compute Networkacl Allow Ingress Tcp Port 3389, Azure Machine Learning Notebook Instance Without Direct
+      Internet Access Configured'
+    severity: medium
+    for_each: azure.network.security_groups
+    calls:
+    - action: self
+      fields:
+      - path: security_rules[?direction=='Inbound' && access=='Allow' && (destination_port_range=='22' || destination_port_range=='3389'
+          || destination_port_range=='*') && (source_address_prefix=='*' || source_address_prefix=='0.0.0.0/0' || source_address_prefix=='Internet')]
+        operator: not_exists
+        expected: null

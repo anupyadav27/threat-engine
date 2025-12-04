@@ -25,48 +25,93 @@ def save_scan_results(results: List[Dict[str, Any]], output_dir: str, subscripti
 
 
 def save_split_scan_results(results: List[Dict[str, Any]], output_dir: str, subscription_id: Optional[str] = None) -> str:
+    """
+    Save scan results in AWS-compatible format
+    
+    AWS format:
+    reporting_TIMESTAMP/account_ID/ACCOUNTID_scope_service_checks.json
+    
+    Azure format (matching):
+    reporting_TIMESTAMP/subscription_ID/SUBID_scope_service_checks.json
+    """
     folder = _timestamped_folder(output_dir, 'azure')
-    checks_dir = os.path.join(folder, 'checks')
-    inventory_dir = os.path.join(folder, 'inventory')
-    _ensure_dir(checks_dir)
-    _ensure_dir(inventory_dir)
 
-    # Group results by service
-    service_to_results: Dict[str, List[Dict[str, Any]]] = {}
+    # Group results by subscription (like AWS groups by account)
+    by_subscription: Dict[str, List[Dict[str, Any]]] = {}
     for rec in results:
-        if isinstance(rec, dict) and 'service' in rec:
-            service_to_results.setdefault(rec['service'], []).append(rec)
+        if isinstance(rec, dict):
+            sub_id = rec.get('subscription') or subscription_id or 'default'
+            by_subscription.setdefault(sub_id, []).append(rec)
+    
+    # Create folder per subscription
+    for sub_id, sub_results in by_subscription.items():
+        # Create subscription folder (like AWS account folder)
+        sub_folder_name = f"subscription_{sub_id[:8]}" if sub_id != 'default' else 'subscription_default'
+        sub_folder = os.path.join(folder, sub_folder_name)
+        _ensure_dir(sub_folder)
+        
+        # Group results by service within subscription
+        service_to_results: Dict[str, List[Dict[str, Any]]] = {}
+        for rec in sub_results:
+            if 'service' in rec:
+                service_to_results.setdefault(rec['service'], []).append(rec)
 
-    for service, recs in service_to_results.items():
-        # Aggregate checks
+        for service, recs in service_to_results.items():
+            # Determine scope and region for file naming
+            scope = recs[0].get('scope', 'subscription') if recs else 'subscription'
+            region = recs[0].get('region')
+            
+            # Create region subfolder if needed
+            if region:
+                region_folder = os.path.join(sub_folder, region)
+                _ensure_dir(region_folder)
+                target_folder = region_folder
+                scope_prefix = region
+            else:
+                target_folder = sub_folder
+                scope_prefix = scope
+            
+            # Aggregate checks - AWS format: {sub_id}_{scope}_{service}_checks.json
         all_checks: List[Dict[str, Any]] = []
         for r in recs:
             for c in r.get('checks', []) or []:
                 all_checks.append(c)
-        with open(os.path.join(checks_dir, f"{service}.json"), 'w') as f:
+        
+        checks_file = os.path.join(target_folder, f"{sub_id[:8]}_{scope_prefix}_{service}_checks.json")
+        with open(checks_file, 'w') as f:
             json.dump(all_checks, f, indent=2, default=str)
 
-        # Aggregate inventory as list per scope to preserve context
-        inv_entries: List[Dict[str, Any]] = []
+        # Aggregate inventory - AWS format: {sub_id}_{scope}_{service}_inventory.json
+        all_inventory: Dict[str, Any] = {}
         for r in recs:
-            entry = {
-                'tenant': r.get('tenant'),
-                'management_group': r.get('management_group'),
-                'subscription': r.get('subscription'),
-                'region': r.get('region'),
-                'inventory': r.get('inventory', {})
-            }
-            inv_entries.append(entry)
-        with open(os.path.join(inventory_dir, f"{service}.json"), 'w') as f:
-            json.dump(inv_entries, f, indent=2, default=str)
+            inv = r.get('inventory', {})
+            if inv:
+                all_inventory.update(inv)
+        
+        if all_inventory:
+            inv_file = os.path.join(target_folder, f"{sub_id[:8]}_{scope_prefix}_{service}_inventory.json")
+            with open(inv_file, 'w') as f:
+                json.dump(all_inventory, f, indent=2, default=str)
 
-    # Also write a small summary
-    summary = {
-        'services': list(service_to_results.keys()),
-        'total_services': len(service_to_results),
-        'generated_at': datetime.utcnow().isoformat() + 'Z'
+    # Create index matching AWS format
+    index = {
+        'metadata': {
+            'subscription_id': subscription_id,
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'report_folder': os.path.abspath(folder)
+        },
+        'summary': {
+            'total_checks': sum(len(r.get('checks', [])) for results_list in by_subscription.values() for r in results_list),
+            'total_resources': len(results),
+            'total_subscriptions': len(by_subscription)
+        },
+        'subscription_folders': [f"subscription_{sid[:8]}" if sid != 'default' else 'subscription_default' for sid in by_subscription.keys()],
+        'files': {
+            'index': 'index.json'
     }
-    with open(os.path.join(folder, 'summary.json'), 'w') as f:
-        json.dump(summary, f, indent=2)
+    }
+    
+    with open(os.path.join(folder, 'index.json'), 'w') as f:
+        json.dump(index, f, indent=2)
 
     return folder 

@@ -1,0 +1,1695 @@
+aad:
+  version: '1.0'
+  provider: azure
+  service: aad
+  package: msgraph-sdk
+  client_class: GraphServiceClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.aad.service_principals
+    calls:
+    - client: aad
+      action: service_principals.list
+      save_as: service_principals
+  - discovery_id: azure.aad.applications
+    calls:
+    - client: aad
+      action: applications.list
+      save_as: applications
+  - discovery_id: azure.aad.users
+    calls:
+    - client: aad
+      action: users.list
+      save_as: users
+  - discovery_id: azure.aad.tenant_config
+    calls:
+    - client: aad
+      action: organization.list
+      save_as: tenant_config
+  - discovery_id: azure.aad.user_assigned_identities
+    calls:
+    - client: aad
+      action: directory_objects.list
+      save_as: user_assigned_identities
+  checks:
+  - check_id: azure.aad.identity_service_principal.access_service_account_no_user_long_lived_keys
+    title: 'AZURE AAD Identity Service Principal: Access Service Account No User Long Lived Keys'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id.password_credentials.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[?(@.end_date_time > '2024-12-31T23:59:59Z')]
+        operator: exists
+  - check_id: azure.graph.api.365.group.creation.restriction.check
+    title: 'AZURE GRAPH Api: 365 Group Creation Restriction Check'
+    severity: low
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: groups.get
+      params: {}
+      fields:
+      - path: value[?(@.group_types[0] == 'Unified')].id
+        operator: exists
+  - check_id: azure.aad.user.access_user_console_password_present_only_if_required
+    title: 'AZURE AAD User: Access User Console Password Present Only If Required'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id.authentication.password_methods.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[0].password
+        operator: exists
+  - check_id: azure.aad.directory_tenant.access_password_policy_max_age_90_days_or_less
+    title: 'AZURE AAD Directory Tenant: Access Password Policy Max Age 90 Days Or Less'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: default_user_role_permissions.password_validity_period_in_days
+        operator: lte
+        expected: 90
+  - check_id: azure.aad.app_registration.access_oidc_allowed_client_ids_audiences_restricted
+    title: 'AZURE AAD App Registration: Access Oidc Allowed Client Ids Audiences Restricted'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: web.redirect_uris
+        operator: exists
+  - check_id: azure.aad.service_principal.certificate_expiration_check
+    title: 'AZURE AAD Service Principal: Certificate Expiration Check'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id.key_credentials.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[?(@.end_date_time < '2024-06-01T00:00:00Z')]
+        operator: exists
+  - check_id: azure.aad.user.mfa_enabled_check
+    title: 'AZURE AAD User: MFA Enabled Check'
+    severity: high
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id.authentication.methods.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[?(@['@odata.type'] == '#microsoft.graph.microsoftAuthenticatorAuthenticationMethod')]
+        operator: exists
+  - check_id: azure.aad.application.secret_expiration_check
+    title: 'AZURE AAD Application: Secret Expiration Check'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id.password_credentials.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: value[?(@.end_date_time < '2024-12-01T00:00:00Z')]
+        operator: exists
+  - check_id: azure.aad.tenant.guest_user_access_restrictions
+    title: 'AZURE AAD Tenant: Guest User Access Restrictions'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: guest_user_role_id
+        operator: equals
+        expected: 10dae51f-b6af-4016-8d66-8c2a99b929b3
+  - check_id: azure.aad.user.privileged_role_assignment_check
+    title: 'AZURE AAD User: Privileged Role Assignment Check'
+    severity: high
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id.member_of.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[?(@.display_name == 'Global Administrator')]
+        operator: exists
+  - check_id: azure.aad.service_principal.oauth_permissions_check
+    title: 'AZURE AAD Service Principal: OAuth Permissions Check'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_oauth2_permission_grants
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[?(@.scope contains 'Directory.ReadWrite.All')]
+        operator: exists
+  - check_id: azure.aad.application.redirect_uri_validation
+    title: 'AZURE AAD Application: Redirect URI Validation'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: web.redirect_uris[?(@.startsWith('https://'))]
+        operator: exists
+  - check_id: azure.aad.user.sign_in_activity_check
+    title: 'AZURE AAD User: Sign In Activity Check'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: sign_in_activity.last_sign_in_date_time
+        operator: exists
+  - check_id: azure.aad.tenant.conditional_access_policy_enabled
+    title: 'AZURE AAD Tenant: Conditional Access Policy Enabled'
+    severity: high
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: identity.conditional_access.policies.list
+      params: {}
+      fields:
+      - path: value[?(@.state == 'enabled')]
+        operator: exists
+  - check_id: azure.aad.service_principal.app_role_assignments
+    title: 'AZURE AAD Service Principal: App Role Assignments'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_app_role_assignments
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[0].app_role_id
+        operator: exists
+  - check_id: azure.aad.user.password_profile_check
+    title: 'AZURE AAD User: Password Profile Check'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: password_profile.force_change_password_next_sign_in
+        operator: equals
+        expected: true
+  - check_id: azure.aad.application.implicit_grant_settings
+    title: 'AZURE AAD Application: Implicit Grant Settings'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: web.implicit_grant_settings.enable_id_token_issuance
+        operator: equals
+        expected: false
+  - check_id: azure.aad.tenant.security_defaults_enabled
+    title: 'AZURE AAD Tenant: Security Defaults Enabled'
+    severity: high
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.identity_security_defaults_enforcement_policy.get
+      params: {}
+      fields:
+      - path: is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.aad.user.account_enabled_check
+    title: 'AZURE AAD User: Account Enabled Check'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: account_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.aad.service_principal.owner_validation
+    title: 'AZURE AAD Service Principal: Owner Validation'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_owners
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[0].id
+        operator: exists
+  - check_id: azure.aad.application.token_encryption_key_id
+    title: 'AZURE AAD Application: Token Encryption Key ID'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: token_encryption_key_id
+        operator: exists
+  - check_id: azure.aad.user.license_assignment_check
+    title: 'AZURE AAD User: License Assignment Check'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.license_details.list
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[0].service_plans
+        operator: exists
+  - check_id: azure.aad.tenant.named_locations_configured
+    title: 'AZURE AAD Tenant: Named Locations Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: conditional_access.named_locations.list
+      params: {}
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.tags_validation
+    title: 'AZURE AAD Service Principal: Tags Validation'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: self
+      fields:
+      - path: tags[0]
+        operator: exists
+  - check_id: azure.aad.application.group_membership_claims
+    title: 'AZURE AAD Application: Group Membership Claims'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: group_membership_claims
+        operator: exists
+  - check_id: azure.aad.user.external_user_state_check
+    title: 'AZURE AAD User: External User State Check'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: external_user_state
+        operator: equals
+        expected: Accepted
+  - check_id: azure.aad.tenant.risk_detection_enabled
+    title: 'AZURE AAD Tenant: Risk Detection Enabled'
+    severity: high
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: identity_protection.risk_detections.list
+      params: {}
+      fields:
+      - path: value[0].risk_type
+        operator: exists
+  - check_id: azure.aad.service_principal.notification_email_addresses
+    title: 'AZURE AAD Service Principal: Notification Email Addresses'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: notification_email_addresses[0]
+        operator: exists
+  - check_id: azure.aad.application.optional_claims_configured
+    title: 'AZURE AAD Application: Optional Claims Configured'
+    severity: low
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: optional_claims.id_token[0]
+        operator: exists
+  - check_id: azure.aad.user.creation_type_validation
+    title: 'AZURE AAD User: Creation Type Validation'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: creation_type
+        operator: exists
+  - check_id: azure.aad.tenant.terms_of_use_configured
+    title: 'AZURE AAD Tenant: Terms Of Use Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: agreements.get
+      params: {}
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.homepage_url_validation
+    title: 'AZURE AAD Service Principal: Homepage URL Validation'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: homepage
+        operator: exists
+  - check_id: azure.aad.application.logout_url_configured
+    title: 'AZURE AAD Application: Logout URL Configured'
+    severity: low
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: web.logout_url
+        operator: exists
+  - check_id: azure.aad.user.manager_assignment_check
+    title: 'AZURE AAD User: Manager Assignment Check'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: self
+      fields:
+      - path: id
+        operator: exists
+  - check_id: azure.aad.tenant.privileged_identity_management_enabled
+    title: 'AZURE AAD Tenant: Privileged Identity Management Enabled'
+    severity: high
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: privileged_access.azure_ad.resources.get
+      params: {}
+      fields:
+      - path: value[0].id
+        operator: exists
+  - check_id: azure.aad.service_principal.reply_urls_validation
+    title: 'AZURE AAD Service Principal: Reply URLs Validation'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: reply_urls[?(@.startsWith('https://'))]
+        operator: exists
+  - check_id: azure.aad.application.public_client_configuration
+    title: 'AZURE AAD Application: Public Client Configuration'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: public_client.redirect_uris[0]
+        operator: exists
+  - check_id: azure.aad.user.phone_authentication_method
+    title: 'AZURE AAD User: Phone Authentication Method'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.authentication.phone_methods.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[0].phone_number
+        operator: exists
+  - check_id: azure.aad.tenant.access_review_configured
+    title: 'AZURE AAD Tenant: Access Review Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: access_reviews.get
+      params: {}
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.preferred_single_sign_on_mode
+    title: 'AZURE AAD Service Principal: Preferred Single Sign On Mode'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: preferred_single_sign_on_mode
+        operator: exists
+  - check_id: azure.aad.application.required_resource_access_validation
+    title: 'AZURE AAD Application: Required Resource Access Validation'
+    severity: high
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: required_resource_access[0].resource_access
+        operator: exists
+  - check_id: azure.aad.user.employee_id_configured
+    title: 'AZURE AAD User: Employee ID Configured'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: employee_id
+        operator: exists
+  - check_id: azure.aad.tenant.directory_role_templates_check
+    title: 'AZURE AAD Tenant: Directory Role Templates Check'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: directory_role_templates.list
+      params: {}
+      fields:
+      - path: value[?(@.display_name == 'Global Administrator')]
+        operator: exists
+  - check_id: azure.aad.service_principal.saml_single_sign_on_settings
+    title: 'AZURE AAD Service Principal: SAML Single Sign On Settings'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: saml_single_sign_on_settings.relay_state
+        operator: exists
+  - check_id: azure.aad.application.spa_redirect_uris_validation
+    title: 'AZURE AAD Application: SPA Redirect URIs Validation'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: spa.redirect_uris[?(@.startsWith('https://'))]
+        operator: exists
+  - check_id: azure.aad.user.usage_location_configured
+    title: 'AZURE AAD User: Usage Location Configured'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: usage_location
+        operator: exists
+  - check_id: azure.aad.tenant.custom_security_attributes_enabled
+    title: 'AZURE AAD Tenant: Custom Security Attributes Enabled'
+    severity: low
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: directory.custom_security_attribute_definitions.list
+      params: {}
+      fields:
+      - path: value[0].name
+        operator: exists
+  - check_id: azure.aad.service_principal.verified_publisher_check
+    title: 'AZURE AAD Service Principal: Verified Publisher Check'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: verified_publisher.display_name
+        operator: exists
+  - check_id: azure.aad.application.certification_details_validation
+    title: 'AZURE AAD Application: Certification Details Validation'
+    severity: low
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: certification.certification_details_url
+        operator: exists
+  - check_id: azure.aad.user.on_premises_sync_enabled
+    title: 'AZURE AAD User: On Premises Sync Enabled'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: on_premises_sync_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.aad.tenant.cross_tenant_access_policy_configured
+    title: 'AZURE AAD Tenant: Cross Tenant Access Policy Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.cross_tenant_access_policy.get
+      params: {}
+      fields:
+      - path: allowed_cloud_endpoints[0]
+        operator: exists
+  - check_id: azure.aad.service_principal.login_url_validation
+    title: 'AZURE AAD Service Principal: Login URL Validation'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: login_url
+        operator: exists
+  - check_id: azure.aad.application.default_redirect_uri_configured
+    title: 'AZURE AAD Application: Default Redirect URI Configured'
+    severity: low
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: default_redirect_uri
+        operator: exists
+  - check_id: azure.aad.user.password_policies_validation
+    title: 'AZURE AAD User: Password Policies Validation'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: password_policies
+        operator: exists
+  - check_id: azure.aad.tenant.authentication_strength_policies_configured
+    title: 'AZURE AAD Tenant: Authentication Strength Policies Configured'
+    severity: high
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.authentication_strength_policies.get
+      params: {}
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.app_display_name_validation
+    title: 'AZURE AAD Service Principal: App Display Name Validation'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: app_display_name
+        operator: exists
+  - check_id: azure.aad.application.service_management_reference
+    title: 'AZURE AAD Application: Service Management Reference'
+    severity: low
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: service_management_reference
+        operator: exists
+  - check_id: azure.aad.user.proxy_addresses_validation
+    title: 'AZURE AAD User: Proxy Addresses Validation'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: proxy_addresses[0]
+        operator: exists
+  - check_id: azure.aad.tenant.feature_rollout_policies_configured
+    title: 'AZURE AAD Tenant: Feature Rollout Policies Configured'
+    severity: low
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.feature_rollout_policies.get
+      params: {}
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.alternative_names_validation
+    title: 'AZURE AAD Service Principal: Alternative Names Validation'
+    severity: low
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: alternative_names[0]
+        operator: exists
+  - check_id: azure.aad.application.sign_in_audience_validation
+    title: 'AZURE AAD Application: Sign In Audience Validation'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: sign_in_audience
+        operator: equals
+        expected: AzureADMyOrg
+  - check_id: azure.aad.user.immutable_id_configured
+    title: 'AZURE AAD User: Immutable ID Configured'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: on_premises_immutable_id
+        operator: exists
+  - check_id: azure.aad.tenant.home_realm_discovery_policy_configured
+    title: 'AZURE AAD Tenant: Home Realm Discovery Policy Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.home_realm_discovery_policies.get
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.key_credentials_validation
+    title: 'AZURE AAD Service Principal: Key Credentials Validation'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: key_credentials[0].key_id
+        operator: exists
+  - check_id: azure.aad.application.api_oauth2_permission_scopes
+    title: 'AZURE AAD Application: API OAuth2 Permission Scopes'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: applications.by_application_id
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: api.oauth2_permission_scopes[0].value
+        operator: exists
+  - check_id: azure.aad.user.show_in_address_list_validation
+    title: 'AZURE AAD User: Show In Address List Validation'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: show_in_address_list
+        operator: equals
+        expected: true
+  - check_id: azure.aad.tenant.token_lifetime_policies_configured
+    title: 'AZURE AAD Tenant: Token Lifetime Policies Configured'
+    severity: medium
+    for_each: azure.aad.tenant_config
+    calls:
+    - action: policies.token_lifetime_policies.get
+      fields:
+      - path: value[0].display_name
+        operator: exists
+  - check_id: azure.aad.service_principal.password_credentials_validation
+    title: 'AZURE AAD Service Principal: Password Credentials Validation'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.by_service_principal_id
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: password_credentials[0].key_id
+        operator: exists
+  - check_id: azure.aad.application.identifier_uris_validation
+    title: 'AZURE AAD Application: Identifier URIs Validation'
+    severity: medium
+    for_each: azure.aad.applications
+    calls:
+    - action: self
+      fields:
+      - path: identifier_uris[0]
+        operator: exists
+  - check_id: azure.aad.user.mail_nickname_configured
+    title: 'AZURE AAD User: Mail Nickname Configured'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.by_user_id
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: mail_nickname
+        operator: exists
+  - check_id: azure.aad.app_registration.access_oidc_issuer_https_and_matches_discovery
+    title: 'AZURE ACTIVE Directory_app_registration: Identity Access Oidc Issuer HTTPS And Matches Discovery'
+    severity: medium
+    for_each: azure.aad.app_registrations
+    calls:
+    - action: self
+      fields:
+      - path: web.redirect_uris
+        operator: all_match
+        expected: ^https://
+      - path: identifier_uris
+        operator: all_match
+        expected: ^https://
+  - check_id: azure.aad.app_registration.access_oidc_thumbprints_or_jwks_pinning
+    title: 'AZURE ACTIVE Directory_app_registration: Identity Access Oidc Thumbprints Or Jwks Pinning Configured'
+    severity: medium
+    for_each: azure.aad.app_registrations
+    calls:
+    - action: applications.get_key_credentials
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: value
+        operator: not_empty
+      - path: value[*].key_id
+        operator: exists
+  - check_id: azure.aad.app_registration.access_oidc_token_lifetime_reasonable
+    title: 'AZURE ACTIVE Directory_app_registration: Identity Access Oidc Token Lifetime Reasonable'
+    severity: medium
+    for_each: azure.aad.app_registrations
+    calls:
+    - action: applications.get
+      params:
+        application_id: '{{id}}'
+      fields:
+      - path: api.oauth2_permission_scopes[*].admin_consent_display_name
+        operator: exists
+      - path: token_encryption_key_id
+        operator: exists
+  - check_id: azure.aad.directory.password_policy_reuse_24,_azure_devops_project_no_secrets_in_variables_c87043e4
+    title: 'AZURE ACTIVE Directory: Password Policy Reuse 24, Azure Devops Project No Secrets In Variables, Azure Devops Project
+      Source Repo Url No Sensitive Credentials, Azure Storage Bucket Enforces Ssl, Azure Load Balancer SSL Listeners, Azure
+      Search Service Domains Node To Node Encryption Enabled, Azure Load Balancer SSL Listeners, Azure Compute Ebs Default
+      Encryption, Azure Sql Instance Storage Encrypted, Azure Machine Learning Notebook Instance Encryption Enabled, Azure
+      Storage Bucket Default Encryption, Azure Files Encryption At Rest Enabled, Azure Search Service Domains Encryption At
+      Rest Enabled, Azure Compute Ebs Volume Encryption, Azure Storage Bucket KMS Encryption, Azure Aks Cluster KMS CMK Encryption
+      In Secrets Enabled, Azure Sql Snapshots Encrypted, Azure Cosmos Db Accelerator Cluster Encryption Enabled, Azure Cosmos
+      Db Table Encryption Enabled, Azure Monitor KMS Encryption Enabled, Azure Monitor Log Group KMS Encryption Enabled, Azure
+      Notification Hubs Topics KMS Encryption At Rest Enabled, Azure Cosmos Db Tables KMS CMK Encryption Enabled, Azure Synapse
+      Cluster Audit Logging'
+    severity: high
+    for_each: azure.aad.directories
+    calls:
+    - action: policies.authentication_methods_policy.get
+      params: {}
+      fields:
+      - path: passwordless_microsoft_authenticator_authentication_method_configuration.is_enabled
+        operator: equals
+        expected: true
+      - path: policy_version
+        operator: exists
+  - check_id: azure.aad.directory_tenant.access_password_policy_lockout_threshold_defined
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Password Policy Lockout Threshold Defined'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.get
+      params:
+        authentication_method_configuration_id: password
+      fields:
+      - path: lockout_threshold
+        operator: exists
+      - path: lockout_threshold
+        operator: greater_than
+        expected: 0
+  - check_id: azure.aad.directory_tenant.access_password_policy_min_length_14
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Password Policy Min Length 14'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.get
+      params:
+        authentication_method_configuration_id: password
+      fields:
+      - path: minimum_password_length
+        operator: greater_than_or_equal
+        expected: 14
+  - check_id: azure.aad.directory_tenant.access_password_policy_prevent_reuse_last_24
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Password Policy Prevent Reuse Last 24'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.get
+      params:
+        authentication_method_configuration_id: password
+      fields:
+      - path: password_history_count
+        operator: greater_than_or_equal
+        expected: 24
+  - check_id: azure.aad.directory_tenant.access_password_policy_require_upper_lower_number_special
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Password Policy Require Upper Lower Number Special'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.get
+      params:
+        authentication_method_configuration_id: password
+      fields:
+      - path: require_uppercase
+        operator: equals
+        expected: true
+      - path: require_lowercase
+        operator: equals
+        expected: true
+      - path: require_numbers
+        operator: equals
+        expected: true
+      - path: require_special_characters
+        operator: equals
+        expected: true
+  - check_id: azure.aad.directory_tenant.access_tenant_api_access_keys_root_or_owner_disallowed
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant API Access Keys Root Or Owner Disallowed'
+    severity: critical
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: directory_roles.list
+      params: {}
+      fields:
+      - path: value[?(@.display_name == 'Global Administrator')].members
+        operator: not_contains
+        expected: root
+      - path: value[?(@.display_name == 'Global Administrator')].members
+        operator: not_contains
+        expected: owner
+  - check_id: azure.aad.directory_tenant.access_tenant_break_glass_accounts_mfa_enforced
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant Break Glass Accounts MFA Enforced'
+    severity: high
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.conditional_access_policies.list
+      params: {}
+      fields:
+      - path: value[*].conditions.users.exclude_users
+        operator: exists
+      - path: value[*].grant_controls.built_in_controls
+        operator: contains
+        expected: mfa
+  - check_id: azure.aad.directory_tenant.access_tenant_console_mfa_required_org_wide
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant Console MFA Required Org Wide'
+    severity: high
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.conditional_access_policies.list
+      params: {}
+      fields:
+      - path: value[*].conditions.users.include_users
+        operator: contains
+        expected: All
+      - path: value[*].grant_controls.built_in_controls
+        operator: contains
+        expected: mfa
+  - check_id: azure.aad.directory_tenant.access_tenant_inuser_disable_threshold
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant Inuser Disable Threshold Configured'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.identity_security_defaults_enforcement_policy.get
+      params: {}
+      fields:
+      - path: is_enabled
+        operator: equals
+        expected: true
+      - path: display_name
+        operator: exists
+  - check_id: azure.aad.directory_tenant.access_tenant_password_policy_compliant
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant Password Policy Compliant'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: policies.authentication_methods_policy.get
+      params: {}
+      fields:
+      - path: policy_version
+        operator: exists
+      - path: registration_enforcement.authentication_methods_registration_campaign.state
+        operator: equals
+        expected: enabled
+  - check_id: azure.aad.directory_tenant.access_tenant_sso_federation_where_supported
+    title: 'AZURE ACTIVE Directory_tenant: Identity Access Tenant Sso Federation Configured Where Supported'
+    severity: medium
+    for_each: azure.aad.directory_tenants
+    calls:
+    - action: domains.list
+      params: {}
+      fields:
+      - path: value[*].authentication_type
+        operator: contains
+        expected: Federated
+      - path: value[*].is_verified
+        operator: equals
+        expected: true
+  - check_id: azure.aad.enterprise_application.access_saml_assertion_lifetime_reasonable
+    title: 'AZURE ACTIVE Directory_enterprise_application: Identity Access Saml Assertion Lifetime Reasonable'
+    severity: medium
+    for_each: azure.aad.enterprise_applications
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: saml_single_sign_on_settings.relay_state
+        operator: exists
+      - path: token_encryption_key_id
+        operator: exists
+  - check_id: azure.aad.enterprise_application.access_saml_audience_restriction
+    title: 'AZURE ACTIVE Directory_enterprise_application: Identity Access Saml Audience Restriction Configured'
+    severity: medium
+    for_each: azure.aad.enterprise_applications
+    calls:
+    - action: service_principals.get
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: reply_urls
+        operator: not_empty
+      - path: saml_single_sign_on_settings.relay_state
+        operator: exists
+  - check_id: azure.aad.enterprise_application.access_saml_certificates_not_expired
+    title: 'AZURE ACTIVE Directory_enterprise_application: Identity Access Saml Certificates Not Expired'
+    severity: medium
+    for_each: azure.aad.enterprise_applications
+    calls:
+    - action: service_principals.key_credentials.list
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[*].end_date_time
+        operator: greater_than
+        expected: '2024-12-31T23:59:59Z'
+  - check_id: azure.aad.enterprise_application.access_saml_idp_metadata_signed
+    title: 'AZURE ACTIVE Directory_enterprise_application: Identity Access Saml Idp Metadata Signed'
+    severity: medium
+    for_each: azure.aad.enterprise_applications
+    calls:
+    - action: service_principals.key_credentials.list
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[*].usage
+        operator: contains
+        expected: Sign
+      - path: value[*].type
+        operator: contains
+        expected: AsymmetricX509Cert
+  - check_id: azure.aad.group.access_group_attached_policies_not_admin_star
+    title: 'AZURE ACTIVE Directory_group: Identity Access Group Attached Policies Not Admin Star'
+    severity: critical
+    for_each: azure.aad.groups
+    calls:
+    - action: groups.app_role_assignments.list
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: value[*].app_role_id
+        operator: not_equals
+        expected: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+      - path: value[*].resource_display_name
+        operator: not_contains
+        expected: Admin
+  - check_id: azure.aad.group.access_group_membership_review_enabled_where_supported
+    title: 'AZURE ACTIVE Directory_group: Identity Access Group Membership Review Enabled Where Supported'
+    severity: medium
+    for_each: azure.aad.groups
+    calls:
+    - action: identity_governance.access_reviews.definitions.list
+      params: {}
+      fields:
+      - path: value[*].scope.query
+        operator: contains
+        expected: /groups/{{id}}/members
+      - path: value[*].settings.recurrence.pattern.type
+        operator: exists
+  - check_id: azure.aad.group.access_group_no_inline_policies
+    title: 'AZURE ACTIVE Directory_group: Identity Access Group No Inline Policies'
+    severity: medium
+    for_each: azure.aad.directory_groups
+    calls:
+    - action: groups.list_app_role_assignments
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: value
+        operator: empty
+        expected: true
+  - check_id: azure.aad.group.access_rbac_group_attached_policies_not_admin_star
+    title: 'AZURE ACTIVE Directory_group: Identity Access RBAC Group Attached Policies Not Admin Star'
+    severity: critical
+    for_each: azure.aad.directory_groups
+    calls:
+    - action: groups.list_app_role_assignments
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: value[*].app_role_id
+        operator: not_contains
+        expected: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+  - check_id: azure.aad.group.access_rbac_group_external_sharing_restricted_where_supported
+    title: 'AZURE ACTIVE Directory_group: Identity Access RBAC Group External Sharing Restricted Where Supported'
+    severity: medium
+    for_each: azure.aad.directory_groups
+    calls:
+    - action: groups.get
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: visibility
+        operator: not_equals
+        expected: Public
+  - check_id: azure.aad.group.access_rbac_group_no_inline_policies
+    title: 'AZURE ACTIVE Directory_group: Identity Access RBAC Group No Inline Policies'
+    severity: medium
+    for_each: azure.aad.directory_groups
+    calls:
+    - action: groups.list_owners
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: value[?(@.user_type == 'Guest')]
+        operator: empty
+        expected: true
+  - check_id: azure.aad.identity_service_principal.access_service_account_keys_not_used_or_rotated_90_days_or_less
+    title: 'AZURE MANAGED Identity_service_principal: Identity Access Service Account Keys Not Used Or Rotated 90 Days Or
+      Less'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_password_credentials
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[?(@.end_date_time > '2024-03-31T23:59:59Z')]
+        operator: exists
+        expected: true
+  - check_id: azure.aad.identity_service_principal.access_service_account_scopes_or_roles_least_privilege
+    title: 'AZURE MANAGED Identity_service_principal: Identity Access Service Account Scopes Or Roles Least Privilege'
+    severity: high
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_app_role_assignments
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value[*].app_role_id
+        operator: not_contains
+        expected: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+  - check_id: azure.aad.identity_service_principal.access_service_account_workload_identity_federation_used_where_supported
+    title: 'AZURE MANAGED Identity_service_principal: Identity Access Service Account Workload Identity Federation Used Where
+      Supported'
+    severity: medium
+    for_each: azure.aad.service_principals
+    calls:
+    - action: service_principals.list_federated_identity_credentials
+      params:
+        service_principal_id: '{{id}}'
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.aad.identity_user_assigned_identity.access_instance_profile_no_instance_profile_with_admin_star
+    title: 'AZURE MANAGED Identity_user_assigned_identity: Identity Access Instance Profile No Instance Profile With Admin
+      Star'
+    severity: critical
+    for_each: azure.aad.user_assigned_identities
+    calls:
+    - action: user_assigned_identities.list_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: /subscriptions/{{subscription_id}}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+  - check_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_attached
+    title: 'AZURE MANAGED Identity_user_assigned_identity: Identity Access Instance Profile Role Attached'
+    severity: medium
+    for_each: azure.aad.user_assigned_identities
+    calls:
+    - action: user_assigned_identities.list_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_policies_least_privilege
+    title: 'AZURE MANAGED Identity_user_assigned_identity: Identity Access Instance Profile Role Policies Least Privilege'
+    severity: high
+    for_each: azure.aad.user_assigned_identities
+    calls:
+    - action: user_assigned_identities.list_role_assignments
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: /subscriptions/{{subscription_id}}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+  - check_id: azure.aad.privacy_consent.access_rbac_least_privilege
+    title: 'AZURE AZURE Privacy_consent: Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.aad.privacy_consents
+    calls:
+    - action: oauth2_permission_grants.list
+      params: {}
+      fields:
+      - path: value[*].scope
+        operator: not_contains
+        expected: Directory.ReadWrite.All
+  - check_id: azure.aad.serverless_event_source.permissions_least_privilege
+    title: 'AZURE AZURE Serverless_event_source: Permissions Least Privilege'
+    severity: high
+    for_each: azure.aad.serverless_event_sources
+    calls:
+    - action: event_subscriptions.list_by_subscription
+      params: {}
+      fields:
+      - path: value[*].properties.destination.properties.resource_id
+        operator: not_contains
+        expected: Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+  - check_id: azure.aad.user.access_user_access_keys_rotated_90_days_or_less_when_present
+    title: 'AZURE ACTIVE Directory_user: Identity Access User Access Keys Rotated 90 Days Or Less When Present'
+    severity: high
+    for_each: azure.aad.directory_users
+    calls:
+    - action: users.authentication.password_methods.list
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[*].created_date_time
+        operator: greater_than
+        expected: '2024-01-01T00:00:00Z'
+  - check_id: azure.aad.user.access_user_in90_days_disabled
+    title: 'AZURE ACTIVE Directory_user: Identity Access User In90 Days Disabled'
+    severity: medium
+    for_each: azure.aad.directory_users
+    calls:
+    - action: users.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: sign_in_activity.last_sign_in_date_time
+        operator: greater_than
+        expected: '2024-01-01T00:00:00Z'
+  - check_id: azure.aad.user.access_user_mfa_required
+    title: 'AZURE ACTIVE Directory_user: Identity Access User MFA Required'
+    severity: high
+    for_each: azure.aad.directory_users
+    calls:
+    - action: users.authentication.methods.list
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value
+        operator: count_greater_than
+        expected: 1
+  - check_id: azure.aad.user.access_user_no_inline_policies_attached
+    title: 'AZURE ACTIVE Directory_user: Identity Access User No Inline Policies Attached'
+    severity: medium
+    for_each: azure.aad.directory_users
+    calls:
+    - action: users.app_role_assignments.list
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value
+        operator: empty
+        expected: true
+  - check_id: azure.aad.user.authentication.reconfirmation.period.check
+    title: 'AZURE AAD User: Authentication Reconfirmation Period Check'
+    severity: high
+    for_each: azure.aad.users
+    calls:
+    - action: policies.authentication_methods_policy.get
+      params: {}
+      fields:
+      - path: registration_enforcement.authentication_methods_registration_campaign.snooze_duration_in_days
+        operator: less_than_or_equal
+        expected: 14
+  - check_id: azure.ad.authentication.methods.policy.check
+    title: 'AZURE AD Authentication: Methods Policy Check'
+    severity: medium
+    for_each: azure.aad.authentication_policies
+    calls:
+    - action: policies.authentication_methods_policy.get
+      params: {}
+      fields:
+      - path: authentication_method_configurations[*].state
+        operator: equals
+        expected: enabled
+  - check_id: azure.ad.conditionalaccess.token.protection.check
+    title: 'AZURE AD Conditionalaccess: Token Protection Check'
+    severity: medium
+    for_each: azure.aad.conditional_access_policies
+    calls:
+    - action: identity.conditional_access.policies.list
+      params: {}
+      fields:
+      - path: value[*].session_controls.sign_in_frequency.is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.ad.group.creation.restriction.check
+    title: 'AZURE AD Group: Creation Restriction Check'
+    severity: low
+    for_each: azure.aad.group_settings
+    calls:
+    - action: group_settings.list
+      params: {}
+      fields:
+      - path: value[*].values[?(@.name == 'EnableGroupCreation')].value
+        operator: equals
+        expected: 'false'
+  - check_id: azure.ad.guest.user.access.restriction.check
+    title: 'AZURE AD Guest: User Access Restriction Check'
+    severity: medium
+    for_each: azure.aad.guest_users
+    calls:
+    - action: policies.authorization_policy.get
+      fields:
+      - path: guest_user_role_id
+        operator: equals
+        expected: 10dae51f-b6af-4016-8d66-8c2a99b929b3
+      - path: allowed_to_use_sspr
+        operator: equals
+        expected: false
+  - check_id: azure.ad.password.reset.notification.check
+    title: 'AZURE AD Password: Reset Notification Check'
+    severity: medium
+    for_each: azure.aad.password_policies
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.email.get
+      fields:
+      - path: state
+        operator: equals
+        expected: enabled
+      - path: include_targets[*].is_registration_required
+        operator: equals
+        expected: true
+  - check_id: azure.ad.role.least_privilege
+    title: 'AZURE AD Role: Least Privilege'
+    severity: high
+    for_each: azure.aad.role_assignments
+    calls:
+    - action: directory_roles.members.list
+      params:
+        directory_role_id: '{{id}}'
+      fields:
+      - path: value
+        operator: count_less_than
+        expected: 5
+    - action: role_management.directory.role_assignments.list
+      fields:
+      - path: value[?(@.role_definition_id == '62e90394-69f5-4237-9190-012177145e10')].principal_id
+        operator: count_less_than
+        expected: 3
+  - check_id: azure.ad.security.lockout.duration.check
+    title: 'AZURE AD Security: Lockout Duration Check'
+    severity: low
+    for_each: azure.aad.security_policies
+    calls:
+    - action: policies.authentication_methods_policy.get
+      fields:
+      - path: passwordless_microsoft_authenticator_authentication_method_configuration.state
+        operator: equals
+        expected: enabled
+  - check_id: azure.ad.tenant.creator.role.review
+    title: 'AZURE AD Tenant: Creator Role Review'
+    severity: medium
+    for_each: azure.aad.tenants
+    calls:
+    - action: policies.authorization_policy.get
+      fields:
+      - path: default_user_role_permissions.allowed_to_create_apps
+        operator: equals
+        expected: false
+      - path: default_user_role_permissions.allowed_to_create_security_groups
+        operator: equals
+        expected: false
+  - check_id: azure.ad.user.role.check.disabled
+    title: 'AZURE AD User: Role Check Disabled'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.member_of.list
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[?(@['@odata.type'] == '#microsoft.graph.directoryRole')]
+        operator: not_exists
+        expected: null
+  - check_id: azure.entra.authentication.passwordless.policy.check
+    title: 'AZURE ENTRA Authentication: Passwordless Policy Check'
+    severity: medium
+    for_each: azure.aad.authentication_policies
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.microsoft_authenticator.get
+      fields:
+      - path: state
+        operator: equals
+        expected: enabled
+      - path: feature_settings.display_app_information_required_state.state
+        operator: equals
+        expected: enabled
+  - check_id: azure.entra.diagnostic.microsoft.graph.logs.destination.check
+    title: 'AZURE ENTRA Diagnostic: Microsoft Graph Logs Destination Check'
+    severity: low
+    for_each: azure.aad.diagnostic_settings
+    calls:
+    - action: audit_logs.directory_audits.list
+      fields:
+      - path: value[0].logged_by_service
+        operator: equals
+        expected: Microsoft Graph
+  - check_id: azure.entra.id.authentication.lockout.threshold.check
+    title: 'AZURE ENTRA Id: Authentication Lockout Threshold Check'
+    severity: high
+    for_each: azure.aad.conditional_access_policies
+    calls:
+    - action: policies.identity_security_defaults_enforcement_policy.get
+      fields:
+      - path: is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.entra.id.custom.role.admin.privileges.check
+    title: 'AZURE ENTRA Id: Custom Role Admin Privileges Check'
+    severity: critical
+    for_each: azure.aad.custom_roles
+    calls:
+    - action: role_management.directory.role_definitions.list
+      fields:
+      - path: value[?(@.is_built_in == false)].role_permissions[*].allowed_resource_actions
+        operator: not_contains
+        expected: microsoft.directory/*/allProperties/allTasks
+  - check_id: azure.entra.id.diagnostic.setting.activity.logs.configured
+    title: 'AZURE ENTRA Id: Diagnostic Setting Activity Logs Configured'
+    severity: low
+    for_each: azure.aad.diagnostic_settings
+    calls:
+    - action: audit_logs.sign_ins.get
+      params: {}
+      fields:
+      - path: value
+        operator: exists
+        expected: true
+  - check_id: azure.entra.id.guest.invite.restrictions.check
+    title: 'AZURE ENTRA Id: Guest Invite Restrictions Check'
+    severity: low
+    for_each: azure.aad.guest_policies
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: allow_invites_from
+        operator: equals
+        expected: adminsAndGuestInviters
+  - check_id: azure.entra.id.mfa.enabled.for.privileged.vm.access
+    title: 'AZURE ENTRA Id: MFA Enabled For Privileged VM Access'
+    severity: high
+    for_each: azure.aad.conditional_access_policies
+    calls:
+    - action: identity.conditional_access.policies.list
+      params: {}
+      fields:
+      - path: value[?(@.conditions.applications.include_applications contains 'https://management.azure.com/')].grant_controls.built_in_controls
+        operator: contains
+        expected: mfa
+  - check_id: azure.entra.id.policy.restrict.non.admin.tenant.creation
+    title: 'AZURE ENTRA Id: Policy Restrict Non Admin Tenant Creation'
+    severity: critical
+    for_each: azure.aad.tenant_policies
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: default_user_role_permissions.allowed_to_create_tenants
+        operator: equals
+        expected: false
+  - check_id: azure.entra.id.user.app.registration.disabled
+    title: 'AZURE ENTRA Id: User App Registration Disabled'
+    severity: medium
+    for_each: azure.aad.user_policies
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: default_user_role_permissions.allowed_to_create_apps
+        operator: equals
+        expected: false
+  - check_id: azure.entra.id.user.consent.disabled.check
+    title: 'AZURE ENTRA Id: User Consent Disabled Check'
+    severity: medium
+    for_each: azure.aad.consent_policies
+    calls:
+    - action: policies.authorization_policy.get
+      params: {}
+      fields:
+      - path: permission_grant_policy_ids_assigned_to_default_user_role
+        operator: equals
+        expected: []
+  - check_id: azure.entra.id.user.consent.settings.verified.publishers
+    title: 'AZURE ENTRA Id: User Consent Settings Verified Publishers'
+    severity: medium
+    for_each: azure.aad.consent_policies
+    calls:
+    - action: policies.permission_grant_policies.list
+      params: {}
+      fields:
+      - path: value[*].conditions.client_applications_from_verified_publisher_only
+        operator: equals
+        expected: true
+  - check_id: azure.entra.policy.require_mfa_for_management_api:az.active_directory_tenant.identity_access_security_password_policy_require_upper_lower_number_special
+    title: 'AZURE ENTRA Policy: Require MFA For Management Api:az Active Directory Tenant Identity Access Security Password
+      Policy Require Upper Lower Number Special'
+    severity: high
+    for_each: azure.aad.mfa_policies
+    calls:
+    - action: identity.conditional_access.policies.list
+      params: {}
+      fields:
+      - path: value[?(@.conditions.applications.include_applications contains 'https://management.azure.com/')].grant_controls.built_in_controls
+        operator: contains
+        expected: mfa
+  - check_id: azure.entra.policy.trusted_named_locations_exists
+    title: 'AZURE ENTRA Resource: Trusted Named Locations Exists'
+    severity: low
+    for_each: azure.aad.named_locations
+    calls:
+    - action: identity.conditional_access.named_locations.list
+      params: {}
+      fields:
+      - path: value[?(@.is_trusted == true)]
+        operator: exists
+        expected: true
+  - check_id: azure.entra.policy.user_consent_for_verified_apps
+    title: 'AZURE ENTRA Policy: User Consent For Verified Apps Storage Blob Public Access Level Is Disabled Storage Ensure
+      Azure Services Are Trusted To Access Is Enabled:az Active Directory User Identity Access Security User Inactive 90 Days
+      Disabled'
+    severity: critical
+    for_each: azure.aad.user_consent_policies
+    calls:
+    - action: policies.permission_grant_policies.list
+      params: {}
+      fields:
+      - path: value[*].conditions.client_applications_from_verified_publisher_only
+        operator: equals
+        expected: true
+    - action: users.list
+      params: {}
+      fields:
+      - path: value[?(@.sign_in_activity.last_sign_in_date_time < '2024-01-01T00:00:00Z')].account_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.entra.user.group_membership:az.active_directory_group.identity_access_security_group_membership_review_enabled_where_supported
+    title: 'AZURE ENTRA User: Group Membership:az Active Directory Group Identity Access Security Group Membership Review
+      Enabled Where Supported'
+    severity: medium
+    for_each: azure.aad.users
+    calls:
+    - action: users.member_of.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[*].odata_type
+        operator: contains
+        expected: '#microsoft.graph.group'
+    - action: groups.settings.get
+      params:
+        group_id: '{{group_id}}'
+      fields:
+      - path: values[?(@.name == 'GroupCreationAllowedGroupId')].value
+        operator: exists
+      - path: values[?(@.name == 'EnableGroupCreation')].value
+        operator: equals
+        expected: 'true'
+  - check_id: azure.entra.user.no_guest_accounts_with_permissions
+    title: 'AZURE ENTRA Resource: No Guest Accounts With Permissions'
+    severity: low
+    for_each: azure.aad.users
+    calls:
+    - action: users.list
+      params: {}
+      fields:
+      - path: value[?(@.user_type == 'Guest')]
+        operator: not_exists
+    - action: users.app_role_assignments.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[?(@.principal_type == 'User' && @.resource_display_name)]
+        operator: not_exists
+  - check_id: azure.entra.user.with_vm_access_has_mfa:az.active_directory_user.identity_access_security_user_mfa_required
+    title: 'AZURE ENTRA User: With VM Access Has Mfa:az Active Directory User Identity Access Security User MFA Required'
+    severity: high
+    for_each: azure.aad.users
+    calls:
+    - action: users.authentication.methods.get
+      params:
+        user_id: '{{id}}'
+      fields:
+      - path: value[?(@.odata_type == '#microsoft.graph.microsoftAuthenticatorAuthenticationMethod')]
+        operator: exists
+    - action: authorization.role_assignments.list
+      params: {}
+      fields:
+      - path: value[?(@.properties.principal_id == '{{user_id}}' && @.properties.role_definition_id contains 'VirtualMachineContributor')]
+        operator: exists
+  - check_id: azure.entrad.device.mfa.check
+    title: 'AZURE ENTRAD Device: MFA Check'
+    severity: high
+    for_each: azure.aad.devices
+    calls:
+    - action: devices.get
+      params:
+        device_id: '{{id}}'
+      fields:
+      - path: is_compliant
+        operator: equals
+        expected: true
+    - action: device_management.device_compliance_policies.list
+      params: {}
+      fields:
+      - path: value[*].password_required
+        operator: equals
+        expected: true
+  - check_id: azure.entrad.global.admin.role.check
+    title: 'AZURE ENTRAD Global: Admin Role Check'
+    severity: critical
+    for_each: azure.aad.directory_roles
+    calls:
+    - action: directory_roles.list
+      params: {}
+      fields:
+      - path: value[?(@.display_name == 'Global Administrator')]
+        operator: exists
+    - action: directory_roles.members.get
+      params:
+        directory_role_id: '{{id}}'
+      fields:
+      - path: value
+        operator: count_less_than
+        expected: 5
+  - check_id: azure.entrad.group.membership.management.check
+    title: 'AZURE ENTRAD Group: Membership Management Check'
+    severity: low
+    for_each: azure.aad.groups
+    calls:
+    - action: groups.get
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: membership_rule
+        operator: exists
+    - action: groups.owners.get
+      params:
+        group_id: '{{id}}'
+      fields:
+      - path: value
+        operator: count_greater_than
+        expected: 0
+  - check_id: azure.entrad.password.policy.custom.banned.list.enforced
+    title: 'AZURE ENTRAD Password: Policy Custom Banned List Enforced'
+    severity: medium
+    for_each: azure.aad.password_policies
+    calls:
+    - action: policies.authentication_methods_policy.authentication_method_configurations.password.get
+      params: {}
+      fields:
+      - path: exclude_targets
+        operator: exists
+    - action: organization.list
+      params: {}
+      fields:
+      - path: value[0].password_policies
+        operator: contains
+        expected: DisablePasswordExpiration
+  - check_id: azure.entra.policy.user_consent_for_verified_apps storage_blob_public_access_level_is_disabled storage_ensure_azure_services_are_trusted_to_access_is_enabled:az.active_directory_user.identity_access_security_user_inactive_90_days_disabled
+    title: 'AZURE ENTRA Policy: User Consent For Verified Apps Storage Blob Public Access Level Is Disabled Storage Ensure
+      Azure Services Are Trusted To Access Is Enabled:az Active Directory User Identity Access Security User Inactive 90 Days
+      Disabled'
+    severity: critical
+    for_each: azure.aad.policy
+    calls:
+    - action: self
+      fields:
+      - path: definition.properties.defaultUserRolePermissions.allowedToCreateApps
+        operator: equals
+        expected: false
+      - path: definition.properties.defaultUserRolePermissions.allowedToReadOtherUsers
+        operator: equals
+        expected: true
+      - path: definition.properties.guestUserRoleId
+        operator: equals
+        expected: 10dae51f-b6af-4016-8d66-8c2a99b929b3
+      - path: definition.properties.permissionGrantPolicyIdsAssignedToDefaultUserRole
+        operator: contains
+        expected: managePermissionGrantsForVerifiedPublishers.microsoft-user-default-low

@@ -1,0 +1,75 @@
+redis:
+  version: '1.0'
+  provider: azure
+  service: redis
+  package: azure-mgmt-redis
+  client_class: RedisManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.redis.resources
+    calls:
+    - client: redis
+      action: list_all
+      save_as: redis_caches
+  - discovery_id: azure.redis.cache.instances
+    calls:
+    - client: redis
+      action: list_by_subscription
+      save_as: cache_instances
+  checks:
+  - check_id: azure.redis.minimum.tls.version.check
+    title: 'AZURE REDIS Minimum: TLS Version Check'
+    severity: medium
+    for_each: azure.redis.resources
+    calls:
+    - action: self
+      fields:
+      - path: minimum_tls_version
+        operator: gte
+        expected: '1.2'
+  - check_id: azure.cache.redis.microsoft.entra.authentication.enabled
+    title: 'AZURE CACHE Redis: Microsoft Entra Authentication Enabled'
+    severity: high
+    for_each: azure.redis.resources
+    calls:
+    - action: redis.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: redis_configuration.aad_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: azure.cache.redis.ssl.only.access
+    title: 'AZURE CACHE Redis: SSL Only Access'
+    severity: medium
+    for_each: azure.redis.resources
+    calls:
+    - action: redis.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
+      fields:
+      - path: enable_non_ssl_port
+        operator: equals
+        expected: false
+  - check_id: azure.cache.redis.public.network.access.disabled
+    title: 'AZURE CACHE Redis: Public Network Access Disabled'
+    severity: critical
+    for_each: azure.redis.resources
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.redis.cache.system.assigned.identity.check
+    title: 'AZURE REDIS Cache: System Assigned Identity Check'
+    severity: medium
+    for_each: azure.redis.cache.instances
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned

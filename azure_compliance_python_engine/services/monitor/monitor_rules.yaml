@@ -1,0 +1,1787 @@
+monitor:
+  version: '1.0'
+  provider: azure
+  service: monitor
+  package: azure-mgmt-monitor
+  client_class: MonitorManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.monitor.action_groups
+    calls:
+    - client: monitor
+      action: action_groups.list_by_subscription_id
+      save_as: action_groups
+  - discovery_id: azure.monitor.activity_logs
+    calls:
+    - client: monitor
+      action: activity_logs.list
+      save_as: activity_logs
+  - discovery_id: azure.monitor.log_profiles
+    calls:
+    - client: monitor
+      action: log_profiles.list
+      save_as: log_profiles
+  - discovery_id: azure.monitor.diagnostic_settings
+    calls:
+    - client: monitor
+      action: diagnostic_settings.list
+      save_as: diagnostic_settings
+  - discovery_id: azure.monitor.alert_rules
+    calls:
+    - client: monitor
+      action: alert_rules.list_by_subscription
+      save_as: alert_rules
+  - discovery_id: azure.monitor.data_collection_rules
+    calls:
+    - client: monitor
+      action: data_collection_rules.list_by_subscription
+      save_as: data_collection_rules
+  - discovery_id: azure.monitor.workspaces
+    calls:
+    - client: monitor
+      action: private_link_scoped_resources.list_by_private_link_scope
+      save_as: workspaces
+  checks:
+  - check_id: azure.monitor.logging_store.access_rbac_least_privilege
+    title: 'AZURE MONITOR Logging Store: Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: private_link_scoped_resources.list_by_private_link_scope
+      params:
+        scope_name: '{{scope_name}}'
+      fields:
+      - path: value[*].properties.linked_resource_id
+        operator: exists
+  - check_id: azure.monitor.sampling_rule.access_rbac_least_privilege
+    title: 'AZURE MONITOR Sampling Rule: Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.monitor.data_collection_rules
+    calls:
+    - action: data_collection_rules.get
+      params:
+        data_collection_rule_name: '{{name}}'
+      fields:
+      - path: properties.data_sources.performance_counters[*].sampling_frequency_in_seconds
+        operator: gte
+        expected: 60
+  - check_id: azure.monitor.logging_log_stream.logging_stream_encryption_at_rest_enabled
+    title: 'AZURE MONITOR Logging Log Stream: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        workspace_name: '{{name}}'
+      fields:
+      - path: properties.features.enable_data_export
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.action_group.notification_channels_configured
+    title: 'AZURE MONITOR Action Group: Notification Channels Configured'
+    severity: medium
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{name}}'
+      fields:
+      - path: properties.email_receivers
+        operator: exists
+  - check_id: azure.monitor.alert_rule.metric_threshold_configured
+    title: 'AZURE MONITOR Alert Rule: Metric Threshold Configured'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: alert_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: properties.condition.threshold
+        operator: exists
+  - check_id: azure.monitor.workspace.public_network_access_disabled
+    title: 'AZURE MONITOR Workspace: Public Network Access Disabled'
+    severity: high
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access_for_ingestion
+        operator: equals
+        expected: Disabled
+  - check_id: azure.monitor.data_collection_rule.system_identity_enabled
+    title: 'AZURE MONITOR Data Collection Rule: System Identity Enabled'
+    severity: medium
+    for_each: azure.monitor.data_collection_rules
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+  - check_id: azure.monitor.activity_log.administrative_operations_monitored
+    title: 'AZURE MONITOR Activity Log: Administrative Operations Monitored'
+    severity: high
+    for_each: azure.monitor.log_profiles
+    calls:
+    - action: log_profiles.get
+      params:
+        log_profile_name: '{{name}}'
+      fields:
+      - path: categories
+        operator: exists
+  - check_id: azure.monitor.alert_rule.action_group_associated
+    title: 'AZURE MONITOR Alert Rule: Action Group Associated'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: metric_alerts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: actions[*].action_group_id
+        operator: exists
+  - check_id: azure.monitor.workspace.cmk_encryption_enabled
+    title: 'AZURE MONITOR Workspace: Customer Managed Key Encryption Enabled'
+    severity: high
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: features.enable_log_access_using_only_resource_permissions
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.action_group.secure_webhook_configured
+    title: 'AZURE MONITOR Action Group: Secure Webhook Configured'
+    severity: medium
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{name}}'
+      fields:
+      - path: webhook_receivers[*].use_common_alert_schema
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.data_collection_rule.destinations_configured
+    title: 'AZURE MONITOR Data Collection Rule: Destinations Configured'
+    severity: medium
+    for_each: azure.monitor.data_collection_rules
+    calls:
+    - action: data_collection_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        data_collection_rule_name: '{{name}}'
+      fields:
+      - path: destinations.log_analytics
+        operator: exists
+  - check_id: azure.monitor.alert_rule.evaluation_frequency_appropriate
+    title: 'AZURE MONITOR Alert Rule: Evaluation Frequency Appropriate'
+    severity: low
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: metric_alerts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{name}}'
+      fields:
+      - path: evaluation_frequency
+        operator: exists
+  - check_id: azure.monitor.workspace.daily_quota_configured
+    title: 'AZURE MONITOR Workspace: Daily Quota Configured'
+    severity: low
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{name}}'
+      fields:
+      - path: workspace_capping.daily_quota_gb
+        operator: exists
+  - check_id: azure.monitor.action_group.multiple_notification_types
+    title: 'AZURE MONITOR Action Group: Multiple Notification Types'
+    severity: low
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{name}}'
+      fields:
+      - path: sms_receivers
+        operator: exists
+  - check_id: azure.monitor.action_group.incident_escalation_change_audit_logging_enabled
+    title: 'AZURE MONITOR Action_group: Incident Escalation Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: arm_role_receivers
+        operator: exists
+  - check_id: azure.monitor.action_group.incident_escalation_oncall_contacts_verified
+    title: 'AZURE MONITOR Action_group: Incident Escalation Oncall Contacts Verified'
+    severity: low
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: email_receivers[*].status
+        operator: equals
+        expected: Enabled
+      - path: sms_receivers[*].status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.monitor.action_group.incident_escalation_policy_exists_for_critical_severity
+    title: 'AZURE MONITOR Action_group: Incident Escalation Policy Exists For Critical Severity'
+    severity: medium
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: arm_role_receivers
+        operator: exists
+      - path: email_receivers
+        operator: not_empty
+  - check_id: azure.monitor.action_group.incident_notification_destinations_configured
+    title: 'AZURE MONITOR Action_group: Incident Notification Destinations Configured'
+    severity: low
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: .
+        operator: any_exists
+        expected:
+        - email_receivers
+        - sms_receivers
+        - webhook_receivers
+        - itsm_receivers
+        - azure_app_push_receivers
+  - check_id: azure.monitor.action_group.incident_notification_endpoints_authenticated
+    title: 'AZURE MONITOR Action_group: Incident Notification Endpoints Authenticated'
+    severity: low
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: webhook_receivers[*].use_common_alert_schema
+        operator: equals
+        expected: true
+      - path: itsm_receivers[*].connection_id
+        operator: exists
+  - check_id: azure.monitor.action_group.incident_notification_message_encryption_in_transit
+    title: 'AZURE MONITOR Action_group: Incident Notification Message Encryption In Transit'
+    severity: high
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: webhook_receivers[*].service_uri
+        operator: starts_with
+        expected: https://
+  - check_id: azure.monitor.action_group.incident_notification_no_public_webhooks
+    title: 'AZURE MONITOR Action_group: Incident Notification No Public Webhooks'
+    severity: critical
+    for_each: azure.monitor.action_groups
+    calls:
+    - action: action_groups.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        action_group_name: '{{action_group_name}}'
+      fields:
+      - path: webhook_receivers[*].service_uri
+        operator: not_contains
+        expected:
+        - webhook.site
+        - requestbin.com
+        - hookbin.com
+  - check_id: azure.monitor.admin.account.usage.check
+    title: 'AZURE MONITOR Admin: Account Usage Check'
+    severity: low
+    for_each: azure.monitor.workspaces
+    calls:
+    - action: usages.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: current_value
+        operator: less_than
+        expected: 1000000
+      - path: limit
+        operator: exists
+  - check_id: azure.monitor.alert.alarm_actions
+    title: 'AZURE AZURE Monitoring_alert: Alarm Actions Configured'
+    severity: low
+    for_each: azure.monitor.metric_alerts
+    calls:
+    - action: metric_alerts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{alert_name}}'
+      fields:
+      - path: properties.actions
+        operator: not_empty
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.alarm_configured
+    title: 'AZURE MONITOR Resource: Alarm Configured'
+    severity: low
+    for_each: azure.monitor.resources
+    calls:
+    - action: metric_alerts.list_by_subscription
+      params: {}
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+      - path: properties.scopes
+        operator: exists
+  - check_id: azure.monitor.alert.capacity_alerts_configured
+    title: 'AZURE MONITOR Resource: Capacity Alerts Configured'
+    severity: low
+    for_each: azure.monitor.resources
+    calls:
+    - action: metric_alerts.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: criteria.all_of[*].metric_name
+        operator: contains
+        expected: PercentageCPU
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.critical_alarms_enabled
+    title: 'AZURE AZURE Monitoring_alert: Critical Alarms Enabled'
+    severity: low
+    for_each: azure.monitor.monitoring_alerts
+    calls:
+    - action: metric_alerts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{alert_name}}'
+      fields:
+      - path: severity
+        operator: less_than_or_equal
+        expected: 1
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.destinations_authenticated
+    title: 'AZURE AZURE Monitoring_alert: Destinations Authenticated'
+    severity: low
+    for_each: azure.monitor.monitoring_alerts
+    calls:
+    - action: action_groups.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: webhook_receivers[*].use_aad_auth
+        operator: equals
+        expected: true
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert_rule.dr_monitoring_alert_destinations_configured
+    title: 'AZURE MONITOR Alert_rule: DR Monitoring Alert Destinations Configured'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: alert_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: actions
+        operator: exists
+      - path: actions[*].send_to_service_owners
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_backup_failures_configured
+    title: 'AZURE MONITOR Alert_rule: DR Monitoring Alerts For Backup Failures Configured'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: alert_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: condition.metric_name
+        operator: contains
+        expected: BackupHealthEvent
+      - path: is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_replication_lag_configured
+    title: 'AZURE MONITOR Alert_rule: DR Monitoring Alerts For Replication Lag Configured'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: alert_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: condition.metric_name
+        operator: contains
+        expected: ReplicationLag
+      - path: is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_rpo_rto_breach_configured
+    title: 'AZURE MONITOR Alert_rule: DR Monitoring Alerts For Rpo Rto Breach Configured'
+    severity: medium
+    for_each: azure.monitor.alert_rules
+    calls:
+    - action: alert_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: condition.metric_name
+        operator: in
+        expected:
+        - RPOBreach
+        - RTOBreach
+      - path: is_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.anomaly_detector.anomaly_alerts
+    title: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Alerts Configured'
+    severity: medium
+    for_each: azure.monitor.anomaly_detectors
+    calls:
+    - action: self
+      fields:
+      - path: capabilities.anomaly_detector
+        operator: equals
+        expected: Enabled
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.monitor.anomaly_detector.anomaly_detectors_enabled
+    title: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Detectors Enabled'
+    severity: medium
+    for_each: azure.monitor.anomaly_detectors
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+      - path: kind
+        operator: equals
+        expected: AnomalyDetector
+  - check_id: azure.monitor.anomaly_detector.anomaly_training_data_sources_approved
+    title: 'AZURE AZURE Monitoring_anomaly_detector: Monitoring Anomaly Training Data Sources Approved'
+    severity: medium
+    for_each: azure.monitor.anomaly_detectors
+    calls:
+    - action: self
+      fields:
+      - path: network_acls.default_action
+        operator: equals
+        expected: Deny
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.monitor.application.insights.configuration.check
+    title: 'AZURE MONITOR Application: Insights Configuration Check'
+    severity: low
+    for_each: azure.monitor.applications
+    calls:
+    - action: self
+      fields:
+      - path: provisioning_state
+        operator: equals
+        expected: Succeeded
+      - path: ingestion_mode
+        operator: equals
+        expected: ApplicationInsights
+  - check_id: azure.monitor.dashboard.public_embeds_disabled
+    title: 'AZURE AZURE Monitoring_dashboard: Public Embeds Disabled'
+    severity: critical
+    for_each: azure.monitor.dashboards
+    calls:
+    - action: dashboards.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        dashboard_name: '{{dashboard_name}}'
+      fields:
+      - path: properties.metadata.model.public_embed_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.monitor.dashboard.sharing_restricted_to_org
+    title: 'AZURE AZURE Monitoring_dashboard: Sharing Restricted To Org'
+    severity: low
+    for_each: azure.monitor.dashboards
+    calls:
+    - action: dashboards.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        dashboard_name: '{{dashboard_name}}'
+      fields:
+      - path: properties.metadata.model.sharing_model
+        operator: equals
+        expected: organization
+  - check_id: azure.monitor.dashboard.sso_required
+    title: 'AZURE AZURE Monitoring_dashboard: Sso Required'
+    severity: low
+    for_each: azure.monitor.dashboards
+    calls:
+    - action: dashboards.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        dashboard_name: '{{dashboard_name}}'
+      fields:
+      - path: properties.metadata.model.sso_required
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.group.kms_encryption_enabled
+    title: 'AZURE MONITOR Group: KMS Encryption Enabled'
+    severity: high
+    for_each: azure.monitor.log_groups
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: features.enable_data_export
+        operator: equals
+        expected: true
+      - path: workspace_capping.data_ingestion_status
+        operator: equals
+        expected: RespectQuota
+  - check_id: azure.monitor.log.group.retention.policy.specific.days.enabled,.azure.storage.bucket.lifecycle.enabled
+    title: 'AZURE MONITOR Log: Group Retention Policy Specific Days Enabled, Azure Storage Bucket Lifecycle Enabled'
+    severity: low
+    for_each: azure.monitor.log_groups
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: retention_in_days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.monitor.log.kms_encryption_enabled
+    title: 'AZURE MONITOR Resource: KMS Encryption Enabled'
+    severity: high
+    for_each: azure.resources
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: properties.features.enable_log_access_using_only_resource_permissions
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.log.metric.filter.policy.changes,.azure.active.directory.password.policy.reuse.24,.azure.active.directory.user.accesskey.unused,.azure.active.directory.user.console.access.unused
+    title: 'AZURE MONITOR Log: Metric Filter Policy Changes, Azure Active Directory Password Policy Reuse 24, Azure Active
+      Directory User Accesskey Unused, Azure Active Directory User Console Access Unused'
+    severity: high
+    for_each: azure.monitor.log_groups
+    calls:
+    - action: scheduled_query_rules.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[*].properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.log.metric_filter_alarm_configured
+    title: 'AZURE MONITOR Resource: Log Metric Filter Alarm Configured'
+    severity: low
+    for_each: azure.resources
+    calls:
+    - action: metric_alerts.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[*].properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.log.multi_region_enabled
+    title: 'AZURE MONITOR Resource: Multi Region Enabled'
+    severity: low
+    for_each: azure.resources
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: properties.features.enable_data_export
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.log.retention_configured
+    title: 'AZURE MONITOR Resource: Log Retention Configured'
+    severity: low
+    for_each: azure.resources
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: properties.retention_in_days
+        operator: greater_than_or_equal
+        expected: 30
+  - check_id: azure.monitor.log_analytics_workspace.logging_destination_endpoint_private_networking
+    title: 'AZURE MONITOR Log_analytics_workspace: Logging Destination Endpoint Private Networking'
+    severity: medium
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access_for_ingestion
+        operator: equals
+        expected: Disabled
+      - path: properties.public_network_access_for_query
+        operator: equals
+        expected: Disabled
+  - check_id: azure.monitor.log_analytics_workspace.logging_destination_iam_policy_least_privilege
+    title: 'AZURE MONITOR Log_analytics_workspace: Logging Destination IAM Policy Least Privilege'
+    severity: high
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: role_assignments.list_for_resource
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_provider_namespace: Microsoft.OperationalInsights
+        parent_resource_path: ''
+        resource_type: workspaces
+        resource_name: '{{workspace_name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: /subscriptions/{{subscription_id}}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+  - check_id: azure.monitor.log_analytics_workspace.logging_destination_tls_min_1_2_enforced
+    title: 'AZURE MONITOR Log_analytics_workspace: Logging Destination TLS Min 1 2 Enforced'
+    severity: medium
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: properties.features.disable_local_auth
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.logging_log_stream.logging_stream_ingestion_auth_required
+    title: 'AZURE AZURE Logging_log_stream: Logging Stream Ingestion Auth Required'
+    severity: medium
+    for_each: azure.monitor.logging_log_streams
+    calls:
+    - action: data_collection_rules.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        data_collection_rule_name: '{{rule_name}}'
+      fields:
+      - path: properties.data_flows[*].streams
+        operator: exists
+      - path: properties.destinations
+        operator: exists
+  - check_id: azure.monitor.logging_log_stream.logging_stream_retention_days_minimum
+    title: 'AZURE AZURE Logging_log_stream: Logging Stream Retention Days Minimum'
+    severity: medium
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: retention_in_days
+        operator: gte
+        expected: 30
+  - check_id: azure.monitor.logging_query_definition.access_rbac_least_privilege
+    title: 'AZURE AZURE Logging_query_definition: Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.monitor.saved_searches
+    calls:
+    - action: saved_searches.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+        saved_search_id: '{{saved_search_id}}'
+      fields:
+      - path: category
+        operator: exists
+    - action: role_assignments.list_for_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[*].principal_type
+        operator: not_equals
+        expected: User
+  - check_id: azure.monitor.logging_query_definition.storage_encrypted
+    title: 'AZURE AZURE Logging_query_definition: Storage Encrypted'
+    severity: medium
+    for_each: azure.monitor.saved_searches
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: features.enable_data_export
+        operator: equals
+        expected: true
+      - path: workspace_capping.daily_quota_gb
+        operator: exists
+  - check_id: azure.monitor.logging_sink.destination_least_privilege
+    title: 'AZURE AZURE Logging_sink: Destination Least Privilege'
+    severity: high
+    for_each: azure.monitor.diagnostic_settings
+    calls:
+    - action: role_assignments.list_for_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[*].role_definition_id
+        operator: not_contains
+        expected: Owner
+      - path: value[*].role_definition_id
+        operator: not_contains
+        expected: Contributor
+  - check_id: azure.monitor.logging_store.encryption_at_rest_cmek
+    title: 'AZURE AZURE Logging_store: Encryption At Rest Cmek'
+    severity: high
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: features.enable_log_access_using_only_resource_permissions
+        operator: equals
+        expected: true
+      - path: workspace_capping.data_ingestion_status
+        operator: exists
+  - check_id: azure.monitor.logging_store.immutability_or_object_lock_where_supported
+    title: 'AZURE AZURE Logging_store: Immutability Or Object Lock Where Supported'
+    severity: low
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: features.immediate_purge_data_on30_days
+        operator: equals
+        expected: false
+  - check_id: azure.monitor.logging_store.retention_days_minimum
+    title: 'AZURE AZURE Logging_store: Retention Days Minimum'
+    severity: low
+    for_each: azure.monitor.log_analytics_workspaces
+    calls:
+    - action: workspaces.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        workspace_name: '{{workspace_name}}'
+      fields:
+      - path: retention_in_days
+        operator: gte
+        expected: 90
+  - check_id: azure.monitor.metric_alert.logging_metric_filter_console_root_login_detected_filter_present
+    title: 'AZURE MONITOR Metric_alert: Logging Metric Filter Console Root Login Detected Filter Present'
+    severity: critical
+    for_each: azure.monitor.metric_alerts
+    calls:
+    - action: metric_alerts.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        rule_name: '{{alert_name}}'
+      fields:
+      - path: criteria.all_of[*].metric_name
+        operator: contains
+        expected: AdminUserSignInCount
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.paas_app.logging_enabled
+    title: 'AZURE AZURE Paas_app: Logging Enabled'
+    severity: medium
+    for_each: azure.monitor.paas_apps
+    calls:
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{site_name}}'
+      fields:
+      - path: application_logs.file_system.level
+        operator: not_equals
+        expected: 'Off'
+      - path: http_logs.file_system.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.policy.assignment
+    title: 'AZURE MONITOR Policy: Assignment'
+    severity: medium
+    for_each: azure.monitor.policies
+    calls:
+    - action: policy_assignments.list
+      params: {}
+      fields:
+      - path: policy_definition_id
+        operator: exists
+      - path: enforcement_mode
+        operator: equals
+        expected: Default
+  - check_id: azure.monitor.policy.specific_days_enabled
+    title: 'AZURE MONITOR Policy: Specific Days Enabled'
+    severity: medium
+    for_each: azure.monitor.policies
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_name: '{{policy_assignment_name}}'
+      fields:
+      - path: parameters.days_of_week.value
+        operator: exists
+      - path: parameters.days_of_week.value
+        operator: not_empty
+  - check_id: azure.monitor.sampling_rule.rules_present
+    title: 'AZURE AZURE Monitoring_sampling_rule: Rules Present'
+    severity: low
+    for_each: azure.monitor.sampling_rules
+    calls:
+    - action: application_insights_components.get_proactive_detection_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{component_name}}'
+      fields:
+      - path: value
+        operator: not_empty
+      - path: enabled
+        operator: contains
+        expected: true
+  - check_id: azure.monitor.sampling_rule.storage_encrypted
+    title: 'AZURE AZURE Monitoring_sampling_rule: Storage Encrypted'
+    severity: medium
+    for_each: azure.monitor.sampling_rules
+    calls:
+    - action: application_insights_components.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{component_name}}'
+      fields:
+      - path: disable_ip_masking
+        operator: equals
+        expected: false
+      - path: ingestion_mode
+        operator: equals
+        expected: ApplicationInsights
+  - check_id: azure.monitor.storage.account_with_activity_logs_cmk_encrypted
+    title: 'AZURE MONITOR Storage: Account With Activity Logs CMK Encrypted'
+    severity: medium
+    for_each: azure.monitor.storage_accounts
+    calls:
+    - action: self
+      fields:
+      - path: encryption.key_source
+        operator: equals
+        expected: Microsoft.Keyvault
+      - path: encryption.key_vault_properties.key_name
+        operator: exists
+  - check_id: azure.monitor.storage.account_with_activity_logs_is_private
+    title: 'AZURE MONITOR Storage: Account With Activity Logs Is Private'
+    severity: low
+    for_each: azure.monitor.storage_accounts
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+      - path: network_rule_set.default_action
+        operator: equals
+        expected: Deny
+  - check_id: azure.monitor.trace.access_rbac_least_privilege
+    title: 'AZURE AZURE Monitoring_trace: Access RBAC Least Privilege'
+    severity: high
+    for_each: azure.monitor.traces
+    calls:
+    - action: role_assignments.list_for_resource
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_provider_namespace: Microsoft.Insights
+        parent_resource_path: ''
+        resource_type: components
+        resource_name: '{{component_name}}'
+      fields:
+      - path: value[*].properties.role_definition_id
+        operator: not_contains
+        expected: /subscriptions/{subscription_id}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - path: value[*].properties.principal_type
+        operator: not_equals
+        expected: User
+  - check_id: azure.monitor.trace.retention_days_minimum
+    title: 'AZURE AZURE Monitoring_trace: Retention Days Minimum'
+    severity: low
+    for_each: azure.monitor.traces
+    calls:
+    - action: application_insights_components.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{component_name}}'
+      fields:
+      - path: retention_in_days
+        operator: greater_than_or_equal
+        expected: 90
+      - path: sampling_percentage
+        operator: less_than_or_equal
+        expected: 100
+  - check_id: azure.monitor.trace.store_encrypted
+    title: 'AZURE AZURE Monitoring_trace: Store Encrypted'
+    severity: medium
+    for_each: azure.monitor.traces
+    calls:
+    - action: self
+      fields:
+      - path: disable_ip_masking
+        operator: equals
+        expected: false
+      - path: public_network_access_for_ingestion
+        operator: equals
+        expected: Disabled
+  - check_id: azure.monitor.vm.cpu_alerts
+    title: 'AZURE MONITOR Vm: Cpu Alerts'
+    severity: low
+    for_each: azure.monitor.vms
+    calls:
+    - action: metric_alerts.list_by_subscription
+      params: {}
+      fields:
+      - path: value[?(@.criteria.all_of[*].metric_name=='Percentage CPU')].enabled
+        operator: contains
+        expected: true
+      - path: value[?(@.criteria.all_of[*].metric_name=='Percentage CPU')].criteria.all_of[*].threshold
+        operator: less_than_or_equal
+        expected: 80
+  - check_id: azure.monitor.vm.memory_alerts
+    title: 'AZURE MONITOR Vm: Memory Alerts'
+    severity: low
+    for_each: azure.monitor.vms
+    calls:
+    - action: metric_alerts.list_by_subscription
+      params: {}
+      fields:
+      - path: value[?(@.criteria.all_of[*].metric_name=='Available Memory Bytes')].enabled
+        operator: contains
+        expected: true
+      - path: value[?(@.criteria.all_of[*].metric_name=='Available Memory Bytes')].criteria.all_of[*].threshold
+        operator: greater_than_or_equal
+        expected: 1073741824
+  - check_id: azure.monitor.activity.log.alert.delete.policy.assignment.exists
+    title: 'AZURE MONITOR Activity: Log Alert Delete Policy Assignment Exists'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Authorization/policyAssignments/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.logging_sink.destination_encrypted
+    title: 'AZURE AZURE Logging_sink: Destination Encrypted'
+    severity: medium
+    for_each: azure.monitor.logging_sink
+    calls:
+    - action: self
+      fields:
+      - path: properties.destination.storageAccount.encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: properties.destination.eventHub.encryption.keySource
+        operator: equals
+        expected: Microsoft.KeyVault
+      - path: properties.destination.workspaceId
+        operator: exists
+        expected: true
+  - check_id: azure.monitor.log.file_integrity_enabled
+    title: 'AZURE MONITOR Resource: Log File Integrity Enabled'
+    severity: low
+    for_each: azure.monitor.resource
+    calls:
+    - action: security_insights.data_connectors.list
+      fields:
+      - path: value[?(@.kind=='SecurityEvents')].properties.dataTypes.securityEvents.state
+        operator: equals
+        expected: Enabled
+    - action: log_analytics.workspaces.get
+      fields:
+      - path: properties.features.enableLogAccessUsingOnlyResourcePermissions
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.delete_public_ip
+    title: 'AZURE MONITOR Resource: Alert Delete Public Ip Address Rule'
+    severity: critical
+    for_each: azure.monitor.activity_log_alert
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operation_name
+          equals: Microsoft.Network/publicIPAddresses/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.create.or.update.public.ip.address
+    title: 'AZURE MONITOR Activity: Log Alert Create Or Update Public Ip Address'
+    severity: critical
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/publicIPAddresses/write
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.create_update_public_ip
+    title: 'AZURE MONITOR Resource: Alert Create Update Public Ip Address Rule'
+    severity: critical
+    for_each: azure.monitor.activityLogAlerts
+    calls:
+    - action: self
+      fields:
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/publicIPAddresses/write
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.network.route_tables_alarm_configured
+    title: 'AZURE MONITOR Network: Route Tables Alarm Configured'
+    severity: low
+    for_each: azure.network.route_tables
+    calls:
+    - action: monitor.activity_log_alerts.list_by_resource_group
+      fields:
+      - path: value[?contains(condition.allOf[].field, 'Microsoft.Network/routeTables')].enabled
+        operator: contains
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.sql.server.firewall.rule.exists
+    title: 'AZURE MONITOR Activity: Log Alert Sql Server Firewall Rule Exists'
+    severity: medium
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Sql/servers/firewallRules/write
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.diagnostic.settings_exists
+    title: 'AZURE MONITOR Resource: Diagnostic Settings Exists'
+    severity: low
+    for_each: azure.resource
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      args:
+        resource_uri: '{{ item.id }}'
+      fields:
+      - path: value
+        operator: not_empty
+  - check_id: azure.monitor.alert.create_update_sqlserver_fr
+    title: 'AZURE MONITOR Resource: Alert Create Update Sqlserver Fr'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operation_name
+          equals: Microsoft.Sql/servers/write
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.resource.logging.enabled.check
+    title: 'AZURE MONITOR Resource: Logging Enabled Check'
+    severity: medium
+    for_each: azure.monitor.resource
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+      - path: value[*].logs[*].enabled
+        operator: contains
+        expected: true
+  - check_id: azure.monitor.alert.vnet_changes_configured
+    title: 'AZURE MONITOR Resource: Changes To Vpcs Alarm Configured'
+    severity: low
+    for_each: azure.monitor.activity_log_alert
+    calls:
+    - action: self
+      fields:
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: resourceType
+          equals: Microsoft.Network/virtualNetworks
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/virtualNetworks/write
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.service.health.exists
+    title: 'AZURE MONITOR Activity: Log Alert Service Health Exists'
+    severity: low
+    for_each: azure.monitor.activity
+    calls:
+    - action: monitor_client.activity_log_alerts.list_by_subscription_id
+      fields:
+      - path: value
+        operator: any_match
+        expected:
+          condition:
+            all_of:
+            - field: Microsoft.ServiceHealth/incident/*
+              operator: equals
+              expected: category
+            - field: Activated
+              operator: equals
+              expected: status
+  - check_id: azure.monitor.alert.delete_sqlserver_fr
+    title: 'AZURE MONITOR Resource: Alert Delete Sqlserver Fr'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Sql/servers/delete
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: location
+        operator: equals
+        expected: francecentral
+  - check_id: azure.monitor.logging_sink.cross_account_destinations_restricted
+    title: 'AZURE AZURE Logging_sink: Cross Account Destinations Restricted'
+    severity: low
+    for_each: azure.monitor.diagnostic_settings
+    calls:
+    - action: self
+      fields:
+      - path: event_hub_authorization_rule_id
+        operator: not_contains
+        expected: /subscriptions/
+        when:
+          path: event_hub_authorization_rule_id
+          operator: not_null
+      - path: storage_account_id
+        operator: starts_with
+        expected: /subscriptions/{{ subscription_id }}/
+        when:
+          path: storage_account_id
+          operator: not_null
+      - path: workspace_id
+        operator: starts_with
+        expected: /subscriptions/{{ subscription_id }}/
+        when:
+          path: workspace_id
+          operator: not_null
+  - check_id: azure.monitor.alert.create_update_nsg
+    title: 'AZURE MONITOR Resource: Alert Create Update Nsg'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/networkSecurityGroups/write
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.delete_security_solution
+    title: 'AZURE MONITOR Resource: Alert Delete Security Solution'
+    severity: low
+    for_each: azure.monitor.activity_log_alert
+    calls:
+    - action: self
+      fields:
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Security/securitySolutions/delete
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.sql.server.firewall.rule.deletion.check
+    title: 'AZURE MONITOR Activity: Log Alert Sql Server Firewall Rule Deletion Check'
+    severity: medium
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Sql/servers/firewallRules/delete
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: resourceType
+          equals: Microsoft.Sql/servers/firewallRules
+  - check_id: azure.monitor.network.acls_alarm_configured
+    title: 'AZURE MONITOR Network: Acls Alarm Configured'
+    severity: low
+    for_each: azure.monitor.network
+    calls:
+    - action: monitor_client.activity_log_alerts.list_by_subscription_id
+      fields:
+      - path: value[?contains(condition.all_of[].field, 'Microsoft.Network/networkSecurityGroups/securityRules/write') ||
+          contains(condition.all_of[].field, 'Microsoft.Network/networkSecurityGroups/write')]
+        operator: not_empty
+        expected: true
+  - check_id: azure.monitor.metric_alert.logging_metric_filter_kms_key_deletion_or_disable_detected_filter_present
+    title: 'AZURE MONITOR Metric_alert: Logging Metric Filter KMS Key Deletion Or Disable Detected Filter Present'
+    severity: high
+    for_each: azure.monitor.metric_alert
+    calls:
+    - action: self
+      fields:
+      - path: criteria.all_of
+        operator: contains
+        expected:
+          metric_name: Administrative
+          operator: GreaterThan
+          threshold: 0
+          dimensions:
+          - name: Category
+            operator: Include
+            values:
+            - Administrative
+          - name: OperationName
+            operator: Include
+            values:
+            - Microsoft.KeyVault/vaults/keys/delete
+            - Microsoft.KeyVault/vaults/keys/update
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: scopes
+        operator: contains_any
+        expected:
+        - /subscriptions/*/resourceGroups/*/providers/Microsoft.Insights/components/*
+  - check_id: azure.monitor.log.analysis_enabled
+    title: 'AZURE MONITOR Resource: Log Analysis Enabled'
+    severity: low
+    for_each: azure.monitor.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.workspaceId
+        operator: not_null
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.delete.nsg.exists
+    title: 'AZURE MONITOR Activity: Log Alert Delete Nsg Exists'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/networkSecurityGroups/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.diagnostic.setting.categories.compliance.check
+    title: 'AZURE MONITOR Diagnostic: Setting Categories Compliance Check'
+    severity: low
+    for_each: azure.monitor.diagnostic
+    calls:
+    - action: self
+      fields:
+      - path: logs
+        operator: exists
+        expected: true
+      - path: logs[*].category
+        operator: not_empty
+        expected: true
+      - path: logs[*].enabled
+        operator: equals
+        expected: true
+      - path: metrics
+        operator: exists
+        expected: true
+      - path: metrics[*].category
+        operator: not_empty
+        expected: true
+      - path: metrics[*].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.exists.delete.security.solution
+    title: 'AZURE MONITOR Activity: Log Alert Exists Delete Security Solution'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category.value
+          equals: Security
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operationName.value
+          equals: Microsoft.Security/securitySolutions/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.metric_alert.logging_metric_filter_network_acl_or_sg_change_detected_filter_present
+    title: 'AZURE MONITOR Metric_alert: Logging Metric Filter Network ACL Or Sg Change Detected Filter Present'
+    severity: medium
+    for_each: azure.monitor.metric_alert
+    calls:
+    - action: self
+      fields:
+      - path: criteria.all_of[*].metric_name
+        operator: contains
+        expected: Administrative
+      - path: criteria.all_of[*].dimensions[*].name
+        operator: equals
+        expected: Category
+      - path: criteria.all_of[*].dimensions[*].values[*]
+        operator: contains_any
+        expected:
+        - Microsoft.Network/networkSecurityGroups/write
+        - Microsoft.Network/networkSecurityGroups/delete
+        - Microsoft.ClassicNetwork/networkSecurityGroups/write
+        - Microsoft.ClassicNetwork/networkSecurityGroups/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.create_update_security_solution
+    title: 'AZURE MONITOR Resource: Alert Create Update Security Solution'
+    severity: low
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: category
+          equals: Security
+      - path: condition.all_of
+        operator: contains
+        expected:
+          field: operation_name
+          equals: Microsoft.Security/securitySolutions/write
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.metrics.data_analytics_monitoring_query_access_logging_enabled
+    title: 'AZURE MONITOR Metrics: Data Analytics Monitoring Query Access Logging Enabled'
+    severity: medium
+    for_each: azure.monitor.metrics
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: any
+        conditions:
+        - path: properties.logs
+          operator: any
+          conditions:
+          - path: category
+            operator: equals
+            expected: QueryAccess
+          - path: enabled
+            operator: equals
+            expected: true
+  - check_id: azure.monitor.metric.filter.root.usage
+    title: 'AZURE MONITOR Metric: Filter Root Usage'
+    severity: critical
+    for_each: azure.monitor.metric
+    calls:
+    - action: self
+      fields:
+      - path: criteria.allOf[*].dimensions[*].name
+        operator: not_equals
+        expected: root
+      - path: criteria.allOf[*].dimensions[*].values[*]
+        operator: not_contains
+        expected: root
+  - check_id: azure.monitor.activity.log.alert.public.ip.delete.check
+    title: 'AZURE MONITOR Activity: Log Alert Public Ip Delete Check'
+    severity: critical
+    for_each: azure.monitor.activity_log_alerts
+    calls:
+    - action: self
+      fields:
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: category
+          equals: Administrative
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/publicIPAddresses/delete
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.network.gateways_alarm_configured
+    title: 'AZURE MONITOR Network: Gateways Alarm Configured'
+    severity: low
+    for_each: azure.network.virtual_network_gateways
+    calls:
+    - action: monitor.metric_alerts.list_by_resource_group
+      fields:
+      - path: value
+        operator: any
+        conditions:
+        - path: properties.criteria.allOf
+          operator: any
+          conditions:
+          - path: metricName
+            operator: in
+            expected:
+            - TunnelAverageBandwidth
+            - TunnelEgressBytes
+            - TunnelIngressBytes
+            - TunnelEgressPackets
+            - TunnelIngressPackets
+            - BGPPeerStatus
+            - TunnelState
+          - path: targetResourceUri
+            operator: contains
+            expected: '{{item.id}}'
+        - path: properties.enabled
+          operator: equals
+          expected: true
+  - check_id: azure.monitor.diagnostic.settings.compliance.check
+    title: 'AZURE MONITOR Diagnostic: Settings Compliance Check'
+    severity: low
+    for_each: azure.monitor.diagnostic
+    calls:
+    - action: self
+      fields:
+      - path: properties.logs
+        operator: not_empty
+      - path: properties.metrics
+        operator: not_empty
+      - path: properties.workspaceId
+        operator: not_null
+      - path: properties.storageAccountId
+        operator: not_null
+      - path: properties.eventHubAuthorizationRuleId
+        operator: not_null
+  - check_id: azure.monitor.storage.read_events_enabled
+    title: 'AZURE MONITOR Storage: Read Events Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: storage_management_client.diagnostic_settings.list
+      fields:
+      - path: value[?(@.properties.logs[?(@.category=='StorageRead')].enabled)]
+        operator: contains
+        expected: true
+  - check_id: azure.monitor.storage.write_events_enabled
+    title: 'AZURE MONITOR Storage: Write Events Enabled'
+    severity: low
+    for_each: azure.storage.accounts
+    calls:
+    - action: storage_management_client.blob_services.get_service_properties
+      fields:
+      - path: logging.write
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.nsg.operation.condition.check
+    title: 'AZURE MONITOR Activity: Log Alert Nsg Operation Condition Check'
+    severity: low
+    for_each: azure.monitor.activity
+    calls:
+    - action: self
+      fields:
+      - path: condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/networkSecurityGroups/write
+      - path: condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/networkSecurityGroups/delete
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.log.logging_enabled
+    title: 'AZURE MONITOR Resource: Logging Enabled'
+    severity: medium
+    for_each: azure.monitor.resource
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+      - path: value[*].properties.logs[*].enabled
+        operator: contains
+        expected: true
+  - check_id: azure.monitor.activity.log.alert.security.solution.update.check
+    title: 'AZURE MONITOR Activity: Log Alert Security Solution Update Check'
+    severity: low
+    for_each: azure.monitor.activity
+    calls:
+    - action: self
+      fields:
+      - path: category.value
+        operator: equals
+        expected: Security
+      - path: operationName.value
+        operator: contains
+        expected: Microsoft.Security/securitySolutions
+      - path: status.value
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.monitor.activity.log.alert.policy.assignment.check
+    title: 'AZURE MONITOR Activity: Log Alert Policy Assignment Check'
+    severity: low
+    for_each: azure.monitor.activity
+    calls:
+    - action: monitor_client.activity_log_alerts.list_by_subscription
+      fields:
+      - path: value
+        operator: not_empty
+    - action: self
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: category
+          equals: Policy
+      - path: properties.actions.actionGroups
+        operator: not_empty
+  - check_id: azure.monitor.diagnostic.setting_appropriate_categories
+    title: 'AZURE MONITOR Resource: Diagnostic Setting With Appropriate Categories'
+    severity: low
+    for_each: azure.monitor.diagnostic_setting
+    calls:
+    - action: self
+      fields:
+      - path: logs
+        operator: not_empty
+      - path: logs[*].category
+        operator: contains_any
+        expected:
+        - Administrative
+        - Security
+        - ServiceHealth
+        - Alert
+        - Recommendation
+        - Policy
+        - Autoscale
+        - ResourceHealth
+      - path: logs[*].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.metrics.data_analytics_monitoring_logs_retention_days_minimum
+    title: 'AZURE MONITOR Metrics: Data Analytics Monitoring Logs Retention Days Minimum'
+    severity: medium
+    for_each: azure.monitor.metrics
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      fields:
+      - path: value[].properties.logs[].retention_policy.days
+        operator: gte
+        expected: 90
+      - path: value[].properties.logs[].retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.metrics.data_analytics_monitoring_admin_activity_logging_enabled
+    title: 'AZURE MONITOR Metrics: Data Analytics Monitoring Admin Activity Logging Enabled'
+    severity: critical
+    for_each: azure.monitor.metrics
+    calls:
+    - action: monitor_client.diagnostic_settings.list
+      args:
+        resource_uri: '{{.resource_id}}'
+      fields:
+      - path: value[?(@.properties.logs[?(@.category=='Administrative' && @.enabled==true)])].properties.logs[?(@.category=='Administrative')].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.vulnerability_automation.vuln_automation_change_audit_logging_enabled
+    title: 'AZURE AZURE Vulnerability_automation: Vuln Automation Change Audit Logging Enabled'
+    severity: medium
+    for_each: azure.monitor.vulnerability_automation
+    calls:
+    - action: self
+      fields:
+      - path: properties.auditLogsEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.alert.delete_nsg
+    title: 'AZURE MONITOR Resource: Alert Delete Nsg'
+    severity: low
+    for_each: azure.monitor.activity_log_alert
+    calls:
+    - action: self
+      fields:
+      - path: properties.condition.allOf
+        operator: contains
+        expected:
+          field: operationName
+          equals: Microsoft.Network/networkSecurityGroups/delete
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.monitor.metric_alert.logging_metric_filter_iam_policy_change_detected_filter_present
+    title: 'AZURE MONITOR Metric_alert: Logging Metric Filter IAM Policy Change Detected Filter Present'
+    severity: medium
+    for_each: azure.monitor.metric_alert
+    calls:
+    - action: self
+      fields:
+      - path: criteria.all_of
+        operator: contains
+        expected:
+          metric_name: Administrative
+          operator: GreaterThan
+          threshold: 0
+          dimensions:
+          - name: Category
+            operator: Include
+            values:
+            - Policy
+          - name: OperationName
+            operator: Include
+            values:
+            - Microsoft.Authorization/policies/write
+            - Microsoft.Authorization/policyAssignments/write
+            - Microsoft.Authorization/policyAssignments/delete
+            - Microsoft.Authorization/policyDefinitions/write
+            - Microsoft.Authorization/policyDefinitions/delete
+            - Microsoft.Authorization/policySetDefinitions/write
+            - Microsoft.Authorization/policySetDefinitions/delete
+      - path: enabled
+        operator: equals
+        expected: true

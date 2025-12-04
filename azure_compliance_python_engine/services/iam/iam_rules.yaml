@@ -1,0 +1,148 @@
+iam:
+  version: '1.0'
+  provider: azure
+  service: iam
+  package: azure-mgmt-authorization
+  client_class: AuthorizationManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.iam.role_assignments
+    calls:
+    - client: iam
+      action: role_assignments.list
+      save_as: role_assignments
+  - discovery_id: azure.iam.role_definitions
+    calls:
+    - client: iam
+      action: role_definitions.list
+      save_as: role_definitions
+  - discovery_id: azure.iam.policy_assignments
+    calls:
+    - client: iam
+      action: policy_assignments.list
+      save_as: policy_assignments
+  - discovery_id: azure.iam.users
+    calls:
+    - client: iam
+      action: users.list
+      save_as: users
+  checks:
+  - check_id: azure.iam.role.assignment.privileged.review
+    title: 'AZURE IAM Role: Assignment Privileged Review'
+    severity: high
+    for_each: azure.iam.role_assignments
+    calls:
+    - action: role_assignments.get
+      params:
+        role_assignment_id: '{{role_assignment_id}}'
+      fields:
+      - path: properties.role_definition_id
+        operator: exists
+      - path: properties.principal_type
+        operator: equals
+        expected: User
+  - check_id: azure.iam.policy.cis_2_4_needs_development
+    title: 'AZURE IAM Policy: CIS 2.4 Compliance Check'
+    severity: medium
+    for_each: azure.iam.policy_assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_id: '{{policy_assignment_id}}'
+      fields:
+      - path: properties.enforcement_mode
+        operator: equals
+        expected: Default
+      - path: properties.policy_definition_id
+        operator: exists
+  - check_id: azure.iam.role.has_permissions_to_administer_resource_locks
+    title: 'AZURE IAM Role: Resource Lock Administration Permissions'
+    severity: critical
+    for_each: azure.iam.role_definitions
+    calls:
+    - action: self
+      fields:
+      - path: properties.permissions[0].actions[?(@=='Microsoft.Authorization/locks/*')]
+        operator: exists
+      - path: properties.type
+        operator: equals
+        expected: CustomRole
+  - check_id: azure.iam.policy.cis_5_18_needs_development
+    title: 'AZURE IAM Policy: CIS 5.18 Security Configuration'
+    severity: medium
+    for_each: azure.iam.policy_assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_id: '{{policy_assignment_id}}'
+      fields:
+      - path: properties.parameters.effect.value
+        operator: equals
+        expected: Audit
+      - path: properties.scope
+        operator: exists
+  - check_id: azure.iam.policy.cis_5_25_needs_development
+    title: 'AZURE IAM Policy: CIS 5.25 Monitoring Requirements'
+    severity: medium
+    for_each: azure.iam.policy_assignments
+    calls:
+    - action: policy_assignments.get
+      params:
+        policy_assignment_id: '{{policy_assignment_id}}'
+      fields:
+      - path: properties.not_scopes
+        operator: exists
+      - path: properties.metadata.category
+        operator: equals
+        expected: Monitoring
+  - check_id: azure.iam.resource.guest_user_access_restrictions
+    title: 'AZURE IAM Resource: Guest User Access Restrictions'
+    severity: high
+    for_each: azure.iam.role_assignments
+    calls:
+    - action: role_assignments.list_for_subscription
+      params: {}
+      fields:
+      - path: value[?(@.properties.principal_type=='User')].properties.principal_id
+        operator: exists
+      - path: value[0].properties.scope
+        operator: exists
+  - check_id: azure.iam.user.privileged_identity_management_enabled
+    title: 'AZURE IAM User: Privileged Identity Management Status'
+    severity: medium
+    for_each: azure.iam.users
+    calls:
+    - action: role_assignments.list_for_subscription
+      params: {}
+      fields:
+      - path: value[?(@.properties.principal_type=='User')].properties.role_definition_id
+        operator: exists
+      - path: value[0].properties.created_on
+        operator: exists
+  - check_id: azure.iam.policy.cis_5_3_7_needs_development
+    title: 'AZURE IAM Resource: Cis 5 3 7 Needs Development'
+    severity: medium
+    for_each: azure.iam.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.passwordProfile.forceChangePasswordNextSignIn
+        operator: equals
+        expected: true
+  - check_id: azure.iam.user.access.admin.check
+    title: 'AZURE IAM User: Access Admin Check'
+    severity: critical
+    for_each: azure.iam.user
+    calls:
+    - action: graph_client.users.get_member_groups
+      fields:
+      - path: value
+        operator: not_contains
+        expected: 62e90394-69f5-4237-9190-012177145e10
+    - action: graph_client.users.get_member_objects
+      fields:
+      - path: value
+        operator: not_contains_any
+        expected:
+        - 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+        - 729827e3-9c14-49f7-bb1b-9608f156bbb8

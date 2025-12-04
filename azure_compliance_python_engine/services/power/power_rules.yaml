@@ -1,0 +1,326 @@
+power:
+  version: '1.0'
+  provider: azure
+  service: power
+  package: azure-mgmt-powerbiembedded
+  client_class: PowerBIEmbeddedManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.power.workspace_collections
+    calls:
+    - client: power
+      action: workspace_collections.list_by_subscription
+      save_as: workspace_collections
+  - discovery_id: azure.power.workspaces
+    calls:
+    - client: power
+      action: workspaces.list
+      save_as: workspaces
+  - discovery_id: azure.power.datasets
+    calls:
+    - client: power
+      action: datasets.get_datasets
+      save_as: datasets
+  - discovery_id: azure.power.dashboards
+    calls:
+    - client: power
+      action: dashboards.get_dashboards
+      save_as: dashboards
+  - discovery_id: azure.power.users
+    calls:
+    - client: power
+      action: users.list
+      save_as: users
+  checks:
+  - check_id: azure.power.bi_user.data_analytics_user_roles_minimal
+    title: 'AZURE POWER BI User: Data Analytics User Roles Minimal'
+    severity: medium
+    for_each: azure.power.users
+    calls:
+    - action: capacities.list_users
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+      fields:
+      - path: permissions
+        operator: exists
+      - path: permissions[?(@.role == 'Admin')]
+        operator: lte
+        expected: 2
+  - check_id: azure.power.bi_user.data_analytics_user_sso_required
+    title: 'AZURE POWER BI User: Data Analytics User SSO Required'
+    severity: medium
+    for_each: azure.power.users
+    calls:
+    - action: capacities.get_user
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        user_id: '{{user_id}}'
+      fields:
+      - path: authentication_method
+        operator: equals
+        expected: SSO
+  - check_id: azure.power.bi_user.data_analytics_user_mfa_enabled
+    title: 'AZURE POWER BI User: Data Analytics User MFA Enabled'
+    severity: high
+    for_each: azure.power.users
+    calls:
+    - action: capacities.get_user_authentication_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        user_id: '{{user_id}}'
+      fields:
+      - path: multifactor_authentication_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_public_sharing_disabled
+    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Public Sharing Disabled'
+    severity: critical
+    for_each: azure.power.datasets
+    calls:
+    - action: capacities.get_dataset
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dataset_id: '{{dataset_id}}'
+      fields:
+      - path: is_public
+        operator: equals
+        expected: false
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_access_policies_least_privilege
+    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Access Policies Least Privilege'
+    severity: high
+    for_each: azure.power.datasets
+    calls:
+    - action: capacities.get_dataset_permissions
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dataset_id: '{{dataset_id}}'
+      fields:
+      - path: permissions[?(@.permission == 'ReadWrite')]
+        operator: lte
+        expected: 3
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_encryption_enabled
+    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Encryption Enabled'
+    severity: high
+    for_each: azure.power.datasets
+    calls:
+    - action: self
+      fields:
+      - path: encryption_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_backup_configured
+    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Backup Configured'
+    severity: medium
+    for_each: azure.power.datasets
+    calls:
+    - action: capacities.get_dataset_backup_policy
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dataset_id: '{{dataset_id}}'
+      fields:
+      - path: backup_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_public_embeds_disabled
+    title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Public Embeds Disabled'
+    severity: critical
+    for_each: azure.power.dashboards
+    calls:
+    - action: capacities.get_dashboard
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: embed_url
+        operator: exists
+      - path: is_public_embed_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_access_restricted
+    title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Access Restricted'
+    severity: high
+    for_each: azure.power.dashboards
+    calls:
+    - action: capacities.get_dashboard_permissions
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: permissions[?(@.permission == 'View')]
+        operator: exists
+      - path: allow_anonymous_access
+        operator: equals
+        expected: false
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_audit_logging_enabled
+    title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Audit Logging Enabled'
+    severity: medium
+    for_each: azure.power.dashboards
+    calls:
+    - action: capacities.get_dashboard_audit_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        dedicated_capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: auditing_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.power.workspace.data_analytics_workspace_encryption_enabled
+    title: 'AZURE POWER Workspace: Data Analytics Workspace Encryption Enabled'
+    severity: high
+    for_each: azure.power.workspaces
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_export_controls_enabled
+    title: 'AZURE POWER Bi_dashboard: Data Analytics Dashboard Export Controls Enabled'
+    severity: medium
+    for_each: azure.power.bi_dashboards
+    calls:
+    - action: dashboards.get
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: properties.export_settings.enabled
+        operator: eq
+        expected: true
+      - path: properties.export_settings.restrict_exports
+        operator: eq
+        expected: true
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_sharing_restricted_to_org
+    title: 'AZURE POWER Bi_dashboard: Data Analytics Dashboard Sharing Restricted To Org'
+    severity: medium
+    for_each: azure.power.bi_dashboards
+    calls:
+    - action: dashboards.get_sharing
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: properties.sharing_scope
+        operator: eq
+        expected: Organization
+      - path: properties.allow_external_sharing
+        operator: eq
+        expected: false
+  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_sso_required
+    title: 'AZURE POWER Bi_dashboard: Data Analytics Dashboard Sso Required'
+    severity: medium
+    for_each: azure.power.bi_dashboards
+    calls:
+    - action: dashboards.get_authentication
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        dashboard_id: '{{dashboard_id}}'
+      fields:
+      - path: properties.sso_enabled
+        operator: eq
+        expected: true
+      - path: properties.authentication_method
+        operator: eq
+        expected: SSO
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_encrypted_at_rest_cmek
+    title: 'AZURE POWER Bi_dataset: Data Analytics Dataset Encrypted At Rest Cmek'
+    severity: medium
+    for_each: azure.power.bi_datasets
+    calls:
+    - action: self
+      fields:
+      - path: properties.encryption.enabled
+        operator: eq
+        expected: true
+      - path: properties.encryption.key_source
+        operator: eq
+        expected: Microsoft.KeyVault
+      - path: properties.encryption.key_vault_properties.key_identifier
+        operator: exists
+  - check_id: azure.power.bi_dataset.data_analytics_dataset_row_level_security_enabled
+    title: 'AZURE POWER Bi_dataset: Data Analytics Dataset Row Level Security Enabled'
+    severity: medium
+    for_each: azure.power.bi_datasets
+    calls:
+    - action: datasets.get_security
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        dataset_id: '{{dataset_id}}'
+      fields:
+      - path: properties.row_level_security.enabled
+        operator: eq
+        expected: true
+      - path: properties.row_level_security.rules
+        operator: exists
+      - path: properties.row_level_security.rules
+        operator: gte
+        expected: 1
+  - check_id: azure.power.bi_user.data_analytics_user_external_user_access_reviewed
+    title: 'AZURE POWER Bi_user: Data Analytics User External User Access Reviewed'
+    severity: medium
+    for_each: azure.power.bi_users
+    calls:
+    - action: users.get
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        user_id: '{{user_id}}'
+      fields:
+      - path: properties.user_type
+        operator: ne
+        expected: Guest
+      - path: properties.access_review_status
+        operator: eq
+        expected: Reviewed
+      - path: properties.last_access_review_date
+        operator: exists
+  - check_id: azure.power.bi_workspace.data_analytics_group_external_group_sharing_restricted
+    title: 'AZURE POWER Bi_workspace: Data Analytics Group External Group Sharing Restricted'
+    severity: medium
+    for_each: azure.power.bi_workspaces
+    calls:
+    - action: workspaces.get_sharing
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        workspace_id: '{{workspace_id}}'
+      fields:
+      - path: properties.allow_external_group_sharing
+        operator: eq
+        expected: false
+      - path: properties.external_sharing_settings.enabled
+        operator: eq
+        expected: false
+  - check_id: azure.power.bi_workspace.data_analytics_group_roles_minimal
+    title: 'AZURE POWER Bi_workspace: Data Analytics Group Roles Minimal'
+    severity: medium
+    for_each: azure.power.bi_workspaces
+    calls:
+    - action: workspaces.get_users
+      params:
+        resource_group: '{{resource_group}}'
+        capacity_name: '{{capacity_name}}'
+        workspace_id: '{{workspace_id}}'
+      fields:
+      - path: properties.users[?(@.role == 'Admin')]
+        operator: lte
+        expected: 2
+      - path: properties.users[?(@.role == 'Member')]
+        operator: lte
+        expected: 10
+      - path: properties.principle_of_least_privilege
+        operator: eq
+        expected: true

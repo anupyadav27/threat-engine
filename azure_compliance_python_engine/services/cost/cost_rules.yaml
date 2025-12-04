@@ -1,0 +1,358 @@
+cost:
+  version: '1.0'
+  provider: azure
+  service: cost
+  package: azure-mgmt-costmanagement
+  client_class: CostManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.cost.management_categories
+    calls:
+    - client: cost
+      action: cost_categories.list
+      save_as: management_categories
+  - discovery_id: azure.cost.management_budgets
+    calls:
+    - client: cost
+      action: budgets.list
+      save_as: management_budgets
+  - discovery_id: azure.cost.management_allocation_rules
+    calls:
+    - client: cost
+      action: cost_allocation_rules.list
+      save_as: management_allocation_rules
+  - discovery_id: azure.cost.management_anomalies
+    calls:
+    - client: cost
+      action: anomaly_detector.list
+      save_as: management_anomalies
+  checks:
+  - check_id: azure.cost.management_category.access_billing_console_rbac_least_privilege
+    title: 'AZURE COST Management Category: Access Billing Console RBAC Least Privilege'
+    severity: high
+    for_each: azure.cost.management_categories
+    calls:
+    - action: role_assignments.list_for_scope
+      params:
+        scope: /subscriptions/{{subscription_id}}/providers/Microsoft.CostManagement/costCategories/{{category_id}}
+      fields:
+      - path: value[?(@.properties.role_definition_id contains 'Billing Reader')].principal_id
+        operator: exists
+  - check_id: azure.cost.management_category.cost_category_governance_enabled
+    title: 'AZURE COST Management Category: Cost Category Governance Enabled'
+    severity: medium
+    for_each: azure.cost.management_categories
+    calls:
+    - action: cost_categories.get
+      params:
+        category_id: '{{category_id}}'
+      fields:
+      - path: properties.governance_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.cost.management_category.category_access_controls_configured
+    title: 'AZURE COST Management Category: Category Access Controls Configured'
+    severity: high
+    for_each: azure.cost.management_categories
+    calls:
+    - action: cost_categories.get
+      params:
+        category_id: '{{category_id}}'
+      fields:
+      - path: properties.access_controls
+        operator: exists
+  - check_id: azure.cost.management_budget.budget_alert_destinations_configured
+    title: 'AZURE COST Management Budget: Budget Alert Destinations Configured'
+    severity: low
+    for_each: azure.cost.management_budgets
+    calls:
+    - action: budgets.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        budget_name: '{{budget_name}}'
+      fields:
+      - path: properties.notifications[*].contact_emails
+        operator: exists
+  - check_id: azure.cost.management_budget.budget_budgets_defined_for_accounts_or_projects
+    title: 'AZURE COST Management Budget: Budget Budgets Defined For Accounts Or Projects'
+    severity: low
+    for_each: azure.cost.management_budgets
+    calls:
+    - action: budgets.list
+      params:
+        scope: /subscriptions/{{subscription_id}}
+      fields:
+      - path: value[*].properties.filter.dimensions
+        operator: exists
+  - check_id: azure.cost.management_budget.budget_threshold_alerts_enabled
+    title: 'AZURE COST Management Budget: Budget Threshold Alerts Enabled'
+    severity: medium
+    for_each: azure.cost.management_budgets
+    calls:
+    - action: budgets.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        budget_name: '{{budget_name}}'
+      fields:
+      - path: properties.notifications[?(@.threshold >= 80)].enabled
+        operator: equals
+        expected: true
+  - check_id: azure.cost.management_allocation_rule.allocation_cost_tag_policy_enforced
+    title: 'AZURE COST Management Allocation Rule: Allocation Cost Tag Policy Enforced'
+    severity: medium
+    for_each: azure.cost.management_allocation_rules
+    calls:
+    - action: cost_allocation_rules.get
+      params:
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: properties.source.tag_key
+        operator: exists
+  - check_id: azure.cost.management_allocation_rule.allocation_required_cost_tags_present
+    title: 'AZURE COST Management Allocation Rule: Allocation Required Cost Tags Present'
+    severity: low
+    for_each: azure.cost.management_allocation_rules
+    calls:
+    - action: cost_allocation_rules.get
+      params:
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: properties.targets[*].values
+        operator: exists
+  - check_id: azure.cost.management_allocation_rule.allocation_rule_status_active
+    title: 'AZURE COST Management Allocation Rule: Allocation Rule Status Active'
+    severity: medium
+    for_each: azure.cost.management_allocation_rules
+    calls:
+    - action: cost_allocation_rules.get
+      params:
+        rule_name: '{{rule_name}}'
+      fields:
+      - path: properties.status
+        operator: equals
+        expected: Active
+  - check_id: azure.cost.management_anomaly.anomaly_detection_enabled
+    title: 'AZURE COST Management Anomaly: Anomaly Detection Enabled'
+    severity: high
+    for_each: azure.cost.management_anomalies
+    calls:
+    - action: anomaly_detector.get
+      params: {}
+      fields:
+      - path: properties.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.cost.management_budget.budget_spending_limits_configured
+    title: 'AZURE COST Management Budget: Budget Spending Limits Configured'
+    severity: high
+    for_each: azure.cost.management_budgets
+    calls:
+    - action: budgets.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        budget_name: '{{budget_name}}'
+      fields:
+      - path: amount
+        operator: gte
+        expected: 0
+  - check_id: azure.cost.management_category.cost_allocation_transparency_enabled
+    title: 'AZURE COST Management Category: Cost Allocation Transparency Enabled'
+    severity: low
+    for_each: azure.cost.management_categories
+    calls:
+    - action: cost_categories.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        cost_category_name: '{{category_id}}'
+      fields:
+      - path: allocation_transparency
+        operator: equals
+        expected: true
+  - check_id: azure.cost.management_budget.budget_forecast_alerts_configured
+    title: 'AZURE COST Management Budget: Budget Forecast Alerts Configured'
+    severity: medium
+    for_each: azure.cost.management_budgets
+    calls:
+    - action: budgets.get
+      params:
+        scope: /subscriptions/{{subscription_id}}
+        budget_name: '{{budget_name}}'
+      fields:
+      - path: notifications
+        operator: exists
+  - check_id: azure.cost.management_allocation_rule.allocation_source_validation_enabled
+    title: 'AZURE COST Management Allocation Rule: Allocation Source Validation Enabled'
+    severity: low
+    for_each: azure.cost.management_allocation_rules
+    calls:
+    - action: cost_allocation_rules.get
+      params:
+        billing_account_id: '{{billing_account_id}}'
+        cost_allocation_rule_name: '{{rule_name}}'
+      fields:
+      - path: source.type
+        operator: exists
+  - check_id: azure.cost.management_allocation_rule.allocation_untagged_resource_alerts_enabled
+    title: 'AZURE COST Management_allocation_rule: Allocation Untagged Resource Alerts Enabled'
+    severity: low
+    for_each: azure.cost.management_allocation_rule
+    calls:
+    - action: self
+      fields:
+      - path: properties.details.options.untaggedResourceAlertsEnabled
+        operator: equals
+        expected: true
+  - check_id: azure.cost.management_anomaly.anomaly_severity_thresholds_configured
+    title: 'AZURE COST Management_anomaly: Anomaly Severity Thresholds Configured'
+    severity: low
+    for_each: azure.cost.management_anomaly
+    calls:
+    - action: self
+      fields:
+      - path: properties.settings.thresholdSettings
+        operator: not_null
+      - path: properties.settings.thresholdSettings.operator
+        operator: in
+        expected:
+        - GreaterThan
+        - LessThan
+        - GreaterThanOrEqualTo
+        - LessThanOrEqualTo
+      - path: properties.settings.thresholdSettings.threshold
+        operator: greater_than
+        expected: 0
+  - check_id: azure.cost.management_budget.budget_modify_permissions_restricted
+    title: 'AZURE COST Management_budget: Budget Modify Permissions Restricted'
+    severity: low
+    for_each: azure.cost.management_budget
+    calls:
+    - action: authorization_client.role_assignments.list_for_scope
+      fields:
+      - path: scope
+        value: '{{item.id}}'
+    - action: self
+      fields:
+      - path: role_assignments
+        operator: not_contains
+        expected:
+          role_definition_name: Cost Management Contributor
+          principal_type: User
+      - path: role_assignments
+        operator: not_contains
+        expected:
+          role_definition_name: Owner
+          principal_type: User
+      - path: role_assignments
+        operator: not_contains
+        expected:
+          role_definition_name: Contributor
+          principal_type: User
+  - check_id: azure.cost.management_category.access_cost_data_exports_private_and_encrypted
+    title: 'AZURE COST Management_category: Access Cost Data Exports Private And Encrypted'
+    severity: medium
+    for_each: azure.cost.management_category
+    calls:
+    - action: cost_management.exports.list
+      fields:
+      - path: definition.type
+        operator: equals
+        expected: ActualCost
+    - action: self
+      fields:
+      - path: definition.dataSet.configuration.columns
+        operator: contains
+        expected: Cost
+      - path: definition.deliveryInfo.destination.container
+        operator: not_empty
+      - path: definition.deliveryInfo.destination.storageAccount
+        operator: not_empty
+    - action: storage.storage_accounts.get_properties
+      resource_id: '{{ definition.deliveryInfo.destination.storageAccount }}'
+      fields:
+      - path: properties.encryption.services.blob.enabled
+        operator: equals
+        expected: true
+      - path: properties.allowBlobPublicAccess
+        operator: equals
+        expected: false
+      - path: properties.networkAcls.defaultAction
+        operator: equals
+        expected: Deny
+  - check_id: azure.cost.management_anomaly.anomaly_detectors_enabled
+    title: 'AZURE COST Management_anomaly: Anomaly Detectors Enabled'
+    severity: low
+    for_each: azure.cost.management_anomaly
+    calls:
+    - action: self
+      fields:
+      - path: properties.status
+        operator: equals
+        expected: Active
+  - check_id: azure.cost.management_budget.budget_alert_thresholds_configured
+    title: 'AZURE COST Management_budget: Budget Alert Thresholds Configured'
+    severity: low
+    for_each: azure.cost.management_budget
+    calls:
+    - action: self
+      fields:
+      - path: properties.notifications
+        operator: exists
+      - path: properties.notifications
+        operator: not_empty
+  - check_id: azure.cost.management_category.access_billing_admins_mfa_required
+    title: 'AZURE COST Management_category: Access Billing Admins MFA Required'
+    severity: critical
+    for_each: azure.cost.management_category
+    calls:
+    - action: azure.authorization.role_assignments.list_for_scope
+      fields:
+      - path: value[?(@.properties.roleDefinitionId =~ /.*\/providers\/Microsoft.Authorization\/roleDefinitions\/(b0f54661-2d74-4c50-afa3-1ec803f12efe|f20be2ff-b6e7-4216-9ba4-79b0b5e54b27|88d8e3e3-8f55-4a1e-953a-9b9898b8876b)/)]
+        operator: exists
+    - action: azure.authorization.users.get
+      for_each: previous.value[*].properties.principalId
+      fields:
+      - path: strongAuthenticationMethods
+        operator: not_empty
+      - path: strongAuthenticationMethods[*].isDefault
+        operator: contains
+        expected: true
+  - check_id: azure.cost.management_anomaly.anomaly_alert_destinations_configured
+    title: 'AZURE COST Management_anomaly: Anomaly Alert Destinations Configured'
+    severity: low
+    for_each: azure.cost.management_anomaly
+    calls:
+    - action: self
+      fields:
+      - path: properties.configuration.subscriptionIds
+        operator: not_empty
+      - path: properties.configuration.contactEmails
+        operator: not_empty
+  - check_id: azure.cost.management_category.access_cost_export_destinations_least_privilege
+    title: 'AZURE COST Management_category: Access Cost Export Destinations Least Privilege'
+    severity: high
+    for_each: azure.cost.management_category
+    calls:
+    - action: cost_management.exports_list
+      fields:
+      - path: value[*].properties.definition.type
+        operator: equals
+        expected: ActualCost
+    - action: cost_management.exports_get
+      fields:
+      - path: properties.deliveryInfo.destination.storageAccount
+        operator: exists
+        expected: true
+      - path: properties.deliveryInfo.destination.container
+        operator: exists
+        expected: true
+    - action: storage.storage_accounts_get_properties
+      fields:
+      - path: properties.allowBlobPublicAccess
+        operator: equals
+        expected: false
+      - path: properties.minimumTlsVersion
+        operator: equals
+        expected: TLS1_2
+      - path: properties.networkAcls.defaultAction
+        operator: equals
+        expected: Deny

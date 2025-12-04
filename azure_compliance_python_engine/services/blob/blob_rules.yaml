@@ -1,0 +1,46 @@
+blob:
+  version: '1.0'
+  provider: azure
+  service: blob
+  package: azure-storage-blob
+  client_class: BlobServiceClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.blob.storage.accounts
+    calls:
+    - client: storage
+      action: storage_accounts.list
+      save_as: storage_accounts
+  - discovery_id: azure.blob.containers
+    calls:
+    - client: blob
+      action: list_containers
+      save_as: containers
+  checks:
+  - check_id: azure.blob.storage.container.soft.delete.check
+    title: 'AZURE BLOB Storage: Container Soft Delete Check'
+    severity: low
+    for_each: azure.blob.storage.accounts
+    calls:
+    - action: self
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+      fields:
+      - path: delete_retention_policy.enabled
+        operator: equals
+        expected: true
+  - check_id: azure.blob.storage.soft.delete.enabled
+    title: 'AZURE BLOB Storage: Soft Delete Enabled'
+    severity: low
+    for_each: azure.blob.storage.accounts
+    calls:
+    - action: blob_services.get_service_properties_service_properties
+      params:
+        resource_group_name: '{{resource_group}}'
+        account_name: '{{account_name}}'
+        blob_services_name: default
+      fields:
+      - path: delete_retention_policy.enabled
+        operator: equals
+        expected: true

@@ -1,0 +1,163 @@
+mysql:
+  version: '1.0'
+  provider: azure
+  service: mysql
+  package: azure-mgmt-rdbms
+  client_class: MySQLManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.mysql.servers
+    calls:
+    - client: mysql
+      action: servers.list
+      save_as: servers
+  - discovery_id: azure.mysql.flexible_servers
+    calls:
+    - client: mysql
+      action: flexible_servers.list
+      save_as: flexible_servers
+  - discovery_id: azure.mysql.configurations
+    calls:
+    - client: mysql
+      action: configurations.list_by_server
+      save_as: configurations
+  checks:
+  - check_id: azure.mysql.flexibleserver.minimum_tls_version_12
+    title: 'AZURE MYSQL Flexibleserver: Minimum TLS Version 12'
+    severity: medium
+    for_each: azure.mysql.flexible_servers
+    calls:
+    - action: flexible_servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: version
+        operator: gte
+        expected: '8.0'
+      - path: network.require_ssl
+        operator: equals
+        expected: Enabled
+  - check_id: azure.mysql.server.audit.log.connection.check
+    title: 'AZURE MYSQL Server: Audit Log Connection Check'
+    severity: medium
+    for_each: azure.mysql.servers
+    calls:
+    - action: configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        configuration_name: audit_log_connection_policy_actions
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.mysql.server.audit.log.enabled
+    title: 'AZURE MYSQL Server: Audit Log Enabled'
+    severity: medium
+    for_each: azure.mysql.servers
+    calls:
+    - action: configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        configuration_name: audit_log_enabled
+      fields:
+      - path: value
+        operator: equals
+        expected: 'ON'
+  - check_id: azure.mysql.flexibleserver.audit_log_enabled
+    title: 'AZURE MYSQL Flexibleserver: Audit Log Enabled'
+    severity: medium
+    for_each: azure.mysql.flexible_servers
+    calls:
+    - action: flexible_server_configurations.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        configuration_name: audit_log_enabled
+      fields:
+      - path: value
+        operator: equals
+        expected: 'ON'
+  - check_id: azure.mysql.flexibleserver.ssl_connection_enabled
+    title: 'AZURE MYSQL Flexibleserver: SSL Connection Enabled'
+    severity: medium
+    for_each: azure.mysql.flexible_servers
+    calls:
+    - action: flexible_servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: network.require_ssl
+        operator: equals
+        expected: Enabled
+  - check_id: azure.mysql.server.ssl_enforcement_enabled
+    title: 'AZURE MYSQL Server: SSL Enforcement Enabled'
+    severity: high
+    for_each: azure.mysql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: ssl_enforcement
+        operator: equals
+        expected: Enabled
+  - check_id: azure.mysql.server.backup_retention_days
+    title: 'AZURE MYSQL Server: Backup Retention Days'
+    severity: low
+    for_each: azure.mysql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: storage_profile.backup_retention_days
+        operator: gte
+        expected: 7
+  - check_id: azure.mysql.flexibleserver.geo_redundant_backup
+    title: 'AZURE MYSQL Flexibleserver: Geo Redundant Backup'
+    severity: low
+    for_each: azure.mysql.flexible_servers
+    calls:
+    - action: flexible_servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: backup.geo_redundant_backup
+        operator: equals
+        expected: Enabled
+  - check_id: azure.mysql.server.geo_redundant_backup
+    title: 'AZURE MYSQL Resource: Geo Redundant Backup'
+    severity: medium
+    for_each: azure.mysql.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.storage_profile.geo_redundant_backup
+        operator: equals
+        expected: Enabled
+  - check_id: azure.mysql.flexibleserver.audit_log_connection_enabled
+    title: 'AZURE MYSQL Resource: Flexible Server Audit Log Connection Activated'
+    severity: medium
+    for_each: azure.mysql.resource
+    calls:
+    - action: self
+      fields:
+      - path: properties.configurations.audit_log_connection
+        operator: equals
+        expected: 'ON'
+  - check_id: azure.mysql.standard.database.ssl.enforcement.check
+    title: 'AZURE MYSQL Standard: Database SSL Enforcement Check'
+    severity: medium
+    for_each: azure.mysql.standard
+    calls:
+    - action: self
+      fields:
+      - path: ssl_enforcement
+        operator: equals
+        expected: Enabled

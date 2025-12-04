@@ -1,0 +1,1612 @@
+sql:
+  version: '1.0'
+  provider: azure
+  service: sql
+  package: azure-mgmt-sql
+  client_class: SqlManagementClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.sql.servers
+    calls:
+    - client: sql
+      action: servers.list
+      save_as: servers
+  - discovery_id: azure.sql.databases
+    calls:
+    - client: sql
+      action: databases.list_by_server
+      save_as: databases
+  - discovery_id: azure.sql.elastic_pools
+    calls:
+    - client: sql
+      action: elastic_pools.list_by_server
+      save_as: elastic_pools
+  - discovery_id: azure.sql.firewall_rules
+    calls:
+    - client: sql
+      action: firewall_rules.list_by_server
+      save_as: firewall_rules
+  checks:
+  - check_id: azure.sql.server.db_subnet_group_private_subnets_only
+    title: 'AZURE SQL Server: DB Subnet Group Private Subnets Only'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: private_endpoint_connections
+        operator: exists
+  - check_id: azure.sql.database.backup_enabled
+    title: 'AZURE SQL Database: Backup Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: backup_short_term_retention_policies.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].retention_days
+        operator: gte
+        expected: 7
+  - check_id: azure.sql.server.db_cluster_encryption_at_rest_cmek
+    title: 'AZURE SQL Server: DB Cluster Encryption At Rest CMEK'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: encryption_protectors.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        encryption_protector_name: current
+      fields:
+      - path: server_key_type
+        operator: equals
+        expected: AzureKeyVault
+  - check_id: azure.sql.server.tde_enabled
+    title: 'AZURE SQL Server: TDE Encryption Enabled'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.user.db_password_auth_hardened_or_iam_auth_preferred_where_supported
+    title: 'AZURE SQL User: DB Password Auth Hardened Or IAM Auth Preferred'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.sql.database.auditing_enabled
+    title: 'AZURE SQL Database: Auditing Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: database_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.firewall_rules_restricted
+    title: 'AZURE SQL Server: Firewall Rules Restricted'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address == '0.0.0.0' && @.end_ip_address == '255.255.255.255')]
+        operator: exists
+  - check_id: azure.sql.database.long_term_retention_enabled
+    title: 'AZURE SQL Database: Long Term Retention Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: backup_long_term_retention_policies.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: weekly_retention
+        operator: exists
+  - check_id: azure.sql.server.vulnerability_assessment_enabled
+    title: 'AZURE SQL Server: Vulnerability Assessment Enabled'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_vulnerability_assessments.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: storage_container_path
+        operator: exists
+  - check_id: azure.sql.database.geo_redundant_backup_enabled
+    title: 'AZURE SQL Database: Geo Redundant Backup Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: requested_backup_storage_redundancy
+        operator: equals
+        expected: Geo
+  - check_id: azure.sql.server.minimal_tls_version_enforced
+    title: 'AZURE SQL Server: Minimal TLS Version Enforced'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: equals
+        expected: '1.2'
+  - check_id: azure.sql.database.data_classification_enabled
+    title: 'AZURE SQL Database: Data Classification Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: sensitivity_labels.list_current
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value
+        operator: exists
+  - check_id: azure.sql.server.public_network_access_disabled
+    title: 'AZURE SQL Server: Public Network Access Disabled'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.sql.database.dynamic_data_masking_enabled
+    title: 'AZURE SQL Database: Dynamic Data Masking Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: data_masking_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        data_masking_policy_name: Default
+      fields:
+      - path: data_masking_state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.connection_policy_secure
+    title: 'AZURE SQL Server: Connection Policy Secure'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_connection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        connection_policy_name: default
+      fields:
+      - path: connection_type
+        operator: equals
+        expected: Proxy
+  - check_id: azure.sql.database.threat_detection_enabled
+    title: 'AZURE SQL Database: Threat Detection Enabled'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: database_threat_detection_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.azure_ad_admin_configured
+    title: 'AZURE SQL Server: Azure AD Admin Configured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        administrator_name: ActiveDirectory
+      fields:
+      - path: login
+        operator: exists
+  - check_id: azure.sql.database.automatic_tuning_enabled
+    title: 'AZURE SQL Database: Automatic Tuning Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_automatic_tuning.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: actual_state
+        operator: equals
+        expected: Auto
+  - check_id: azure.sql.server.email_notifications_configured
+    title: 'AZURE SQL Server: Email Notifications Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: email_addresses
+        operator: exists
+  - check_id: azure.sql.database.ledger_enabled
+    title: 'AZURE SQL Database: Ledger Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: is_ledger_on
+        operator: equals
+        expected: true
+  - check_id: azure.sql.server.private_endpoint_configured
+    title: 'AZURE SQL Server: Private Endpoint Configured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: private_endpoint_connections.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].private_link_service_connection_state.status
+        operator: equals
+        expected: Approved
+  - check_id: azure.sql.database.zone_redundancy_enabled
+    title: 'AZURE SQL Database: Zone Redundancy Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: zone_redundant
+        operator: equals
+        expected: true
+  - check_id: azure.sql.database.query_store_enabled
+    title: 'AZURE SQL Database: Query Store Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_query_store.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: desired_state
+        operator: equals
+        expected: ReadWrite
+  - check_id: azure.sql.server.failover_group_configured
+    title: 'AZURE SQL Server: Failover Group Configured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: failover_groups.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].read_write_endpoint
+        operator: exists
+  - check_id: azure.sql.database.sync_group_configured
+    title: 'AZURE SQL Database: Sync Group Configured'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: sync_groups.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].sync_state
+        operator: exists
+  - check_id: azure.sql.server.managed_identity_enabled
+    title: 'AZURE SQL Server: Managed Identity Enabled'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: self
+      fields:
+      - path: identity.type
+        operator: equals
+        expected: SystemAssigned
+  - check_id: azure.sql.database.elastic_pool_configured
+    title: 'AZURE SQL Database: Elastic Pool Configured'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: elastic_pool_id
+        operator: exists
+  - check_id: azure.sql.server.server_trust_group_configured
+    title: 'AZURE SQL Server: Server Trust Group Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_trust_groups.list_by_location
+      params:
+        resource_group_name: '{{resource_group}}'
+        location_name: '{{location}}'
+      fields:
+      - path: value[0].server_info
+        operator: exists
+  - check_id: azure.sql.database.workload_group_configured
+    title: 'AZURE SQL Database: Workload Group Configured'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: workload_groups.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].max_resource_percent
+        operator: exists
+  - check_id: azure.sql.server.outbound_firewall_rules_configured
+    title: 'AZURE SQL Server: Outbound Firewall Rules Configured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: outbound_firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].provisioning_state
+        operator: equals
+        expected: Succeeded
+  - check_id: azure.sql.database.workload_classifier_configured
+    title: 'AZURE SQL Database: Workload Classifier Configured'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: workload_classifiers.list_by_workload_group
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        workload_group_name: '{{workload_group_name}}'
+      fields:
+      - path: value[0].member_name
+        operator: exists
+  - check_id: azure.sql.server.dns_alias_configured
+    title: 'AZURE SQL Server: DNS Alias Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_dns_aliases.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].azure_dns_record
+        operator: exists
+  - check_id: azure.sql.database.extended_auditing_policy_configured
+    title: 'AZURE SQL Database: Extended Auditing Policy Configured'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: extended_database_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.job_agent_configured
+    title: 'AZURE SQL Server: Job Agent Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: job_agents.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].database_id
+        operator: exists
+  - check_id: azure.sql.database.maintenance_configuration_assigned
+    title: 'AZURE SQL Database: Maintenance Configuration Assigned'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: maintenance_configuration_id
+        operator: exists
+  - check_id: azure.sql.server.virtual_network_rule_configured
+    title: 'AZURE SQL Server: Virtual Network Rule Configured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: virtual_network_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].virtual_network_subnet_id
+        operator: exists
+  - check_id: azure.sql.database.database_advisor_recommendations_applied
+    title: 'AZURE SQL Database: Database Advisor Recommendations Applied'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_advisors.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].auto_execute_status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.server_communication_link_configured
+    title: 'AZURE SQL Server: Server Communication Link Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_communication_links.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].state
+        operator: equals
+        expected: Ready
+  - check_id: azure.sql.database.database_usage_metrics_monitored
+    title: 'AZURE SQL Database: Database Usage Metrics Monitored'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_usages.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].current_value
+        operator: exists
+  - check_id: azure.sql.server.server_azure_ad_only_authentication
+    title: 'AZURE SQL Server: Azure AD Only Authentication'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_only_authentications.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: azure_ad_only_authentication
+        operator: equals
+        expected: true
+  - check_id: azure.sql.database.database_columns_encrypted
+    title: 'AZURE SQL Database: Database Columns Encrypted'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: sensitivity_labels.list_current_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: information_type
+        operator: exists
+  - check_id: azure.sql.server.server_devops_audit_enabled
+    title: 'AZURE SQL Server: DevOps Audit Enabled'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_dev_ops_audit_settings.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        dev_ops_auditing_settings_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.database_export_configured
+    title: 'AZURE SQL Database: Database Export Configured'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_export.export
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: storage_uri
+        operator: exists
+  - check_id: azure.sql.server.server_keys_managed_externally
+    title: 'AZURE SQL Server: Server Keys Managed Externally'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: server_keys.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].server_key_type
+        operator: equals
+        expected: AzureKeyVault
+  - check_id: azure.sql.database.database_import_export_operations_monitored
+    title: 'AZURE SQL Database: Import Export Operations Monitored'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: database_import_export.list_import_export_operation_results
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].status
+        operator: exists
+  - check_id: azure.sql.server.server_configuration_options_secured
+    title: 'AZURE SQL Server: Server Configuration Options Secured'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_configurations.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[0].value
+        operator: exists
+  - check_id: azure.sql.database.database_replication_links_secured
+    title: 'AZURE SQL Database: Database Replication Links Secured'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: replication_links.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].role
+        operator: exists
+  - check_id: azure.sql.server.server_trust_certificates_validated
+    title: 'AZURE SQL Server: Server Trust Certificates Validated'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_trust_certificates.list_by_instance
+      params:
+        resource_group_name: '{{resource_group}}'
+        location_name: '{{location}}'
+      fields:
+      - path: value[0].thumbprint
+        operator: exists
+  - check_id: azure.sql.database.database_geo_backup_policies_enabled
+    title: 'AZURE SQL Database: Geo Backup Policies Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: geo_backup_policies.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.server_automatic_tuning_optimized
+    title: 'AZURE SQL Server: Server Automatic Tuning Optimized'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_automatic_tuning.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: actual_state
+        operator: equals
+        expected: Auto
+  - check_id: azure.sql.database.database_restore_points_available
+    title: 'AZURE SQL Database: Database Restore Points Available'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: restore_points.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].restore_point_type
+        operator: exists
+  - check_id: azure.sql.server.server_subscription_usage_monitored
+    title: 'AZURE SQL Server: Server Subscription Usage Monitored'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: subscription_usages.list_by_location
+      params:
+        location_name: '{{location}}'
+      fields:
+      - path: value[0].current_value
+        operator: exists
+  - check_id: azure.sql.database.database_security_alert_policies_comprehensive
+    title: 'AZURE SQL Database: Security Alert Policies Comprehensive'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: database_security_alert_policies.list_by_database
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: value[0].disabled_alerts
+        operator: exists
+  - check_id: azure.sql.server.server_time_zone_configured
+    title: 'AZURE SQL Server: Server Time Zone Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: timezone_id
+        operator: exists
+  - check_id: azure.sql.database.database_transparent_data_encryption_protector_validated
+    title: 'AZURE SQL Database: TDE Protector Validated'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: encryption_protectors.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        encryption_protector_name: current
+      fields:
+      - path: thumbprint
+        operator: exists
+  - check_id: azure.sql.server.server_virtual_cluster_configured
+    title: 'AZURE SQL Server: Virtual Cluster Configured'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: virtual_clusters.list_by_resource_group
+      params:
+        resource_group_name: '{{resource_group}}'
+      fields:
+      - path: value[0].subnet_id
+        operator: exists
+  - check_id: azure.sql.database.database_vulnerability_assessment_baseline_configured
+    title: 'AZURE SQL Database: Vulnerability Assessment Baseline Configured'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: database_vulnerability_assessment_baselines.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        vulnerability_assessment_name: default
+        baseline_name: default
+      fields:
+      - path: baseline_results
+        operator: exists
+  - check_id: azure.sql.cluster.default.admin
+    title: 'AZURE SQL Cluster: Default Admin'
+    severity: critical
+    for_each: azure.sql.managedInstances
+    calls:
+    - action: managed_instances.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        managed_instance_name: '{{name}}'
+      fields:
+      - path: administrator_login
+        operator: not_equals
+        expected: sa
+      - path: administrator_login
+        operator: not_equals
+        expected: admin
+  - check_id: azure.sql.instance.default.admin
+    title: 'AZURE SQL Instance: Default Admin'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: administrator_login
+        operator: not_equals
+        expected: sa
+      - path: administrator_login
+        operator: not_equals
+        expected: admin
+  - check_id: azure.sql.database.ad_authentication_enabled
+    title: 'AZURE SQL Database: Ad Authentication Enabled'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        administrator_name: ActiveDirectory
+      fields:
+      - path: administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.sql.database.aurora_backup_enabled
+    title: 'AZURE SQL Resource: Aurora Backup Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: earliest_restore_date
+        operator: exists
+  - check_id: azure.sql.database.auto_minor_version_upgrade
+    title: 'AZURE SQL Resource: Auto Minor Version Upgrade'
+    severity: low
+    for_each: azure.sql.managedInstances
+    calls:
+    - action: managed_instances.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        managed_instance_name: '{{name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: exists
+  - check_id: azure.sql.database.autoscale_enabled
+    title: 'AZURE SQL Database: Autoscale Enabled'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: auto_pause_delay
+        operator: exists
+  - check_id: azure.sql.database.backup_encrypted
+    title: 'AZURE SQL Database: Backup Encrypted'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.db_cluster_snapshot_cross_account_sharing_restricted
+    title: 'AZURE SQL Database: Db Cluster Snapshot Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: backup_short_term_retention_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        policy_name: default
+      fields:
+      - path: retention_days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.sql.database.db_cluster_snapshot_cross_region_copy_encrypted
+    title: 'AZURE SQL Database: Db Cluster Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: geo_backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        geo_backup_policy_name: Default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.db_cluster_snapshot_encrypted
+    title: 'AZURE SQL Database: Db Cluster Snapshot Encrypted'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.db_cluster_snapshot_not_publicly_shared
+    title: 'AZURE SQL Database: Db Cluster Snapshot Not Publicly Shared'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[*].start_ip_address
+        operator: not_equals
+        expected: 0.0.0.0
+  - check_id: azure.sql.database.db_snapshot_cross_account_sharing_restricted
+    title: 'AZURE SQL Database: Db Snapshot Cross Account Sharing Restricted'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: backup_long_term_retention_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        policy_name: default
+      fields:
+      - path: weekly_retention
+        operator: exists
+  - check_id: azure.sql.database.db_snapshot_cross_region_copy_encrypted
+    title: 'AZURE SQL Database: Db Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: geo_backup_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        geo_backup_policy_name: Default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.db_snapshot_encrypted
+    title: 'AZURE SQL Database: Db Snapshot Encrypted'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.db_snapshot_not_publicly_shared
+    title: 'AZURE SQL Database: Db Snapshot Not Publicly Shared'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: end_ip_address
+        operator: not_equals
+        expected: 255.255.255.255
+  - check_id: azure.sql.database.defender.pricing.tier.check
+    title: 'AZURE SQL Database: Defender Pricing Tier Check'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.deletion_protection
+    title: 'AZURE SQL Database: Deletion Protection'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: catalog_collation
+        operator: exists
+  - check_id: azure.sql.database.dynamodb_encryption_enabled
+    title: 'AZURE SQL Resource: Dynamodb Table Encryption Enabled'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.encryption_at_rest_enabled
+    title: 'AZURE SQL Database: Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.database.geo_redundant_backup
+    title: 'AZURE SQL Resource: Geo Redundant Backup'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{name}}'
+      fields:
+      - path: requested_backup_storage_redundancy
+        operator: equals
+        expected: Geo
+  - check_id: azure.sql.database.multi_az
+    title: 'AZURE SQL Database: Multi Az'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{database_name}}'
+      fields:
+      - path: zone_redundant
+        operator: equals
+        expected: true
+  - check_id: azure.sql.database.multi_az_enabled
+    title: 'AZURE SQL Resource: Multi Az Enabled'
+    severity: low
+    for_each: azure.sql.databases
+    calls:
+    - action: databases.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{database_name}}'
+      fields:
+      - path: zone_redundant
+        operator: equals
+        expected: true
+  - check_id: azure.sql.database.no_public_access
+    title: 'AZURE SQL Database: No Public Access'
+    severity: critical
+    for_each: azure.sql.databases
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.sql.database.snapshots_public_access
+    title: 'AZURE SQL Database: Snapshots Public Access'
+    severity: critical
+    for_each: azure.sql.databases
+    calls:
+    - action: backup_short_term_retention_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{database_name}}'
+        policy_name: default
+      fields:
+      - path: retention_days
+        operator: greater_than
+        expected: 0
+  - check_id: azure.sql.database.tde.status.check
+    title: 'AZURE SQL Database: Tde Status Check'
+    severity: medium
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{database_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.instance.no.public.access
+    title: 'AZURE SQL Instance: No Public Access'
+    severity: critical
+    for_each: azure.sql.managedInstances
+    calls:
+    - action: managed_instances.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        managed_instance_name: '{{managed_instance_name}}'
+      fields:
+      - path: public_data_endpoint_enabled
+        operator: equals
+        expected: false
+  - check_id: azure.sql.paas_lightsail_database.paas_db_encryption_at_rest_enabled
+    title: 'AZURE AZURE Paas_lightsail_database: Paas Db Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.sql.databases
+    calls:
+    - action: transparent_data_encryptions.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        database_name: '{{database_name}}'
+        transparent_data_encryption_name: current
+      fields:
+      - path: status
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.paas_lightsail_database.paas_db_public_access_disabled
+    title: 'AZURE AZURE Paas_lightsail_database: Paas Db Public Access Disabled'
+    severity: critical
+    for_each: azure.sql.databases
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.sql.paas_lightsail_database.paas_db_require_tls_in_transit
+    title: 'AZURE AZURE Paas_lightsail_database: Paas Db Require TLS In Transit'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: greater_than_or_equal
+        expected: '1.2'
+  - check_id: azure.sql.server.ad.admin.check
+    title: 'AZURE SQL Server: Ad Admin Check'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{server_name}}'
+        administrator_name: ActiveDirectory
+      fields:
+      - path: administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.sql.server.audit.retention.check
+    title: 'AZURE SQL Server: Audit Retention Check'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: retention_days
+        operator: greater_than_or_equal
+        expected: 90
+  - check_id: azure.sql.server.auditing_retention_90_days
+    title: 'AZURE SQLSERVER Resource: Auditing Retention 90 Days'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: retention_days
+        operator: greater_than_or_equal
+        expected: 90
+  - check_id: azure.sql.server.check.public.network.access.disabled
+    title: 'AZURE SQL Server: Check Public Network Access Disabled'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.sql.server.db_cluster_audit_logging_enabled
+    title: 'AZURE SQL Server: Db Cluster Audit Logging Enabled'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.db_cluster_deletion_protection_enabled
+    title: 'AZURE SQL Server: Db Cluster Deletion Protection Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: restrict_outbound_network_access
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.db_cluster_minor_version_auto_upgrade_enabled
+    title: 'AZURE SQL Server: Db Cluster Minor Version Auto Upgrade Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: version
+        operator: exists
+  - check_id: azure.sql.server.db_cluster_private_networking_enforced
+    title: 'AZURE SQL Server: Db Cluster Private Networking Enforced'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: private_endpoint_connections
+        operator: exists
+  - check_id: azure.sql.server.db_instance_deletion_protection_enabled
+    title: 'AZURE SQL Server: Db Instance Deletion Protection Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: restrict_outbound_network_access
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.db_instance_encryption_at_rest_enabled
+    title: 'AZURE SQL Server: Db Instance Encryption At Rest Enabled'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: encryption_protectors.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        encryption_protector_name: current
+      fields:
+      - path: server_key_type
+        operator: not_equals
+        expected: ServiceManaged
+  - check_id: azure.sql.server.db_instance_iam_or_managed_identity_auth_enabled_where_supported
+    title: 'AZURE SQL Server: Db Instance IAM Or Managed Identity Auth Enabled Where Supported'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        administrator_name: ActiveDirectory
+      fields:
+      - path: administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.sql.server.db_instance_public_access_disabled
+    title: 'AZURE SQL Server: Db Instance Public Access Disabled'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: self
+      fields:
+      - path: public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.sql.server.db_instance_require_tls_in_transit
+    title: 'AZURE SQL Server: Db Instance Require TLS In Transit'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: in
+        expected:
+        - '1.2'
+        - '1.3'
+  - check_id: azure.sql.server.db_parameter_group_audit_logging_enabled_where_supported
+    title: 'AZURE SQL Server: Db Parameter Group Audit Logging Enabled Where Supported'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_blob_auditing_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        blob_auditing_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.db_parameter_group_insecure_features_disabled_where_applicable
+    title: 'AZURE SQL Server: Db Parameter Group Insecure Features Disabled Where Applicable'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_configurations.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.name=='log_statement')].value
+        operator: not_equals
+        expected: all
+  - check_id: azure.sql.server.db_parameter_group_require_ssl
+    title: 'AZURE SQL Server: Db Parameter Group Require SSL'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: exists
+      - path: minimal_tls_version
+        operator: not_equals
+        expected: ''
+  - check_id: azure.sql.server.db_sg_egress_restricted
+    title: 'AZURE SQL Server: Db Sg Egress Restricted'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.end_ip_address=='255.255.255.255')]
+        operator: not_exists
+  - check_id: azure.sql.server.db_sg_no_0_0_0_0_ingress_on_db_ports
+    title: 'AZURE SQL Server: Db Sg No 0 0 0 0 Ingress On Db Ports'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address=='0.0.0.0' && @.end_ip_address=='0.0.0.0')]
+        operator: not_exists
+  - check_id: azure.sql.server.db_sg_only_required_ports_open
+    title: 'AZURE SQL Server: Db Sg Only Required Ports Open'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address=='0.0.0.0' && @.end_ip_address=='255.255.255.255')]
+        operator: not_exists
+  - check_id: azure.sql.server.defender_enabled
+    title: 'AZURE SQLSERVER Resource: Microsoft Defender Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_security_alert_policies.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        security_alert_policy_name: default
+      fields:
+      - path: state
+        operator: equals
+        expected: Enabled
+  - check_id: azure.sql.server.firewall.no.open.access.check
+    title: 'AZURE SQL Server: Firewall No Open Access Check'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address=='0.0.0.0' && @.end_ip_address=='255.255.255.255')]
+        operator: not_exists
+  - check_id: azure.sql.server.minimal_tls_version
+    title: 'AZURE SQLSERVER Resource: Recommended Minimal TLS Version'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: servers.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: minimal_tls_version
+        operator: equals
+        expected: '1.2'
+  - check_id: azure.sql.server.tde.protector.customer.key.check
+    title: 'AZURE SQL Server: Tde Protector Customer Key Check'
+    severity: high
+    for_each: azure.sql.servers
+    calls:
+    - action: encryption_protectors.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        encryption_protector_name: current
+      fields:
+      - path: server_key_type
+        operator: equals
+        expected: AzureKeyVault
+  - check_id: azure.sql.server.tde_cmk_encrypted
+    title: 'AZURE SQLSERVER Resource: Tde Encrypted With CMK'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: encryption_protectors.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        encryption_protector_name: current
+      fields:
+      - path: server_key_type
+        operator: equals
+        expected: AzureKeyVault
+  - check_id: azure.sql.server.unrestricted_inbound_access
+    title: 'AZURE SQLSERVER Resource: Unrestricted Inbound Access'
+    severity: critical
+    for_each: azure.sql.servers
+    calls:
+    - action: firewall_rules.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.start_ip_address=='0.0.0.0' && @.end_ip_address=='255.255.255.255')]
+        operator: not_exists
+  - check_id: azure.sql.server_configuration.db_option_group_insecure_extensions_not_enabled
+    title: 'AZURE SQL Server_configuration: Db Option Group Insecure Extensions Not Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_configurations.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.name=='shared_preload_libraries')].value
+        operator: not_contains
+        expected: pg_stat_statements
+  - check_id: azure.sql.server_configuration.db_option_group_only_approved_extensions_enabled
+    title: 'AZURE SQL Server_configuration: Db Option Group Only Approved Extensions Enabled'
+    severity: low
+    for_each: azure.sql.servers
+    calls:
+    - action: server_configurations.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[?(@.name=='shared_preload_libraries')].value
+        operator: matches_pattern
+        expected: ^(azure\.|pg_stat_statements|auto_explain)*$
+  - check_id: azure.sql.storage.encrypted
+    title: 'AZURE SQL Storage: Encrypted'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: databases.list_by_server
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+      fields:
+      - path: value[*].transparent_data_encryption.status
+        operator: all_equal
+        expected: Enabled
+  - check_id: azure.sql.user.db_approved_list_of_superusers_only
+    title: 'AZURE SQL User: Db Approved List Of Superusers Only'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        administrator_name: activeDirectory
+      fields:
+      - path: administrator_type
+        operator: equals
+        expected: ActiveDirectory
+  - check_id: azure.sql.user.db_no_unused_or_default_superusers
+    title: 'AZURE SQL User: Db No Unused Or Default Superusers'
+    severity: medium
+    for_each: azure.sql.servers
+    calls:
+    - action: server_azure_ad_administrators.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        server_name: '{{name}}'
+        administrator_name: activeDirectory
+      fields:
+      - path: login
+        operator: not_in
+        expected:
+        - admin
+        - administrator
+        - root
+        - sa
+  - check_id: azure.sql.database.diagnostic_settings_enabled
+    title: 'AZURE SQL Database: Diagnostic Settings Enabled'
+    severity: medium
+    for_each: azure.sql.database
+    calls:
+    - action: monitor.diagnostic_settings.list
+      fields:
+      - path: value
+        operator: not_empty
+        expected: true
+  - check_id: azure.sql.cluster.default.admin,.azure.sql.instance.default.admin
+    title: 'AZURE SQL Cluster: Default Admin, Azure Sql Instance Default Admin'
+    severity: critical
+    for_each: azure.sql.cluster
+    calls:
+    - action: self
+      fields:
+      - path: properties.administratorLogin
+        operator: not_equals
+        expected: sa
+      - path: properties.administratorLogin
+        operator: not_equals
+        expected: admin
+      - path: properties.administratorLogin
+        operator: not_equals
+        expected: administrator
+      - path: properties.administratorLogin
+        operator: not_equals
+        expected: root
+  - check_id: azure.sql.instance.no.public.access
+    title: 'Azure SQL Instance: No Public Access'
+    severity: critical
+    for_each: azure.sql.instance
+    calls:
+    - action: self
+      fields:
+      - path: properties.publicNetworkAccess
+        operator: equals
+        expected: Disabled

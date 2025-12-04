@@ -1,0 +1,129 @@
+iot:
+  version: '1.0'
+  provider: azure
+  service: iot
+  package: azure-mgmt-iothub
+  client_class: IotHubClient
+  scope: subscription
+  discovery:
+  - discovery_id: azure.iot.hubs
+    calls:
+    - client: iot
+      action: iot_hub_resource.list_by_subscription
+      save_as: hubs
+  - discovery_id: azure.iot.security_solutions
+    calls:
+    - client: iot
+      action: iot_security_solution.list_by_subscription
+      save_as: security_solutions
+  checks:
+  - check_id: azure.iot.hub.defender.for.iot.status.check
+    title: 'AZURE IOT Hub: Defender For IoT Status Check'
+    severity: low
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get_security_settings
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+        security_settings_name: default
+      fields:
+      - path: device_defender_enabled
+        operator: equals
+        expected: true
+  - check_id: azure.iot.hub.public.network.access.check
+    title: 'AZURE IOT Hub: Public Network Access Check'
+    severity: high
+    for_each: azure.iot.hubs
+    calls:
+    - action: self
+      fields:
+      - path: properties.public_network_access
+        operator: equals
+        expected: Disabled
+  - check_id: azure.iot.hub.private.endpoint.connection.check
+    title: 'AZURE IOT Hub: Private Endpoint Connection Check'
+    severity: medium
+    for_each: azure.iot.hubs
+    calls:
+    - action: private_endpoint_connections.list
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: value[0].properties.private_link_service_connection_state.status
+        operator: exists
+  - check_id: azure.iot.hub.minimum.tls.version.check
+    title: 'AZURE IOT Hub: Minimum TLS Version Check'
+    severity: high
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: properties.min_tls_version
+        operator: equals
+        expected: '1.2'
+  - check_id: azure.iot.hub.ip.filter.rules.check
+    title: 'AZURE IOT Hub: IP Filter Rules Check'
+    severity: medium
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: properties.ip_filter_rules
+        operator: exists
+  - check_id: azure.iot.hub.event.hub.retention.policy.check
+    title: 'AZURE IOT Hub: Event Hub Retention Policy Check'
+    severity: low
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: properties.event_hub_endpoints.events.retention_time_in_days
+        operator: gte
+        expected: 1
+  - check_id: azure.iot.hub.routing.endpoints.configured.check
+    title: 'AZURE IOT Hub: Routing Endpoints Configured Check'
+    severity: low
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: properties.routing.endpoints
+        operator: exists
+  - check_id: azure.iot.hub.device.provisioning.service.linked.check
+    title: 'AZURE IOT Hub: Device Provisioning Service Linked Check'
+    severity: medium
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.list_linked_hubs
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: value[0].name
+        operator: exists
+  - check_id: azure.iot.hub.cloud.to.device.feedback.lock.duration.check
+    title: 'AZURE IOT Hub: Cloud To Device Feedback Lock Duration Check'
+    severity: low
+    for_each: azure.iot.hubs
+    calls:
+    - action: iot_hub_resource.get
+      params:
+        resource_group_name: '{{resource_group}}'
+        resource_name: '{{name}}'
+      fields:
+      - path: properties.cloud_to_device.feedback.lock_duration_as_iso8601
+        operator: exists
