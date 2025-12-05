@@ -27,19 +27,6 @@ cosmosdb:
       action: private_endpoint_connections.list_by_database_account
       save_as: private_endpoints
   checks:
-  - check_id: azure.cosmos.db.table.encryption.enabled
-    title: 'AZURE COSMOS DB Table: Encryption Enabled'
-    severity: high
-    for_each: azure.cosmosdb.table_resources
-    calls:
-    - action: table_resources.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{account_name}}'
-        table_name: '{{name}}'
-      fields:
-      - path: options.encryption_at_rest_policy
-        operator: exists
   - check_id: azure.cosmosdb.account.private.endpoint.approved
     title: 'AZURE COSMOSDB Account: Private Endpoint Approved'
     severity: low
@@ -80,131 +67,6 @@ cosmosdb:
       fields:
       - path: options.continuous_backup_restore_policy
         operator: exists
-  - check_id: azure.cosmosdb.account.firewall.configured
-    title: 'AZURE COSMOSDB Account: Firewall Configured'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: ip_rules
-        operator: exists
-  - check_id: azure.cosmosdb.account.virtual.network.filter.enabled
-    title: 'AZURE COSMOSDB Account: Virtual Network Filter Enabled'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: is_virtual_network_filter_enabled
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.automatic.failover.enabled
-    title: 'AZURE COSMOSDB Account: Automatic Failover Enabled'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: enable_automatic_failover
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.multi.region.writes.enabled
-    title: 'AZURE COSMOSDB Account: Multi Region Writes Enabled'
-    severity: low
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: enable_multiple_write_locations
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.public.network.access.disabled
-    title: 'AZURE COSMOSDB Account: Public Network Access Disabled'
-    severity: high
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: self
-      fields:
-      - path: public_network_access
-        operator: equals
-        expected: Disabled
-  - check_id: azure.cosmosdb.account.key.based.metadata.write.access.disabled
-    title: 'AZURE COSMOSDB Account: Key Based Metadata Write Access Disabled'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: disable_key_based_metadata_write_access
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.local.auth.disabled
-    title: 'AZURE COSMOSDB Account: Local Auth Disabled'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: disable_local_auth
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.backup.policy.configured
-    title: 'AZURE COSMOSDB Account: Backup Policy Configured'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: backup_policy
-        operator: exists
-  - check_id: azure.cosmosdb.account.analytical.storage.enabled
-    title: 'AZURE COSMOSDB Account: Analytical Storage Enabled'
-    severity: low
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: enable_analytical_storage
-        operator: equals
-        expected: true
-  - check_id: azure.cosmosdb.account.free.tier.enabled
-    title: 'AZURE COSMOSDB Account: Free Tier Enabled'
-    severity: low
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: enable_free_tier
-        operator: equals
-        expected: false
   - check_id: azure.cosmosdb.defender.status.check
     title: 'AZURE COSMOSDB Defender: Status Check'
     severity: low
@@ -238,19 +100,6 @@ cosmosdb:
       - path: properties.publicNetworkAccess
         operator: not_equals
         expected: Enabled
-  - check_id: azure.cosmos.db.table.encryption.enabled
-    title: 'AZURE COSMOS DB: Table Encryption Enabled'
-    severity: high
-    for_each: azure.cosmosdb.db
-    calls:
-    - action: cosmosdb_client.get_database_account
-      fields:
-      - path: properties.encryption.status
-        operator: equals
-        expected: Enabled
-      - path: properties.keyVaultKeyUri
-        operator: exists
-        expected: true
   - check_id: azure.cosmos.table.kms_cmk_encryption_enabled
     title: 'AZURE COSMOS Resource: Db Tables KMS CMK Encryption Enabled'
     severity: high
@@ -334,17 +183,4 @@ cosmosdb:
       fields:
       - path: properties.isVirtualNetworkFilterEnabled
         operator: equals
-        expected: true
-  - check_id: azure.cosmos.db.table.encryption.enabled
-    title: Azure Cosmos DB Table Encryption Enabled
-    severity: high
-    for_each: azure.cosmosdb.account
-    calls:
-    - action: cosmosdb_client.get_database_account
-      fields:
-      - path: properties.encryption.status
-        operator: equals
-        expected: Enabled
-      - path: properties.keyVaultKeyUri
-        operator: exists
         expected: true

@@ -17,42 +17,6 @@ certificates:
       action: list_certificates
       save_as: certificates
   checks:
-  - check_id: azure.certificates.expiration.check
-    title: 'AZURE CERTIFICATES: Certificate Expiration Check'
-    severity: medium
-    for_each: azure.certificates.resources
-    calls:
-    - action: get_certificate
-      params:
-        certificate_name: '{{certificate_name}}'
-      fields:
-      - path: properties.expires_on
-        operator: gte
-        expected: 2592000
-  - check_id: azure.certificates.enabled.status.check
-    title: 'AZURE CERTIFICATES: Certificate Enabled Status Check'
-    severity: high
-    for_each: azure.certificates.resources
-    calls:
-    - action: get_certificate
-      params:
-        certificate_name: '{{certificate_name}}'
-      fields:
-      - path: properties.enabled
-        operator: equals
-        expected: true
-  - check_id: azure.keyvault.certificate.policy.validation
-    title: 'AZURE KEYVAULT: Certificate Policy Validation'
-    severity: medium
-    for_each: azure.certificates.keyvaults
-    calls:
-    - action: get_certificate_policy
-      params:
-        certificate_name: '{{certificate_name}}'
-      fields:
-      - path: key_properties.key_size
-        operator: gte
-        expected: 2048
   - check_id: azure.keyvault.certificate.expiration_check
     title: 'AZURE CERTIFICATES Resource: Certificates Expiration Check'
     severity: medium
@@ -90,13 +54,3 @@ certificates:
       - path: delivery_policy.rules[*].actions[*].parameters.minimum_tls_version
         operator: not_equals
         expected: '1.1'
-  - check_id: azure.certificates.certificates.expiration.check
-    title: 'Azure Certificates: Expiration Check'
-    severity: high
-    for_each: azure.certificates.certificates
-    calls:
-    - action: self
-      fields:
-      - path: attributes.expires
-        operator: greater_than
-        expected: '{{ now() + timedelta(days=30) }}'

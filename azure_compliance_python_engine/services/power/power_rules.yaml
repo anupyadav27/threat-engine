@@ -61,20 +61,6 @@ power:
       - path: authentication_method
         operator: equals
         expected: SSO
-  - check_id: azure.power.bi_user.data_analytics_user_mfa_enabled
-    title: 'AZURE POWER BI User: Data Analytics User MFA Enabled'
-    severity: high
-    for_each: azure.power.users
-    calls:
-    - action: capacities.get_user_authentication_settings
-      params:
-        resource_group_name: '{{resource_group}}'
-        dedicated_capacity_name: '{{capacity_name}}'
-        user_id: '{{user_id}}'
-      fields:
-      - path: multifactor_authentication_enabled
-        operator: equals
-        expected: true
   - check_id: azure.power.bi_dataset.data_analytics_dataset_public_sharing_disabled
     title: 'AZURE POWER BI Dataset: Data Analytics Dataset Public Sharing Disabled'
     severity: critical
@@ -103,30 +89,6 @@ power:
       - path: permissions[?(@.permission == 'ReadWrite')]
         operator: lte
         expected: 3
-  - check_id: azure.power.bi_dataset.data_analytics_dataset_encryption_enabled
-    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Encryption Enabled'
-    severity: high
-    for_each: azure.power.datasets
-    calls:
-    - action: self
-      fields:
-      - path: encryption_enabled
-        operator: equals
-        expected: true
-  - check_id: azure.power.bi_dataset.data_analytics_dataset_backup_configured
-    title: 'AZURE POWER BI Dataset: Data Analytics Dataset Backup Configured'
-    severity: medium
-    for_each: azure.power.datasets
-    calls:
-    - action: capacities.get_dataset_backup_policy
-      params:
-        resource_group_name: '{{resource_group}}'
-        dedicated_capacity_name: '{{capacity_name}}'
-        dataset_id: '{{dataset_id}}'
-      fields:
-      - path: backup_enabled
-        operator: equals
-        expected: true
   - check_id: azure.power.bi_dashboard.data_analytics_dashboard_public_embeds_disabled
     title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Public Embeds Disabled'
     severity: critical
@@ -143,46 +105,6 @@ power:
       - path: is_public_embed_enabled
         operator: equals
         expected: false
-  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_access_restricted
-    title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Access Restricted'
-    severity: high
-    for_each: azure.power.dashboards
-    calls:
-    - action: capacities.get_dashboard_permissions
-      params:
-        resource_group_name: '{{resource_group}}'
-        dedicated_capacity_name: '{{capacity_name}}'
-        dashboard_id: '{{dashboard_id}}'
-      fields:
-      - path: permissions[?(@.permission == 'View')]
-        operator: exists
-      - path: allow_anonymous_access
-        operator: equals
-        expected: false
-  - check_id: azure.power.bi_dashboard.data_analytics_dashboard_audit_logging_enabled
-    title: 'AZURE POWER BI Dashboard: Data Analytics Dashboard Audit Logging Enabled'
-    severity: medium
-    for_each: azure.power.dashboards
-    calls:
-    - action: capacities.get_dashboard_audit_settings
-      params:
-        resource_group_name: '{{resource_group}}'
-        dedicated_capacity_name: '{{capacity_name}}'
-        dashboard_id: '{{dashboard_id}}'
-      fields:
-      - path: auditing_enabled
-        operator: equals
-        expected: true
-  - check_id: azure.power.workspace.data_analytics_workspace_encryption_enabled
-    title: 'AZURE POWER Workspace: Data Analytics Workspace Encryption Enabled'
-    severity: high
-    for_each: azure.power.workspaces
-    calls:
-    - action: self
-      fields:
-      - path: properties.encryption.state
-        operator: equals
-        expected: Enabled
   - check_id: azure.power.bi_dashboard.data_analytics_dashboard_export_controls_enabled
     title: 'AZURE POWER Bi_dashboard: Data Analytics Dashboard Export Controls Enabled'
     severity: medium
