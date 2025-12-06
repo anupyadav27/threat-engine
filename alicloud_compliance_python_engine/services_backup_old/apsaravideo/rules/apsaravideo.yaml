@@ -1,0 +1,41 @@
+version: '1.0'
+provider: alicloud
+service: apsaravideo
+discovery:
+- discovery_id: alicloud.apsaravideo.live_stream
+  calls:
+  - product: APSARAVIDEO
+    version: '2014-05-26'
+    action: DescribeLiveStreams
+    params: {}
+    save_as: live_stream_list
+  emit:
+    items_for: '{ live_stream_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: live_stream
+checks:
+- rule_id: alicloud.apsaravideo.live_stream.video_encryption_at_rest_enabled
+  title: ApsaraVideo Live Stream Video Encryption At Rest Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaravideo.live_stream
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaravideo.live_stream.video_encryption_in_transit_required
+  title: ApsaraVideo Live Stream Video Encryption In Transit Required
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaravideo.live_stream
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

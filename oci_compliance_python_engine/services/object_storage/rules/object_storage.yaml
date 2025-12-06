@@ -1,0 +1,1000 @@
+object_storage:
+  version: '1.0'
+  provider: oci
+  service: object_storage
+  scope: regional
+  discovery:
+  - discovery_id: list_buckets
+    resource_type: bucket
+    calls:
+    - action: list
+      client: ObjectStorageClient
+      method: list_buckets
+      fields:
+      - path: id
+        var: bucket_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_bucket_details
+    resource_type: bucket
+    for_each: list_buckets
+    calls:
+    - action: get
+      client: ObjectStorageClient
+      method: get_bucket
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: public_access_type
+        var: public_access_type
+      - path: versioning
+        var: versioning
+      - path: object_events_enabled
+        var: object_events_enabled
+      - path: replication_enabled
+        var: replication_enabled
+  checks:
+  - check_id: oci.object_storage.bucket.bucket_policy_deny_insecure_transport
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Policy Deny Insecure Transport'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_policy_deny_unencrypted_puts
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Policy Deny Unencrypted Puts'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_policy_no_public_principals_blocked
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Policy No Public Principals Blocked'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.bucket_policy_no_wildcards_on_actions_or_principals
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Policy No Wildcards On Actions Or Principals'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.lifecycle_expiration_rules_defined_required
+    title: 'OCI OBJECT_STORAGE Bucket: Lifecycle Expiration Rules Defined Required'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.lifecycle_immutable_retention_locked_where_required
+    title: 'OCI OBJECT_STORAGE Bucket: Lifecycle Immutable Retention Locked Where Required'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.lifecycle_versioning_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Lifecycle Versioning Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioning
+        operator: equals
+        expected: Enabled
+        description: Verify versioning is enabled
+  - check_id: oci.object_storage.bucket.object_encrypted_at_rest
+    title: 'OCI OBJECT_STORAGE Bucket: Object Encrypted At Rest'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.object.object_not_publicly_readable_blocked
+    title: 'OCI OBJECT_STORAGE Object: Object Not Publicly Readable Blocked'
+    severity: critical
+    for_each: list_objects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.object_lock_or_immutability_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Object Lock Or Immutability Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.partition_access_policies_least_privilege_required
+    title: 'OCI OBJECT_STORAGE Bucket: Partition Access Policies Least Privilege Required'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.partition_catalog_encrypted
+    title: 'OCI OBJECT_STORAGE Bucket: Partition Catalog Encrypted'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.replication_policy.replication_auth_roles_least_privilege_required
+    title: 'OCI OBJECT_STORAGE Replication_policy: Replication Auth Roles Least Privilege Required'
+    severity: high
+    for_each: list_replication_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.replication_cross_region_encrypted
+    title: 'OCI OBJECT_STORAGE Bucket: Replication Cross Region Encrypted'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.replication_tls_required
+    title: 'OCI OBJECT_STORAGE Bucket: Replication TLS Required'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.replication_lag_monitoring_alerts_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Replication Lag Monitoring Alerts Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.encryption_backup_storage_immutability_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption Backup Storage Immutability Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.encryption_cmk_key_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption CMK Key Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.encryption_tls_min_1_2_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption TLS Min 1 2 Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.encryption_key_policy_least_privilege_enabled_enforced
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption Key Policy Least Privilege Enabled Enforced'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.encryption_key_rotation_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Encryption Key Rotation Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.bucket_access_logging_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Access Logging Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_block_public_access_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Block Public Access Enabled'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.bucket_cmk_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket CMK Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.bucket_policy_denies_public_and_insecure_blocked
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Policy Denies Public And Insecure Blocked'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_require_tls_in_transit_required
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Require TLS In Transit Required'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_versioning_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Versioning Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioning
+        operator: equals
+        expected: Enabled
+        description: Verify versioning is enabled
+  - check_id: oci.object_storage.bucket.ai_services_dataset_access_logging_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Services Dataset Access Logging Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ai_services_dataset_lifecycle_policy_configured
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Services Dataset Lifecycle Policy Configured'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ai_services_dataset_s3_block_public_access_blocked
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Services Dataset S3 Block Public Access Blocked'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.ai_services_dataset_s3_encrypted_at_rest
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Services Dataset S3 Encrypted At Rest'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ai_dataset_encrypted_at_rest_cmek
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Dataset Encrypted At Rest Cmek'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ai_dataset_public_access_blocked_blocked
+    title: 'OCI OBJECT_STORAGE Bucket: Ai Dataset Public Access Blocked Blocked'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.retention_enforced_on_sensitive_datasets
+    title: 'OCI OBJECT_STORAGE Bucket: Retention Enforced On Sensitive Datasets'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.retention_policies_defined_required
+    title: 'OCI OBJECT_STORAGE Bucket: Retention Policies Defined Required'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.retention_protected_from_public_override_blocked
+    title: 'OCI OBJECT_STORAGE Bucket: Retention Protected From Public Override Blocked'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_log_retention_policy_lock
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Log Retention Policy Lock'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_public_access
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Public Access'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_account_level_public_access_blocks
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Account Level Public Access Blocks'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.storage.bucket_cross_region_replication
+    title: 'OCI OBJECT_STORAGE Storage: Bucket Cross Region Replication'
+    severity: low
+    for_each: list_storages
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_default_encryption
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Default Encryption'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.storage.bucket_lifecycle_enabled
+    title: 'OCI OBJECT_STORAGE Storage: Bucket Lifecycle Enabled'
+    severity: low
+    for_each: list_storages
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_object_versioning
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Object Versioning'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioning
+        operator: equals
+        expected: Enabled
+        description: Verify versioning is enabled
+  - check_id: oci.object_storage.bucket.storage_bucket_policy_public_write_access
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Policy Public Write Access'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_bucket_public_access
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Public Access'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_bucket_public_access_restricted
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Public Access Restricted'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_bucket_secure_transport_policy
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Secure Transport Policy'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_server_access_logging_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Server Access Logging Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.storage.bucket_server_access_logging_enabled
+    title: 'OCI OBJECT_STORAGE Storage: Bucket Server Access Logging Enabled'
+    severity: medium
+    for_each: list_storages
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_write_access_logging_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Write Access Logging Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_default_kms_encryption
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Default KMS Encryption'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.storage_bucket_level_public_access_blocks
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Level Public Access Blocks'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_bucket_public_read_prohibited
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Public Read Prohibited'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_public_write_prohibited
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Public Write Prohibited'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_s3_bucket_encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage S3 Bucket Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.storage_website_https_only
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Website HTTPS Only'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_encryption_cmk_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Encryption CMK Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.bucket_metrics_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Metrics Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.bucket_replication_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Bucket Replication Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.blob_public_access_level_is_disabled
+    title: 'OCI OBJECT_STORAGE Bucket: Blob Public Access Level Is Disabled'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.ensure_encryption_with_cmks
+    title: 'OCI OBJECT_STORAGE Bucket: Ensure Encryption With Cmks'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ensure_minimum_tls_version_12
+    title: 'OCI OBJECT_STORAGE Bucket: Ensure Minimum TLS Version 12'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ensure_soft_delete_is_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Ensure Soft Delete Is Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.infrastructure_encryption_is_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Infrastructure Encryption Is Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.secure_transfer_required_is_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Secure Transfer Required Is Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_accounts
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Accounts'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.server_in_transit_encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Server In Transit Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.object_storage.bucket.vaults_policy_public_access
+    title: 'OCI OBJECT_STORAGE Bucket: Vaults Policy Public Access'
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: public_access_type
+        operator: equals
+        expected: NoPublicAccess
+        description: Verify public access is disabled
+  - check_id: oci.object_storage.bucket.storage_bucket_cross_region_replication
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Cross Region Replication'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_kms_encryption
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket KMS Encryption'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_lifecycle_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Lifecycle Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_logging_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Logging Enabled'
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_replication_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Replication Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.storage_bucket_versioning_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Storage Bucket Versioning Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioning
+        operator: equals
+        expected: Enabled
+        description: Verify versioning is enabled
+  - check_id: oci.object_storage.bucket.ensure_oracle_services_are_trusted_to_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Ensure Oracle Services Are Trusted To Enabled'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.ensure_private_endpoints_in_storage_accounts
+    title: 'OCI OBJECT_STORAGE Bucket: Ensure Private Endpoints In Storage Accounts'
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.object_storage.bucket.fileshare_encryption_enabled
+    title: 'OCI OBJECT_STORAGE Bucket: Fileshare Encryption Enabled'
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured

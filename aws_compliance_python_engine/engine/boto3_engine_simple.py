@@ -412,7 +412,20 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
             conditions = check.get('conditions', {})
             
             # Get items to check
-            items = discovery_results.get(for_each, []) if for_each else [{}]
+            # If for_each is a dict (with 'as', 'item'), we need to determine which discovery to use
+            # For now, use the first available discovery results
+            if for_each and isinstance(for_each, dict):
+                # Get the first discovery_id available
+                if discovery_results:
+                    first_discovery_id = list(discovery_results.keys())[0]
+                    items = discovery_results.get(first_discovery_id, [])
+                else:
+                    items = [{}]
+            elif for_each:
+                # for_each is a string discovery_id
+                items = discovery_results.get(for_each, [])
+            else:
+                items = [{}]
             
             for item in items:
                 context = {'item': item, 'params': params}
@@ -465,7 +478,9 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
         }
         
     except Exception as e:
+        import traceback
         logger.error(f"Global service {service_name} failed: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return {
             'inventory': {},
             'checks': [],

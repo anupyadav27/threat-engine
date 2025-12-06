@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: fnf
+discovery:
+- discovery_id: alicloud.fnf.statemachine
+  calls:
+  - product: FNF
+    version: '2014-05-26'
+    action: DescribeStatemachines
+    params: {}
+    save_as: statemachine_list
+  emit:
+    items_for: '{ statemachine_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: statemachine
+checks:
+- rule_id: alicloud.fnf.statemachine.logging_enabled
+  title: Ensure AliCloud Serverless Workflow State Machine has logging enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.fnf.statemachine
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

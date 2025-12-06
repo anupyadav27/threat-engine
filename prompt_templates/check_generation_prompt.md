@@ -4,10 +4,13 @@
 This is the main template for generating compliance check functions across different cloud engines. For detailed, cloud-specific templates, see the individual files below.
 
 ## Quick Reference
-- **AWS**: [aws_check_generation_prompt.md](aws_check_generation_prompt.md)
-- **Azure**: [azure_check_generation_prompt.md](azure_check_generation_prompt.md)  
-- **GCP**: [gcp_check_generation_prompt.md](gcp_check_generation_prompt.md)
-- **Kubernetes**: [kubernetes_check_generation_prompt.md](kubernetes_check_generation_prompt.md)
+- **AWS**: [aws_check_generation_prompt.md](aws_check_generation_prompt.md) ✅ Production-Ready
+- **Azure**: [azure_check_generation_prompt.md](azure_check_generation_prompt.md) ✅ Complete
+- **GCP**: [gcp_check_generation_prompt.md](gcp_check_generation_prompt.md) ✅ Complete
+- **Kubernetes**: [kubernetes_check_generation_prompt.md](kubernetes_check_generation_prompt.md) ✅ Complete
+- **AliCloud**: [alicloud_check_generation_prompt.md](alicloud_check_generation_prompt.md) ✅ New
+- **OCI**: [oci_check_generation_prompt.md](oci_check_generation_prompt.md) ✅ New
+- **IBM Cloud**: [ibm_check_generation_prompt.md](ibm_check_generation_prompt.md) ✅ New
 
 ## Common Architecture Patterns
 
@@ -61,6 +64,9 @@ Please generate the complete YAML rule including discovery and check sections.
 - **Use Azure template** for: VMs, Storage Accounts, NSGs, Policy, Management Groups, Entra ID
 - **Use GCP template** for: Compute instances, Firewalls, Storage buckets, IAM
 - **Use K8s template** for: Pods, Deployments, RBAC, Network Policies, Security Contexts
+- **Use AliCloud template** for: ECS, OSS, RDS, RAM, VPC, Security Groups, ActionTrail
+- **Use OCI template** for: Compute Instances, Object Storage, Autonomous Databases, IAM, VCN
+- **Use IBM Cloud template** for: VPC Instances, Databases, Key Protect, Containers, COS
 
 ## Common Compliance Standards
 

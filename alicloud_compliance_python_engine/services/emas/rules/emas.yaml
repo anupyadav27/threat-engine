@@ -1,0 +1,42 @@
+version: '1.0'
+provider: alicloud
+service: emas
+discovery:
+- discovery_id: alicloud.emas.fleet
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeFleets
+    params: {}
+    save_as: fleet_response
+  emit:
+    items_for: '{ fleet_response.Fleets.Fleet }'
+    as: r
+    item:
+      id: '{{ r.FleetId }}'
+      name: '{{ r.FleetId }}'
+      resource_type: fleet
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.emas.fleet.internet_access_blocked
+  title: Ensure Enterprise Mobile Application Studio (EMAS) Fleet Internet Access is Blocked
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.emas.fleet
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'

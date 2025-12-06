@@ -1,0 +1,318 @@
+version: '1.0'
+provider: alicloud
+service: elasticsearch
+discovery:
+- discovery_id: alicloud.elasticsearch.backup
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeBackups
+    params: {}
+    save_as: backup_list
+  emit:
+    items_for: '{ backup_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: backup
+- discovery_id: alicloud.elasticsearch.confluence_n_a_service
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeConfluenceNAServices
+    params: {}
+    save_as: confluence_n_a_service_list
+  emit:
+    items_for: '{ confluence_n_a_service_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: confluence_n_a_service
+- discovery_id: alicloud.elasticsearch.domain
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeDomains
+    params: {}
+    save_as: domain_list
+  emit:
+    items_for: '{ domain_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: domain
+- discovery_id: alicloud.elasticsearch.environment
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeEnvironments
+    params: {}
+    save_as: environment_list
+  emit:
+    items_for: '{ environment_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: environment
+- discovery_id: alicloud.elasticsearch.redis
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeRediss
+    params: {}
+    save_as: redis_list
+  emit:
+    items_for: '{ redis_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: redis
+- discovery_id: alicloud.elasticsearch.service
+  calls:
+  - product: ELASTICSEARCH
+    version: '2014-05-26'
+    action: DescribeServices
+    params: {}
+    save_as: service_list
+  emit:
+    items_for: '{ service_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: service
+checks:
+- rule_id: alicloud.elasticsearch.backup.retention
+  title: Alibaba Cloud Elasticsearch backup retention period should be configured
+    to meet compliance requirements
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.backup
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.confluence_n_a_service.documentation_storage_encrypted_and_private
+  title: Ensure AliCloud Elasticsearch Service Documentation Storage is Encrypted
+    and Private
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.confluence_n_a_service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.domain.public_access_blocked
+  title: Alibaba Cloud Elasticsearch Domain Public Access Should Be Blocked
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.domain
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.environment.cloudmonitor_logging_enabled
+  title: Ensure AliCloud Elasticsearch Service Has CloudMonitor Logging Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.environment
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.redis.cluster_automatic_failover_enabled
+  title: ApsaraDB for Redis Cluster Automatic Failover Should Be Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.redis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.redis.cluster_in_transit_encryption_enabled
+  title: AliCloud Elasticsearch Redis Cluster In-Transit Encryption Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.redis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.redis.cluster_multi_az_enabled
+  title: AliCloud Elasticsearch Redis Cluster Multi-AZ Deployment Should Be Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.redis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.redis.cluster_rest_encryption_enabled
+  title: AliCloud Elasticsearch Redis Cluster Rest Encryption Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.redis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_access_control_enabled
+  title: Ensure AliCloud Elasticsearch Service Domains Have Access Control Enabled
+  severity: medium
+  assertion_id: pci_dss_v4_multi_cloud_7.1.1_0089
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_audit_logging_enabled
+  title: Ensure AliCloud Elasticsearch Service Domains Have Audit Logging Enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_SC-13_0136
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_cloudmonitor_logging_enabled
+  title: Ensure Alibaba Cloud Elasticsearch Service Domains Have CloudMonitor Logging
+    Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_cloudwatch_logging_enabled
+  title: Ensure Alibaba Cloud Elasticsearch Service Domains Have CloudWatch Logging
+    Enabled
+  severity: medium
+  assertion_id: nist_800_53_rev5_multi_cloud_AU-10_1_0268
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_encryption_at_rest_enabled
+  title: Alibaba Cloud Elasticsearch Service Domains Must Have Encryption At Rest
+    Enabled
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CA-9_0040
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_fault_tolerant_data_nodes
+  title: Alibaba Cloud Elasticsearch Service domains should have fault tolerant data
+    nodes configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_fault_tolerant_master_nodes
+  title: Ensure Alibaba Cloud Elasticsearch Service domains have fault tolerant master
+    nodes configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_https_communications_enforced
+  title: Alibaba Cloud Elasticsearch Service Domains Must Enforce HTTPS Communications
+  severity: low
+  assertion_id: pci_dss_v4_multi_cloud_4.1.1_0058
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_internal_user_database_enabled
+  title: Alibaba Cloud Elasticsearch Service Domains Should Have Internal User Database
+    Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_node_to_node_encryption_enabled
+  title: Alibaba Cloud Elasticsearch Service domains should have node-to-node encryption
+    enabled
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CA-9_0040
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.domains_not_publicly_accessible
+  title: Ensure AliCloud Elasticsearch Service domains are not publicly accessible
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AC-17_0013
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.elasticsearch.service.not_publicly_accessible
+  title: Alibaba Cloud Elasticsearch Service Should Not Be Publicly Accessible
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.elasticsearch.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

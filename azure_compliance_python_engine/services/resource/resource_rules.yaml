@@ -1,44 +1,80 @@
+# ============================================================================
+# 🤖 CURSOR AI: SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# SERVICE: resource
+# STATUS: ⏳ NOT_VALIDATED
+#
+# 🎯 YOUR TASK:
+# 1. Run engine: export AZURE_ENGINE_FILTER_SERVICES="resource" && python engine/azure_generic_engine.py > /tmp/test_resource.json 2>&1
+# 2. Analyze: tail -100 /tmp/test_resource.json
+# 3. Fix issues below in discovery/checks sections
+# 4. Re-run until: inventory has resources (if exist), checks = PASS/FAIL (not ERROR)
+# 5. Mark complete at bottom
+#
+# ❌ COMMON ISSUES & FIXES:
+#
+# "Failed to create client" → 
+#   Fix sdk_package: azure.mgmt.resource (use DOTS not dashes)
+#   Install: pip install azure-mgmt-resource
+#
+# "Action not found: X.list" →
+#   Test in Python:
+#     from azure.mgmt.resource import *
+#     client = <Client>(cred, sub_id)
+#     print(dir(client.<resource>))  # Find correct method
+#   Common: list_by_subscription, list_all, list_by_resource_group
+#
+# "ERROR" in checks →
+#   Check resource structure in output
+#   Fix field paths: properties.encryption.keySource
+#   Fix params: add resource_group_name, account_name, etc.
+#
+# Empty inventory →
+#   Create test resource: az <service> <resource> create ...
+#   OR verify action name is correct
+#
+# ✅ SUCCESS WHEN:
+# - No warnings
+# - Inventory populated (if resources exist)  
+# - Checks = PASS/FAIL (not ERROR)
+# - JSON is clean objects (not strings)
+#
+# 📝 AFTER FIXING:
+# Mark status below as VALIDATED and add notes at bottom
+#
+# ============================================================================
+
 resource:
   version: '1.0'
   provider: azure
   service: resource
-  package: azure-mgmt-resource
+  sdk_package: azure.mgmt.resource
   client_class: ResourceManagementClient
+  api_type: management
   scope: subscription
   discovery:
-  - discovery_id: azure.resource.skus
-    calls:
-    - client: resource
-      action: skus.list
-      save_as: skus
-  - discovery_id: azure.resource.managers
-    calls:
-    - client: resource
-      action: management_locks.list_at_subscription_level
-      save_as: managers
   - discovery_id: azure.resource.resource_groups
     calls:
-    - client: resource
-      action: resource_groups.list
-      save_as: groups_group
+    - action: resource_groups.list
+      fields:
+      - path: __self__
   checks:
   - check_id: azure.resource.sku.standard.enforcement
     title: 'AZURE RESOURCE SKU: Standard Enforcement'
     severity: low
-    for_each: azure.resource.skus
+    for_each: azure.resource.resource_groups
     calls:
-    - action: skus.list
-      params: {}
+    - action: self
       fields:
       - path: value[?(@.tier == 'Standard')].name
         operator: exists
   - check_id: azure.resource.manager.resource.lock.verification
     title: 'AZURE RESOURCE Manager: Resource Lock Verification'
     severity: low
-    for_each: azure.resource.managers
+    for_each: azure.resource.resource_groups
     calls:
-    - action: management_locks.list_by_subscription
-      params: {}
+    - action: self
       fields:
       - path: value[?(@.level == 'ReadOnly' || @.level == 'CanNotDelete')].id
         operator: exists
@@ -47,9 +83,7 @@ resource:
     severity: low
     for_each: azure.resource.resource_groups
     calls:
-    - action: policy_assignments.list_for_resource_group
-      params:
-        resource_group_name: '{{name}}'
+    - action: self
       fields:
       - path: value[?(@.policy_definition_id contains 'guardrail')].id
         operator: exists
@@ -76,3 +110,25 @@ resource:
       - path: value[?(@.role_definition_id contains 'Owner' || @.role_definition_id contains 'Contributor')].principal_type
         operator: equals
         expected: User
+
+
+# ============================================================================
+# VALIDATION TRACKING
+# ============================================================================
+# STATUS: ⏳ NOT_VALIDATED
+# VALIDATED_BY: 
+# VALIDATED_DATE: 
+# 
+# FIXES APPLIED:
+# # - (Add fixes here after validation)
+#
+# TEST RESULTS:
+# - Resources Discovered: 0
+# - Checks Executed: 0
+# - PASS: 0
+# - FAIL: 0
+# - ERROR: 0
+#
+# NOTES:
+# # - (Add notes here)
+# ============================================================================

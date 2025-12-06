@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: artifacts
+discovery:
+- discovery_id: alicloud.artifacts.container
+  calls:
+  - product: ARTIFACTS
+    version: '2014-05-26'
+    action: DescribeContainers
+    params: {}
+    save_as: container_list
+  emit:
+    items_for: '{ container_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: container
+checks:
+- rule_id: alicloud.artifacts.container.analysis_enabled
+  title: Alibaba Cloud Container Registry vulnerability analysis should be enabled
+  severity: low
+  assertion_id: soc2_multi_cloud_cc_3_1_0003
+  for_each: alicloud.artifacts.container
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

@@ -87,3 +87,17 @@ def get_service_usage_client() -> Any:
         raise ImportError("google-api-python-client not installed")
     creds = _get_credentials([_CLOUD_PLATFORM_RO_SCOPE])
     return gcp_build("serviceusage", "v1", cache_discovery=False, credentials=creds) 
+
+
+def get_iam_client(project_id: Optional[str] = None) -> Any:
+    if gcp_build is None:
+        raise ImportError("google-api-python-client not installed")
+    creds = _get_credentials([_CLOUD_PLATFORM_RO_SCOPE])
+    return gcp_build("iam", "v1", cache_discovery=False, credentials=creds) 
+
+
+def get_pubsub_client(project_id: Optional[str] = None) -> Any:
+    if gcp_build is None:
+        raise ImportError("google-api-python-client not installed")
+    creds = _get_credentials([_CLOUD_PLATFORM_RO_SCOPE])
+    return gcp_build("pubsub", "v1", cache_discovery=False, credentials=creds)

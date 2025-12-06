@@ -1,0 +1,192 @@
+version: '1.0'
+provider: alicloud
+service: efs
+discovery:
+- discovery_id: alicloud.efs.backup
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeBackups
+    params: {}
+    save_as: backup_list
+  emit:
+    items_for: '{ backup_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: backup
+- discovery_id: alicloud.efs.encryption
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeEncryptions
+    params: {}
+    save_as: encryption_list
+  emit:
+    items_for: '{ encryption_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: encryption
+- discovery_id: alicloud.efs.file
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeFiles
+    params: {}
+    save_as: file_list
+  emit:
+    items_for: '{ file_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: file
+- discovery_id: alicloud.efs.have
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeHaves
+    params: {}
+    save_as: have_list
+  emit:
+    items_for: '{ have_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: have
+- discovery_id: alicloud.efs.multi
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeMultis
+    params: {}
+    save_as: multi_list
+  emit:
+    items_for: '{ multi_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: multi
+- discovery_id: alicloud.efs.not
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeNots
+    params: {}
+    save_as: not_list
+  emit:
+    items_for: '{ not_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: not
+- discovery_id: alicloud.efs.windows
+  calls:
+  - product: EFS
+    version: '2014-05-26'
+    action: DescribeWindowss
+    params: {}
+    save_as: windows_list
+  emit:
+    items_for: '{ windows_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: windows
+checks:
+- rule_id: alicloud.efs.backup.enabled
+  title: Ensure Elastic File System backup is enabled
+  severity: low
+  assertion_id: cisa_ce_v1_multi_cloud_Booting_Up-1_0009
+  for_each: alicloud.efs.backup
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.encryption.at_rest_enabled
+  title: Alibaba Cloud Elastic File System (EFS) encryption at rest should be enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CP-9_0059
+  for_each: alicloud.efs.encryption
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.file.system_copy_tags_to_backups_enabled
+  title: Ensure Alibaba Cloud Elastic File System Copy Tags to Backups is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.efs.file
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.file.system_copy_tags_to_volumes_enabled
+  title: Alibaba Cloud Elastic File System should have copy tags to volumes enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.efs.file
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.have.backup_enabled
+  title: Ensure Elastic File System (EFS) has backup enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CP-6_0056
+  for_each: alicloud.efs.have
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.multi.az_enabled
+  title: Alibaba Cloud Elastic File System Multi-AZ Deployment Should Be Enabled
+  severity: low
+  assertion_id: iso27001_2022_multi_cloud_A.8.14_0069
+  for_each: alicloud.efs.multi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.not.publicly_accessible
+  title: Ensure Elastic File System (EFS) file systems are not publicly accessible
+  severity: high
+  assertion_id: iso27001_2022_multi_cloud_A.8.1_0064
+  for_each: alicloud.efs.not
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.efs.windows.file_system_multi_az_enabled
+  title: Alibaba Cloud Elastic File System Windows File System Should Enable Multi-AZ
+    Deployment
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.efs.windows
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

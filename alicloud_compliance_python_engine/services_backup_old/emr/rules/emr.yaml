@@ -1,0 +1,123 @@
+version: '1.0'
+provider: alicloud
+service: emr
+discovery:
+- discovery_id: alicloud.emr.cluster
+  calls:
+  - product: EMR
+    version: '2014-05-26'
+    action: DescribeClusters
+    params: {}
+    save_as: cluster_list
+  emit:
+    items_for: '{ cluster_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: cluster
+- discovery_id: alicloud.emr.encrypted
+  calls:
+  - product: EMR
+    version: '2014-05-26'
+    action: DescribeEncrypteds
+    params: {}
+    save_as: encrypted_list
+  emit:
+    items_for: '{ encrypted_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: encrypted
+checks:
+- rule_id: alicloud.emr.cluster.account_public_access_blocked
+  title: Elastic MapReduce cluster should block public access to master node accounts
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AC-17_0013
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.audit_logging_enabled_centralized
+  title: Elastic MapReduce cluster should have centralized audit logging enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.iam_roles_least_privilege_enforced
+  title: Elastic MapReduce Cluster IAM Roles Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.master_nodes_public_ip_disabled
+  title: Elastic MapReduce (EMR) cluster master nodes should not have public IP addresses
+    assigned
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AC-17_0013
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.private_networking_enforced
+  title: Elastic MapReduce cluster should enforce private networking configuration
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.public_access_blocked
+  title: Ensure Elastic MapReduce (EMR) clusters block public access
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AC-17_0013
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.cluster.tls_version_minimum_1_2_enforced
+  title: Elastic MapReduce Cluster Should Enforce Minimum TLS Version 1.2
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.emr.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.emr.encrypted.with_cmks_disabled
+  title: Elastic MapReduce (EMR) clusters should not have Customer Master Key (CMK)
+    encryption disabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.emr.encrypted
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

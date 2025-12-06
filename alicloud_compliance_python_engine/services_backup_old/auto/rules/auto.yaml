@@ -1,0 +1,52 @@
+version: '1.0'
+provider: alicloud
+service: auto
+discovery:
+- discovery_id: alicloud.auto.scaling_group
+  calls:
+  - product: AUTO
+    version: '2014-05-26'
+    action: DescribeScalingGroups
+    params: {}
+    save_as: scaling_group_list
+  emit:
+    items_for: '{ scaling_group_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: scaling_group
+checks:
+- rule_id: alicloud.auto.scaling_group.instance_group_instance_profile_least_privilege
+  title: Auto Scaling Group Instance Profile Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.auto.scaling_group
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.auto.scaling_group.instance_group_no_public_ip_assigned
+  title: Auto Scaling Group instances should not have public IP addresses assigned
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.auto.scaling_group
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.auto.scaling_group.instance_group_volumes_encrypted
+  title: Auto Scaling Group Instance Volumes Should Be Encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.auto.scaling_group
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

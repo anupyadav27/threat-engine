@@ -1,0 +1,468 @@
+block_storage:
+  version: '1.0'
+  provider: oci
+  service: block_storage
+  scope: regional
+  discovery:
+  - discovery_id: list_volumes
+    resource_type: volume
+    calls:
+    - action: list
+      client: BlockstorageClient
+      method: list_volumes
+      fields:
+      - path: id
+        var: volume_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_volume_details
+    resource_type: volume
+    for_each: list_volumes
+    calls:
+    - action: get
+      client: BlockstorageClient
+      method: get_volume
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: is_hydrated
+        var: is_hydrated
+      - path: volume_backup_policy_assignment
+        var: volume_backup_policy_assignment
+  checks:
+  - check_id: oci.block_storage.volume_backup.backup_destination_private_only_enforced
+    title: 'OCI BLOCK_STORAGE Volume_backup: Backup Destination Private Only Enforced'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.backup_encrypted_at_rest_cmek
+    title: 'OCI BLOCK_STORAGE Volume: Backup Encrypted At Rest Cmek'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.backup_immutable_or_worm_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Backup Immutable Or Worm Enabled'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: volume_backup_policy_assignment
+        operator: exists
+        expected: true
+        description: Verify backup policy is assigned
+  - check_id: oci.block_storage.volume_backup.backup_schedule_defined_min_frequency_required
+    title: 'OCI BLOCK_STORAGE Volume_backup: Backup Schedule Defined Min Frequency Required'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.snapshot_cross_region_copy_encrypted
+    title: 'OCI BLOCK_STORAGE Volume: Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.snapshot_encrypted
+    title: 'OCI BLOCK_STORAGE Volume: Snapshot Encrypted'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.snapshot_not_public_blocked
+    title: 'OCI BLOCK_STORAGE Volume_backup: Snapshot Not Public Blocked'
+    severity: critical
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.replication_auth_roles_least_privilege_required
+    title: 'OCI BLOCK_STORAGE Volume: Replication Auth Roles Least Privilege Required'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.replication_cross_region_encrypted
+    title: 'OCI BLOCK_STORAGE Volume: Replication Cross Region Encrypted'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.replication_tls_required
+    title: 'OCI BLOCK_STORAGE Volume: Replication TLS Required'
+    severity: low
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.replication_lag_monitoring_alerts_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Replication Lag Monitoring Alerts Enabled'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.monitoring_alert_destinations_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Monitoring Alert Destinations Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.monitoring_alert_rules_for_job_failures_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Monitoring Alert Rules For Job Failures Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.monitoring_alert_rules_for_sla_breach_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Monitoring Alert Rules For Sla Breach Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.monitoring_metrics_export_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Monitoring Metrics Export Enabled'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.access_backup_admins_mfa_required
+    title: 'OCI BLOCK_STORAGE Volume: Access Backup Admins MFA Required'
+    severity: critical
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.access_backup_keys_least_privilege_required
+    title: 'OCI BLOCK_STORAGE Volume_backup: Access Backup Keys Least Privilege Required'
+    severity: high
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.access_backup_vault_rbac_least_privilege_required
+    title: 'OCI BLOCK_STORAGE Volume_backup: Access Backup Vault RBAC Least Privilege Required'
+    severity: high
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.access_no_public_to_backup_vault_blocked
+    title: 'OCI BLOCK_STORAGE Volume_backup: Access No Public To Backup Vault Blocked'
+    severity: critical
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_coverage_policy_assignment_complete_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Coverage Policy Assignment Complete Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_coverage_unprotected_assets_alerting_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Coverage Unprotected Assets Alerting Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_failed_jobs_alerting_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Health Failed Jobs Alerting Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_job_success_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Health Job Success Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_last_recency_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Health Last Recency Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.resilience_recovery_backup_inventory_resource_discovery_synced_enabled
+    title: 'OCI BLOCK_STORAGE Volume_backup: Resilience Recovery Backup Inventory Resource Discovery Synced Enabled'
+    severity: medium
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.volume_cmk_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Volume CMK Enabled'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.volume_encryption_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Volume Encryption Enabled'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.block_storage.volume.volume_snapshots_encrypted
+    title: 'OCI BLOCK_STORAGE Volume: Volume Snapshots Encrypted'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.disk_cmk_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Disk CMK Enabled'
+    severity: low
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.disk_encryption_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Disk Encryption Enabled'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.block_storage.volume.disk_snapshots_encrypted
+    title: 'OCI BLOCK_STORAGE Volume: Disk Snapshots Encrypted'
+    severity: low
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume_backup.disk_snapshots_not_public_blocked
+    title: 'OCI BLOCK_STORAGE Volume_backup: Disk Snapshots Not Public Blocked'
+    severity: critical
+    for_each: list_volume_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.volume_encryption_cmk_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Volume Encryption CMK Enabled'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.block_storage.volume.boot_volume_encryption_cmk_enabled
+    title: 'OCI BLOCK_STORAGE Volume: Boot Volume Encryption CMK Enabled'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.block_storage.volume.snapshot_encryption
+    title: 'OCI BLOCK_STORAGE Volume: Snapshot Encryption'
+    severity: high
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.block_storage.volume.volume_backup_configured
+    title: 'OCI BLOCK_STORAGE Volume: Volume Backup Configured'
+    severity: medium
+    for_each: list_volumes
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)

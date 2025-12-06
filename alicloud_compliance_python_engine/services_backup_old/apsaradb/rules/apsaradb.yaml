@@ -1,0 +1,243 @@
+version: '1.0'
+provider: alicloud
+service: apsaradb
+discovery:
+- discovery_id: alicloud.apsaradb.instance
+  calls:
+  - product: APSARADB
+    version: '2014-05-26'
+    action: DescribeInstances
+    params: {}
+    save_as: instance_list
+  emit:
+    items_for: '{ instance_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: instance
+- discovery_id: alicloud.apsaradb.mongodb_cluster
+  calls:
+  - product: APSARADB
+    version: '2014-05-26'
+    action: DescribeMongodbClusters
+    params: {}
+    save_as: mongodb_cluster_list
+  emit:
+    items_for: '{ mongodb_cluster_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: mongodb_cluster
+- discovery_id: alicloud.apsaradb.rds_instance
+  calls:
+  - product: APSARADB
+    version: '2014-05-26'
+    action: DescribeRdsInstances
+    params: {}
+    save_as: rds_instance_list
+  emit:
+    items_for: '{ rds_instance_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: rds_instance
+- discovery_id: alicloud.apsaradb.redis
+  calls:
+  - product: APSARADB
+    version: '2014-05-26'
+    action: DescribeRediss
+    params: {}
+    save_as: redis_list
+  emit:
+    items_for: '{ redis_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: redis
+- discovery_id: alicloud.apsaradb.redis_mongodb_instance
+  calls:
+  - product: APSARADB
+    version: '2014-05-26'
+    action: DescribeRedisMongodbInstances
+    params: {}
+    save_as: redis_mongodb_instance_list
+  emit:
+    items_for: '{ redis_mongodb_instance_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: redis_mongodb_instance
+checks:
+- rule_id: alicloud.apsaradb.instance.at_rest_enabled
+  title: ApsaraDB RDS Instance Should Have Encryption at Rest Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.apsaradb.instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.instance.in_transit_required
+  title: ApsaraDB RDS instances must have SSL/TLS encryption enabled for data in transit
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.apsaradb.instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.instance.public_access_disabled
+  title: ApsaraDB RDS Instance Public Access Should Be Disabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_audit_logging_enabled
+  title: ApsaraDB for MongoDB Cluster Audit Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.mongodb_cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_encryption_at_rest_cmek
+  title: ApsaraDB for MongoDB Cluster Should Use Customer-Managed Encryption Keys
+    (CMEK) for Encryption at Rest
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.mongodb_cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_private_networking_enforced
+  title: ApsaraDB for MongoDB Cluster Private Networking Enforced
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.mongodb_cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.rds_instance.instance_encryption_at_rest_enabled
+  title: ApsaraDB RDS Instance Encryption at Rest Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.rds_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.rds_instance.instance_iam_or_managed_identity_auth_enabled_where_supported
+  title: ApsaraDB for RDS Instance IAM or Managed Identity Authentication Should Be
+    Enabled Where Supported
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.rds_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.rds_instance.instance_public_access_disabled
+  title: ApsaraDB RDS Instance Public Access Should Be Disabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.rds_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.rds_instance.instance_require_tls_in_transit
+  title: ApsaraDB RDS Instance Must Require TLS Encryption for Data in Transit
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.rds_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.redis.redis_cluster_backup_enabled
+  title: ApsaraDB for Redis Cluster Backup Should Be Enabled
+  severity: medium
+  assertion_id: pci_dss_v4_multi_cloud_3.1.1_0032
+  for_each: alicloud.apsaradb.redis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_encryption_at_rest_enabled
+  title: ApsaraDB for Redis and MongoDB Instances Should Have Encryption at Rest Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_iam_or_managed_identity_auth_enabled_where_supported
+  title: ApsaraDB for Redis and MongoDB instances should have IAM or managed identity
+    authentication enabled where supported
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_public_access_disabled
+  title: ApsaraDB for Redis and MongoDB Instances Should Have Public Access Disabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_require_tls_in_transit
+  title: ApsaraDB for Redis and MongoDB Instances Must Enable TLS Encryption in Transit
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

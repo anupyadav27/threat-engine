@@ -1,0 +1,907 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+resourcemanager:
+  version: '1.0'
+  provider: gcp
+  service: resourcemanager
+  scope: global
+  discovery:
+  - discovery_id: list_organizations
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: organization_name
+      - path: organizationId
+        var: organization_id
+  - discovery_id: list_folders
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: folder_name
+      - path: folderId
+        var: folder_id
+  - discovery_id: list_projects
+    calls:
+    - action: list
+      fields:
+      - path: projectId
+        var: project_id
+      - path: name
+        var: project_name
+  - discovery_id: list_org_policies
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: policy_name
+      - path: constraint
+        var: constraint_name
+  - discovery_id: list_iam_policies
+    calls:
+    - action: list
+      fields:
+      - path: bindings
+        var: policy_bindings
+      - path: etag
+        var: policy_etag
+  checks:
+  - check_id: gcp.resourcemanager.folder.governance_ou_auto_tag_policies_enabled_where_supported
+    title: Enable Auto Tag Policies for Governance in Folders
+    severity: medium
+    for_each: list_folders
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.auto_tag_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.resourcemanager.folder.governance_ou_no_overly_permissive_exceptions
+    title: Prevent Overly Permissive Folder IAM Policies
+    severity: high
+    for_each: list_folders
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  - check_id: gcp.resourcemanager.folder.governance_ou_required_scps_attached
+    title: Ensure Compliance Policies Attached to GCP Folders
+    severity: high
+    for_each: list_folders
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: orgPolicies
+        operator: exists
+    - action: eval
+      fields:
+      - path: orgPolicies[].constraint
+        operator: contains
+        expected: constraints/compute.restrictSharedVpcSubnetworks
+  - check_id: gcp.resourcemanager.organization.governance_org_all_accounts_enrolled_in_org
+    title: Ensure All GCP Accounts Are Enrolled in the Organization
+    severity: critical
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycleState
+        operator: equals
+        expected: ACTIVE
+    - action: eval
+      fields:
+      - path: projects
+        operator: exists
+  - check_id: gcp.resourcemanager.organization.governance_org_block_leave_org_by_policy
+    title: Enforce Org Membership via Policy Constraints
+    severity: high
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: orgPolicies[].constraint
+        operator: contains
+        expected: constraints/resourcemanager.allowedExportDestinations
+    - action: eval
+      fields:
+      - path: orgPolicies[].booleanPolicy.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.organization.governance_org_restrict_region_usage_by_policy_wher_required
+    title: Restrict GCP Region Usage via Organization Policies
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: orgPolicies[].constraint
+        operator: contains
+        expected: constraints/compute.restrictCloudNATUsage
+    - action: eval
+      fields:
+      - path: orgPolicies[].listPolicy.allowedValues
+        operator: exists
+  - check_id: gcp.resourcemanager.organization.governance_org_scps_enabled
+    title: Enable Organization SCPs for Governance Control
+    severity: high
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: orgPolicies
+        operator: exists
+    - action: eval
+      fields:
+      - path: orgPolicies[].booleanPolicy.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.organization.identity_access_password_policy_lockout_threshold_defined
+    title: Define Lockout Threshold in Identity Access Password Policy
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxFailedAttempts
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxFailedAttempts
+        operator: equals
+        expected: 5
+  - check_id: gcp.resourcemanager.organization.identity_access_password_policy_max_age_90_days_or_less
+    title: Enforce 90-Day Maximum Password Age for GCP IAM Users
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxPasswordAge
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxPasswordAge
+        operator: equals
+        expected: 90d
+  - check_id: gcp.resourcemanager.organization.identity_access_password_policy_min_length_14
+    title: Ensure Password Policy Min Length of 14 for IAM
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.minLength
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.minLength
+        operator: equals
+        expected: 14
+  - check_id: gcp.resourcemanager.organization.identity_access_password_policy_prevent_reuse_last_24
+    title: Enforce Password Policy to Prevent Reuse of Last 24 Passwords
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: equals
+        expected: 24
+  - check_id: gcp.resourcemanager.organization.identity_access_password_policy_require_upper_lower__special
+    title: Enforce Password Complexity with Upper, Lower, and Special Characters
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireUppercase
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireLowercase
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireSymbols
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_api_access_keys_root_or_ow_disallowed
+    title: Restrict Root or Owner API Access Keys in GCP Organizations
+    severity: critical
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].role
+        operator: not_equals
+        expected: roles/owner
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: serviceAccount:*@*.iam.gserviceaccount.com
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_break_glass_accounts_mfa_enforced
+    title: Enforce MFA for Break Glass Accounts in GCP Organizations
+    severity: critical
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securitySettings.mfaEnforcement
+        operator: equals
+        expected: ENFORCED
+    - action: eval
+      fields:
+      - path: securitySettings.breakGlassAccounts[].mfaRequired
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_console_mfa_required_org_wide
+    title: Enforce MFA for GCP Console Access Across Organization
+    severity: high
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securitySettings.consoleMfaRequired
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: orgPolicies[].constraint
+        operator: contains
+        expected: constraints/iam.requireMfa
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_inactive_user_disable_thre_configured
+    title: Ensure Inactive User Auto-Disable is Configured
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securitySettings.inactiveUserThreshold
+        operator: exists
+    - action: eval
+      fields:
+      - path: securitySettings.inactiveUserThreshold
+        operator: equals
+        expected: 90d
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_password_policy_compliant
+    title: Ensure Organization Password Policy Compliance
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.organization.identity_access_tenant_sso_federation_configured_w_supported
+    title: Ensure SSO Federation is Configured for Identity Access Tenant
+    severity: medium
+    for_each: list_organizations
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: ssoSettings.federationEnabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: ssoSettings.identityProvider
+        operator: exists
+  - check_id: gcp.resourcemanager.project.configuration_enabled
+    title: Ensure Project Configuration Management is Enabled
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.configuration_management
+        operator: equals
+        expected: enabled
+    - action: eval
+      fields:
+      - path: lifecycleState
+        operator: equals
+        expected: ACTIVE
+  - check_id: gcp.resourcemanager.project.configuration_management_aggregation_auto_enroll_ne_accounts
+    title: Auto-enroll New Accounts in Config Management Aggregation
+    severity: low
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.auto_enroll_config
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: configManagement.autoEnrollment
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_aggregation_enabled
+    title: Enable Configuration Management Aggregation for Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.aggregationEnabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_aggregation_source_account_centralized
+    title: Centralize Configuration Management Aggregation Source Account
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.sourceAccount
+        operator: exists
+    - action: eval
+      fields:
+      - path: configManagement.centralized
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_enabled
+    title: Enable Configuration Management for Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: services[].name
+        operator: contains
+        expected: config.googleapis.com
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_enabled
+    title: Enable Configuration Management Recorder for Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.recordingGroup.allSupported
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_global_resource_types_included
+    title: Include Global Resource Types in Configuration Management Recorder
+    severity: low
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.recordingGroup.includeGlobalResourceTypes
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_recording_all_resource_types_supported_in_region
+    title: Record All Supported Resource Types in Region
+    severity: low
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.recordingGroup.allSupported
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.recordingGroup.resourceTypes
+        operator: exists
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_recording_enabled
+    title: Enable Configuration Management Recording
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.status
+        operator: equals
+        expected: RECORDING
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_recording_enabled_all_regions
+    title: Enable Configuration Management Recording in All Regions
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.recordingGroup.allRegions
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: configManagement.recorder.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.configuration_management_recorder_uses_service_linked_role
+    title: Use Service-Linked Role for Configuration Management Recorder
+    severity: low
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: configManagement.recorder.serviceAccount
+        operator: contains
+        expected: service-
+    - action: eval
+      fields:
+      - path: configManagement.recorder.roleArn
+        operator: contains
+        expected: roles/config.serviceAgent
+  - check_id: gcp.resourcemanager.project.governance_project_auto_tag_policies_enabled_where_supported
+    title: Enable Auto Tag Policies for Project Governance
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.auto_tag_enabled
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: tagPolicies
+        operator: exists
+  - check_id: gcp.resourcemanager.project.governance_project_no_overly_permissive_exceptions
+    title: Prevent Overly Permissive Project IAM Policies
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  - check_id: gcp.resourcemanager.project.governance_project_required_scps_attached
+    title: Ensure Required SCPs Attached to Projects
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: orgPolicies
+        operator: exists
+    - action: eval
+      fields:
+      - path: orgPolicies[].booleanPolicy.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_cross_account_access_keys_unused
+    title: Ensure Cross-Account Access Keys Are Not Used
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: serviceAccount:*@*.iam.gserviceaccount.com
+    - action: eval
+      fields:
+      - path: crossAccountKeys
+        operator: not_exists
+  - check_id: gcp.resourcemanager.project.identity_access_cross_account_trust_policy_external_id_used
+    title: Use External ID in Cross-Account Trust Policies
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: crossAccountTrust.externalId
+        operator: exists
+    - action: eval
+      fields:
+      - path: crossAccountTrust.conditions.StringEquals
+        operator: exists
+  - check_id: gcp.resourcemanager.project.identity_access_cross_account_trust_policy_external_id_used_mfa_required
+    title: Require MFA for Cross-Account Trust with External ID
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: crossAccountTrust.externalId
+        operator: exists
+    - action: eval
+      fields:
+      - path: crossAccountTrust.conditions.Bool.gcp:MultiFactorAuthPresent
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.resourcemanager.project.identity_access_cross_account_trust_policy_least_privilege
+    title: Apply Least Privilege to Cross-Account Trust Policies
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: crossAccountTrust.permissions[]
+        operator: not_contains
+        expected: '*'
+    - action: eval
+      fields:
+      - path: crossAccountTrust.resources[]
+        operator: not_contains
+        expected: '*'
+  - check_id: gcp.resourcemanager.project.identity_access_password_policy_lockout_threshold_defined
+    title: Define Password Policy Lockout Threshold for Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxFailedAttempts
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxFailedAttempts
+        operator: equals
+        expected: 5
+  - check_id: gcp.resourcemanager.project.identity_access_password_policy_max_age_90_days_or_less
+    title: Enforce 90-Day Maximum Password Age for Project Users
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxPasswordAge
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.maxPasswordAge
+        operator: equals
+        expected: 90d
+  - check_id: gcp.resourcemanager.project.identity_access_password_policy_min_length_14
+    title: Ensure Project Password Policy Min Length of 14
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.minLength
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.minLength
+        operator: equals
+        expected: 14
+  - check_id: gcp.resourcemanager.project.identity_access_password_policy_prevent_reuse_last_24
+    title: Prevent Reuse of Last 24 Passwords in Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: exists
+    - action: eval
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: equals
+        expected: 24
+  - check_id: gcp.resourcemanager.project.identity_access_password_policy_require_upper_lower_special
+    title: Require Upper, Lower, and Special Characters in Project Passwords
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireUppercase
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireLowercase
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: passwordPolicy.requireSymbols
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_root_access_keys_unused
+    title: Ensure Root Access Keys Are Not Used in Projects
+    severity: critical
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].role
+        operator: not_equals
+        expected: roles/owner
+    - action: eval
+      fields:
+      - path: rootAccessKeys
+        operator: not_exists
+  - check_id: gcp.resourcemanager.project.identity_access_root_mfa_enabled
+    title: Enable MFA for Root Access in Projects
+    severity: critical
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: rootAccount.mfaEnabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: securitySettings.rootMfaRequired
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_unused_credentials_disabled
+    title: Disable Unused Credentials in Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: unusedCredentials[].disabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: credentialPolicy.disableUnusedCredentials
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_unused_credentials_removed
+    title: Remove Unused Credentials from Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: unusedCredentials
+        operator: not_exists
+    - action: eval
+      fields:
+      - path: credentialPolicy.removeUnusedCredentials
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_user_access_keys_rotated_90_days
+    title: Rotate User Access Keys Every 90 Days
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userAccessKeys[].lastRotated
+        operator: exists
+    - action: eval
+      fields:
+      - path: keyRotationPolicy.maxAge
+        operator: equals
+        expected: 90d
+  - check_id: gcp.resourcemanager.project.identity_access_users_console_mfa_enabled
+    title: Enable Console MFA for Project Users
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securitySettings.consoleMfaRequired
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: users[].mfaEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.identity_access_users_unused_credentials_removed
+    title: Remove Unused User Credentials from Projects
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users[].unusedCredentials
+        operator: not_exists
+    - action: eval
+      fields:
+      - path: userCredentialPolicy.removeUnused
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.logging_cloudtrail_enabled_all_regions
+    title: Enable Cloud Audit Logs in All Regions for Projects
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditLogs.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: auditLogs.allRegions
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.logging_cloudtrail_log_file_validation_enabled
+    title: Enable Log File Validation for Cloud Audit Logs
+    severity: medium
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditLogs.logFileValidation
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: auditLogs.integrityMonitoring
+        operator: equals
+        expected: true
+  - check_id: gcp.resourcemanager.project.logging_cloudtrail_logs_encrypted_kms_cmk
+    title: Encrypt Cloud Audit Logs with KMS CMK
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditLogs.encryption.kmsKeyName
+        operator: exists
+    - action: eval
+      fields:
+      - path: auditLogs.encryption.kmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.resourcemanager.project.logging_cloudtrail_logs_not_publicly_accessible
+    title: Ensure Cloud Audit Logs Are Not Publicly Accessible
+    severity: high
+    for_each: list_projects
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditLogs.bucket.iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+    - action: eval
+      fields:
+      - path: auditLogs.bucket.iamPolicy.bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  api_name: cloudresourcemanager
+  api_version: v3

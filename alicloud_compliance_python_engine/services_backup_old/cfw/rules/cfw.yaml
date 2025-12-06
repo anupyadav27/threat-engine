@@ -1,0 +1,271 @@
+version: '1.0'
+provider: alicloud
+service: cfw
+discovery:
+- discovery_id: alicloud.cfw.ipset
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeIpsets
+    params: {}
+    save_as: ipset_list
+  emit:
+    items_for: '{ ipset_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: ipset
+- discovery_id: alicloud.cfw.microsegmentation
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeMicrosegmentations
+    params: {}
+    save_as: microsegmentation_list
+  emit:
+    items_for: '{ microsegmentation_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: microsegmentation
+- discovery_id: alicloud.cfw.network
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeNetworks
+    params: {}
+    save_as: network_list
+  emit:
+    items_for: '{ network_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: network
+- discovery_id: alicloud.cfw.policy
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribePolicys
+    params: {}
+    save_as: policy_list
+  emit:
+    items_for: '{ policy_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: policy
+- discovery_id: alicloud.cfw.threat_analysis
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeThreatAnalysiss
+    params: {}
+    save_as: threat_analysis_list
+  emit:
+    items_for: '{ threat_analysis_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: threat_analysis
+- discovery_id: alicloud.cfw.traffic_analysis
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeTrafficAnalysiss
+    params: {}
+    save_as: traffic_analysis_list
+  emit:
+    items_for: '{ traffic_analysis_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: traffic_analysis
+- discovery_id: alicloud.cfw.waf_ip_sets
+  calls:
+  - product: CFW
+    version: '2014-05-26'
+    action: DescribeWafIpSetss
+    params: {}
+    save_as: waf_ip_sets_list
+  emit:
+    items_for: '{ waf_ip_sets_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: waf_ip_sets
+checks:
+- rule_id: alicloud.cfw.ipset.ip_set_cidrs_valid_and_minimized
+  title: Ensure Cloud Firewall IP Sets contain valid and minimized CIDR blocks
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.ipset
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.ipset.ip_set_cross_account_sharing_restricted
+  title: Ensure Cloud Firewall IP Set Cross-Account Sharing is Restricted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.ipset
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.microsegmentation.microseg_endpoint_policies_applied
+  title: Ensure AliCloud Cloud Firewall Microsegmentation Endpoint Policies Are Applied
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.microsegmentation
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.microsegmentation.microseg_identity_aware_policies_enabled
+  title: Ensure AliCloud Cloud Firewall Microsegmentation Identity-Aware Policies
+    Are Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.microsegmentation
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.network.firewall_logging_enabled
+  title: Ensure AliCloud Cloud Firewall Logging is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.network
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.network.firewall_no_permit_any_any
+  title: AliCloud Cloud Firewall should not have permit any-any rules configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.network
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.policy.access_control_no_permit_all
+  title: Cloud Firewall Access Control Policies Should Not Allow All Traffic
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.policy
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.policy.access_control_policies_present
+  title: Ensure AliCloud Cloud Firewall Access Control Policies Are Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.policy
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.policy.access_control_policy_store_encrypted
+  title: Ensure Cloud Firewall Access Control Policy Store is Encrypted
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.policy
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.threat_analysis.anomaly_destinations_encrypted
+  title: Cloud Firewall Threat Analysis Should Monitor Encrypted Traffic to Anomaly
+    Destinations
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.threat_analysis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.threat_analysis.anomaly_detectors_enabled
+  title: Ensure AliCloud Cloud Firewall Threat Analysis Anomaly Detectors Are Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.threat_analysis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.traffic_analysis.alert_destinations_configured
+  title: AliCloud Cloud Firewall Traffic Analysis Alert Destinations Must Be Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cfw.traffic_analysis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.traffic_analysis.ids_ips_enabled_where_supported
+  title: Ensure Cloud Firewall Intrusion Detection and Prevention System (IDS/IPS)
+    is enabled for traffic analysis where supported
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.traffic_analysis
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.waf_ip_sets.ip_set_sources_trusted
+  title: Ensure Cloud Firewall WAF IP Set Sources Are From Trusted Networks Only
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.waf_ip_sets
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cfw.waf_ip_sets.ip_set_storage_encrypted
+  title: Cloud Firewall WAF IP Set Storage Should Be Encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cfw.waf_ip_sets
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

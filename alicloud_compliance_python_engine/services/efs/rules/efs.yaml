@@ -1,0 +1,233 @@
+version: '1.0'
+provider: alicloud
+service: efs
+discovery:
+- discovery_id: alicloud.efs.backup
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeBackups
+    params: {}
+    save_as: backup_response
+  emit:
+    items_for: '{ backup_response.Backups.Backup }'
+    as: r
+    item:
+      id: '{{ r.BackupId }}'
+      name: '{{ r.BackupId }}'
+      resource_type: backup
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.encryption
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeEncryptions
+    params: {}
+    save_as: encryption_response
+  emit:
+    items_for: '{ encryption_response.Encryptions.Encryption }'
+    as: r
+    item:
+      id: '{{ r.EncryptionId }}'
+      name: '{{ r.EncryptionId }}'
+      resource_type: encryption
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.file
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeFiles
+    params: {}
+    save_as: file_response
+  emit:
+    items_for: '{ file_response.Files.File }'
+    as: r
+    item:
+      id: '{{ r.FileId }}'
+      name: '{{ r.FileId }}'
+      resource_type: file
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.have
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeHaves
+    params: {}
+    save_as: have_response
+  emit:
+    items_for: '{ have_response.Haves.Have }'
+    as: r
+    item:
+      id: '{{ r.HaveId }}'
+      name: '{{ r.HaveId }}'
+      resource_type: have
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.multi
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeMultis
+    params: {}
+    save_as: multi_response
+  emit:
+    items_for: '{ multi_response.Multis.Multi }'
+    as: r
+    item:
+      id: '{{ r.MultiId }}'
+      name: '{{ r.MultiId }}'
+      resource_type: multi
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.not
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeNots
+    params: {}
+    save_as: not_response
+  emit:
+    items_for: '{ not_response.Nots.Not }'
+    as: r
+    item:
+      id: '{{ r.NotId }}'
+      name: '{{ r.NotId }}'
+      resource_type: not
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.efs.windows
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeWindowss
+    params: {}
+    save_as: windows_response
+  emit:
+    items_for: '{ windows_response.Windowss.Windows }'
+    as: r
+    item:
+      id: '{{ r.WindowsId }}'
+      name: '{{ r.WindowsId }}'
+      resource_type: windows
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.efs.backup.enabled
+  title: Ensure Elastic File System backup is enabled
+  severity: low
+  assertion_id: cisa_ce_v1_multi_cloud_Booting_Up-1_0009
+  for_each: alicloud.efs.backup
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.efs.encryption.at_rest_enabled
+  title: Alibaba Cloud Elastic File System (EFS) encryption at rest should be enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CP-9_0059
+  for_each: alicloud.efs.encryption
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.efs.file.system_copy_tags_to_backups_enabled
+  title: Ensure Alibaba Cloud Elastic File System Copy Tags to Backups is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.efs.file
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.efs.file.system_copy_tags_to_volumes_enabled
+  title: Alibaba Cloud Elastic File System should have copy tags to volumes enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.efs.file
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.efs.have.backup_enabled
+  title: Ensure Elastic File System (EFS) has backup enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CP-6_0056
+  for_each: alicloud.efs.have
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.efs.multi.az_enabled
+  title: Alibaba Cloud Elastic File System Multi-AZ Deployment Should Be Enabled
+  severity: low
+  assertion_id: iso27001_2022_multi_cloud_A.8.14_0069
+  for_each: alicloud.efs.multi
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.efs.not.publicly_accessible
+  title: Ensure Elastic File System (EFS) file systems are not publicly accessible
+  severity: high
+  assertion_id: iso27001_2022_multi_cloud_A.8.1_0064
+  for_each: alicloud.efs.not
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+- rule_id: alicloud.efs.windows.file_system_multi_az_enabled
+  title: Alibaba Cloud Elastic File System Windows File System Should Enable Multi-AZ Deployment
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.efs.windows
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

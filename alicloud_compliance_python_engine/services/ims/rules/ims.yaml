@@ -1,0 +1,220 @@
+version: '1.0'
+provider: alicloud
+service: ims
+discovery:
+- discovery_id: alicloud.ims.account
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeAccounts
+    params: {}
+    save_as: account_response
+  emit:
+    items_for: '{ account_response.Accounts.Account }'
+    as: r
+    item:
+      id: '{{ r.AccountId }}'
+      name: '{{ r.AccountId }}'
+      resource_type: account
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.audit
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeAudits
+    params: {}
+    save_as: audit_response
+  emit:
+    items_for: '{ audit_response.Audits.Audit }'
+    as: r
+    item:
+      id: '{{ r.AuditId }}'
+      name: '{{ r.AuditId }}'
+      resource_type: audit
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.cloud
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClouds
+    params: {}
+    save_as: cloud_response
+  emit:
+    items_for: '{ cloud_response.Clouds.Cloud }'
+    as: r
+    item:
+      id: '{{ r.CloudId }}'
+      name: '{{ r.CloudId }}'
+      resource_type: cloud
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.custom
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCustoms
+    params: {}
+    save_as: custom_response
+  emit:
+    items_for: '{ custom_response.Customs.Custom }'
+    as: r
+    item:
+      id: '{{ r.CustomId }}'
+      name: '{{ r.CustomId }}'
+      resource_type: custom
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.no
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeNos
+    params: {}
+    save_as: no_response
+  emit:
+    items_for: '{ no_response.Nos.No }'
+    as: r
+    item:
+      id: '{{ r.NoId }}'
+      name: '{{ r.NoId }}'
+      resource_type: 'no'
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.organization
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeOrganizations
+    params: {}
+    save_as: organization_response
+  emit:
+    items_for: '{ organization_response.Organizations.Organization }'
+    as: r
+    item:
+      id: '{{ r.OrganizationId }}'
+      name: '{{ r.OrganizationId }}'
+      resource_type: organization
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ims.role
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeRoles
+    params: {}
+    save_as: role_response
+  emit:
+    items_for: '{ role_response.Roles.Role }'
+    as: r
+    item:
+      id: '{{ r.RoleId }}'
+      name: '{{ r.RoleId }}'
+      resource_type: role
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.ims.account.access_approval_enabled
+  title: Ensure AliCloud Identity Management Service Account Has Access Approval Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.ims.account
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.ims.audit.logs_enabled
+  title: Identity Management Service (IMS) Audit Logging Must Be Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.ims.audit
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.ims.cloud.asset_inventory_enabled
+  title: Ensure AliCloud Identity Management Service Asset Inventory is Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.ims.cloud
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.ims.custom.role_has_permissions_to_administer_resource_locks
+  title: Identity and Access Management Custom Role Has Permissions To Administer Resource Locks
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.ims.custom
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ims.no.service_roles_at_project_level
+  title: Ensure Identity Management Service (IMS) Service Roles Are Not Assigned at Project Level
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.ims.no
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ims.organization.essential_contacts_configured
+  title: AliCloud Identity Management Service Organization Must Have Essential Contacts Configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.ims.organization
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.ims.role.kms_enforce_separation_of_duties
+  title: Identity and Access Management (IMS) roles should enforce separation of duties for Key Management Service (KMS) operations
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.ims.role
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true

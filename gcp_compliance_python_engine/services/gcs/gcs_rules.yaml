@@ -1,115 +1,1070 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
 gcs:
+  version: '1.0'
+  provider: gcp
+  service: gcs
+  scope: global
+  sdk_package: google.cloud.storage
+  client_class: Client
   discovery:
-    - discovery_id: list_buckets
-      calls:
-        - action: list_buckets
-    - discovery_id: bucket_metadata
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: iam_configuration.is_uniform_bucket_level_access_enabled
-              var: iam_configuration_uniform
-            - path: iam_configuration.public_access_prevention
-              var: public_access_prevention
-            - path: versioning_enabled
-              var: versioning_enabled
-            - path: default_kms_key_name
-              var: default_kms_key_name
-            - path: retention_policy_locked
-              var: retention_policy_locked
-            - path: raw.logging.logBucket
-              var: logging_bucket
-
+  - discovery_id: list_buckets
+    calls:
+    - action: list_buckets
+  - discovery_id: bucket_metadata
+    for_each: list_buckets
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: raw.versioning.enabled
+        var: versioning_enabled
+      - path: raw.iamConfiguration.bucketPolicyOnly.enabled
+        var: bucket_policy_only
+      - path: raw.iamConfiguration
+        var: iam_configuration
+      - path: raw.encryption
+        var: encryption
+      - path: raw.logging
+        var: logging
+      - path: raw.retentionPolicy
+        var: retention_policy
+      - path: raw.lifecycle
+        var: lifecycle
+      - path: raw.labels
+        var: labels
+      - path: raw.defaultEventBasedHold
+        var: default_event_based_hold
+      - path: raw.cors
+        var: cors
+      - path: raw.website
+        var: website
+      - path: raw.storageClass
+        var: storage_class
+      - path: raw.location
+        var: location
+      - path: raw.locationType
+        var: location_type
+      - path: raw.autoclass
+        var: autoclass
+      - path: raw.softDeletePolicy
+        var: soft_delete_policy
+      - path: raw.hierarchicalNamespace
+        var: hierarchical_namespace
+      - path: raw.customPlacementConfig
+        var: custom_placement_config
+      - path: raw.rpo
+        var: rpo
+      - path: raw.satisfiesPZS
+        var: satisfies_pzs
+      - path: raw.projectNumber
+        var: project_number
+      - path: raw.metageneration
+        var: metageneration
+      - path: raw.timeCreated
+        var: time_created
+      - path: raw.updated
+        var: updated
   checks:
-    - check_id: gcs_bucket_uniform_access_enabled
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: iam_configuration_uniform
-              operator: equals
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_no_allusers_reader
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_iam_policy
-          fields:
-            - path: bindings[].members[]
-              operator: contains
-              expected: allUsers
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_public_access_prevention_enforced
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: public_access_prevention
-              operator: equals
-              expected: enforced
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_versioning_enabled
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: versioning_enabled
-              operator: equals
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_has_default_kms_key
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: default_kms_key_name
-              operator: exists
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_retention_policy_locked
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: retention_policy_locked
-              operator: equals
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: gcs_bucket_logging_configured
-      for_each: list_buckets
-      param: bucket
-      calls:
-        - action: get_bucket_metadata
-          fields:
-            - path: logging_bucket
-              operator: exists
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: [] 
+  # Versioning checks
+  - check_id: gcp.storage.bucket.bucket_object_versioning
+    title: Enable Object Versioning for GCP Storage Buckets
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+  
+  # IAM and Access Control checks
+  - check_id: gcp.storage.bucket.bucket_policy_only_enforced
+    title: Ensure Bucket Policy Only is Enforced on GCP Storage Buckets
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: bucket_policy_only
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.storage.bucket.uniform_bucket_level_access_enabled
+    title: Ensure Uniform Bucket Level Access is Enabled
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.uniformBucketLevelAccess.enabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.storage.bucket.data_protection_block_public_access_enabled
+    title: Ensure Block Public Access on Storage Buckets is Enabled
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.data_protection_bucket_no_public_principals
+    title: Ensure Storage Bucket has no Public Principals
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+        
+  - check_id: gcp.storage.bucket.data_protection_bucket_no_wildcards_on_actions_or_principals
+    title: Ensure Storage Bucket has no Wildcard Actions or Principals
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: "*"
+        
+  - check_id: gcp.storage.bucket.data_protection_bucket_deny_insecure_transport
+    title: Ensure Storage Bucket Denies Insecure Transport
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: "request.connection.mtlsInfo.present"
+  
+  # Encryption checks
+  - check_id: gcp.storage.bucket.data_protection_encrypted
+    title: Ensure Cloud Storage Buckets Use Customer-Managed Encryption Keys
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_protection_encryption_at_rest_enabled
+    title: Ensure Storage Bucket Encryption At Rest
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+  
+  # Logging checks
+  - check_id: gcp.storage.bucket.data_protection_access_logging_enabled
+    title: Enable Access Logging for Google Cloud Storage Buckets
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+  
+  # Retention and Lifecycle checks
+  - check_id: gcp.storage.bucket.data_governance_retention_policy_configured
+    title: Ensure Bucket Retention Policy is Configured
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: retention_policy
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_lifecycle_rules_configured
+    title: Ensure Bucket Lifecycle Rules are Configured
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: lifecycle
+        operator: exists
+  
+  # Labels and Governance checks
+  - check_id: gcp.storage.bucket.labels_properly_configured
+    title: Ensure Bucket Labels are Properly Configured
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: labels
+        operator: exists
+  
+  # Configuration checks
+  - check_id: gcp.storage.bucket.storage_class_optimized
+    title: Ensure Bucket Storage Class is Optimized
+    severity: low
+    for_each: list_buckets
+    logic: OR
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: storage_class
+        operator: equals
+        expected: STANDARD
+      - path: storage_class
+        operator: equals
+        expected: NEARLINE
+      - path: storage_class
+        operator: equals
+        expected: COLDLINE
+      - path: storage_class
+        operator: equals
+        expected: ARCHIVE
+        
+  - check_id: gcp.storage.bucket.location_type_appropriate
+    title: Ensure Bucket Location Type is Appropriate
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: location_type
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.autoclass_enabled_where_appropriate
+    title: Ensure Autoclass is Enabled Where Appropriate
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: autoclass
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.soft_delete_policy_configured
+    title: Ensure Soft Delete Policy is Configured
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: soft_delete_policy
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.cors_policy_configured_securely
+    title: Ensure CORS Policy is Configured Securely
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: cors
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.website_configuration_secure
+    title: Ensure Website Configuration is Secure
+    severity: medium
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: website
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.default_event_based_hold_disabled
+    title: Ensure Default Event Based Hold is Disabled
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: default_event_based_hold
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.storage.bucket.hierarchical_namespace_disabled_by_default
+    title: Ensure Hierarchical Namespace is Disabled by Default
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: hierarchical_namespace
+        operator: exists
+        expected: false
+        
+  - check_id: gcp.storage.bucket.custom_placement_config_secure
+    title: Ensure Custom Placement Config is Secure
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: custom_placement_config
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.rpo_configured_for_dual_region
+    title: Ensure RPO is Configured for Dual Region
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: rpo
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.satisfies_pzs_configured
+    title: Ensure Satisfies PZS is Configured
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: satisfies_pzs
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.project_number_matches_expected
+    title: Ensure Project Number Matches Expected
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: project_number
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.metageneration_tracked
+    title: Ensure Metageneration is Tracked
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: metageneration
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.time_created_within_policy
+    title: Ensure Time Created is Within Policy
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: time_created
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.updated_time_tracked
+    title: Ensure Updated Time is Tracked
+    severity: low
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: updated
+        operator: exists
+  
+  # BATCH 1: Missing Checks (10 checks)
+  - check_id: gcp.storage.bucket.cross_region_replication_encryption_enabled
+    title: Ensure Cross Region Replication Encryption for GCP Buckets
+    severity: high
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_enforced_on_sensitive_datasets
+    title: Ensure Data Governance on Sensitive Storage Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: labels
+        operator: exists
+      - path: iam_configuration
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_expiration_rules_defined
+    title: Ensure Bucket Lifecycle Rules for Data Expiration are Configured
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: lifecycle
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_immutable_retention_locked_where_required
+    title: Enable Bucket Retention Policies for Immutable Data
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: retention_policy
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_policies_defined
+    title: Ensure Data Governance Policies for GCS Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: OR
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: lifecycle
+        operator: exists
+      - path: retention_policy
+        operator: exists
+      - path: labels
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_governance_protected_from_public_override
+    title: Prevent Public Access to Sensitive Storage Buckets
+    severity: critical
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.data_governance_versioning_enabled_where_supported
+    title: Ensure Versioning is Enabled for GCP Storage Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.storage.bucket.data_protection_bucket_deny_unencrypted_puts
+    title: Enforce Encryption for GCP Storage Bucket PUT Requests
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.data_protection_cmk_cmek_configured
+    title: Ensure CMEK Configured for Storage Bucket Encryption
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_protection_cross_region_copy_encrypted
+    title: Ensure Cross-Region Bucket Copies are Encrypted
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+  
+  # BATCH 2: Missing Checks 11-21 (11 checks)
+  - check_id: gcp.storage.bucket.data_protection_encrypted_at_rest
+    title: Ensure Cloud Storage Buckets are Encrypted at Rest
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_protection_fileshare_encryption_at_rest_enabled
+    title: Enable Encryption at Rest for GCP Storage Buckets
+    severity: high
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.data_protection_fileshare_kms_key_policy_least_privilege
+    title: Ensure Least Privilege on KMS Key Policies for Storage Buckets
+    severity: high
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.data_protection_fileshare_private_network_only
+    title: Ensure GCP Storage Buckets Use Private Network Access
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.data_protection_fileshare_snapshots_enabled
+    title: Ensure Fileshare Snapshots are Enabled for GCP Storage Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.storage.bucket.data_protection_not_public
+    title: Ensure GCS Buckets Do Not Allow Public Access
+    severity: critical
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+        
+  - check_id: gcp.storage.bucket.data_protection_not_publicly_readable
+    title: Ensure Storage Buckets Are Not Publicly Readable
+    severity: critical
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.data_protection_object_lock_or_immutability_enable_supported
+    title: Enable Object Lock or Immutability for Storage Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: OR
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: retention_policy
+        operator: exists
+      - path: default_event_based_hold
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.storage.bucket.data_protection_policy_denies_public_and_insecure
+    title: Enforce Private and Secure GCP Storage Bucket Access
+    severity: critical
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.data_protection_require_tls_in_transit
+    title: Ensure Buckets Require TLS for Data in Transit
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: request.connection.mtlsInfo.present
+        
+  - check_id: gcp.storage.bucket.data_protection_versioning_enabled
+    title: Enable Versioning for GCP Storage Buckets
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+  
+  # BATCH 3: Final 30 checks to complete GCS to 100%
+  - check_id: gcp.storage.bucket.default_encryption
+    title: Ensure Default Encryption
+    severity: high
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.encryption_enabled
+    title: Ensure Encryption at Rest
+    severity: high
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.iam_no_public_access
+    title: Ensure No Public Access via IAM
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.level_public_access_blocks
+    title: Enforce Public Access Blocking
+    severity: critical
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.lifecycle_enabled
+    title: Ensure Bucket Lifecycle Management is Enabled
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: lifecycle
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.lifecycle_enabled_gcp_compute_disk_protection_replication
+    title: Ensure Lifecycle for Compute Disk Replication
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: lifecycle
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.log_retention_policy_lock
+    title: Ensure Log Retention Policy is Locked
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: retention_policy
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.logging_enabled
+    title: Ensure Storage Bucket Logging is Enabled
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.multi_region_configured
+    title: Ensure Multi-Region Configuration
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: location_type
+        operator: equals
+        expected: multi-region
+        
+  - check_id: gcp.storage.bucket.object_retention_configured
+    title: Ensure Object Retention Policies
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: retention_policy
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.object_versioning
+    title: Enable Object Versioning
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.storage.bucket.policy_public_write_access
+    title: Prevent Public Write Access
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.public_access
+    title: Prevent Public Access
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.public_read_prohibited
+    title: Ensure Buckets Are Not Publicly Readable
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.public_write_prohibited
+    title: Prevent Public Write Access
+    severity: critical
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.replication_enabled
+    title: Ensure Cross-Region Replication
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: location_type
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.secure_transport_policy
+    title: Ensure Secure Transport
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: iam_configuration
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.server_access_logging_enabled
+    title: Enable Server Access Logging
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.server_access_logging_enabled_gcp_logging_dataevent_logging
+    title: Enable Server Access Logging for Data Events
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.server_access_logging_enabled_gcp_logging_gcs_replication
+    title: Enable Server Access Logging for Replication
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.versioning_enabled
+    title: Ensure GCP Storage Bucket Versioning is Enabled
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: versioning_enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.storage.bucket.website_https_only_configured
+    title: Enforce HTTPS for Bucket Website Config
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: website
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.dr_documentation_access_rbac_least_privilege
+    title: Restrict DR Documentation Access to Least Privilege
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.dr_documentation_encrypted_and_private
+    title: Ensure DR Documentation Buckets are Encrypted and Private
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.bucket.dr_runbook_access_rbac_least_privilege
+    title: Ensure Least Privilege for DR Runbook Access
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+        
+  - check_id: gcp.storage.bucket.dr_runbook_change_audit_logging_enabled
+    title: Ensure Audit Logging for DR Runbook Changes
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: logging
+        operator: exists
+        
+  - check_id: gcp.storage.bucket.dr_runbook_encrypted_and_private
+    title: Ensure DR Runbooks Are Encrypted and Access-Controlled
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+      - path: iam_configuration.publicAccessPrevention
+        operator: equals
+        expected: enforced
+        
+  - check_id: gcp.storage.notification.data_protection_bucket_cross_account_destinations_restricted
+    title: Restrict Cross-Account Storage Notification Destinations
+    severity: low
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: 'domain:'
+        
+  - check_id: gcp.storage.notification.data_protection_bucket_destination_encrypted
+    title: Ensure Storage Notification Buckets Are Encrypted
+    severity: medium
+    for_each: bucket_metadata
+    logic: AND
+    calls:
+    - action: get_bucket_metadata
+      fields:
+      - path: encryption
+        operator: exists
+        
+  - check_id: gcp.storage.notification.data_protection_bucket_destination_least_privilege
+    title: Enforce Least Privilege on Storage Notification Destinations
+    severity: high
+    for_each: list_buckets
+    logic: AND
+    calls:
+    - action: get_bucket_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers

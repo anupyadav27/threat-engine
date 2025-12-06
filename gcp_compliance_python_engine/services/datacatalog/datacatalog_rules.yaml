@@ -1,0 +1,1692 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+datacatalog:
+  version: '1.0'
+  provider: gcp
+  service: datacatalog
+  scope: regional
+  discovery:
+  - discovery_id: list_datacatalog_entries
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: entry_name
+      - path: type
+        var: entry_type
+  - discovery_id: list_datacatalog_entry_groups
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: entry_group_name
+  - discovery_id: list_datacatalog_taxonomies
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: taxonomy_name
+  - discovery_id: list_datacatalog_tag_templates
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: tag_template_name
+  checks:
+  - check_id: gcp.datacatalog.entry.data_catalog_crawler_logs_enabled
+    title: Enable Data Catalog Crawler Logs for Enhanced Monitoring
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gcsFilesetSpec.crawlerConfig.logsEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_crawler_network_private_only
+    title: Ensure Data Catalog Crawler Operates in Private Networks
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gcsFilesetSpec.crawlerConfig.networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_crawler_role_least_privilege
+    title: Ensure Data Catalog Crawler Role Enforces Least Privilege
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gcsFilesetSpec.crawlerConfig.serviceAccount
+        operator: exists
+      - path: gcsFilesetSpec.crawlerConfig.permissions
+        operator: contains
+        expected: roles/datacatalog.entryViewer
+  - check_id: gcp.datacatalog.entry.data_catalog_crawler_scope_restricted_to_allowlist
+    title: Restrict Data Catalog Crawler Scope to Allowlist
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gcsFilesetSpec.crawlerConfig.scopeRestrictions.allowedBuckets
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_credentials_in_secrets_manager
+    title: Ensure Data Catalog Credentials are Stored in Secrets Manager
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceSystemTimestamps.credentials.secretManagerPath
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_database_cross_account_sharing_restricted
+    title: Restrict Data Catalog Database Cross Account Sharing
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.crossAccountSharingEnabled
+        operator: equals
+        expected: false
+  - check_id: gcp.datacatalog.entry.data_catalog_database_encrypted
+    title: Ensure Encryption of Data Catalog Database Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_database_policy_least_privilege
+    title: Enforce Least Privilege for Data Catalog Database Policies
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.accessPolicy.bindings[].role
+        operator: contains
+        expected: roles/datacatalog.viewer
+  - check_id: gcp.datacatalog.entry.data_catalog_dev_endpoint_encrypted
+    title: Ensure Dev Endpoint Encryption in Data Catalog
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: devEndpointSpec.encryptionConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_dev_endpoint_no_public_access
+    title: Restrict Public Access to Data Catalog Dev Endpoints
+    severity: critical
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: devEndpointSpec.publicAccessEnabled
+        operator: equals
+        expected: false
+  - check_id: gcp.datacatalog.entry.data_catalog_dev_endpoint_role_least_privilege
+    title: Ensure Least Privilege for Data Catalog Dev Endpoint Role
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: devEndpointSpec.roleArn
+        operator: contains
+        expected: datacatalog-dev-minimal
+  - check_id: gcp.datacatalog.entry.data_catalog_encrypted
+    title: Ensure Data Catalog Entries are Encrypted at Rest
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_job_logs_and_metrics_enabled
+    title: Ensure Data Catalog Job Logs and Metrics are Enabled
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.loggingConfig.enabled
+        operator: equals
+        expected: true
+      - path: jobSpec.metricsConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_job_network_private_only
+    title: Enforce Private Network for Data Catalog Jobs
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.networkConfig.enablePrivateNetwork
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_job_role_least_privilege
+    title: Enforce Least Privilege for Data Catalog Job Roles
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.serviceAccount
+        operator: exists
+      - path: jobSpec.permissions
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.entry.data_catalog_job_script_location_private_and_encrypted
+    title: Ensure Data Catalog Job Script Locations Are Secure and Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.scriptLocation
+        operator: contains
+        expected: gs://private-
+      - path: jobSpec.scriptEncryption.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_ml_transform_logs_enabled
+    title: Enable ML Transform Logs in Data Catalog
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: mlTransformSpec.loggingConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_ml_transform_network_private_only
+    title: Ensure Data Catalog ML Transform Uses Private Network
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: mlTransformSpec.networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_ml_transform_role_least_privilege
+    title: Ensure Least Privilege for Data Catalog ML Transform Role
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: mlTransformSpec.serviceAccount
+        operator: exists
+      - path: mlTransformSpec.role
+        operator: contains
+        expected: datacatalog.mlTransformUser
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_access_policies_least_privilege
+    title: Ensure Least Privilege for Data Catalog Partition Access
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.accessPolicy.bindings[].role
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_encrypted
+    title: Ensure Data Catalog Partitions are Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_index_encrypted
+    title: Ensure Data Catalog Partition Indexes are Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.indexEncryption.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_logs_enabled
+    title: Enable Logging for Data Catalog Partitions
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.loggingConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_network_private_only
+    title: Ensure Data Catalog Partitions Use Private Networks
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_role_least_privilege
+    title: Enforce Least Privilege for Data Catalog Partition Roles
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: partitionSpec.serviceAccount
+        operator: exists
+      - path: partitionSpec.permissions
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.entry.data_catalog_security_configuration_encrypted
+    title: Ensure Data Catalog Security Configuration is Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityConfiguration.encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_catalog_security_configuration_logs_enabled
+    title: Enable Security Configuration Logs in Data Catalog
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityConfiguration.auditLogging.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_security_configuration_network_private_only
+    title: Ensure Data Catalog Security Configuration Uses Private Networks
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityConfiguration.networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_security_configuration_role_least_privilege
+    title: Enforce Least Privilege for Data Catalog Security Configuration
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityConfiguration.serviceAccount
+        operator: exists
+      - path: securityConfiguration.permissions
+        operator: contains
+        expected: datacatalog.securityAdmin
+  - check_id: gcp.datacatalog.entry.data_catalog_table_access_policies_least_privilege
+    title: Ensure Least Privilege for Data Catalog Table Access Policies
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.accessPolicy.bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.entry.data_catalog_table_encrypted
+    title: Ensure Data Catalog Tables are Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.encryptionConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_table_logs_enabled
+    title: Enable Logging for Data Catalog Tables
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.auditConfig.logType
+        operator: contains
+        expected: DATA_READ
+  - check_id: gcp.datacatalog.entry.data_catalog_table_network_private_only
+    title: Ensure Data Catalog Tables Use Private Networks
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_catalog_table_role_least_privilege
+    title: Enforce Least Privilege for Data Catalog Table Roles
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseTableSpec.serviceAccount
+        operator: exists
+      - path: databaseTableSpec.permissions
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.datacatalog.entry_group.access_control_enabled
+    title: Ensure Access Control is Enabled for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: accessControl.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.audit_logging_enabled
+    title: Enable Audit Logging for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditConfig.auditLogConfigs[].logType
+        operator: contains
+        expected: ADMIN_READ
+  - check_id: gcp.datacatalog.entry_group.description_required
+    title: Require Description for Entry Groups
+    severity: low
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: description
+        operator: exists
+  - check_id: gcp.datacatalog.entry_group.encryption_enabled
+    title: Ensure Encryption is Enabled for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.entry_group.iam_policy_least_privilege
+    title: Enforce Least Privilege IAM Policies for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.entry_group.labels_required
+    title: Require Labels for Entry Groups
+    severity: low
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+  - check_id: gcp.datacatalog.entry_group.monitoring_enabled
+    title: Enable Monitoring for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: monitoringConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.network_security_enabled
+    title: Enable Network Security for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.public_access_restricted
+    title: Restrict Public Access to Entry Groups
+    severity: critical
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members
+        operator: not_contains
+        expected: allUsers
+  - check_id: gcp.datacatalog.entry_group.retention_policy_configured
+    title: Configure Retention Policy for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionPolicy.retentionPeriod
+        operator: exists
+  - check_id: gcp.datacatalog.entry_group.versioning_enabled
+    title: Enable Versioning for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioningConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.taxonomy.access_control_enabled
+    title: Enable Access Control for Taxonomies
+    severity: high
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: accessControl.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.taxonomy.audit_logging_enabled
+    title: Enable Audit Logging for Taxonomies
+    severity: medium
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditConfig.auditLogConfigs[].logType
+        operator: contains
+        expected: DATA_READ
+  - check_id: gcp.datacatalog.taxonomy.description_required
+    title: Require Description for Taxonomies
+    severity: low
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: description
+        operator: exists
+  - check_id: gcp.datacatalog.taxonomy.encryption_enabled
+    title: Ensure Encryption is Enabled for Taxonomies
+    severity: high
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.taxonomy.iam_policy_least_privilege
+    title: Enforce Least Privilege IAM Policies for Taxonomies
+    severity: high
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.taxonomy.labels_required
+    title: Require Labels for Taxonomies
+    severity: low
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+  - check_id: gcp.datacatalog.taxonomy.monitoring_enabled
+    title: Enable Monitoring for Taxonomies
+    severity: medium
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: monitoringConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.taxonomy.network_security_enabled
+    title: Enable Network Security for Taxonomies
+    severity: high
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.taxonomy.policy_tags_configured
+    title: Configure Policy Tags for Taxonomies
+    severity: medium
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: policyTags
+        operator: exists
+  - check_id: gcp.datacatalog.taxonomy.public_access_restricted
+    title: Restrict Public Access to Taxonomies
+    severity: critical
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members
+        operator: not_contains
+        expected: allUsers
+  - check_id: gcp.datacatalog.taxonomy.retention_policy_configured
+    title: Configure Retention Policy for Taxonomies
+    severity: medium
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionPolicy.retentionPeriod
+        operator: exists
+  - check_id: gcp.datacatalog.taxonomy.versioning_enabled
+    title: Enable Versioning for Taxonomies
+    severity: medium
+    for_each: list_datacatalog_taxonomies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioningConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.access_control_enabled
+    title: Enable Access Control for Tag Templates
+    severity: high
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: accessControl.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.audit_logging_enabled
+    title: Enable Audit Logging for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: auditConfig.auditLogConfigs[].logType
+        operator: contains
+        expected: ADMIN_READ
+  - check_id: gcp.datacatalog.tag_template.description_required
+    title: Require Description for Tag Templates
+    severity: low
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: displayName
+        operator: exists
+  - check_id: gcp.datacatalog.tag_template.encryption_enabled
+    title: Ensure Encryption is Enabled for Tag Templates
+    severity: high
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.datacatalog.tag_template.field_validation_enabled
+    title: Enable Field Validation for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: fields[].type.primitiveType
+        operator: exists
+  - check_id: gcp.datacatalog.tag_template.iam_policy_least_privilege
+    title: Enforce Least Privilege IAM Policies for Tag Templates
+    severity: high
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.datacatalog.tag_template.labels_required
+    title: Require Labels for Tag Templates
+    severity: low
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+  - check_id: gcp.datacatalog.tag_template.monitoring_enabled
+    title: Enable Monitoring for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: monitoringConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.network_security_enabled
+    title: Enable Network Security for Tag Templates
+    severity: high
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.public_access_restricted
+    title: Restrict Public Access to Tag Templates
+    severity: critical
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamPolicy.bindings[].members
+        operator: not_contains
+        expected: allUsers
+  - check_id: gcp.datacatalog.tag_template.required_fields_configured
+    title: Configure Required Fields for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: fields[].isRequired
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.retention_policy_configured
+    title: Configure Retention Policy for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionPolicy.retentionPeriod
+        operator: exists
+  - check_id: gcp.datacatalog.tag_template.schema_validation_enabled
+    title: Enable Schema Validation for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: schemaValidation.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.tag_template.versioning_enabled
+    title: Enable Versioning for Tag Templates
+    severity: medium
+    for_each: list_datacatalog_tag_templates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versioningConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.backup_retention_configured
+    title: Configure Backup Retention for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: backupConfig.retentionPeriod
+        operator: exists
+  - check_id: gcp.datacatalog.entry.change_tracking_enabled
+    title: Enable Change Tracking for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: changeTracking.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.compliance_tags_required
+    title: Require Compliance Tags for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: tags[].template
+        operator: contains
+        expected: compliance
+  - check_id: gcp.datacatalog.entry.data_classification_enabled
+    title: Enable Data Classification for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dataClassification.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_lineage_tracking_enabled
+    title: Enable Data Lineage Tracking for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lineageConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_quality_monitoring_enabled
+    title: Enable Data Quality Monitoring for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: qualityMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.data_retention_policy_configured
+    title: Configure Data Retention Policy for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionPolicy.retentionPeriod
+        operator: exists
+  - check_id: gcp.datacatalog.entry.data_sensitivity_labels_applied
+    title: Apply Data Sensitivity Labels to Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sensitivityLabels
+        operator: exists
+  - check_id: gcp.datacatalog.entry.disaster_recovery_configured
+    title: Configure Disaster Recovery for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disasterRecovery.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.encryption_key_rotation_enabled
+    title: Enable Encryption Key Rotation for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.keyRotation.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.external_access_monitoring_enabled
+    title: Enable External Access Monitoring for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: externalAccessMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.field_level_encryption_enabled
+    title: Enable Field Level Encryption for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: fieldLevelEncryption.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.gdpr_compliance_enabled
+    title: Enable GDPR Compliance for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gdprCompliance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.geographic_restrictions_configured
+    title: Configure Geographic Restrictions for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: geographicRestrictions.allowedRegions
+        operator: exists
+  - check_id: gcp.datacatalog.entry.hipaa_compliance_enabled
+    title: Enable HIPAA Compliance for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: hipaaCompliance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.incident_response_configured
+    title: Configure Incident Response for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: incidentResponse.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.integration_security_enabled
+    title: Enable Integration Security for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: integrationSecurity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.metadata_encryption_enabled
+    title: Enable Metadata Encryption for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadataEncryption.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.multi_region_backup_enabled
+    title: Enable Multi-Region Backup for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: multiRegionBackup.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.network_isolation_enabled
+    title: Enable Network Isolation for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkIsolation.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.pci_compliance_enabled
+    title: Enable PCI Compliance for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: pciCompliance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.performance_monitoring_enabled
+    title: Enable Performance Monitoring for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: performanceMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.privacy_protection_enabled
+    title: Enable Privacy Protection for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privacyProtection.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.real_time_monitoring_enabled
+    title: Enable Real-Time Monitoring for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: realTimeMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.schema_evolution_tracking_enabled
+    title: Enable Schema Evolution Tracking for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: schemaEvolution.trackingEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.security_scanning_enabled
+    title: Enable Security Scanning for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityScanning.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.sox_compliance_enabled
+    title: Enable SOX Compliance for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: soxCompliance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.threat_detection_enabled
+    title: Enable Threat Detection for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: threatDetection.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.usage_analytics_enabled
+    title: Enable Usage Analytics for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: usageAnalytics.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.vulnerability_scanning_enabled
+    title: Enable Vulnerability Scanning for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: vulnerabilityScanning.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.workflow_automation_secured
+    title: Secure Workflow Automation for Data Catalog Entries
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workflowAutomation.securityEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry.zero_trust_access_enabled
+    title: Enable Zero Trust Access for Data Catalog Entries
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: zeroTrustAccess.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.api_security_enabled
+    title: Enable API Security for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: apiSecurity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.automated_backup_enabled
+    title: Enable Automated Backup for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: automatedBackup.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.business_continuity_configured
+    title: Configure Business Continuity for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: businessContinuity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.change_management_enabled
+    title: Enable Change Management for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: changeManagement.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.compliance_monitoring_enabled
+    title: Enable Compliance Monitoring for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: complianceMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.cost_optimization_enabled
+    title: Enable Cost Optimization for Entry Groups
+    severity: low
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: costOptimization.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.cross_region_replication_enabled
+    title: Enable Cross-Region Replication for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: crossRegionReplication.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.data_governance_enabled
+    title: Enable Data Governance for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dataGovernance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.data_loss_prevention_enabled
+    title: Enable Data Loss Prevention for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dataLossPrevention.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.data_masking_enabled
+    title: Enable Data Masking for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dataMasking.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.data_residency_compliance_enabled
+    title: Enable Data Residency Compliance for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dataResidencyCompliance.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.disaster_recovery_testing_enabled
+    title: Enable Disaster Recovery Testing for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disasterRecoveryTesting.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.endpoint_protection_enabled
+    title: Enable Endpoint Protection for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: endpointProtection.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.environment_isolation_enabled
+    title: Enable Environment Isolation for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: environmentIsolation.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.failover_configuration_enabled
+    title: Enable Failover Configuration for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: failoverConfiguration.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.forensic_logging_enabled
+    title: Enable Forensic Logging for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: forensicLogging.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.high_availability_enabled
+    title: Enable High Availability for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: highAvailability.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.identity_federation_secured
+    title: Secure Identity Federation for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: identityFederation.securityEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.incident_escalation_configured
+    title: Configure Incident Escalation for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: incidentEscalation.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.intrusion_detection_enabled
+    title: Enable Intrusion Detection for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: intrusionDetection.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.load_balancing_configured
+    title: Configure Load Balancing for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loadBalancing.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.malware_protection_enabled
+    title: Enable Malware Protection for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: malwareProtection.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.multi_factor_authentication_enabled
+    title: Enable Multi-Factor Authentication for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: multiFactorAuthentication.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.patch_management_enabled
+    title: Enable Patch Management for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchManagement.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.penetration_testing_enabled
+    title: Enable Penetration Testing for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: penetrationTesting.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.privileged_access_management_enabled
+    title: Enable Privileged Access Management for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privilegedAccessManagement.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.resource_tagging_enforced
+    title: Enforce Resource Tagging for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: resourceTagging.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.security_assessment_enabled
+    title: Enable Security Assessment for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityAssessment.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.service_mesh_security_enabled
+    title: Enable Service Mesh Security for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceMeshSecurity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.supply_chain_security_enabled
+    title: Enable Supply Chain Security for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: supplyChainSecurity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.threat_intelligence_enabled
+    title: Enable Threat Intelligence for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: threatIntelligence.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.traffic_encryption_enabled
+    title: Enable Traffic Encryption for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficEncryption.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.user_behavior_analytics_enabled
+    title: Enable User Behavior Analytics for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userBehaviorAnalytics.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.vulnerability_management_enabled
+    title: Enable Vulnerability Management for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: vulnerabilityManagement.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.web_application_firewall_enabled
+    title: Enable Web Application Firewall for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: webApplicationFirewall.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.workload_identity_enabled
+    title: Enable Workload Identity for Entry Groups
+    severity: high
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workloadIdentity.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.datacatalog.entry_group.zero_downtime_deployment_enabled
+    title: Enable Zero Downtime Deployment for Entry Groups
+    severity: medium
+    for_each: list_datacatalog_entry_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: zeroDowntimeDeployment.enabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_partition_catalog_encrypted
+    title: Ensure Data Catalog Partition is Encrypted
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_private_networking_enforced
+    title: Ensure Data Catalog Private Networking is Enforced
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_rbac_least_privilege
+    title: Ensure Data Catalog RBAC Follows Least Privilege
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_role_least_privilege
+    title: Ensure Data Catalog Roles Follow Least Privilege
+    severity: medium
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_table_public_sharing_disabled
+    title: Ensure Data Catalog Table Public Sharing is Disabled
+    severity: critical
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.datacatalog.entry.data_catalog_tls_required
+    title: Ensure Data Catalog Requires TLS
+    severity: high
+    for_each: list_datacatalog_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: linkedResource
+        operator: exists
+        expected: true
+        
+  api_name: datacatalog
+  api_version: v1
+  project_param_format: projects/{{project_id}}

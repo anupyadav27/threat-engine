@@ -1,0 +1,84 @@
+component: kubelet
+component_type: node
+discovery:
+- discovery_id: list_kubelet_resources
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: name
+    - path: namespace
+      var: namespace
+    - path: labels
+      var: labels
+checks:
+- check_id: k8s.kubelet.anonymous.auth_disabled
+  name: Auth Disabled
+  severity: HIGH
+  for_each: list_kubelet_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: not_equals
+      expected: true
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.kubelet.authorization.mode_not_always_allow
+  name: Mode Not Always Allow
+  severity: LOW
+  for_each: list_kubelet_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: not_equals
+      expected: true
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.kubelet.configmap.file_permissions_check
+  name: File Permissions Check
+  severity: HIGH
+  for_each: list_kubelet_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: exists
+      expected: null
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.kubelet.read.only_port_disabled
+  name: Only Port Disabled
+  severity: LOW
+  for_each: list_kubelet_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: not_equals
+      expected: true
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.kubelet.seccomp.default_enabled
+  name: Default Enabled
+  severity: LOW
+  for_each: list_kubelet_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: equals
+      expected: true
+  logic: AND
+  errors_as_fail: []

@@ -1,0 +1,180 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+trace:
+  version: '1.0'
+  provider: gcp
+  service: trace
+  scope: regional
+  discovery:
+  - discovery_id: list_trace_resources
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: resource_name
+      - path: projectId
+        var: project_id
+  - discovery_id: list_trace_iam_policies
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings
+        var: iam_bindings
+      - path: etag
+        var: policy_etag
+  - discovery_id: list_trace_sinks
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: sink_name
+      - path: destination
+        var: sink_destination
+      - path: filter
+        var: sink_filter
+  checks:
+  - check_id: gcp.trace.trace.monitoring_access_rbac_least_privilege
+    title: Enforce Least Privilege for Trace Monitoring Access
+    severity: high
+    for_each: list_trace_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/cloudtrace.admin
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/editor
+    - action: eval
+      fields:
+      - path: bindings[?(@.role=='roles/cloudtrace.user')].members[]
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: bindings[?(@.role=='roles/cloudtrace.agent')].members[]
+        operator: exists
+        expected: true
+  - check_id: gcp.trace.trace.monitoring_retention_days_minimum
+    title: Ensure Trace Monitoring Retention Meets Minimum Days
+    severity: medium
+    for_each: list_trace_sinks
+    logic: AND
+    calls:
+    - action: get_sink_details
+      fields:
+      - path: bigqueryOptions.usePartitionedTables
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: destination
+        operator: contains
+        expected: bigquery.googleapis.com
+    - action: get_bigquery_dataset_details
+      fields:
+      - path: defaultTableExpirationMs
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: defaultTableExpirationMs
+        operator: equals
+        expected: 2592000000
+    - action: eval
+      fields:
+      - path: labels.retention_policy
+        operator: exists
+        expected: true
+  - check_id: gcp.trace.trace.monitoring_store_encrypted
+    title: Ensure Cloud Trace Monitoring Data is Encrypted at Rest
+    severity: critical
+    for_each: list_trace_resources
+    logic: AND
+    calls:
+    - action: get_project_details
+      fields:
+      - path: commonInstanceMetadata.items[?(@.key=='enable-cloud-trace-encryption')].value
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: __self__
+        operator: exists
+        expected: true
+    - action: get_kms_key_details
+      fields:
+      - path: purpose
+        operator: equals
+        expected: ENCRYPT_DECRYPT
+    - action: eval
+      fields:
+      - path: state
+        operator: equals
+        expected: ENABLED
+    - action: get_trace_config
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: encryptionConfig.encryptionType
+        operator: equals
+        expected: CUSTOMER_MANAGED_ENCRYPTION

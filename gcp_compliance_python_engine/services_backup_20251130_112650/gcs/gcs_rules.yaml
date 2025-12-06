@@ -1,0 +1,115 @@
+gcs:
+  discovery:
+    - discovery_id: list_buckets
+      calls:
+        - action: list_buckets
+    - discovery_id: bucket_metadata
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: iam_configuration.is_uniform_bucket_level_access_enabled
+              var: iam_configuration_uniform
+            - path: iam_configuration.public_access_prevention
+              var: public_access_prevention
+            - path: versioning_enabled
+              var: versioning_enabled
+            - path: default_kms_key_name
+              var: default_kms_key_name
+            - path: retention_policy_locked
+              var: retention_policy_locked
+            - path: raw.logging.logBucket
+              var: logging_bucket
+
+  checks:
+    - check_id: gcs_bucket_uniform_access_enabled
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: iam_configuration_uniform
+              operator: equals
+              expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_no_allusers_reader
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_iam_policy
+          fields:
+            - path: bindings[].members[]
+              operator: contains
+              expected: allUsers
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_public_access_prevention_enforced
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: public_access_prevention
+              operator: equals
+              expected: enforced
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_versioning_enabled
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: versioning_enabled
+              operator: equals
+              expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_has_default_kms_key
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: default_kms_key_name
+              operator: exists
+              expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_retention_policy_locked
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: retention_policy_locked
+              operator: equals
+              expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: []
+
+    - check_id: gcs_bucket_logging_configured
+      for_each: list_buckets
+      param: bucket
+      calls:
+        - action: get_bucket_metadata
+          fields:
+            - path: logging_bucket
+              operator: exists
+              expected: true
+      multi_step: false
+      logic: AND
+      errors_as_fail: [] 

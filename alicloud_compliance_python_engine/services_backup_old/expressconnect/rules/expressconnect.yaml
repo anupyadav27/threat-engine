@@ -1,0 +1,91 @@
+version: '1.0'
+provider: alicloud
+service: expressconnect
+discovery:
+- discovery_id: alicloud.expressconnect.connect
+  calls:
+  - product: EXPRESSCONNECT
+    version: '2014-05-26'
+    action: DescribeConnects
+    params: {}
+    save_as: connect_list
+  emit:
+    items_for: '{ connect_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: connect
+- discovery_id: alicloud.expressconnect.connection
+  calls:
+  - product: EXPRESSCONNECT
+    version: '2014-05-26'
+    action: DescribeConnections
+    params: {}
+    save_as: connection_list
+  emit:
+    items_for: '{ connection_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: connection
+- discovery_id: alicloud.expressconnect.virtual
+  calls:
+  - product: EXPRESSCONNECT
+    version: '2014-05-26'
+    action: DescribeVirtuals
+    params: {}
+    save_as: virtual_list
+  emit:
+    items_for: '{ virtual_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: virtual
+checks:
+- rule_id: alicloud.expressconnect.connect.vpn_ike_phase_encryption_strong
+  title: Express Connect VPN IKE Phase 1 Should Use Strong Encryption Algorithms
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.expressconnect.connect
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.expressconnect.connect.vpn_pre_shared_keys_rotation_policy_defined
+  title: Express Connect VPN Pre-Shared Keys Rotation Policy Should Be Defined
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.expressconnect.connect
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.expressconnect.connection.redundancy
+  title: Express Connect physical connections should have redundancy configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.expressconnect.connection
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.expressconnect.virtual.interface_redundancy
+  title: Ensure Express Connect Virtual Border Router Interfaces Have Redundancy Configuration
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.expressconnect.virtual
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

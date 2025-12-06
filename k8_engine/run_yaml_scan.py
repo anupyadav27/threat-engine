@@ -5,13 +5,13 @@ import json
 from datetime import datetime
 from typing import List, Dict, Any
 
-from .engine import run_yaml_engine
-from .utils.reporting import create_reporter
+from engine.engine_main import run_yaml_engine
+from utils.reporting import create_reporter
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Run YAML-driven Kubernetes checks")
-    p.add_argument("--rules-dir", type=str, default=os.path.join(os.path.dirname(__file__), "rules"))
+    p.add_argument("--rules-dir", type=str, default=os.path.join(os.path.dirname(__file__), "services"))
     p.add_argument("--kubeconfig", type=str, default=None)
     p.add_argument("--context", type=str, default=None)
     p.add_argument("--components", nargs="+", default=["apiserver"]) 

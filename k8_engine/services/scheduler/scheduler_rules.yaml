@@ -1,0 +1,42 @@
+component: scheduler
+component_type: control_plane
+discovery:
+- discovery_id: list_scheduler_resources
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: name
+    - path: namespace
+      var: namespace
+    - path: labels
+      var: labels
+checks:
+- check_id: k8s.scheduler.bind.address_check
+  name: Address Check
+  severity: LOW
+  for_each: list_scheduler_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: arguments.address-check
+      operator: exists
+      expected: null
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.scheduler.conf.file_permissions_check
+  name: File Permissions Check
+  severity: HIGH
+  for_each: list_scheduler_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: arguments.file-permissions-check
+      operator: exists
+      expected: null
+  logic: AND
+  errors_as_fail: []

@@ -1,0 +1,252 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+  version: '1.0'
+  provider: gcp
+  service: <service_name>
+  scope: global  # OR: regional (determines if engine iterates regions)
+  
+  # API Configuration - VERIFY THESE ARE CORRECT
+  api_name: <api_name>      # e.g., compute, storage, pubsub
+  api_version: v1           # e.g., v1, v1beta1
+  
+  # Discovery Section - FIND RESOURCES
+  # ============================================================================
+  # RULES:
+  # - action MUST be: list_<resource>, aggregatedList_<resource>, or list
+  # - Field paths MUST match actual GCP API response structure
+  # - Variables (var) are used in checks section
+  # ============================================================================
+  discovery:
+  - discovery_id: <unique_id>  # Used in checks' for_each
+    calls:
+    - action: list_<resource_type>  # e.g., list_topics, list_firewalls
+      # OR: aggregatedList_<resource_type> for Compute resources
+      fields:
+      - path: name              # Simple field from API response
+        var: resource_name      # Variable name for checks
+      - path: property.nested   # Nested field (use dot notation)
+        var: nested_value
+      - path: status
+        var: resource_status
+  
+  # Multiple discoveries (if needed):
+  - discovery_id: <another_resource>
+    calls:
+    - action: list_<other_resource>
+      fields:
+      - path: __self__  # Extract entire resource object
+  
+  # Checks Section - COMPLIANCE RULES
+  # ============================================================================
+  # RULES:
+  # - check_id format: gcp.<service>.<resource>.<check_name>
+  # - for_each MUST match a discovery_id above
+  # - action MUST be "eval" (evaluates discovered data)
+  # - Field paths MUST exist in discovered resource
+  # - Operators: exists, equals, contains, not_contains
+  # ============================================================================
+  checks:
+  - check_id: gcp.<service>.<resource>.<check_name>
+    title: Human Readable Check Description
+    severity: high  # high|medium|low
+    for_each: <discovery_id>  # ← MUST MATCH discovery_id ABOVE
+    logic: AND  # AND|OR (how to combine multiple field checks)
+    calls:
+    - action: eval  # ← PRIMARY ACTION FOR CHECKS
+      fields:
+      - path: property.field    # ← MUST EXIST in discovered resource
+        operator: exists        # exists|equals|contains|not_contains
+        expected: true          # Expected value (optional for exists)
+      
+      # Multiple field checks in same call (combined by logic):
+      - path: status
+        operator: equals
+        expected: READY
+  
+  # Example check with different operators:
+  - check_id: gcp.<service>.<resource>.<another_check>
+    title: Another Check
+    severity: medium
+    for_each: <discovery_id>
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: kmsKeyName           # Check if field exists
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: labels.environment   # Check exact match
+        operator: equals
+        expected: production
+    - action: eval
+      fields:
+      - path: name                 # Check contains string
+        operator: not_contains
+        expected: default
+
+# ============================================================================
+# FIELD PATH EXAMPLES (Match GCP API Structure):
+# ============================================================================
+# Simple field:          path: name
+# Nested object:         path: metadata.creationTimestamp
+# Array access:          path: networkInterfaces[0].accessConfigs
+# Nested in array:       path: items[].status
+# Deep nesting:          path: properties.encryption.kmsKeyName
+#
+# COMMON GCP FIELD NAMES:
+# - name, status, description, labels, tags
+# - creationTimestamp, updateTime
+# - kmsKeyName, encryption
+# - iamConfiguration, bindings
+# - networkInterfaces, accessConfigs
+# - metadata, properties
+# ============================================================================
+
+# ============================================================================
+# OPERATOR GUIDE:
+# ============================================================================
+# exists        → Check if field is present/true
+#                 Examples:
+#                 - path: kmsKeyName, operator: exists, expected: true
+#                 - path: deletionProtection, operator: exists, expected: true
+#
+# equals        → Exact value match
+#                 Examples:
+#                 - path: status, operator: equals, expected: READY
+#                 - path: logConfig.enable, operator: equals, expected: true
+#
+# contains      → String or list contains value
+#                 Examples:
+#                 - path: sourceRanges, operator: contains, expected: "0.0.0.0/0"
+#                 - path: name, operator: contains, expected: "prod"
+#
+# not_contains  → Opposite of contains
+#                 Examples:
+#                 - path: name, operator: not_contains, expected: "default"
+#                 - path: allowedIpRanges, operator: not_contains, expected: "0.0.0.0/0"
+# ============================================================================
+
+# ============================================================================
+# DEBUGGING TIPS:
+# ============================================================================
+# Issue: Empty inventories
+# Fix: Change action to supported pattern (list_*, aggregatedList_*)
+#      Example: get_topics → list_topics
+#
+# Issue: Zero checks executed
+# Fix: Verify for_each matches discovery_id exactly
+#      Check spelling and case sensitivity
+#
+# Issue: All checks fail
+# Fix: Update field paths to match actual GCP API response
+#      Run engine, check inventories section to see actual structure
+#      Example: encryption.key → kmsKeyName
+#
+# Issue: Skipped checks
+# Fix: Ensure discovery completed successfully
+#      Check discovery_id exists and has resources
+#
+# Issue: Python exception
+# Fix: Check YAML syntax (indentation, colons, hyphens)
+#      Verify action names are valid
+#      Check for typos in field names
+# ============================================================================
+
+# ============================================================================
+# VALIDATION CHECKLIST:
+# ============================================================================
+# Discovery Section:
+# [ ] Action follows pattern: list_<resource> or aggregatedList_<resource>
+# [ ] Field paths match GCP API response structure
+# [ ] Variables (var) are descriptive
+# [ ] Discovery_id is unique
+#
+# Checks Section:
+# [ ] check_id format: gcp.<service>.<resource>.<check>
+# [ ] for_each references valid discovery_id
+# [ ] Action is "eval"
+# [ ] Field paths exist in discovered resources
+# [ ] Operators are correct for field types
+# [ ] Logic (AND/OR) makes sense
+#
+# Testing:
+# [ ] Engine runs without errors
+# [ ] Inventories populated
+# [ ] Checks execute
+# [ ] JSON output valid
+# [ ] No unexpected skips
+# ============================================================================
+
+# ============================================================================
+# VALIDATION STATUS (UPDATE AFTER FIXING):
+# ============================================================================
+# Date: YYYY-MM-DD
+# 
+# Issues Found:
+# - <describe what was broken>
+#
+# Fixes Applied:
+# - <describe what you fixed>
+# - Discovery: <action changes, field path updates>
+# - Checks: <for_each fixes, field path corrections, operator changes>
+#
+# Test Results:
+# - Engine Status: ✅ NO ERRORS / ❌ HAS ERRORS
+# - Inventories: <count> discoveries populated
+# - Checks Executed: <count> checks ran successfully
+# - Checks Skipped: <count> (if any, explain why)
+#
+# Final Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# Next Steps:
+# - <if any follow-up needed>
+# ============================================================================
+

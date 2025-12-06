@@ -1,0 +1,260 @@
+version: '1.0'
+provider: alicloud
+service: asr
+discovery:
+- discovery_id: alicloud.asr.dr_drills_tests
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDrDrillsTestss
+    params: {}
+    save_as: dr_drills_tests_response
+  emit:
+    items_for: '{ dr_drills_tests_response.DrDrillsTestss.DrDrillsTests }'
+    as: r
+    item:
+      id: '{{ r.DrDrillsTestsId }}'
+      name: '{{ r.DrDrillsTestsId }}'
+      resource_type: dr_drills_tests
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.asr.dr_plan
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDrPlans
+    params: {}
+    save_as: dr_plan_response
+  emit:
+    items_for: '{ dr_plan_response.DrPlans.DrPlan }'
+    as: r
+    item:
+      id: '{{ r.DrPlanId }}'
+      name: '{{ r.DrPlanId }}'
+      resource_type: dr_plan
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.asr.job
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeJobs
+    params: {}
+    save_as: job_response
+  emit:
+    items_for: '{ job_response.Jobs.Job }'
+    as: r
+    item:
+      id: '{{ r.JobId }}'
+      name: '{{ r.JobId }}'
+      resource_type: job
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.asr.recovery_instance
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeRecoveryInstances
+    params: {}
+    save_as: recovery_instance_response
+  emit:
+    items_for: '{ recovery_instance_response.RecoveryInstances.RecoveryInstance }'
+    as: r
+    item:
+      id: '{{ r.RecoveryInstanceId }}'
+      name: '{{ r.RecoveryInstanceId }}'
+      resource_type: recovery_instance
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.asr.source_server
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeSourceServers
+    params: {}
+    save_as: source_server_response
+  emit:
+    items_for: '{ source_server_response.SourceServers.SourceServer }'
+    as: r
+    item:
+      id: '{{ r.SourceServerId }}'
+      name: '{{ r.SourceServerId }}'
+      resource_type: source_server
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.asr.dr_drills_tests.testing_execution_roles_least_privilege
+  title: Ensure Application Security Review Disaster Recovery Drill Testing Execution Roles Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.asr.dr_drills_tests
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.asr.dr_drills_tests.testing_logs_enabled
+  title: Ensure AliCloud Application Security and Resilience (ASR) disaster recovery drill testing logs are enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.asr.dr_drills_tests
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.asr.dr_drills_tests.testing_results_storage_encrypted_and_private
+  title: Ensure Application Security Reinforcement DR Drill Testing Results Storage is Encrypted and Private
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.dr_drills_tests
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.asr.dr_plan.approvals_required_for_changes
+  title: Application Service Resilience disaster recovery plans must require approvals for changes
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.asr.dr_plan
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.asr.dr_plan.change_audit_logging_enabled
+  title: Application Service Recovery Disaster Recovery Plan Change Audit Logging Must Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.dr_plan
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.asr.dr_plan.storage_encrypted_and_private
+  title: Application Service Recovery disaster recovery plan storage must be encrypted and configured as private
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.dr_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.asr.job.dr_job_logs_enabled
+  title: Ensure Automatic Speech Recognition disaster recovery job logs are enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.asr.job
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.asr.job.dr_job_network_private_only
+  title: Ensure Alibaba Cloud Auto Scaling Resource (ASR) DR Jobs Use Private Network Access Only
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.job
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.asr.job.dr_job_roles_least_privilege
+  title: Ensure AliCloud Application Service Recovery (ASR) disaster recovery job roles follow least privilege principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.asr.job
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.asr.recovery_instance.private_network_only
+  title: Alibaba Cloud Application Service Recovery instance should be configured for private network access only
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.recovery_instance
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.asr.recovery_instance.security_groups_restrictive
+  title: Application Service Recovery Instance Security Groups Should Follow Restrictive Access Policies
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.recovery_instance
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.asr.recovery_instance.volumes_encrypted
+  title: Alibaba Cloud Application Service Recovery recovery instance volumes should be encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.asr.recovery_instance
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.asr.source_server.dr_source_agent_to_service_tls_required
+  title: Application Server Recovery (ASR) Source Server Must Use TLS Encryption for DR Agent Communication
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.asr.source_server
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.asr.source_server.dr_source_encryption_at_rest_cmek_where_supported
+  title: Application Server Recovery (ASR) disaster recovery source servers should use customer-managed encryption keys (CMEK)
+    for data at rest encryption where supported
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.asr.source_server
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists

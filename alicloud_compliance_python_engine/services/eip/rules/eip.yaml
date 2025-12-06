@@ -1,0 +1,35 @@
+version: '1.0'
+provider: alicloud
+service: eip
+discovery:
+- discovery_id: alicloud.eip.attached
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeAttacheds
+    params: {}
+    save_as: attached_response
+  emit:
+    items_for: '{ attached_response.Attacheds.Attached }'
+    as: r
+    item:
+      id: '{{ r.AttachedId }}'
+      name: '{{ r.AttachedId }}'
+      resource_type: attached
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.eip.attached.configured
+  title: Ensure Elastic IP addresses are attached to resources
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.eip.attached
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

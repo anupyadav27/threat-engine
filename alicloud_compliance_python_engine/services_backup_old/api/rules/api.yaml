@@ -1,0 +1,437 @@
+version: '1.0'
+provider: alicloud
+service: api
+discovery:
+- discovery_id: alicloud.api.api
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeApis
+    params: {}
+    save_as: api_list
+  emit:
+    items_for: '{ api_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: api
+- discovery_id: alicloud.api.app_credential
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeAppCredentials
+    params: {}
+    save_as: app_credential_list
+  emit:
+    items_for: '{ app_credential_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: app_credential
+- discovery_id: alicloud.api.authorizer
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeAuthorizers
+    params: {}
+    save_as: authorizer_list
+  emit:
+    items_for: '{ authorizer_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: authorizer
+- discovery_id: alicloud.api.field
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeFields
+    params: {}
+    save_as: field_list
+  emit:
+    items_for: '{ field_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: field
+- discovery_id: alicloud.api.function
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeFunctions
+    params: {}
+    save_as: function_list
+  emit:
+    items_for: '{ function_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: function
+- discovery_id: alicloud.api.gateway
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeGateways
+    params: {}
+    save_as: gateway_list
+  emit:
+    items_for: '{ gateway_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: gateway
+- discovery_id: alicloud.api.hosting
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeHostings
+    params: {}
+    save_as: hosting_list
+  emit:
+    items_for: '{ hosting_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: hosting
+- discovery_id: alicloud.api.http
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeHttps
+    params: {}
+    save_as: http_list
+  emit:
+    items_for: '{ http_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: http
+- discovery_id: alicloud.api.minimum
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeMinimums
+    params: {}
+    save_as: minimum_list
+  emit:
+    items_for: '{ minimum_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: minimum
+- discovery_id: alicloud.api.stage
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeStages
+    params: {}
+    save_as: stage_list
+  emit:
+    items_for: '{ stage_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: stage
+- discovery_id: alicloud.api.usage_plan
+  calls:
+  - product: API
+    version: '2014-05-26'
+    action: DescribeUsagePlans
+    params: {}
+    save_as: usage_plan_list
+  emit:
+    items_for: '{ usage_plan_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: usage_plan
+checks:
+- rule_id: alicloud.api.api.endpoint_authn_required
+  title: AliCloud API Gateway Endpoint Authentication Required
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.api
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.api.endpoint_authz_policies_enforced
+  title: AliCloud API Gateway Endpoint Authorization Policies Must Be Enforced
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.api
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.api.endpoint_waf_attached
+  title: Ensure API Gateway endpoints have Web Application Firewall (WAF) protection
+    attached
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.api
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.app_credential.api_key_scopes_least_privilege
+  title: Ensure AliCloud API Gateway Application Credentials Use Least Privilege API
+    Key Scopes
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.api.app_credential
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.authorizer.tls_min_1_2_enforced
+  title: API Gateway Authorizer Must Enforce TLS Version 1.2 or Higher
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.authorizer
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.authorizer.token_audience_restricted
+  title: AliCloud API Gateway Authorizer Token Audience Should Be Restricted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.authorizer
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.field.level_logging_enabled
+  title: Ensure API Gateway Field-Level Logging is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.field
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.function.access_keys_configured
+  title: Ensure AliCloud Function Compute Functions Have Access Keys Properly Configured
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.api.function
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.function.identity_without_admin_privileges
+  title: AliCloud Function Compute Service Roles Should Not Have Administrative Privileges
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.api.function
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.function.not_publicly_accessible
+  title: Ensure AliCloud API Gateway Functions Are Not Publicly Accessible
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.api.function
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.api_gateway_https_required
+  title: AliCloud API Gateway HTTPS Protocol Enforcement Required
+  severity: low
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_SC-8_0133
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.client_certificate_enabled
+  title: Ensure AliCloud API Gateway Has Client Certificate Authentication Enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CA-9_0040
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.restapi_client_certificate_enabled
+  title: Ensure AliCloud API Gateway REST API Has Client Certificate Authentication
+    Enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CA-9_0040
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.restapi_logging_enabled
+  title: Ensure AliCloud API Gateway REST API Logging is Enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AU-2_0024
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.restapi_tracing_enabled
+  title: Ensure AliCloud API Gateway REST API Tracing is Enabled
+  severity: low
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CA-9_0040
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.restapi_waf_acl_attached
+  title: Ensure API Gateway REST APIs have Web Application Firewall ACL attached
+  severity: low
+  assertion_id: iso27001_2022_multi_cloud_A.8.20_0076
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.validation_api_parameters_validation_enabled
+  title: AliCloud API Gateway Parameter Validation Must Be Enabled
+  severity: medium
+  assertion_id: rbi_bank_multi_cloud_12.1_0005
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.validation_api_request_schema_validation_enabled
+  title: AliCloud API Gateway Request Schema Validation Should Be Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.gateway.validation_api_required_security_headers_enforced
+  title: AliCloud API Gateway Validation API Required Security Headers Enforced
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.gateway
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.hosting.managed_updates_enabled
+  title: Ensure AliCloud API Gateway Managed Updates Are Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.hosting
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.http.logs_enabled
+  title: Ensure API Gateway HTTP API Logging is Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.http
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.minimum.tls_version_12
+  title: AliCloud API Gateway Should Enforce Minimum TLS Version 1.2
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.minimum
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.stage.logging_enabled
+  title: API Gateway Stage Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.api.stage
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.stage.throttling_enabled
+  title: Ensure AliCloud API Gateway Stage Has Throttling Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.stage
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.api.usage_plan.rate_limits_configured
+  title: AliCloud API Gateway Usage Plan Rate Limits Must Be Configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.api.usage_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

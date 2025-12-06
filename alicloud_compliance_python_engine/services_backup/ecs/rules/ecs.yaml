@@ -1,0 +1,179 @@
+version: '1.0'
+provider: alicloud
+service: ecs
+description: Elastic Compute Service compliance checks
+
+discovery:
+  # Discover ECS instances
+  - discovery_id: alicloud.ecs.instances
+    calls:
+      - product: Ecs
+        version: '2014-05-26'
+        action: DescribeInstances
+        save_as: instances_response
+        params:
+          PageSize: 100
+    emit:
+      items_for: '{{ instances_response.Instances.Instance }}'
+      as: instance
+      item:
+        id: '{{ instance.InstanceId }}'
+        name: '{{ instance.InstanceName }}'
+        status: '{{ instance.Status }}'
+        instance_type: '{{ instance.InstanceType }}'
+        creation_time: '{{ instance.CreationTime }}'
+        region_id: '{{ instance.RegionId }}'
+        zone_id: '{{ instance.ZoneId }}'
+        public_ip: '{{ instance.PublicIpAddress.IpAddress }}'
+        private_ip: '{{ instance.PrivateIpAddress.IpAddress }}'
+        security_group_ids: '{{ instance.SecurityGroupIds.SecurityGroupId }}'
+        vpc_id: '{{ instance.VpcAttributes.VpcId }}'
+        vswitch_id: '{{ instance.VpcAttributes.VSwitchId }}'
+
+  # Discover instance attributes (for detailed checks)
+  - discovery_id: alicloud.ecs.instance_attributes
+    for_each: alicloud.ecs.instances
+    calls:
+      - product: Ecs
+        version: '2014-05-26'
+        action: DescribeInstanceAttribute
+        save_as: instance_attr
+        params:
+          InstanceId: '{{ item.id }}'
+        on_error: continue
+    emit:
+      item:
+        instance_id: '{{ item.id }}'
+        instance_name: '{{ item.name }}'
+        deletion_protection: '{{ instance_attr.DeletionProtection }}'
+        user_data: '{{ instance_attr.UserData }}'
+        io_optimized: '{{ instance_attr.IoOptimized }}'
+        
+  # Discover security groups
+  - discovery_id: alicloud.ecs.security_groups
+    calls:
+      - product: Ecs
+        version: '2014-05-26'
+        action: DescribeSecurityGroups
+        save_as: security_groups_response
+        params:
+          PageSize: 100
+    emit:
+      items_for: '{{ security_groups_response.SecurityGroups.SecurityGroup }}'
+      as: sg
+      item:
+        id: '{{ sg.SecurityGroupId }}'
+        name: '{{ sg.SecurityGroupName }}'
+        vpc_id: '{{ sg.VpcId }}'
+        description: '{{ sg.Description }}'
+        creation_time: '{{ sg.CreationTime }}'
+
+  # Discover security group rules
+  - discovery_id: alicloud.ecs.security_group_rules
+    for_each: alicloud.ecs.security_groups
+    calls:
+      - product: Ecs
+        version: '2014-05-26'
+        action: DescribeSecurityGroupAttribute
+        save_as: sg_rules
+        params:
+          SecurityGroupId: '{{ item.id }}'
+        on_error: continue
+    emit:
+      item:
+        security_group_id: '{{ item.id }}'
+        security_group_name: '{{ item.name }}'
+        ingress_rules: '{{ sg_rules.Permissions.Permission }}'
+
+  # Discover disks
+  - discovery_id: alicloud.ecs.disks
+    calls:
+      - product: Ecs
+        version: '2014-05-26'
+        action: DescribeDisks
+        save_as: disks_response
+        params:
+          PageSize: 100
+    emit:
+      items_for: '{{ disks_response.Disks.Disk }}'
+      as: disk
+      item:
+        id: '{{ disk.DiskId }}'
+        name: '{{ disk.DiskName }}'
+        instance_id: '{{ disk.InstanceId }}'
+        encrypted: '{{ disk.Encrypted }}'
+        kms_key_id: '{{ disk.KMSKeyId }}'
+        type: '{{ disk.Type }}'
+        category: '{{ disk.Category }}'
+        size: '{{ disk.Size }}'
+        status: '{{ disk.Status }}'
+
+checks:
+  # Instance checks
+  - rule_id: alicloud.ecs.instance.no_public_ip
+    title: ECS instance should not have public IP
+    severity: medium
+    assertion_id: ecs.instance.network.no_public_ip
+    for_each: alicloud.ecs.instances
+    conditions:
+      all:
+        - var: item.public_ip
+          op: is_empty
+  
+  - rule_id: alicloud.ecs.instance.in_vpc
+    title: ECS instance should be in VPC
+    severity: high
+    assertion_id: ecs.instance.network.vpc_required
+    for_each: alicloud.ecs.instances
+    conditions:
+      all:
+        - var: item.vpc_id
+          op: exists
+
+  - rule_id: alicloud.ecs.instance.deletion_protection
+    title: ECS instance deletion protection enabled
+    severity: medium
+    assertion_id: ecs.instance.resilience.deletion_protection
+    for_each: alicloud.ecs.instance_attributes
+    conditions:
+      all:
+        - var: item.deletion_protection
+          op: equals
+          value: true
+
+  # Security group checks
+  - rule_id: alicloud.ecs.security_group.no_all_ports_open
+    title: Security group should not allow all ports from internet
+    severity: critical
+    assertion_id: ecs.security_group.network.restricted_ingress
+    for_each: alicloud.ecs.security_group_rules
+    conditions:
+      all:
+        - var: item.ingress_rules
+          op: not_contains
+          value: "0.0.0.0/0"
+
+  # Disk checks
+  - rule_id: alicloud.ecs.disk.encryption_enabled
+    title: ECS disk encryption enabled
+    severity: high
+    assertion_id: ecs.disk.data_protection.encryption_at_rest
+    for_each: alicloud.ecs.disks
+    conditions:
+      all:
+        - var: item.encrypted
+          op: equals
+          value: true
+
+  - rule_id: alicloud.ecs.disk.kms_encryption
+    title: ECS disk uses KMS encryption
+    severity: high
+    assertion_id: ecs.disk.data_protection.kms_cmek
+    for_each: alicloud.ecs.disks
+    conditions:
+      all:
+        - var: item.encrypted
+          op: equals
+          value: true
+        - var: item.kms_key_id
+          op: exists

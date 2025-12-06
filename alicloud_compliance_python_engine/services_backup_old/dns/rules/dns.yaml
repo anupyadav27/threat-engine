@@ -1,0 +1,297 @@
+version: '1.0'
+provider: alicloud
+service: dns
+discovery:
+- discovery_id: alicloud.dns.dnssec
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeDnssecs
+    params: {}
+    save_as: dnssec_list
+  emit:
+    items_for: '{ dnssec_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: dnssec
+- discovery_id: alicloud.dns.health_check
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeHealthChecks
+    params: {}
+    save_as: health_check_list
+  emit:
+    items_for: '{ health_check_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: health_check
+- discovery_id: alicloud.dns.key
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeKeys
+    params: {}
+    save_as: key_list
+  emit:
+    items_for: '{ key_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: key
+- discovery_id: alicloud.dns.public
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribePublics
+    params: {}
+    save_as: public_list
+  emit:
+    items_for: '{ public_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: public
+- discovery_id: alicloud.dns.record
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeRecords
+    params: {}
+    save_as: record_list
+  emit:
+    items_for: '{ record_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: record
+- discovery_id: alicloud.dns.rsasha1
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeRsasha1s
+    params: {}
+    save_as: rsasha1_list
+  emit:
+    items_for: '{ rsasha1_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: rsasha1
+- discovery_id: alicloud.dns.service
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeServices
+    params: {}
+    save_as: service_list
+  emit:
+    items_for: '{ service_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: service
+- discovery_id: alicloud.dns.zone
+  calls:
+  - product: DNS
+    version: '2014-05-26'
+    action: DescribeZones
+    params: {}
+    save_as: zone_list
+  emit:
+    items_for: '{ zone_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: zone
+checks:
+- rule_id: alicloud.dns.dnssec.disabled
+  title: Alibaba Cloud DNS DNSSEC Protection Should Be Enabled
+  severity: low
+  assertion_id: soc2_multi_cloud_cc_6_7_0013
+  for_each: alicloud.dns.dnssec
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.health_check.https_or_tls_used
+  title: Alibaba Cloud DNS Health Check Should Use HTTPS or TLS Protocol
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.dns.health_check
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.health_check.no_plaintext_credentials_in_url
+  title: Alibaba Cloud DNS Health Check URLs Should Not Contain Plaintext Credentials
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.dns.health_check
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.key.in_dnssec
+  title: Ensure Alibaba Cloud DNS keys are properly configured in DNSSEC
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.dns.key
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.public.hosted_zones_cloudmonitor_logging_enabled
+  title: Ensure Alibaba Cloud DNS Public Hosted Zones Have CloudMonitor Logging Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.dns.public
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.record.set_caa_records_present_for_root_and_wildcard
+  title: Ensure CAA Records Are Present for Root and Wildcard Domains in Alibaba Cloud
+    DNS
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.dns.record
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.record.set_dmarc_record_present_when_mx_present
+  title: Ensure DMARC Record is Present When MX Record Exists in Alibaba Cloud DNS
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.record
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.record.set_no_overly_broad_wildcard_records_in_sensitive_zones
+  title: Ensure Alibaba Cloud DNS records do not contain overly broad wildcard entries
+    in sensitive zones
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.record
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.rsasha1.in_use_to_key_sign_in_dnssec
+  title: Alibaba Cloud DNS RSASHA1 Algorithm Should Not Be Used for DNSSEC Key Signing
+  severity: high
+  assertion_id: soc2_multi_cloud_cc_6_7_0013
+  for_each: alicloud.dns.rsasha1
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.rsasha1.in_use_to_zone_sign_in_dnssec
+  title: Alibaba Cloud DNS should not use RSA-SHA1 algorithm for DNSSEC zone signing
+  severity: low
+  assertion_id: soc2_multi_cloud_cc_6_7_0013
+  for_each: alicloud.dns.rsasha1
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.service.dnssec_enabled_for_security
+  title: Ensure DNSSEC is Enabled for Alibaba Cloud DNS Service Domains
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.service.rsasha1_deprecated_for_key_signing_in_dnssec
+  title: Ensure Alibaba Cloud DNS Service Does Not Use Deprecated RSA-SHA1 Algorithm
+    for DNSSEC Key Signing
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.dns.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.service.rsasha1_deprecated_for_zone_signing_in_dnssec
+  title: Alibaba Cloud DNS should not use deprecated RSASHA1 algorithm for DNSSEC
+    zone signing
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.service
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.zone.cross_account_sharing_restricted
+  title: Alibaba Cloud DNS Zone Cross Account Sharing Should Be Restricted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.zone
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.zone.dnssec_enabled_where_supported
+  title: Ensure DNSSEC is enabled for AliCloud DNS zones where supported
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.zone
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.dns.zone.zone_transfer_restricted_or_tsig_required
+  title: Alibaba Cloud DNS Zone Transfer Should Be Restricted or Require TSIG Authentication
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dns.zone
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

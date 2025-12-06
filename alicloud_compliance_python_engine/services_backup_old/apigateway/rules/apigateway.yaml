@@ -1,0 +1,150 @@
+version: '1.0'
+provider: alicloud
+service: apigateway
+discovery:
+- discovery_id: alicloud.apigateway.api
+  calls:
+  - product: APIGATEWAY
+    version: '2014-05-26'
+    action: DescribeApis
+    params: {}
+    save_as: api_list
+  emit:
+    items_for: '{ api_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: api
+- discovery_id: alicloud.apigateway.fileshare
+  calls:
+  - product: APIGATEWAY
+    version: '2014-05-26'
+    action: DescribeFileshares
+    params: {}
+    save_as: fileshare_list
+  emit:
+    items_for: '{ fileshare_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: fileshare
+- discovery_id: alicloud.apigateway.restapi
+  calls:
+  - product: APIGATEWAY
+    version: '2014-05-26'
+    action: DescribeRestapis
+    params: {}
+    save_as: restapi_list
+  emit:
+    items_for: '{ restapi_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: restapi
+- discovery_id: alicloud.apigateway.restapi_access_logging_enabled_90_day_retention
+  calls:
+  - product: APIGATEWAY
+    version: '2014-05-26'
+    action: DescribeRestapiAccessLoggingEnabled90DayRetentions
+    params: {}
+    save_as: restapi_access_logging_enabled_90_day_retention_list
+  emit:
+    items_for: '{ restapi_access_logging_enabled_90_day_retention_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: restapi_access_logging_enabled_90_day_retention
+checks:
+- rule_id: alicloud.apigateway.api.access_logging_enabled
+  title: Ensure AliCloud API Gateway APIs have access logging enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apigateway.api
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.fileshare.encryption_enabled
+  title: API Gateway File Share Encryption Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apigateway.fileshare
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi.cache_encryption_at_rest_enabled
+  title: Alibaba Cloud API Gateway REST API Cache Encryption At Rest Should Be Enabled
+  severity: high
+  assertion_id: iso27001_2022_multi_cloud_A.8.24_0080
+  for_each: alicloud.apigateway.restapi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi.client_certificate_required
+  title: AliCloud API Gateway REST API Should Require Client Certificate Authentication
+  severity: medium
+  assertion_id: nist_800_171_r2_multi_cloud_3_5_10_3.5.10_Store_and_transmit_only_cryptograph_0042
+  for_each: alicloud.apigateway.restapi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi.logging_enabled
+  title: Ensure AliCloud API Gateway REST API has logging enabled
+  severity: medium
+  assertion_id: hipaa_multi_cloud_164_308_a_1_ii_d_0003
+  for_each: alicloud.apigateway.restapi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi.public
+  title: Ensure AliCloud API Gateway REST API is not publicly accessible
+  severity: high
+  assertion_id: iso27001_2022_multi_cloud_A.8.1_0064
+  for_each: alicloud.apigateway.restapi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi.public_access_detected
+  title: AliCloud API Gateway REST API Public Access Detected
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apigateway.restapi
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apigateway.restapi_access_logging_enabled_90_day_retention.configured
+  title: API Gateway REST API access logging should be enabled with 90-day retention
+    period
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.apigateway.restapi_access_logging_enabled_90_day_retention
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

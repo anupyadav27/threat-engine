@@ -1,0 +1,47 @@
+certificate_manager:
+  version: '1.0'
+  provider: ibm
+  service: certificate_manager
+  scope: regional
+  package: ibm-cloud-sdk-core
+  client_class: Certificate_ManagerV1
+  discovery:
+  - discovery_id: certificate_manager.certificates
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for certificate_manager.certificates'
+      save_as: certificates
+  checks:
+  - check_id: ibm.certificate_manager.certificate.certificates_expiration_monitored
+    title: Ensuring Certificate Expiration Monitoring in IBM Certificate Manager
+    severity: low
+    for_each: certificate_manager.certificates
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in certificate_manager.certificates response'
+  - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._flow_logs_enabled
+    title: Ensure Certificate Expiration Monitoring with IBM Flow Logs Enabled
+    severity: low
+    for_each: certificate_manager.certificates
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in certificate_manager.certificates response'
+  - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._deprecated_ssl_protocols
+    title: Certificate Expiration and Deprecated SSL Protocols Compliance Check
+    severity: medium
+    for_each: certificate_manager.certificates
+    calls:
+    - action: self
+      fields:
+      - path: '...deprecated.ssl.protocols'
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "...deprecated.ssl.protocols" exists in certificate_manager.certificates response'

@@ -1,0 +1,94 @@
+version: '1.0'
+provider: alicloud
+service: function
+discovery:
+- discovery_id: alicloud.function.compute_function
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeComputeFunctions
+    params: {}
+    save_as: compute_function_response
+  emit:
+    items_for: '{ compute_function_response.ComputeFunctions.ComputeFunction }'
+    as: r
+    item:
+      id: '{{ r.ComputeFunctionId }}'
+      name: '{{ r.ComputeFunctionId }}'
+      resource_type: compute_function
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.function.function
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeFunctions
+    params: {}
+    save_as: function_response
+  emit:
+    items_for: '{ function_response.Functions.Function }'
+    as: r
+    item:
+      id: '{{ r.FunctionId }}'
+      name: '{{ r.FunctionId }}'
+      resource_type: function
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.function.compute_function.function_env_no_plaintext_secrets
+  title: Alibaba Cloud Function Compute functions should not store secrets in plaintext environment variables
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.function.compute_function
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.function.compute_function.function_logging_and_tracing_enabled
+  title: Ensure AliCloud Function Compute Functions Have Logging and Tracing Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.function.compute_function
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.function.compute_function.function_role_least_privilege
+  title: Alibaba Cloud Function Compute functions should use roles with least privilege permissions
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.function.compute_function
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.function.compute_function.function_vpc_private_networking_enabled
+  title: Ensure Alibaba Cloud Function Compute functions have VPC private networking enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.function.compute_function
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.function.function.iam_authentication_required_no_anonymous
+  title: AliCloud Function Compute Functions Must Require IAM Authentication and Prohibit Anonymous Access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.function.function
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

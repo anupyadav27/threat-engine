@@ -1,0 +1,1562 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+container:
+  version: '1.0'
+  provider: gcp
+  service: container
+  scope: regional
+  discovery:
+  - discovery_id: list_gke_clusters
+    calls:
+    - action: list
+      resource: container.projects.locations.clusters
+      fields:
+      - path: name
+        var: cluster_name
+      - path: location
+        var: cluster_location
+      - path: selfLink
+        var: cluster_self_link
+  - discovery_id: list_node_pools
+    calls:
+    - action: list
+      resource: container.projects.locations.clusters.nodePools
+      fields:
+      - path: name
+        var: nodepool_name
+      - path: selfLink
+        var: nodepool_self_link
+      - path: config
+        var: nodepool_config
+  - discovery_id: list_container_operations
+    calls:
+    - action: list
+      resource: container.projects.locations.operations
+      fields:
+      - path: name
+        var: operation_name
+      - path: status
+        var: operation_status
+  checks:
+  - check_id: gcp.container.addon.containers_kubernetes_from_trusted_channel
+    title: Ensure Kubernetes Runs From GCP Trusted Channels
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: releaseChannel.channel
+        operator: exists
+      - path: releaseChannel.channel
+        operator: contains
+        expected: REGULAR
+  - check_id: gcp.container.addon.containers_kubernetes_no_privileged_permissions
+    title: Prohibit Privileged Permissions for Kubernetes Add-ons
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addonsConfig.kubernetesDashboard.disabled
+        operator: equals
+        expected: true
+      - path: addonsConfig.networkPolicyConfig.disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.addon.containers_kubernetes_version_pinned_and_supported
+    title: Pin and Support Kubernetes Versions for Container Addons
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: currentMasterVersion
+        operator: exists
+      - path: nodeConfig.imageType
+        operator: contains
+        expected: COS_CONTAINERD
+  - check_id: gcp.container.cluster.abac_status_configured
+    title: Ensure ABAC is Disabled for GKE Clusters
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: legacyAbac.enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.alpha_features_disabled_for_production
+    title: Disable Alpha Features in Production GKE Clusters
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enableKubernetesAlpha
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.and_nodepool_workload_identity_enforced
+    title: Ensure Workload Identity is Enforced for GKE Clusters and Nodepools
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workloadIdentityConfig.workloadPool
+        operator: exists
+      - path: nodeConfig.workloadMetadataConfig.mode
+        operator: equals
+        expected: GKE_METADATA
+  - check_id: gcp.container.cluster.autoscaling_enabled
+    title: Ensure Kubernetes Cluster Autoscaling is Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: autoscaling.enableNodeAutoprovisioning
+        operator: equals
+        expected: true
+      - path: autoscaling.autoprovisioningNodePoolDefaults
+        operator: exists
+  - check_id: gcp.container.cluster.binary_authorization_enforced
+    title: Ensure Binary Authorization is Enforced on GKE Clusters
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: binaryAuthorization.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.client_certificate_authentication_disabled
+    title: Disable Client Certificate Authentication on GKE Clusters
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuth.clientCertificateConfig.issueClientCertificate
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.containers_kubernetes_admission_host_namespace_usage_denied
+    title: Restrict Host Namespace Usage in GKE Clusters
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: podSecurityPolicyConfig.enabled
+        operator: equals
+        expected: true
+      - path: networkPolicy.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.containers_kubernetes_admission_image_registry_allo_enforced
+    title: Enforce Image Registry Admission Control in Kubernetes Clusters
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: binaryAuthorization.enabled
+        operator: equals
+        expected: true
+      - path: addonsConfig.configConnectorConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.containers_kubernetes_admission_image_signature_veri_enabled
+    title: Enable Kubernetes Admission Image Signature Verification
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: binaryAuthorization.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.containers_kubernetes_admission_pod_security_admissi_default
+    title: Enable Kubernetes Pod Security Admission for Clusters
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: podSecurityPolicyConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.containers_kubernetes_admission_privilege_escalation_denied
+    title: Deny Privilege Escalation in Kubernetes Admission
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: podSecurityPolicyConfig.enabled
+        operator: equals
+        expected: true
+      - path: networkPolicy.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_anonymous_auth_disabled
+    title: Disable Anonymous Auth on Kubernetes API Server
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuth.username
+        operator: not_exists
+      - path: masterAuth.password
+        operator: not_exists
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_audit_logging_enabled
+    title: Enable Kubernetes API Server Audit Logging
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingService
+        operator: exists
+      - path: monitoringService
+        operator: exists
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_authorization_mode_rbac
+    title: Enable RBAC for Kubernetes API Server Authorization
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: legacyAbac.enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_etcd_connection_encrypted
+    title: Ensure Kubernetes API Server to Etcd Connections are Encrypted
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_insecure_port_disabled
+    title: Disable Insecure Port on Kubernetes API Server
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuth.clientCertificateConfig.issueClientCertificate
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.containers_kubernetes_apiserver_tls_min_1_2_enforced
+    title: Enforce TLS 1.2+ for Kubernetes API Server in GKE
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuth.clusterCaCertificate
+        operator: exists
+  - check_id: gcp.container.cluster.network_policy_enabled
+    title: Ensure Network Policy is Enabled for GKE Clusters
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkPolicy.enabled
+        operator: equals
+        expected: true
+      - path: addonsConfig.networkPolicyConfig.disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.private_cluster_enabled
+    title: Ensure GKE Clusters are Private
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateClusterConfig.enablePrivateNodes
+        operator: equals
+        expected: true
+      - path: privateClusterConfig.enablePrivateEndpoint
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.master_authorized_networks_enabled
+    title: Ensure Master Authorized Networks is Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuthorizedNetworksConfig.enabled
+        operator: equals
+        expected: true
+      - path: masterAuthorizedNetworksConfig.cidrBlocks
+        operator: exists
+  - check_id: gcp.container.nodepool.auto_repair_enabled
+    title: Ensure Node Auto-Repair is Enabled for GKE Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: management.autoRepair
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.auto_upgrade_enabled
+    title: Ensure Node Auto-Upgrade is Enabled for GKE Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: management.autoUpgrade
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.secure_boot_enabled
+    title: Ensure Secure Boot is Enabled for GKE Nodes
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.integrity_monitoring_enabled
+    title: Ensure Integrity Monitoring is Enabled for GKE Nodes
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.logging_enabled
+    title: Ensure Logging is Enabled for GKE Clusters
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingService
+        operator: contains
+        expected: logging.googleapis.com
+  - check_id: gcp.container.cluster.monitoring_enabled
+    title: Ensure Monitoring is Enabled for GKE Clusters
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: monitoringService
+        operator: contains
+        expected: monitoring.googleapis.com
+  - check_id: gcp.container.cluster.ip_alias_enabled
+    title: Ensure IP Alias is Enabled for GKE Clusters
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: ipAllocationPolicy.useIpAliases
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.maintenance_window_configured
+    title: Ensure Maintenance Window is Configured for GKE Clusters
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: maintenancePolicy.window
+        operator: exists
+  - check_id: gcp.container.cluster.resource_usage_export_enabled
+    title: Ensure Resource Usage Export is Enabled
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: resourceUsageExportConfig.bigqueryDestination
+        operator: exists
+  - check_id: gcp.container.cluster.vertical_pod_autoscaling_enabled
+    title: Ensure Vertical Pod Autoscaling is Enabled
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: verticalPodAutoscaling.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.intranode_visibility_enabled
+    title: Ensure Intranode Visibility is Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.enableIntraNodeVisibility
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.shielded_nodes_enabled
+    title: Ensure Shielded GKE Nodes are Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedNodes.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.release_channel_configured
+    title: Ensure Release Channel is Configured
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: releaseChannel.channel
+        operator: exists
+  - check_id: gcp.container.cluster.datapath_provider_advanced
+    title: Ensure Advanced Datapath Provider is Used
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.datapathProvider
+        operator: equals
+        expected: ADVANCED_DATAPATH
+  - check_id: gcp.container.cluster.default_max_pods_constraint
+    title: Ensure Default Max Pods Constraint is Set
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultMaxPodsConstraint.maxPodsPerNode
+        operator: exists
+  - check_id: gcp.container.cluster.notification_config_enabled
+    title: Ensure Notification Configuration is Enabled
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: notificationConfig.pubsub.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.cos_image_type
+    title: Ensure Container-Optimized OS is Used for Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.imageType
+        operator: contains
+        expected: COS
+  - check_id: gcp.container.nodepool.preemptible_nodes_limited
+    title: Limit Use of Preemptible Nodes in Production
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.preemptible
+        operator: equals
+        expected: false
+  - check_id: gcp.container.nodepool.oauth_scopes_minimal
+    title: Ensure Minimal OAuth Scopes for Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.oauthScopes
+        operator: exists
+  - check_id: gcp.container.nodepool.service_account_specified
+    title: Ensure Custom Service Account is Used for Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.serviceAccount
+        operator: exists
+  - check_id: gcp.container.nodepool.disk_encryption_enabled
+    title: Ensure Boot Disk Encryption is Enabled for Node Pools
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.diskType
+        operator: exists
+      - path: config.diskSizeGb
+        operator: exists
+  - check_id: gcp.container.nodepool.metadata_concealment_enabled
+    title: Ensure Metadata Concealment is Enabled
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.workloadMetadataConfig.mode
+        operator: equals
+        expected: GKE_METADATA
+  - check_id: gcp.container.nodepool.sandbox_enabled
+    title: Ensure Sandbox is Enabled for Node Pools
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.sandboxConfig.type
+        operator: equals
+        expected: gvisor
+  - check_id: gcp.container.nodepool.local_ssd_count_limited
+    title: Limit Local SSD Count for Node Pools
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.localSsdCount
+        operator: exists
+  - check_id: gcp.container.nodepool.machine_type_appropriate
+    title: Ensure Appropriate Machine Type for Node Pools
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.machineType
+        operator: exists
+  - check_id: gcp.container.nodepool.taints_configured
+    title: Ensure Node Taints are Properly Configured
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.taints
+        operator: exists
+  - check_id: gcp.container.cluster.authenticator_groups_config
+    title: Ensure Authenticator Groups Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: authenticatorGroupsConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.cluster_telemetry_enabled
+    title: Ensure Cluster Telemetry is Enabled
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: clusterTelemetry.type
+        operator: equals
+        expected: ENABLED
+  - check_id: gcp.container.cluster.cost_management_config
+    title: Ensure Cost Management Configuration
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: costManagementConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.database_encryption_key_rotation
+    title: Ensure Database Encryption Key Rotation
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.keyName
+        operator: exists
+  - check_id: gcp.container.cluster.default_snat_status
+    title: Ensure Default SNAT Status is Configured
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.defaultSnatStatus.disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.dns_config_cluster_dns
+    title: Ensure Cluster DNS Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnsConfig.clusterDns
+        operator: equals
+        expected: CLOUD_DNS
+  - check_id: gcp.container.cluster.enable_tpu_config
+    title: Ensure TPU Configuration is Secure
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enableTpu
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.identity_service_config
+    title: Ensure Identity Service Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: identityServiceConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.initial_cluster_version
+    title: Ensure Initial Cluster Version is Supported
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: initialClusterVersion
+        operator: exists
+  - check_id: gcp.container.cluster.location_policy
+    title: Ensure Location Policy is Configured
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: locationPolicy.type
+        operator: exists
+  - check_id: gcp.container.cluster.logging_config_components
+    title: Ensure Logging Configuration Components
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.componentConfig.enableComponents
+        operator: exists
+  - check_id: gcp.container.cluster.master_auth_networks_config
+    title: Ensure Master Auth Networks Configuration
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuthorizedNetworksConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.monitoring_config_components
+    title: Ensure Monitoring Configuration Components
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: monitoringConfig.componentConfig.enableComponents
+        operator: exists
+  - check_id: gcp.container.cluster.node_pool_auto_config
+    title: Ensure Node Pool Auto Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: nodePoolAutoConfig.networkTags.tags
+        operator: exists
+  - check_id: gcp.container.cluster.node_pool_defaults
+    title: Ensure Node Pool Defaults are Secure
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: nodePoolDefaults.nodeConfigDefaults.gcfsConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.private_cluster_config_master_ipv4
+    title: Ensure Private Cluster Master IPv4 CIDR
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateClusterConfig.masterIpv4CidrBlock
+        operator: exists
+  - check_id: gcp.container.cluster.resource_labels
+    title: Ensure Resource Labels are Applied
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: resourceLabels
+        operator: exists
+  - check_id: gcp.container.cluster.security_posture_config
+    title: Ensure Security Posture Configuration
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityPostureConfig.mode
+        operator: equals
+        expected: BASIC
+  - check_id: gcp.container.cluster.service_external_ips_config
+    title: Ensure Service External IPs Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceExternalIpsConfig.enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.container.cluster.tpu_ipv4_cidr_block
+    title: Ensure TPU IPv4 CIDR Block Configuration
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: tpuIpv4CidrBlock
+        operator: exists
+  - check_id: gcp.container.nodepool.accelerators_config
+    title: Ensure Accelerators Configuration is Secure
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.accelerators
+        operator: exists
+  - check_id: gcp.container.nodepool.advanced_machine_features
+    title: Ensure Advanced Machine Features Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.advancedMachineFeatures.threadsPerCore
+        operator: exists
+  - check_id: gcp.container.nodepool.boot_disk_kms_key
+    title: Ensure Boot Disk KMS Key is Configured
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.bootDiskKmsKey
+        operator: exists
+  - check_id: gcp.container.nodepool.confidential_nodes
+    title: Ensure Confidential Nodes Configuration
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.confidentialNodes.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.ephemeral_storage_config
+    title: Ensure Ephemeral Storage Configuration
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.ephemeralStorageConfig.localSsdCount
+        operator: exists
+  - check_id: gcp.container.nodepool.fast_socket_config
+    title: Ensure Fast Socket Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.fastSocket.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.gcfs_config
+    title: Ensure GCFS Configuration
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gcfsConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.gvnic_config
+    title: Ensure gVNIC Configuration
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gvnic.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.kubelet_config
+    title: Ensure Kubelet Configuration is Secure
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.kubeletConfig.cpuCfsQuota
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.linux_node_config
+    title: Ensure Linux Node Configuration
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.linuxNodeConfig.sysctls
+        operator: exists
+  - check_id: gcp.container.nodepool.local_nvme_ssd_block_config
+    title: Ensure Local NVMe SSD Block Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.localNvmeSsdBlockConfig.localSsdCount
+        operator: exists
+  - check_id: gcp.container.nodepool.logging_config
+    title: Ensure Node Pool Logging Configuration
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.loggingConfig.variantConfig.variant
+        operator: equals
+        expected: DEFAULT
+  - check_id: gcp.container.nodepool.node_group_config
+    title: Ensure Node Group Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.nodeGroup
+        operator: exists
+  - check_id: gcp.container.nodepool.reservation_affinity
+    title: Ensure Reservation Affinity Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.reservationAffinity.consumeReservationType
+        operator: exists
+  - check_id: gcp.container.nodepool.resource_labels
+    title: Ensure Node Pool Resource Labels
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.resourceLabels
+        operator: exists
+  - check_id: gcp.container.nodepool.resource_manager_tags
+    title: Ensure Resource Manager Tags
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.resourceManagerTags.tags
+        operator: exists
+  - check_id: gcp.container.nodepool.shielded_instance_config_complete
+    title: Ensure Complete Shielded Instance Configuration
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+      - path: config.shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+  - check_id: gcp.container.nodepool.sole_tenant_config
+    title: Ensure Sole Tenant Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.soleTenantConfig.nodeAffinities
+        operator: exists
+  - check_id: gcp.container.nodepool.spot_config
+    title: Ensure Spot Instance Configuration
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.spot
+        operator: equals
+        expected: false
+  - check_id: gcp.container.nodepool.windows_node_config
+    title: Ensure Windows Node Configuration Security
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.windowsNodeConfig.osVersion
+        operator: exists
+  - check_id: gcp.container.cluster.fleet_config
+    title: Ensure Fleet Configuration
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: fleet.project
+        operator: exists
+  - check_id: gcp.container.cluster.mesh_certificates_config
+    title: Ensure Mesh Certificates Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: meshCertificates.enableCertificates
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.network_performance_config
+    title: Ensure Network Performance Configuration
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.networkPerformanceConfig.totalEgressBandwidthTier
+        operator: exists
+  - check_id: gcp.container.cluster.parent_product_config
+    title: Ensure Parent Product Configuration
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: parentProductConfig.productName
+        operator: exists
+  - check_id: gcp.container.cluster.private_ipv6_google_access
+    title: Ensure Private IPv6 Google Access
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.privateIpv6GoogleAccess
+        operator: equals
+        expected: PRIVATE_IPV6_GOOGLE_ACCESS_TO_GOOGLE
+  - check_id: gcp.container.cluster.security_posture_vulnerability_mode
+    title: Ensure Security Posture Vulnerability Mode
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityPostureConfig.vulnerabilityMode
+        operator: equals
+        expected: VULNERABILITY_ENTERPRISE
+  - check_id: gcp.container.cluster.workload_alts_config
+    title: Ensure Workload ALTS Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workloadAltsConfig.enableAlts
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.workload_certificates_config
+    title: Ensure Workload Certificates Configuration
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workloadCertificates.enableCertificates
+        operator: equals
+        expected: true
+  - check_id: gcp.container.cluster.workload_config_audit_mode
+    title: Ensure Workload Config Audit Mode
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: workloadIdentityConfig.workloadPool
+        operator: exists
+  - check_id: gcp.container.cluster.comprehensive_security_validation
+    title: Comprehensive Security Validation for GKE Clusters
+    severity: critical
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedNodes.enabled
+        operator: equals
+        expected: true
+      - path: networkPolicy.enabled
+        operator: equals
+        expected: true
+      - path: binaryAuthorization.enabled
+        operator: equals
+        expected: true
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+      - path: privateClusterConfig.enablePrivateNodes
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.containers_kubernetes_audit_logging_enabled
+    title: Ensure Kubernetes Audit Logging is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.componentConfig.enableComponents
+        operator: contains
+        expected: SYSTEM_COMPONENTS
+        
+  - check_id: gcp.container.cluster.containers_kubernetes_etcd_encryption_at_rest_enabled
+    title: Ensure etcd Encryption at Rest is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+        
+  - check_id: gcp.container.cluster.containers_kubernetes_private_control_plane_endpoint_enabled
+    title: Ensure Private Control Plane Endpoint is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateClusterConfig.enablePrivateEndpoint
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.control_plane_authorized_networks_configured
+    title: Ensure Control Plane Authorized Networks are Configured
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuthorizedNetworksConfig.enabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.private_nodes_enabled
+    title: Ensure Private Nodes are Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateClusterConfig.enablePrivateNodes
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.network_policy_support_configured
+    title: Ensure Network Policy Support is Configured
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkPolicy.enabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.kubernetes_dashboard_disabled
+    title: Ensure Kubernetes Dashboard is Disabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addonsConfig.kubernetesDashboard.disabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.secrets_encryption_kms_enabled
+    title: Ensure Secrets Encryption with KMS is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+        
+  - check_id: gcp.container.cluster.containers_kubernetes_secrets_encryption_kms_enabled
+    title: Ensure Kubernetes Secrets KMS Encryption is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+        
+  - check_id: gcp.container.cluster.logging_monitoring_service_enabled
+    title: Ensure Logging and Monitoring Service is Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingService
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.vpc_native_alias_ip_enabled
+    title: Ensure VPC-Native Alias IP is Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: ipAllocationPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.release_channel_regular_or_stable
+    title: Ensure Release Channel is Regular or Stable
+    severity: low
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: releaseChannel.channel
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.k8s_apiserver_audit_logging_enabled
+    title: Ensure API Server Audit Logging is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.componentConfig.enableComponents
+        operator: contains
+        expected: SYSTEM_COMPONENTS
+        
+  - check_id: gcp.container.cluster.k8s_apiserver_anonymous_auth_disabled
+    title: Ensure API Server Anonymous Auth is Disabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: masterAuth
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.k8s_etcd_encryption_at_rest_enabled
+    title: Ensure etcd Encryption at Rest is Enabled
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseEncryption.state
+        operator: equals
+        expected: ENCRYPTED
+        
+  - check_id: gcp.container.node_pool.containers_kubernetes_nodes_no_public_ip
+    title: Ensure Nodes Have No Public IP
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.metadata.disable-legacy-endpoints
+        operator: equals
+        expected: 'true'
+        
+  - check_id: gcp.container.node_pool.containers_kubernetes_workload_identity_enabled
+    title: Ensure Workload Identity is Enabled
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.workloadMetadataConfig.mode
+        operator: equals
+        expected: GKE_METADATA
+        
+  - check_id: gcp.container.node_pool.containers_kubernetes_shielded_secure_boot_enabled
+    title: Ensure Shielded Secure Boot is Enabled
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.node_pool.k8s_kubelet_anonymous_auth_disabled
+    title: Ensure Kubelet Anonymous Auth is Disabled
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.metadata
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.node.pool_auto_repair_status_configured
+    title: Ensure Node Pool Auto-Repair is Configured
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: management.autoRepair
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.node.pool_auto_upgrade_status_configured
+    title: Ensure Node Pool Auto-Upgrade is Configured
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: management.autoUpgrade
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.node.pool_boot_disk_cmek_enabled
+    title: Ensure Boot Disk Uses CMEK
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.bootDiskKmsKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.node.pool_shielded_secure_boot_enabled
+    title: Ensure Shielded Secure Boot is Enabled on Node Pool
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.node_pool.node_pool_integrity_monitoring_enabled
+    title: Ensure Integrity Monitoring is Enabled
+    severity: medium
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.intranode_visibility_and_vpc_flow_logs_enabled
+    title: Ensure Intranode Visibility and VPC Flow Logs are Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.enableIntraNodeVisibility
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.cluster.google_managed_ssl_certificates_enabled
+    title: Ensure Google Managed SSL Certificates are Enabled
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addonsConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.private_nodes_configured
+    title: Ensure Private Nodes are Properly Configured
+    severity: high
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateClusterConfig.enablePrivateNodes
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.container.node.pool_service_account_privilege_configured
+    title: Ensure Service Account has Least Privilege
+    severity: high
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.serviceAccount
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.node.pool_image_type_cos_containerd_configured
+    title: Ensure Node Pool Uses COS with Containerd
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.imageType
+        operator: contains
+        expected: COS
+        
+  - check_id: gcp.container.node.pool_gke_sandbox_enabled
+    title: Ensure GKE Sandbox is Enabled
+    severity: low
+    for_each: list_node_pools
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.sandboxConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.container.cluster.security_posture_config_mode
+    title: Ensure Security Posture Config Mode is Set
+    severity: medium
+    for_each: list_gke_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityPostureConfig
+        operator: exists
+        expected: true
+        
+  api_name: container
+  api_version: v1

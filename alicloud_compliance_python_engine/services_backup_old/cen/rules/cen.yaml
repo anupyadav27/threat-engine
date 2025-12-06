@@ -1,0 +1,43 @@
+version: '1.0'
+provider: alicloud
+service: cen
+discovery:
+- discovery_id: alicloud.cen.network
+  calls:
+  - product: CEN
+    version: '2014-05-26'
+    action: DescribeNetworks
+    params: {}
+    save_as: network_list
+  emit:
+    items_for: '{ network_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: network
+checks:
+- rule_id: alicloud.cen.network.eni_security_groups_present
+  title: Cloud Enterprise Network Elastic Network Interface Security Groups Must Be
+    Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cen.network
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cen.network.eni_security_groups_restrictive
+  title: Cloud Enterprise Network Elastic Network Interface Security Groups Should
+    Use Restrictive Rules
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cen.network
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

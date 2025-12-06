@@ -1,0 +1,312 @@
+version: '1.0'
+provider: alicloud
+service: cr
+discovery:
+- discovery_id: alicloud.cr.container
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeContainers
+    params: {}
+    save_as: container_list
+  emit:
+    items_for: '{ container_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: container
+- discovery_id: alicloud.cr.image
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeImages
+    params: {}
+    save_as: image_list
+  emit:
+    items_for: '{ image_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: image
+- discovery_id: alicloud.cr.instance
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeInstances
+    params: {}
+    save_as: instance_list
+  emit:
+    items_for: '{ instance_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: instance
+- discovery_id: alicloud.cr.not
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeNots
+    params: {}
+    save_as: not_list
+  emit:
+    items_for: '{ not_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: not
+- discovery_id: alicloud.cr.packages
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribePackagess
+    params: {}
+    save_as: packages_list
+  emit:
+    items_for: '{ packages_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: packages
+- discovery_id: alicloud.cr.replication_rule
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeReplicationRules
+    params: {}
+    save_as: replication_rule_list
+  emit:
+    items_for: '{ replication_rule_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: replication_rule
+- discovery_id: alicloud.cr.repo_policy
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeRepoPolicys
+    params: {}
+    save_as: repo_policy_list
+  emit:
+    items_for: '{ repo_policy_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: repo_policy
+- discovery_id: alicloud.cr.repository
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeRepositorys
+    params: {}
+    save_as: repository_list
+  emit:
+    items_for: '{ repository_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: repository
+- discovery_id: alicloud.cr.uses
+  calls:
+  - product: CR
+    version: '2014-05-26'
+    action: DescribeUsess
+    params: {}
+    save_as: uses_list
+  emit:
+    items_for: '{ uses_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: uses
+checks:
+- rule_id: alicloud.cr.container.vulnerability_scanning_enabled
+  title: Container Registry vulnerability scanning should be enabled for container
+    images
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cr.container
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.image.critical_vulnerabilities_blocked
+  title: Ensure Container Registry images with critical vulnerabilities are blocked
+    from deployment
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cr.image
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.image.vulnerability_scan_on_push
+  title: Ensure Container Registry images have vulnerability scanning enabled on push
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cr.image
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.instance.access_policy_and_network_restriction_audit
+  title: Container Registry Instance Access Policy and Network Restriction Audit
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cr.instance
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.not.publicly_accessible
+  title: Ensure Container Registry repositories are not publicly accessible
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.not
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.packages.external_public_publishing_disabled
+  title: Ensure Container Registry External Public Publishing is Disabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.packages
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.replication_rule.registry_replication_cross_region_encrypted
+  title: Container Registry Replication Rules Must Enable Cross-Region Encryption
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cr.replication_rule
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.replication_rule.registry_replication_destinations_least_privilege
+  title: Container Registry Replication Rule Should Follow Least Privilege Access
+    for Destination Registries
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.replication_rule
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_public_pull_push
+  title: Container Registry Repository Policy Should Not Allow Public Pull and Push
+    Access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.repo_policy
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_wildcard_admin
+  title: Container Registry Repository Policy Should Not Grant Wildcard Admin Permissions
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.repo_policy
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repository.not_publicly_accessible
+  title: Alibaba Cloud Container Registry repositories should not be publicly accessible
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cr.repository
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repository.registry_image_scanning_enabled
+  title: Ensure Container Registry Repository Has Image Scanning Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cr.repository
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repository.registry_immutable_tags_or_signing_enforced
+  title: Container Registry Repository Must Enforce Immutable Tags or Image Signing
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cr.repository
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repository.registry_repo_private_or_access_restricted
+  title: Ensure Container Registry repositories are private or have restricted access
+    controls
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cr.repository
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.repository.scanning_enabled
+  title: Container Registry Repository Image Scanning Must Be Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cr.repository
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.cr.uses.private_link
+  title: Container Registry should use Private Link for secure network connectivity
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cr.uses
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

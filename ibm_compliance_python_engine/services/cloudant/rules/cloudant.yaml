@@ -1,0 +1,237 @@
+cloudant:
+  version: '1.0'
+  provider: ibm
+  service: cloudant
+  scope: regional
+  package: ibm-cloud-sdk-core
+  client_class: CloudantV1
+  discovery:
+  - discovery_id: cloudant.databases
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.databases'
+      save_as: databases
+  - discovery_id: cloudant.documents
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.documents'
+      save_as: documents
+  - discovery_id: cloudant.resources
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.resources'
+      save_as: resources
+  - discovery_id: cloudant.clusters
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.clusters'
+      save_as: clusters
+  - discovery_id: cloudant.keys
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.keys'
+      save_as: keys
+  - discovery_id: cloudant.table_protected_by_backup_plans
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for cloudant.table_protected_by_backup_plans'
+      save_as: table_protected_by_backup_plans
+  checks:
+  - check_id: ibm.cloudant.database.cross_region_encrypted
+    title: Ensuring Cross-Region Encryption for IBM Cloudant Databases
+    severity: medium
+    for_each: cloudant.databases
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.databases response'
+  - check_id: ibm.cloudant.database.encryption_at_rest_all_regions
+    title: Ensure Encryption at Rest for Cloudant Databases in All Regions
+    severity: high
+    for_each: cloudant.databases
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.databases response'
+  - check_id: ibm.cloudant.database.pitr_enabled_where_supported
+    title: Ensure Point-in-Time Recovery (PITR) is Enabled for Cloudant Databases
+    severity: medium
+    for_each: cloudant.databases
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.databases response'
+  - check_id: ibm.cloudant.document.storage_table_encryption_at_rest_enabled
+    title: Ensure Encryption at Rest for IBM Cloudant Document Storage
+    severity: high
+    for_each: cloudant.documents
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.documents response'
+  - check_id: ibm.cloudant.document.storage_table_private_network_only_where_supported
+    title: Enforce Private Network Access for Cloudant Storage Tables
+    severity: medium
+    for_each: cloudant.documents
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.documents response'
+  - check_id: ibm.cloudant.document.storage_table_rbac_least_privilege
+    title: Enforce Least Privilege RBAC in IBM Cloudant Document Storage
+    severity: high
+    for_each: cloudant.documents
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.documents response'
+  - check_id: ibm.cloudant.database.encryption_enabled_ibm_activity_..._cluster_audit_logging
+    title: Ensure Encryption and Audit Logging for IBM Cloudant Databases
+    severity: high
+    for_each: cloudant.databases
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.databases response'
+  - check_id: ibm.cloudant.database.encryption_en_ibm_activity_..._cloudwatch_logging_en
+    title: Ensure Cloudant Database Encryption and Activity Logging Enabled
+    severity: high
+    for_each: cloudant.databases
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.databases response'
+  - check_id: ibm.cloudant.resource.autoscaling_enabled
+    title: Ensuring Autoscaling is Enabled for IBM Cloudant Resources
+    severity: low
+    for_each: cloudant.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.resources response'
+  - check_id: ibm.cloudant.resource.backup_enabled
+    title: Ensure Cloudant Resource Backup is Enabled for Disaster Recovery
+    severity: medium
+    for_each: cloudant.resources
+    calls:
+    - action: self
+      fields:
+      - path: backup_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in cloudant.resources response'
+  - check_id: ibm.cloudant.cluster.encryption_enabled
+    title: Ensure Data Encryption at Rest for Cloudant Clusters
+    severity: high
+    for_each: cloudant.clusters
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.clusters response'
+  - check_id: ibm.cloudant.cluster.in_transit_encryption_enabled
+    title: Ensure In-Transit Encryption for IBM Cloudant Clusters
+    severity: high
+    for_each: cloudant.clusters
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in cloudant.clusters response'
+  - check_id: ibm.cloudant.cluster.multi_az_deployment_enabled
+    title: Ensure Multi-AZ Deployment is Enabled for Cloudant Clusters
+    severity: low
+    for_each: cloudant.clusters
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.clusters response'
+  - check_id: ibm.cloudant.key.protect_cmk_encryption_enabled
+    title: Enforce Cloudant CMK Encryption for Enhanced Data Security
+    severity: high
+    for_each: cloudant.keys
+    calls:
+    - action: self
+      fields:
+      - path: encryption.kms_key_crn
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in cloudant.keys response'
+  - check_id: ibm.cloudant.resource.pitr_enabled
+    title: Ensure Point-in-Time Recovery (PiTR) is Enabled for Cloudant Resources
+    severity: low
+    for_each: cloudant.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.resources response'
+  - check_id: ibm.cloudant.table_protected_by_backup_plan.table_protected_by_backup_plan_enabled
+    title: Ensure Cloudant Tables Are Secured with Active Backup Plans
+    severity: medium
+    for_each: cloudant.table_protected_by_backup_plans
+    calls:
+    - action: self
+      fields:
+      - path: backup_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in cloudant.table_protected_by_backup_plans response'
+  - check_id: ibm.cloudant.resource.tables_kms_cmk_encryption_enabled
+    title: Ensure Cloudant Tables Use KMS Customer-Managed Key Encryption
+    severity: high
+    for_each: cloudant.resources
+    calls:
+    - action: self
+      fields:
+      - path: encryption.kms_key_crn
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in cloudant.resources response'
+  - check_id: ibm.cloudant.resource.tables_pitr_enabled
+    title: Ensure Point-In-Time Recovery (PITR) is Enabled for Cloudant Tables
+    severity: low
+    for_each: cloudant.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in cloudant.resources response'

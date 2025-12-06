@@ -2,30 +2,16 @@ function:
   version: '1.0'
   provider: azure
   service: function
-  package: azure-mgmt-web
+  sdk_package: azure.mgmt.web
   client_class: WebSiteManagementClient
+  api_type: management
   scope: subscription
   discovery:
   - discovery_id: azure.function.apps
     calls:
-    - client: function
-      action: web_apps.list
-      save_as: function_apps
-  - discovery_id: azure.function.app_settings
-    calls:
-    - client: function
-      action: web_apps.list_application_settings
-      save_as: app_settings
-  - discovery_id: azure.function.site_configs
-    calls:
-    - client: function
-      action: web_apps.get_configuration
-      save_as: site_configs
-  - discovery_id: azure.function.vnet_connections
-    calls:
-    - client: function
-      action: web_apps.list_vnet_connections
-      save_as: vnet_connections
+    - action: web_apps.list
+      fields:
+      - path: __self__
   checks:
   - check_id: azure.function.function_version.published_and_immutable
     title: 'AZURE FUNCTION Function Version: Published And Immutable'
@@ -45,19 +31,16 @@ function:
   - check_id: azure.functionapp.vnet.routing.enabled.check
     title: 'AZURE FUNCTIONAPP Vnet: Routing Enabled Check'
     severity: low
-    for_each: azure.function.vnet_connections
+    for_each: azure.function.apps
     calls:
-    - action: web_apps.get_vnet_connection
+    - action: web_apps.get
       params:
         resource_group_name: '{{resource_group}}'
         name: '{{name}}'
-        vnet_name: '{{vnet_name}}'
       fields:
-      - path: is_swift
+      - path: site_config.vnet_route_all_enabled
         operator: equals
         expected: true
-      - path: routes
-        operator: exists
   - check_id: azure.function.app.managed.identity.configured
     title: 'AZURE FUNCTION App: Managed Identity Configured'
     severity: medium
@@ -98,11 +81,14 @@ function:
   - check_id: azure.function.app.minimum.tls.version
     title: 'AZURE FUNCTION App: Minimum TLS Version'
     severity: medium
-    for_each: azure.function.app
+    for_each: azure.function.apps
     calls:
-    - action: self
+    - action: web_apps.get_configuration
+      params:
+        resource_group_name: '{{resource_group}}'
+        name: '{{name}}'
       fields:
-      - path: site_config.min_tls_version
+      - path: min_tls_version
         operator: gte
         expected: '1.2'
   - check_id: azure.functionapp.client.cert.required.check
@@ -548,3 +534,25 @@ function:
       - path: value[*].properties.siteConfig.pythonVersion
         operator: regex_match
         expected: ^3\.(8|9|10|11)$
+
+
+# ============================================================================
+# VALIDATION TRACKING
+# ============================================================================
+# STATUS: ⏳ NOT_VALIDATED
+# VALIDATED_BY: 
+# VALIDATED_DATE: 
+# 
+# FIXES APPLIED:
+# # - (Add fixes here after validation)
+#
+# TEST RESULTS:
+# - Resources Discovered: 0
+# - Checks Executed: 0
+# - PASS: 0
+# - FAIL: 0
+# - ERROR: 0
+#
+# NOTES:
+# # - (Add notes here)
+# ============================================================================

@@ -6,10 +6,15 @@ import yaml
 import json
 from kubernetes import client
 
-from ..utils.reporting import CheckResult, CheckStatus, CheckSeverity
-from ..utils.cluster_namespace_discovery import load_kube_api_client, discover_kubernetes_inventory
-from ..registry import ActionRegistry
-from ..operators import evaluate_field_condition
+import sys
+from pathlib import Path
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.reporting import CheckResult, CheckStatus, CheckSeverity
+from utils.cluster_namespace_discovery import load_kube_api_client, discover_kubernetes_inventory
+from registry import ActionRegistry
+from operators import evaluate_field_condition
 
 
 def _load_yaml_files(rules_dir: str) -> List[Dict[str, Any]]:

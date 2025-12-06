@@ -1,0 +1,711 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+monitoring:
+  version: '1.0'
+  provider: gcp
+  service: monitoring
+  scope: global
+  discovery:
+  - discovery_id: list_alert_policies
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: alert_policy_name
+      - path: displayName
+        var: alert_policy_display_name
+  - discovery_id: list_notification_channels
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: notification_channel_name
+      - path: type
+        var: channel_type
+  - discovery_id: list_uptime_checks
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: uptime_check_name
+      - path: displayName
+        var: uptime_check_display_name
+  - discovery_id: list_dashboards
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: dashboard_name
+      - path: displayName
+        var: dashboard_display_name
+  checks:
+  - check_id: gcp.monitoring.alert_policy.acls_alarm_configured
+    title: Ensure Alert Policies Have ACLs Alarm Configured
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: ACL
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.alert_policy.alarm_configured
+    title: Alert Policies Must Have Alarms Configured
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions
+        operator: exists
+      - path: conditions[].conditionThreshold
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.alert_alarm_actions_configured
+    title: Ensure Alert Policies Have Configured Alarm Actions
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: notificationChannels
+        operator: exists
+      - path: alertStrategy.autoClose
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.alert_critical_alarms_enabled
+    title: Ensure Critical Alert Policies are Enabled
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+      - path: conditions[].displayName
+        operator: contains
+        expected: critical
+  - check_id: gcp.monitoring.alert_policy.alert_destinations_authenticated
+    title: Ensure Alert Destinations Are Authenticated
+    severity: high
+    for_each: list_notification_channels
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.authenticated
+        operator: equals
+        expected: 'true'
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.alert_policy.anomaly_alerts_configured
+    title: Ensure Anomaly Alerts Are Configured in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: anomaly
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.alert_policy.anomaly_detectors_enabled
+    title: Enable Anomaly Detection in Monitoring Alert Policies
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.aggregations[].alignmentPeriod
+        operator: exists
+      - path: conditions[].displayName
+        operator: contains
+        expected: anomaly
+  - check_id: gcp.monitoring.alert_policy.anomaly_training_data_sources_approved
+    title: Ensure Approved Data Sources for Anomaly Detection
+    severity: low
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.data_source_approved
+        operator: equals
+        expected: 'true'
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: resource.type
+  - check_id: gcp.monitoring.alert_policy.capacity_alerts_configured
+    title: Ensure Capacity Alerts are Configured for GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: capacity
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.changes_to_vpcs_alarm_configured
+    title: Monitor VPC Changes with Alert Policies
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: vpc
+      - path: conditions[].displayName
+        operator: contains
+        expected: network
+  - check_id: gcp.monitoring.alert_policy.cpu_utilization_alert_configured
+    title: Ensure CPU Utilization Alert is Configured in Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: cpu/utilization
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.data_analytics_admin_activity_logging_enabled
+    title: Ensure Data Analytics Admin Activity Logging is Enabled
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: admin_activity
+      - path: userLabels.data_analytics
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.monitoring.alert_policy.data_analytics_logs_retention_days_minimum
+    title: Ensure Minimum Retention for Data Analytics Logs in Alert Policies
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.retention_days
+        operator: exists
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: log_retention
+  - check_id: gcp.monitoring.alert_policy.data_analytics_query_access_logging_enabled
+    title: Enable Data Analytics Query Access Logging
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: query_access
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.alert_policy.dr_alert_destinations_configured
+    title: Ensure Alert Policies Have DR Alert Destinations Configured
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.disaster_recovery
+        operator: equals
+        expected: 'true'
+      - path: notificationChannels
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.dr_alerts_for_backup_failures_configured
+    title: Configure Alerts for Backup Failures in GCP Monitoring
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: backup_failure
+      - path: conditions[].conditionThreshold.comparison
+        operator: equals
+        expected: COMPARISON_GREATER_THAN
+  - check_id: gcp.monitoring.alert_policy.dr_alerts_for_replication_lag_configured
+    title: Configure DR Alerts for Replication Lag in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: replication_lag
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.dr_alerts_for_rpo_rto_breach_configured
+    title: Configure DR Alerts for RPO RTO Breach in GCP Monitoring
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: RPO
+      - path: conditions[].displayName
+        operator: contains
+        expected: RTO
+  - check_id: gcp.monitoring.alert_policy.gateways_alarm_configured
+    title: Ensure Monitoring Alert Policies for Gateways are Configured
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: gateway
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.alert_policy.group_retention_policy_specific_days_enabled_gcp_sto_enabled
+    title: Enable Specific Days for Group Retention in Alert Policies
+    severity: low
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.group_retention_days
+        operator: exists
+      - path: userLabels.storage_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.monitoring.alert_policy.high_availability_alerts_configured
+    title: Ensure High Availability Alerts are Configured
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: availability
+      - path: conditions[].conditionThreshold.comparison
+        operator: equals
+        expected: COMPARISON_LESS_THAN
+  - check_id: gcp.monitoring.alert_policy.incident_response_alerts_configured
+    title: Configure Incident Response Alerts in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.incident_response
+        operator: equals
+        expected: 'true'
+      - path: alertStrategy.notificationRateLimit.period
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.log_based_alerts_configured
+    title: Ensure Log-Based Alerts are Configured in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: logging
+      - path: conditions[].conditionAbsent
+        operator: not_exists
+  - check_id: gcp.monitoring.alert_policy.memory_utilization_alert_configured
+    title: Ensure Memory Utilization Alert is Configured
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: memory/utilization
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.network_security_alerts_configured
+    title: Configure Network Security Alerts in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: security
+      - path: conditions[].displayName
+        operator: contains
+        expected: network
+  - check_id: gcp.monitoring.alert_policy.performance_degradation_alerts_configured
+    title: Configure Performance Degradation Alerts
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: performance
+      - path: conditions[].conditionThreshold.duration
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.resource_exhaustion_alerts_configured
+    title: Configure Resource Exhaustion Alerts in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: resource_exhaustion
+      - path: conditions[].conditionThreshold.comparison
+        operator: equals
+        expected: COMPARISON_GREATER_THAN
+  - check_id: gcp.monitoring.alert_policy.security_incident_alerts_configured
+    title: Configure Security Incident Alerts in GCP Monitoring
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: security_incident
+      - path: alertStrategy.autoClose
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.service_level_alerts_configured
+    title: Configure Service Level Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: sli
+      - path: userLabels.service_level
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.monitoring.alert_policy.storage_utilization_alerts_configured
+    title: Configure Storage Utilization Alerts
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: storage/utilization
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.threshold_breach_alerts_configured
+    title: Configure Threshold Breach Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.thresholdValue
+        operator: exists
+      - path: conditions[].conditionThreshold.comparison
+        operator: exists
+  - check_id: gcp.monitoring.notification_channel.encryption_enabled
+    title: Ensure Notification Channels Have Encryption Enabled
+    severity: high
+    for_each: list_notification_channels
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.encryption_enabled
+        operator: equals
+        expected: 'true'
+      - path: enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.uptime_check.ssl_certificate_monitoring_enabled
+    title: Enable SSL Certificate Monitoring in Uptime Checks
+    severity: medium
+    for_each: list_uptime_checks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: httpCheck.useSsl
+        operator: equals
+        expected: true
+      - path: httpCheck.validateSsl
+        operator: equals
+        expected: true
+  - check_id: gcp.monitoring.dashboard.access_controls_configured
+    title: Ensure Dashboards Have Access Controls Configured
+    severity: medium
+    for_each: list_dashboards
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.access_controlled
+        operator: equals
+        expected: 'true'
+      - path: etag
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.compliance_monitoring_enabled
+    title: Enable Compliance Monitoring in Alert Policies
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.compliance_monitoring
+        operator: equals
+        expected: 'true'
+      - path: conditions[].displayName
+        operator: contains
+        expected: compliance
+  - check_id: gcp.monitoring.alert_policy.data_loss_prevention_alerts_configured
+    title: Configure Data Loss Prevention Alerts
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: dlp
+      - path: conditions[].displayName
+        operator: contains
+        expected: data_loss
+  - check_id: gcp.monitoring.alert_policy.error_rate_alerts_configured
+    title: Configure Error Rate Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: error_rate
+      - path: conditions[].conditionThreshold.aggregations[].perSeriesAligner
+        operator: equals
+        expected: ALIGN_RATE
+  - check_id: gcp.monitoring.alert_policy.latency_alerts_configured
+    title: Configure Latency Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: latency
+      - path: conditions[].conditionThreshold.duration
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.multi_condition_alerts_configured
+    title: Configure Multi-Condition Alerts in GCP Monitoring
+    severity: low
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions
+        operator: exists
+      - path: combiner
+        operator: equals
+        expected: AND
+  - check_id: gcp.monitoring.alert_policy.notification_rate_limiting_enabled
+    title: Enable Notification Rate Limiting in Alert Policies
+    severity: low
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: alertStrategy.notificationRateLimit.period
+        operator: exists
+      - path: alertStrategy.notificationRateLimit
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.resource_group_alerts_configured
+    title: Configure Resource Group Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: resource.group
+      - path: userLabels.resource_group
+        operator: exists
+  - check_id: gcp.monitoring.alert_policy.sla_breach_alerts_configured
+    title: Configure SLA Breach Alerts in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].displayName
+        operator: contains
+        expected: SLA
+      - path: conditions[].conditionThreshold.comparison
+        operator: equals
+        expected: COMPARISON_LESS_THAN
+  - check_id: gcp.monitoring.alert_policy.traffic_spike_alerts_configured
+    title: Configure Traffic Spike Alerts in GCP Monitoring
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: traffic
+      - path: conditions[].displayName
+        operator: contains
+        expected: spike
+  - check_id: gcp.monitoring.alert_policy.uptime_alerts_configured
+    title: Configure Uptime Alerts in GCP Monitoring
+    severity: high
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: uptime
+      - path: conditions[].conditionAbsent.duration
+        operator: exists
+  - check_id: gcp.monitoring.workspace.cross_project_monitoring_enabled
+    title: Enable Cross-Project Monitoring in Workspaces
+    severity: medium
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: userLabels.cross_project_enabled
+        operator: equals
+        expected: 'true'
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: project_id
+        
+  - check_id: gcp.monitoring.alert_policy.logging_metric_filter_console_root_login_detected_fi_present
+    title: Detect Console Root Logins Using Logging Metric Filter
+    severity: critical
+    for_each: list_alert_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: conditions[].conditionThreshold.filter
+        operator: contains
+        expected: root
+      - path: enabled
+        operator: equals
+        expected: true
+        
+  api_name: monitoring
+  api_version: v3
+  project_param_format: projects/{{project_id}}

@@ -1,26 +1,69 @@
+# ============================================================================
+# 🤖 CURSOR AI: SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# SERVICE: redis
+# STATUS: ⏳ NOT_VALIDATED
+#
+# 🎯 YOUR TASK:
+# 1. Run engine: export AZURE_ENGINE_FILTER_SERVICES="redis" && python engine/azure_generic_engine.py > /tmp/test_redis.json 2>&1
+# 2. Analyze: tail -100 /tmp/test_redis.json
+# 3. Fix issues below in discovery/checks sections
+# 4. Re-run until: inventory has resources (if exist), checks = PASS/FAIL (not ERROR)
+# 5. Mark complete at bottom
+#
+# ❌ COMMON ISSUES & FIXES:
+#
+# "Failed to create client" → 
+#   Fix sdk_package: azure.mgmt.redis (use DOTS not dashes)
+#   Install: pip install azure-mgmt-redis
+#
+# "Action not found: X.list" →
+#   Test in Python:
+#     from azure.mgmt.redis import *
+#     client = <Client>(cred, sub_id)
+#     print(dir(client.<resource>))  # Find correct method
+#   Common: list_by_subscription, list_all, list_by_resource_group
+#
+# "ERROR" in checks →
+#   Check resource structure in output
+#   Fix field paths: properties.encryption.keySource
+#   Fix params: add resource_group_name, account_name, etc.
+#
+# Empty inventory →
+#   Create test resource: az <service> <resource> create ...
+#   OR verify action name is correct
+#
+# ✅ SUCCESS WHEN:
+# - No warnings
+# - Inventory populated (if resources exist)  
+# - Checks = PASS/FAIL (not ERROR)
+# - JSON is clean objects (not strings)
+#
+# 📝 AFTER FIXING:
+# Mark status below as VALIDATED and add notes at bottom
+#
+# ============================================================================
+
 redis:
   version: '1.0'
   provider: azure
   service: redis
-  package: azure-mgmt-redis
+  sdk_package: azure.mgmt.redis
   client_class: RedisManagementClient
+  api_type: management
   scope: subscription
   discovery:
-  - discovery_id: azure.redis.resources
+  - discovery_id: azure.redis.caches
     calls:
-    - client: redis
-      action: list_all
-      save_as: redis_caches
-  - discovery_id: azure.redis.cache.instances
-    calls:
-    - client: redis
-      action: list_by_subscription
-      save_as: cache_instances
+    - action: redis.list_by_subscription
+      fields:
+      - path: __self__
   checks:
   - check_id: azure.redis.minimum.tls.version.check
     title: 'AZURE REDIS Minimum: TLS Version Check'
     severity: medium
-    for_each: azure.redis.resources
+    for_each: azure.redis.caches
     calls:
     - action: self
       fields:
@@ -30,7 +73,7 @@ redis:
   - check_id: azure.cache.redis.microsoft.entra.authentication.enabled
     title: 'AZURE CACHE Redis: Microsoft Entra Authentication Enabled'
     severity: high
-    for_each: azure.redis.resources
+    for_each: azure.redis.caches
     calls:
     - action: redis.get
       params:
@@ -43,7 +86,7 @@ redis:
   - check_id: azure.cache.redis.ssl.only.access
     title: 'AZURE CACHE Redis: SSL Only Access'
     severity: medium
-    for_each: azure.redis.resources
+    for_each: azure.redis.caches
     calls:
     - action: redis.get
       params:
@@ -56,7 +99,7 @@ redis:
   - check_id: azure.cache.redis.public.network.access.disabled
     title: 'AZURE CACHE Redis: Public Network Access Disabled'
     severity: critical
-    for_each: azure.redis.resources
+    for_each: azure.redis.caches
     calls:
     - action: self
       fields:
@@ -66,10 +109,32 @@ redis:
   - check_id: azure.redis.cache.system.assigned.identity.check
     title: 'AZURE REDIS Cache: System Assigned Identity Check'
     severity: medium
-    for_each: azure.redis.cache.instances
+    for_each: azure.redis.caches
     calls:
     - action: self
       fields:
       - path: identity.type
         operator: equals
         expected: SystemAssigned
+
+
+# ============================================================================
+# VALIDATION TRACKING
+# ============================================================================
+# STATUS: ⏳ NOT_VALIDATED
+# VALIDATED_BY: 
+# VALIDATED_DATE: 
+# 
+# FIXES APPLIED:
+# # - (Add fixes here after validation)
+#
+# TEST RESULTS:
+# - Resources Discovered: 0
+# - Checks Executed: 0
+# - PASS: 0
+# - FAIL: 0
+# - ERROR: 0
+#
+# NOTES:
+# # - (Add notes here)
+# ============================================================================

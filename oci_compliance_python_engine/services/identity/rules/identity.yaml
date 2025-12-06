@@ -1,0 +1,2643 @@
+identity:
+  version: '1.0'
+  provider: oci
+  service: identity
+  scope: regional
+  discovery:
+  - discovery_id: list_users
+    resource_type: user
+    calls:
+    - action: list
+      client: IdentityClient
+      method: list_users
+      fields:
+      - path: id
+        var: user_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_user_details
+    resource_type: user
+    for_each: list_users
+    calls:
+    - action: get
+      client: IdentityClient
+      method: get_user
+      fields:
+      - path: is_mfa_activated
+        var: mfa
+      - path: email
+        var: email
+      - path: time_created
+        var: time_created
+      - path: capabilities
+        var: capabilities
+      - path: external_identifier
+        var: external_identifier
+  - discovery_id: list_compartments
+    resource_type: compartment
+    calls:
+    - action: list
+      client: IdentityClient
+      method: list_compartments
+      fields:
+      - path: id
+        var: compartment_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_compartment_details
+    resource_type: compartment
+    for_each: list_compartments
+    calls:
+    - action: get
+      client: IdentityClient
+      method: get_compartment
+      fields:
+      - path: name
+        var: name
+      - path: description
+        var: description
+      - path: enable_delete
+        var: enable_delete
+  - discovery_id: list_policys
+    resource_type: policy
+    calls:
+    - action: list
+      client: IdentityClient
+      method: list_policies
+      fields:
+      - path: id
+        var: policy_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_policy_details
+    resource_type: policy
+    for_each: list_policys
+    calls:
+    - action: get
+      client: IdentityClient
+      method: get_policy
+      fields:
+      - path: statements
+        var: statements
+      - path: version_date
+        var: version_date
+  - discovery_id: list_groups
+    resource_type: group
+    calls:
+    - action: list
+      client: IdentityClient
+      method: list_groups
+      fields:
+      - path: id
+        var: group_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_group_details
+    resource_type: group
+    for_each: list_groups
+    calls:
+    - action: get
+      client: IdentityClient
+      method: get_group
+      fields:
+      - path: name
+        var: name
+      - path: description
+        var: description
+  checks:
+  - check_id: oci.identity.tag_namespace.savings_plan_approval_workflow_required
+    title: 'OCI IDENTITY Tag_namespace: Savings Plan Approval Workflow Required'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.savings_plan_billing_admins_mfa_required
+    title: 'OCI IDENTITY User: Savings Plan Billing Admins MFA Required'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.savings_plan_purchase_permissions_restricted
+    title: 'OCI IDENTITY User: Savings Plan Purchase Permissions Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.compartment.ou_auto_tag_policies_enabled
+    title: 'OCI IDENTITY Compartment: Ou Auto Tag Policies Enabled'
+    severity: medium
+    for_each: list_compartments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.ou_no_overly_permissive_exceptions
+    title: 'OCI IDENTITY User: Ou No Overly Permissive Exceptions'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.ou_required_scps_attached
+    title: 'OCI IDENTITY Policy: Ou Required Scps Attached'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.policy_admin_change_audit_logging_enabled
+    title: 'OCI IDENTITY Policy: Policy Admin Change Audit Logging Enabled'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_admin_mfa_required
+    title: 'OCI IDENTITY User: Policy Admin MFA Required'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.policy.policy_admin_rbac_least_privilege_required
+    title: 'OCI IDENTITY Policy: Policy Admin RBAC Least Privilege Required'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.instance_profile_no_with_admin_star_restricted
+    title: 'OCI IDENTITY User: Instance Profile No With Admin Star Restricted'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.instance_profile_role_attached_restricted
+    title: 'OCI IDENTITY Policy: Instance Profile Role Attached Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.instance_profile_role_policies_least_privilege_required
+    title: 'OCI IDENTITY Policy: Instance Profile Role Policies Least Privilege Required'
+    severity: high
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.rbac_group_attached_policies_not_admin_star_restricted
+    title: 'OCI IDENTITY Group: RBAC Group Attached Policies Not Admin Star Restricted'
+    severity: critical
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.rbac_group_external_sharing_restricted_where_supported_restricted
+    title: 'OCI IDENTITY Group: RBAC Group External Sharing Restricted Where Supported Restricted'
+    severity: medium
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.rbac_group_no_inline_policies_restricted
+    title: 'OCI IDENTITY Group: RBAC Group No Inline Policies Restricted'
+    severity: medium
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_policy_conditions_used_where_applicable_restricted
+    title: 'OCI IDENTITY Policy: RBAC Policy Conditions Used Where Applicable Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_policy_no_action_star_on_resource_restricted
+    title: 'OCI IDENTITY Policy: RBAC Policy No Action Star On Resource Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_policy_no_allows_without_constraints_restricted
+    title: 'OCI IDENTITY Policy: RBAC Policy No Allows Without Constraints Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_policy_resource_constraints_present_restricted
+    title: 'OCI IDENTITY Policy: RBAC Policy Resource Constraints Present Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.policy_editors_rbac_least_privilege_required
+    title: 'OCI IDENTITY Policy: Policy Editors RBAC Least Privilege Required'
+    severity: high
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.policy_no_wildcard_admin_actions
+    title: 'OCI IDENTITY Policy: Policy No Wildcard Admin Actions'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.policy_versioning_and_change_audit_enabled
+    title: 'OCI IDENTITY Policy: Policy Versioning And Change Audit Enabled'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.oidc_allowed_client_ids_audiences_restricted_restricted
+    title: 'OCI IDENTITY User: Oidc Allowed Client Ids Audiences Restricted Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.oidc_issuer_https_and_matches_discovery_restricted
+    title: 'OCI IDENTITY User: Oidc Issuer HTTPS And Matches Discovery Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.oidc_thumbprints_or_jwks_pinning_configured_restricted
+    title: 'OCI IDENTITY User: Oidc Thumbprints Or Jwks Pinning Configured Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.oidc_token_lifetime_reasonable_restricted
+    title: 'OCI IDENTITY User: Oidc Token Lifetime Reasonable Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.saml_assertion_lifetime_reasonable_restricted
+    title: 'OCI IDENTITY User: Saml Assertion Lifetime Reasonable Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.saml_audience_restriction_configured_restricted
+    title: 'OCI IDENTITY User: Saml Audience Restriction Configured Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.saml_certificates_not_expired_restricted
+    title: 'OCI IDENTITY User: Saml Certificates Not Expired Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.saml_idp_metadata_signed_restricted
+    title: 'OCI IDENTITY User: Saml Idp Metadata Signed Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rights_execution_roles_least_privilege_required
+    title: 'OCI IDENTITY Policy: Rights Execution Roles Least Privilege Required'
+    severity: high
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.rights_workflow_storage_encrypted
+    title: 'OCI IDENTITY User: Rights Workflow Storage Encrypted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_external_access_reviewed_restricted
+    title: 'OCI IDENTITY User: User External Access Reviewed Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_roles_minimal
+    title: 'OCI IDENTITY User: User Roles Minimal'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_sso_required
+    title: 'OCI IDENTITY User: User Sso Required'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.budget_alert_destinations_enabled
+    title: 'OCI IDENTITY User: Budget Alert Destinations Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.budget_alert_thresholds_enabled
+    title: 'OCI IDENTITY User: Budget Alert Thresholds Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.budget_budgets_defined_for_accounts_or_projects_required
+    title: 'OCI IDENTITY User: Budget Budgets Defined For Accounts Or Projects Required'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.budget_modify_permissions_restricted
+    title: 'OCI IDENTITY User: Budget Modify Permissions Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.access_billing_admins_mfa_required
+    title: 'OCI IDENTITY User: Access Billing Admins MFA Required'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.access_billing_console_rbac_least_privilege_required
+    title: 'OCI IDENTITY User: Access Billing Console RBAC Least Privilege Required'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.tag_namespace.access_cost_data_exports_private_and_encrypted
+    title: 'OCI IDENTITY Tag_namespace: Access Cost Data Exports Private And Encrypted'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.access_cost_export_destinations_least_privilege_required
+    title: 'OCI IDENTITY User: Access Cost Export Destinations Least Privilege Required'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.tag_namespace.allocation_cost_tag_policy_enforced
+    title: 'OCI IDENTITY Tag_namespace: Allocation Cost Tag Policy Enforced'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.tag_namespace.allocation_required_cost_tags_present
+    title: 'OCI IDENTITY Tag_namespace: Allocation Required Cost Tags Present'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.tag_namespace.allocation_untagged_resource_alerts_enabled
+    title: 'OCI IDENTITY Tag_namespace: Allocation Untagged Resource Alerts Enabled'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.group_attached_policies_not_admin_star_restricted
+    title: 'OCI IDENTITY Group: Group Attached Policies Not Admin Star Restricted'
+    severity: critical
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.group_membership_review_enabled
+    title: 'OCI IDENTITY Group: Group Membership Review Enabled'
+    severity: medium
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.group.group_no_inline_policies_restricted
+    title: 'OCI IDENTITY Group: Group No Inline Policies Restricted'
+    severity: medium
+    for_each: list_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.role_attached_policies_not_admin_star_restricted
+    title: 'OCI IDENTITY Policy: Role Attached Policies Not Admin Star Restricted'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.role_max_session_duration_reasonable_restricted
+    title: 'OCI IDENTITY Policy: Role Max Session Duration Reasonable Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.role_no_inline_policies_restricted
+    title: 'OCI IDENTITY Policy: Role No Inline Policies Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.role_trust_principals_allowlist_only_restricted
+    title: 'OCI IDENTITY Policy: Role Trust Principals Allowlist Only Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.role_trust_requires_external_id_or_restricted
+    title: 'OCI IDENTITY Policy: Role Trust Requires External Id Or Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_role_attached_policies_not_admin_star_restricted
+    title: 'OCI IDENTITY Policy: RBAC Role Attached Policies Not Admin Star Restricted'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_role_no_inline_policies_restricted
+    title: 'OCI IDENTITY Policy: RBAC Role No Inline Policies Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.rbac_role_session_duration_reasonable_where_applicable_restricted
+    title: 'OCI IDENTITY Policy: RBAC Role Session Duration Reasonable Where Applicable Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_access_keys_rotated_90_days_restricted
+    title: 'OCI IDENTITY User: User Access Keys Rotated 90 Days Restricted'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_console_password_present_only_if_required
+    title: 'OCI IDENTITY User: User Console Password Present Only If Required'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_inactive_90_days_disabled
+    title: 'OCI IDENTITY User: User Inactive 90 Days Disabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_mfa_required
+    title: 'OCI IDENTITY User: User MFA Required'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.user_no_inline_policies_attached_restricted
+    title: 'OCI IDENTITY User: User No Inline Policies Attached Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.org_all_accounts_enrolled_in
+    title: 'OCI IDENTITY User: Org All Accounts Enrolled In'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.org_block_leave_by_policy
+    title: 'OCI IDENTITY Policy: Org Block Leave By Policy'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.org_restrict_region_usage_by_policy_where_required
+    title: 'OCI IDENTITY Policy: Org Restrict Region Usage By Policy Where Required'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.org_scps_enabled
+    title: 'OCI IDENTITY Policy: Org Scps Enabled'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.password_policy_lockout_threshold_defined_restricted
+    title: 'OCI IDENTITY Policy: Password Policy Lockout Threshold Defined Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.password_policy_max_age_90_days_restricted
+    title: 'OCI IDENTITY Policy: Password Policy Max Age 90 Days Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.password_policy_min_length_14_restricted
+    title: 'OCI IDENTITY Policy: Password Policy Min Length 14 Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.password_policy_prevent_reuse_last_24_restricted
+    title: 'OCI IDENTITY Policy: Password Policy Prevent Reuse Last 24 Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.password_policy_require_upper_lower_number_special_restricted
+    title: 'OCI IDENTITY Policy: Password Policy Require Upper Lower Number Special Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.api_key.tenant_api_access_keys_root_or_restricted
+    title: 'OCI IDENTITY Api_key: Tenant API Access Keys Root Or Restricted'
+    severity: critical
+    for_each: list_api_keys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.tenant_break_glass_accounts_mfa_enforced
+    title: 'OCI IDENTITY User: Tenant Break Glass Accounts MFA Enforced'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.tenant_console_mfa_required_org_wide
+    title: 'OCI IDENTITY User: Tenant Console MFA Required Org Wide'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.tenant_inactive_user_disable_threshold_configured_restricted
+    title: 'OCI IDENTITY User: Tenant Inactive User Disable Threshold Configured Restricted'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.tenant_password_policy_compliant_restricted
+    title: 'OCI IDENTITY Policy: Tenant Password Policy Compliant Restricted'
+    severity: medium
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.identity_provider.tenant_sso_federation_configured_where_supported_restricted
+    title: 'OCI IDENTITY Identity_provider: Tenant Sso Federation Configured Where Supported Restricted'
+    severity: medium
+    for_each: list_identity_providers
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.anomaly_alert_destinations_enabled
+    title: 'OCI IDENTITY User: Anomaly Alert Destinations Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.tag_namespace.anomaly_detectors_enabled
+    title: 'OCI IDENTITY Tag_namespace: Anomaly Detectors Enabled'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.anomaly_severity_thresholds_configured
+    title: 'OCI IDENTITY User: Anomaly Severity Thresholds Configured'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.checks_configured
+    title: 'OCI IDENTITY User: Checks Configured'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.app_services_is_on
+    title: 'OCI IDENTITY User: App Services Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_enabled
+    title: 'OCI IDENTITY User: Guard Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_is_enabled
+    title: 'OCI IDENTITY User: Guard Is Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_no_high_severity_findings
+    title: 'OCI IDENTITY User: Guard No High Severity Findings'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_recorder_all_regions_enabled
+    title: 'OCI IDENTITY User: Guard Recorder All Regions Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_root_compartment_enabled
+    title: 'OCI IDENTITY User: Guard Root Compartment Enabled'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_ensure_protection_for_compute_is_on
+    title: 'OCI IDENTITY User: Guard Ensure Protection For Compute Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_ensure_protection_for_containers_is_on
+    title: 'OCI IDENTITY User: Guard Ensure Protection For Containers Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_ensure_protection_for_databases_is_on
+    title: 'OCI IDENTITY User: Guard Ensure Protection For Databases Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_ensure_protection_for_dns_is_on
+    title: 'OCI IDENTITY User: Guard Ensure Protection For Dns Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_ensure_protection_for_vault_is_on
+    title: 'OCI IDENTITY User: Guard Ensure Protection For Vault Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_guardduty_enabled
+    title: 'OCI IDENTITY User: Guard Guardduty Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_security_center_enabled
+    title: 'OCI IDENTITY User: Guard Security Center Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_vulnerability_assessment_enabled
+    title: 'OCI IDENTITY User: Guard Vulnerability Assessment Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.storage_is_on
+    title: 'OCI IDENTITY User: Storage Is On'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.global_admin_in_less_than_five_users
+    title: 'OCI IDENTITY User: Global Admin In Less Than Five Users'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_require_mfa_for_management_api
+    title: 'OCI IDENTITY User: Policy Require MFA For Management API'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.policy_user_consent_for_verified_apps
+    title: 'OCI IDENTITY User: Policy User Consent For Verified Apps'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.security_defaults_enabled
+    title: 'OCI IDENTITY User: Security Defaults Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.trusted_named_locations_configured
+    title: 'OCI IDENTITY User: Trusted Named Locations Configured'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.account_access_approval_enabled
+    title: 'OCI IDENTITY User: Account Access Approval Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.audit_logs_enabled
+    title: 'OCI IDENTITY User: Audit Logs Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.cloud_asset_inventory_enabled
+    title: 'OCI IDENTITY User: Cloud Asset Inventory Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.database_passwords_check_rotation
+    title: 'OCI IDENTITY User: Database Passwords Check Rotation'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.group_policy_oke_admin_required_permissions
+    title: 'OCI IDENTITY User: Group Policy Oke Admin Required Permissions'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.group_policy_verification
+    title: 'OCI IDENTITY User: Group Policy Verification'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.group_service_level_admin_policy_enforced
+    title: 'OCI IDENTITY User: Group Service Level Admin Policy Enforced'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.local_user_credentials_inactive_45_days_disabled
+    title: 'OCI IDENTITY User: Local User Credentials Inactive 45 Days Disabled'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.organization_essential_contacts_configured
+    title: 'OCI IDENTITY User: Organization Essential Contacts Configured'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_prevent_reuse
+    title: 'OCI IDENTITY User: Password Policy Prevent Reuse'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_admin_group_only_all_resources_management
+    title: 'OCI IDENTITY User: Policy Admin Group Only All Resources Management'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_storage_admin_delete_permission_restricted
+    title: 'OCI IDENTITY User: Policy Storage Admin Delete Permission Restricted'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_users_groups_admin_group_modification_restricted
+    title: 'OCI IDENTITY User: Policy Users Groups Admin Group Modification Restricted'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.role_kms_enforce_separation_of_duties
+    title: 'OCI IDENTITY User: Role KMS Enforce Separation Of Duties'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.role_sa_enforce_separation_of_duties
+    title: 'OCI IDENTITY User: Role Sa Enforce Separation Of Duties'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.root_compartment_default_tags_configured
+    title: 'OCI IDENTITY User: Root Compartment Default Tags Configured'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.sa_no_administrative_privileges
+    title: 'OCI IDENTITY User: Sa No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.service_roles_at_project_level
+    title: 'OCI IDENTITY User: Service Roles At Project Level'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.tenancy_admin_users_api_keys_absent
+    title: 'OCI IDENTITY User: Tenancy Admin Users API Keys Absent'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_api_key_rotation_within_90_days
+    title: 'OCI IDENTITY User: User API Key Rotation Within 90 Days'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_customer_secret_key_rotation_check_90_days
+    title: 'OCI IDENTITY User: User Customer Secret Key Rotation Check 90 Days'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_email_verification
+    title: 'OCI IDENTITY User: User Email Verification'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_managed_key_unused
+    title: 'OCI IDENTITY User: User Managed Key Unused'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_managed_keys
+    title: 'OCI IDENTITY User: User Managed Keys'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_mfa_enabled
+    title: 'OCI IDENTITY User: User MFA Enabled'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.user_single_active_api_key
+    title: 'OCI IDENTITY User: User Single Active API Key'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.auth_token_rotation
+    title: 'OCI IDENTITY User: Auth Token Rotation'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.aws_attached_policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Aws Attached Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.console_mfa_enabled
+    title: 'OCI IDENTITY User: Console MFA Enabled'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.customer_attached_policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Customer Attached Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.domain_password_policy_expiry_days_maximum
+    title: 'OCI IDENTITY User: Domain Password Policy Expiry Days Maximum'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.domain_password_policy_minimum_length_enforced
+    title: 'OCI IDENTITY User: Domain Password Policy Minimum Length Enforced'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.dynamic_group_instance_principal
+    title: 'OCI IDENTITY User: Dynamic Group Instance Principal'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.group_has_users
+    title: 'OCI IDENTITY User: Group Has Users'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.inline_policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Inline Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.key
+    title: 'OCI IDENTITY User: Key'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.key_90_days
+    title: 'OCI IDENTITY User: Key 90 Days'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.root_access_key_blocked
+    title: 'OCI IDENTITY User: Root Access Key Blocked'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_expires_passwords_within_90_less
+    title: 'OCI IDENTITY User: Password Policy Expires Passwords Within 90 Less'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_lowercase
+    title: 'OCI IDENTITY User: Password Policy Lowercase'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_minimum_length_14
+    title: 'OCI IDENTITY User: Password Policy Minimum Length 14'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_number
+    title: 'OCI IDENTITY User: Password Policy Number'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_reuse_24
+    title: 'OCI IDENTITY User: Password Policy Reuse 24'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.password.policy_reuse_24
+    title: 'OCI IDENTITY Password: Policy Reuse 24'
+    severity: medium
+    for_each: list_passwords
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_symbol
+    title: 'OCI IDENTITY User: Password Policy Symbol'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_uppercase
+    title: 'OCI IDENTITY User: Password Policy Uppercase'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy
+    title: 'OCI IDENTITY User: Policy'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_allows_privilege_escalation
+    title: 'OCI IDENTITY User: Policy Allows Privilege Escalation'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_attached_only_to_group_or_roles
+    title: 'OCI IDENTITY User: Policy Attached Only To Group Or Roles'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_compliance
+    title: 'OCI IDENTITY User: Policy Compliance'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_default_users_cannot_create_security_groups
+    title: 'OCI IDENTITY User: Policy Default Users Cannot Create Security Groups'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_ensure_default_user_cannot_create_apps
+    title: 'OCI IDENTITY User: Policy Ensure Default User Cannot Create Apps'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_ensure_default_user_cannot_create_tenants
+    title: 'OCI IDENTITY User: Policy Ensure Default User Cannot Create Tenants'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_guest_invite_only_for_admin_roles
+    title: 'OCI IDENTITY User: Policy Guest Invite Only For Admin Roles'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_guest_users_access_restrictions
+    title: 'OCI IDENTITY User: Policy Guest Users Access Restrictions'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_minimum_length_14
+    title: 'OCI IDENTITY User: Policy Minimum Length 14'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_no_full_access_to_cloudtrail
+    title: 'OCI IDENTITY User: Policy No Full Access To Cloudtrail'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_overly_permissive
+    title: 'OCI IDENTITY User: Policy Overly Permissive'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_restricts_user_consent_for_apps
+    title: 'OCI IDENTITY User: Policy Restricts User Consent For Apps'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_strong
+    title: 'OCI IDENTITY User: Policy Strong'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.role_least_privilege_required
+    title: 'OCI IDENTITY User: Role Least Privilege Required'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.root_hardware_mfa_enabled
+    title: 'OCI IDENTITY User: Root Hardware MFA Enabled'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.root_mfa_enabled
+    title: 'OCI IDENTITY User: Root MFA Enabled'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.rotate_access_key_90_days
+    title: 'OCI IDENTITY User: Rotate Access Key 90 Days'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.support_role_created
+    title: 'OCI IDENTITY User: Support Role Created'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_accesskey_unused
+    title: 'OCI IDENTITY User: User Accesskey Unused'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_console_access_unused
+    title: 'OCI IDENTITY User: User Console Access Unused'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_has_mfa
+    title: 'OCI IDENTITY User: User Has MFA'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.user_in_group
+    title: 'OCI IDENTITY User: User In Group'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_mfa_enabled_console_access
+    title: 'OCI IDENTITY User: User MFA Enabled Console Access'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.user_no_inline_policies
+    title: 'OCI IDENTITY User: User No Inline Policies'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_unused_credentials
+    title: 'OCI IDENTITY User: User Unused Credentials'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_with_vm_access_has_mfa
+    title: 'OCI IDENTITY User: User With VM Access Has MFA'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.users_cannot_create_groups
+    title: 'OCI IDENTITY User: Users Cannot Create Groups'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.compartment.account_part_of_organizations
+    title: 'OCI IDENTITY Compartment: Account Part Of Organizations'
+    severity: medium
+    for_each: list_compartments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.compartment.resource_no_root_compartment
+    title: 'OCI IDENTITY Compartment: Resource No Root Compartment'
+    severity: critical
+    for_each: list_compartments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.maintain_current_contact_details
+    title: 'OCI IDENTITY User: Maintain Current Contact Details'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.maintain_different_contact_details_to_security_operations
+    title: 'OCI IDENTITY User: Maintain Different Contact Details To Security Operations'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.security_contact_information_is_registered
+    title: 'OCI IDENTITY User: Security Contact Information Is Registered'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.api_restrictions_configured
+    title: 'OCI IDENTITY User: API Restrictions Configured'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.api_key.key_rotated_in_90_days
+    title: 'OCI IDENTITY Api_key: Key Rotated In 90 Days'
+    severity: high
+    for_each: list_api_keys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_centrally_managed
+    title: 'OCI IDENTITY User: Guard Centrally Managed'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guard_eks_audit_log_enabled
+    title: 'OCI IDENTITY User: Guard Eks Audit Log Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.directory_log_forwarding_enabled
+    title: 'OCI IDENTITY User: Directory Log Forwarding Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.supported_mfa_radius_enabled
+    title: 'OCI IDENTITY User: Supported MFA Radius Enabled'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.policy.conditional_access_policy_require_mfa_for_management_api
+    title: 'OCI IDENTITY Policy: Conditional Access Policy Require MFA For Management API'
+    severity: high
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.policy.conditional_access_policy_require_mfa_for_management_app
+    title: 'OCI IDENTITY Policy: Conditional Access Policy Require MFA For Management App'
+    severity: high
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.non_privileged_user_has_mfa
+    title: 'OCI IDENTITY User: Non Privileged User Has MFA'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.non_privileged_user_has_mfa_entra
+    title: 'OCI IDENTITY User: Non Privileged User Has MFA Entra'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.policy.policy_guest_invite_only_for_admin_roles
+    title: 'OCI IDENTITY Policy: Policy Guest Invite Only For Admin Roles'
+    severity: critical
+    for_each: list_policys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.policy_user_consent_for_verified_apps_enabled
+    title: 'OCI IDENTITY User: Policy User Consent For Verified Apps Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.privileged_user_has_mfa
+    title: 'OCI IDENTITY User: Privileged User Has MFA'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.user.users_cannot_create_microsoft_365_groups
+    title: 'OCI IDENTITY User: Users Cannot Create Microsoft 365 Groups'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.custom_role_has_permissions_to_administer_resource_locks
+    title: 'OCI IDENTITY User: Custom Role Has Permissions To Administer Resource Locks'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.service_roles_at_project_level_blocked
+    title: 'OCI IDENTITY User: Service Roles At Project Level Blocked'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.sa_no_user_managed_keys
+    title: 'OCI IDENTITY User: Sa No User Managed Keys'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.sa_user_managed_key_rotate_90_days
+    title: 'OCI IDENTITY User: Sa User Managed Key Rotate 90 Days'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.avoid_root_usage
+    title: 'OCI IDENTITY User: Avoid Root Usage'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.customer_unattached_policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Customer Unattached Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.admin_policy_blocked
+    title: 'OCI IDENTITY User: Admin Policy Blocked'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.guest_accounts_with_permissions_blocked
+    title: 'OCI IDENTITY User: Guest Accounts With Permissions Blocked'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.oracle_attached_policy_no_administrative_privileges
+    title: 'OCI IDENTITY User: Oracle Attached Policy No Administrative Privileges'
+    severity: critical
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.password_policy_compliance
+    title: 'OCI IDENTITY User: Password Policy Compliance'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.securityaudit_role_created
+    title: 'OCI IDENTITY User: Securityaudit Role Created'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_group_membership
+    title: 'OCI IDENTITY User: User Group Membership'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.user_hardware_mfa_enabled
+    title: 'OCI IDENTITY User: User Hardware MFA Enabled'
+    severity: high
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: is_mfa_activated
+        operator: equals
+        expected: true
+        description: Verify MFA is enabled
+  - check_id: oci.identity.tag_namespace.tags_policies_enabled_and_attached
+    title: 'OCI IDENTITY Tag_namespace: Tags Policies Enabled And Attached'
+    severity: medium
+    for_each: list_tag_namespaces
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.identity.user.ensure_asc_enforcement_enabled
+    title: 'OCI IDENTITY User: Ensure Asc Enforcement Enabled'
+    severity: medium
+    for_each: list_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)

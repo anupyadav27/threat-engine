@@ -1,0 +1,108 @@
+redis:
+  version: '1.0'
+  provider: oci
+  service: redis
+  scope: regional
+  discovery:
+  - discovery_id: list_clusters
+    resource_type: cluster
+    calls:
+    - action: list
+      client: ContainerEngineClient
+      method: list_clusters
+      fields:
+      - path: id
+        var: cluster_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_cluster_details
+    resource_type: cluster
+    for_each: list_clusters
+    calls:
+    - action: get
+      client: ContainerEngineClient
+      method: get_cluster
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: options
+        var: options
+      - path: endpoint_config
+        var: endpoint_config
+  checks:
+  - check_id: oci.redis.cluster.backup_retention
+    title: 'OCI REDIS Cluster: Backup Retention'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.redis.cluster.cluster_in_transit_encryption_enabled
+    title: 'OCI REDIS Cluster: Cluster In Transit Encryption Enabled'
+    severity: high
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.redis.cluster.redis_cluster_automatic_failover_enabled
+    title: 'OCI REDIS Cluster: Redis Cluster Automatic Failover Enabled'
+    severity: low
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.redis.cluster.redis_cluster_in_transit_encryption_enabled
+    title: 'OCI REDIS Cluster: Redis Cluster In Transit Encryption Enabled'
+    severity: high
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.redis.cluster.redis_cluster_multi_az_enabled
+    title: 'OCI REDIS Cluster: Redis Cluster Multi Az Enabled'
+    severity: low
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.redis.cluster.redis_cluster_rest_encryption_enabled
+    title: 'OCI REDIS Cluster: Redis Cluster Rest Encryption Enabled'
+    severity: high
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured

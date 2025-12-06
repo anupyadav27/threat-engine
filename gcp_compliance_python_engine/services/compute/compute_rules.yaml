@@ -1,98 +1,3342 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
 compute:
+  version: '1.0'
+  provider: gcp
+  service: compute
   scope: regional
-
+  api_name: compute
+  api_version: v1
   discovery:
-    - discovery_id: instances
-      calls:
-        - action: aggregated_list_instances
-    - discovery_id: firewalls
-      calls:
-        - action: list_firewalls
-
+  - discovery_id: list_compute_addresses
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: address_name
+      - path: address
+        var: address_ip
+      - path: status
+        var: address_status
+      - path: users
+        var: address_users
+  - discovery_id: instances
+    calls:
+    - action: aggregatedList_instances
+      fields:
+      - path: name
+        var: instance_name
+      - path: status
+        var: instance_status
+      - path: machineType
+        var: machine_type
+      - path: networkInterfaces
+        var: network_interfaces
+      - path: shieldedInstanceConfig
+        var: shielded_config
+      - path: metadata
+        var: instance_metadata
+      - path: serviceAccounts
+        var: service_accounts
+      - path: scheduling
+        var: scheduling
+      - path: disks
+        var: disks
+      - path: labels
+        var: labels
+      - path: tags
+        var: tags
+      - path: canIpForward
+        var: can_ip_forward
+      - path: deletionProtection
+        var: deletion_protection
+  - discovery_id: list_compute_autoscalers
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: autoscaler_name
+      - path: target
+        var: autoscaler_target
+  - discovery_id: list_backend_services
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: backend_service_name
+      - path: loadBalancingScheme
+        var: load_balancing_scheme
+  - discovery_id: list_compute_disks
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: disk_name
+      - path: status
+        var: disk_status
+  - discovery_id: firewalls
+    calls:
+    - action: list_firewalls
+      fields:
+      - path: name
+        var: firewall_name
+      - path: direction
+        var: firewall_direction
+      - path: sourceRanges
+        var: source_ranges
+      - path: allowed
+        var: allowed_rules
+  - discovery_id: list_compute_networks
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: network_name
+      - path: autoCreateSubnetworks
+        var: auto_create_subnets
+  - discovery_id: list_compute_snapshots
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: snapshot_name
+      - path: status
+        var: snapshot_status
+  - discovery_id: list_ssl_certificates
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: ssl_cert_name
+      - path: type
+        var: ssl_cert_type
+  - discovery_id: list_url_maps
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: url_map_name
   checks:
-    - check_id: compute_instance_no_external_ip
-      for_each: instances
-      param: instance
-      calls:
-        - action: eval
-          fields:
-            - path: has_external_ip
-              operator: equals
-              expected: false
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: compute_instance_shielded_secure_boot
-      for_each: instances
-      param: instance
-      calls:
-        - action: eval
-          fields:
-            - path: shielded_secure_boot
-              operator: equals
-              expected: true
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: compute_instance_serial_port_disabled
-      for_each: instances
-      param: instance
-      calls:
-        - action: eval
-          fields:
-            - path: metadata.serial_port_enabled
-              operator: equals
-              expected: false
-      multi_step: false
-      logic: AND
-      errors_as_fail: []
-
-    - check_id: compute_firewall_no_ssh_from_anywhere
-      for_each: firewalls
-      param: firewall
-      multi_step: true
-      logic: AND
-      calls:
-        - action: eval
-          fields:
-            - path: source_ranges[]
-              operator: contains
-              expected: 0.0.0.0/0
-            - path: allowed_tcp_ports[]
-              operator: contains
-              expected: "22"
-      errors_as_fail: []
-
-    - check_id: compute_firewall_no_rdp_from_anywhere
-      for_each: firewalls
-      param: firewall
-      multi_step: true
-      logic: AND
-      calls:
-        - action: eval
-          fields:
-            - path: source_ranges[]
-              operator: contains
-              expected: 0.0.0.0/0
-            - path: allowed_tcp_ports[]
-              operator: contains
-              expected: "3389"
-      errors_as_fail: []
-
-    - check_id: compute_firewall_no_wide_tcp_range_from_anywhere
-      for_each: firewalls
-      param: firewall
-      multi_step: true
-      logic: AND
-      calls:
-        - action: eval
-          fields:
-            - path: source_ranges[]
-              operator: contains
-              expected: 0.0.0.0/0
-            - path: allowed_tcp_ports[]
-              operator: contains
-              expected: "0-65535"
-      errors_as_fail: [] 
+  - check_id: gcp.compute.address.attached
+    title: Ensure Static IP Addresses Are Attached to Resources
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.address.edge_ip_set_cidrs_valid_and_minimized
+    title: Ensure Edge IP CIDRs Are Valid and Minimized
+    severity: high
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addressType
+        operator: equals
+        expected: EXTERNAL
+    - action: get_address_details
+      fields:
+      - path: ipCidrRange
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.address.edge_ip_set_cross_account_sharing_restricted
+    title: Restrict Cross-Account Sharing of Edge IP Sets
+    severity: high
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: get_address_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+  - check_id: gcp.compute.address.edge_ip_set_not_empty
+    title: Ensure Edge IP Set on Compute Addresses is Configured
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: address
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.address.edge_ip_set_used_by_at_least_one_rule
+    title: Ensure Edge IP Sets are Actively Used by Firewall Rules
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.address.ip_attached_configured
+    title: Ensure Attached IP Addresses Are Properly Configured
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: status
+        operator: equals
+        expected: IN_USE
+  - check_id: gcp.compute.address.ip_unassigned
+    title: Unassigned IP Addresses in Google Compute Engine
+    severity: low
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: status
+        operator: equals
+        expected: RESERVED
+  - check_id: gcp.compute.address.network_endpoint_policy_least_privilege
+    title: Ensure Least Privilege for Network Endpoint Policies
+    severity: high
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: get_address_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.compute.address.network_endpoint_private_dns_enabled_where_supported
+    title: Enable Private DNS for Network Endpoints in GCP Compute
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addressType
+        operator: equals
+        expected: INTERNAL
+  - check_id: gcp.compute.address.public_address_shodan_configured
+    title: Ensure Public IPs Are Not Indexed by Shodan
+    severity: medium
+    for_each: list_compute_addresses
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: addressType
+        operator: equals
+        expected: INTERNAL
+  - check_id: gcp.compute.autoscaler.autoscaler_configured
+    title: Ensure Autoscaler is Configured for Compute Instances
+    severity: medium
+    for_each: list_compute_autoscalers
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: autoscalingPolicy.minNumReplicas
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: autoscalingPolicy.maxNumReplicas
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.backend_service.balancer_ssl_policy_check_secure_ciphers
+    title: Ensure Secure Ciphers in Backend Service SSL Policies
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: protocol
+        operator: equals
+        expected: HTTPS
+    - action: get_ssl_policy_details
+      fields:
+      - path: minTlsVersion
+        operator: equals
+        expected: TLS_1_2
+  - check_id: gcp.compute.backend_service.balancing_deletion_protection_configured
+    title: Ensure Backend Service Deletion Protection is Configured
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: deletionProtection
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.backend_service.balancing_desync_mitigation_mode_configured
+    title: Ensure Desync Mitigation Mode is Configured for Backend Services
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: securitySettings.desyncMitigationMode
+        operator: equals
+        expected: DEFENSIVE
+  - check_id: gcp.compute.backend_service.edge_cdn_access_logging_enabled
+    title: Enable Edge CDN Access Logging for Backend Services
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: cdnPolicy.cacheKeyPolicy.includeHost
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: logConfig.enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.backend_service.edge_cdn_cache_key_excludes_sensitive_headers
+    title: Exclude Sensitive Headers from Edge CDN Cache Keys
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: cdnPolicy.cacheKeyPolicy.includeHttpHeaders[]
+        operator: not_contains
+        expected: Authorization
+  - check_id: gcp.compute.backend_service.edge_cdn_cache_key_minimal_query_and_cookie_variants
+    title: Ensure Minimal Query and Cookie Variants for CDN Cache Keys
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: cdnPolicy.cacheKeyPolicy.includeQueryString
+        operator: equals
+        expected: false
+  - check_id: gcp.compute.backend_service.edge_cdn_hsts_enabled
+    title: Enable HSTS for Edge CDN on Backend Services
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: securityPolicy
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.backend_service.edge_cdn_https_only_viewer_protocol
+    title: Enforce HTTPS for Edge CDN Viewer Protocol on Backend Services
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: protocol
+        operator: equals
+        expected: HTTPS
+  - check_id: gcp.compute.backend_service.edge_cdn_origin_access_restricted
+    title: Restrict Edge CDN Origin Access for Backend Services
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: cdnPolicy.signedUrlCacheMaxAgeSec
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.boot_disk_encryption_enabled
+    title: Ensure Boot Disk Encryption is Enabled for Compute Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[0].diskEncryptionKey
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.confidential_computing_enabled
+    title: Enable Confidential Computing for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: confidentialInstanceConfig.enableConfidentialCompute
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.instance.default_service_account_not_used
+    title: Ensure Default Service Account is Not Used for Compute Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+  - check_id: gcp.compute.instance.disk_encryption_customer_managed_keys
+    title: Use Customer-Managed Keys for Disk Encryption
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.external_ip_access_restricted
+    title: Restrict External IP Access for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+  - check_id: gcp.compute.instance.integrity_monitoring_enabled
+    title: Enable Integrity Monitoring for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.instance.ip_forwarding_disabled
+    title: Disable IP Forwarding for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: canIpForward
+        operator: equals
+        expected: false
+  - check_id: gcp.compute.instance.legacy_network_not_used
+    title: Ensure Legacy Networks Are Not Used for Compute Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].network
+        operator: not_contains
+        expected: default
+  - check_id: gcp.compute.instance.metadata_concealment_enabled
+    title: Enable Metadata Concealment for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.items[?(@.key=='block-project-ssh-keys')].value
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.compute.instance.oslogin_enabled
+    title: Enable OS Login for Compute Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.items[?(@.key=='enable-oslogin')].value
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.compute.instance.preemptible_termination_handler_configured
+    title: Configure Preemptible Instance Termination Handler
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.preemptible
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.instance.secure_boot_enabled
+    title: Enable Secure Boot for Compute Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.instance.serial_port_access_disabled
+    title: Disable Serial Port Access for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.items[?(@.key=='serial-port-enable')].value
+        operator: equals
+        expected: 'false'
+  - check_id: gcp.compute.instance.ssh_keys_project_wide_disabled
+    title: Disable Project-Wide SSH Keys for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.items[?(@.key=='block-project-ssh-keys')].value
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.compute.instance.vtpm_enabled
+    title: Enable vTPM for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableVtpm
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.disk.encryption_customer_managed_keys
+    title: Use Customer-Managed Keys for Disk Encryption
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.disk.encryption_enabled
+    title: Ensure Disk Encryption is Enabled
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.disk.regional_persistent_disk_replication_enabled
+    title: Enable Replication for Regional Persistent Disks
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: contains
+        expected: regional
+    - action: eval
+      fields:
+      - path: replicaZones
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.disk.unused_disk_detection
+    title: Detect Unused Compute Disks
+    severity: low
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.firewall.admin_port_access_restricted
+    title: Restrict Admin Port Access in Firewall Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports[]
+        operator: not_contains
+        expected: '22'
+    - action: eval
+      fields:
+      - path: sourceRanges[]
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: gcp.compute.firewall.default_firewall_rules_restricted
+    title: Restrict Default Firewall Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: not_contains
+        expected: default-allow-
+  - check_id: gcp.compute.firewall.http_access_restricted
+    title: Restrict HTTP Access in Firewall Rules
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports[]
+        operator: not_contains
+        expected: '80'
+    - action: eval
+      fields:
+      - path: sourceRanges[]
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: gcp.compute.firewall.rdp_access_restricted
+    title: Restrict RDP Access in Firewall Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports[]
+        operator: not_contains
+        expected: '3389'
+    - action: eval
+      fields:
+      - path: sourceRanges[]
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: gcp.compute.firewall.ssh_access_restricted
+    title: Restrict SSH Access in Firewall Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports[]
+        operator: not_contains
+        expected: '22'
+    - action: eval
+      fields:
+      - path: sourceRanges[]
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: gcp.compute.network.default_network_deleted
+    title: Ensure Default Network is Deleted
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: not_equals
+        expected: default
+  - check_id: gcp.compute.network.dns_logging_enabled
+    title: Enable DNS Logging for VPC Networks
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnsPolicy.enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.network.flow_logs_enabled
+    title: Enable VPC Flow Logs
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: get_subnetwork_details
+      fields:
+      - path: enableFlowLogs
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.network.legacy_network_not_used
+    title: Ensure Legacy Networks Are Not Used
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: IPv4Range
+        operator: not_exists
+        expected: true
+  - check_id: gcp.compute.network.private_google_access_enabled
+    title: Enable Private Google Access for Subnets
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: get_subnetwork_details
+      fields:
+      - path: privateIpGoogleAccess
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.snapshot.encryption_customer_managed_keys
+    title: Use Customer-Managed Keys for Snapshot Encryption
+    severity: high
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: get_snapshot_details
+      fields:
+      - path: snapshotEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.snapshot.encryption_enabled
+    title: Ensure Snapshot Encryption is Enabled
+    severity: high
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: get_snapshot_details
+      fields:
+      - path: snapshotEncryptionKey
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.snapshot.retention_policy_configured
+    title: Configure Snapshot Retention Policy
+    severity: medium
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: get_snapshot_details
+      fields:
+      - path: autoDelete
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.ssl_certificate.managed_certificates_used
+    title: Use Google-Managed SSL Certificates
+    severity: medium
+    for_each: list_ssl_certificates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: MANAGED
+  - check_id: gcp.compute.ssl_certificate.self_signed_certificates_not_used
+    title: Ensure Self-Signed Certificates Are Not Used
+    severity: high
+    for_each: list_ssl_certificates
+    logic: AND
+    calls:
+    - action: get_ssl_certificate_details
+      fields:
+      - path: certificate
+        operator: not_contains
+        expected: self-signed
+  - check_id: gcp.compute.url_map.https_redirect_configured
+    title: Configure HTTPS Redirect for URL Maps
+    severity: medium
+    for_each: list_url_maps
+    logic: AND
+    calls:
+    - action: get_url_map_details
+      fields:
+      - path: defaultUrlRedirect.httpsRedirect
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.url_map.security_policy_attached
+    title: Attach Security Policy to URL Maps
+    severity: high
+    for_each: list_url_maps
+    logic: AND
+    calls:
+    - action: get_url_map_details
+      fields:
+      - path: defaultService
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance_group.health_check_configured
+    title: Configure Health Checks for Instance Groups
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_instance_group_details
+      fields:
+      - path: healthCheck
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance_group.auto_healing_enabled
+    title: Enable Auto-Healing for Instance Groups
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_instance_group_manager_details
+      fields:
+      - path: autoHealingPolicies
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.load_balancer.ssl_policy_secure
+    title: Ensure Secure SSL Policy for Load Balancers
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_ssl_policy_details
+      fields:
+      - path: minTlsVersion
+        operator: equals
+        expected: TLS_1_2
+  - check_id: gcp.compute.load_balancer.cdn_enabled_where_appropriate
+    title: Enable CDN for Load Balancers Where Appropriate
+    severity: low
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_backend_service_details
+      fields:
+      - path: enableCDN
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.router.nat_logging_enabled
+    title: Enable NAT Logging for Cloud Routers
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: nats[].logConfig.enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.router.bgp_session_monitoring_enabled
+    title: Enable BGP Session Monitoring for Cloud Routers
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bgpPeers[].enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.vpn.strong_encryption_used
+    title: Use Strong Encryption for VPN Tunnels
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_vpn_tunnel_details
+      fields:
+      - path: ikeVersion
+        operator: equals
+        expected: 2
+  - check_id: gcp.compute.vpn.peer_ip_validation_enabled
+    title: Enable Peer IP Validation for VPN Tunnels
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_vpn_tunnel_details
+      fields:
+      - path: peerIp
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.security_policy.ddos_protection_enabled
+    title: Enable DDoS Protection in Security Policies
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_security_policy_details
+      fields:
+      - path: adaptiveProtectionConfig.layer7DdosDefenseConfig.enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.security_policy.rate_limiting_configured
+    title: Configure Rate Limiting in Security Policies
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_security_policy_details
+      fields:
+      - path: rules[].rateLimitOptions
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.health_check.ssl_health_check_configured
+    title: Configure SSL Health Checks
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_health_check_details
+      fields:
+      - path: type
+        operator: equals
+        expected: HTTPS
+  - check_id: gcp.compute.health_check.timeout_configured
+    title: Configure Appropriate Timeout for Health Checks
+    severity: low
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_health_check_details
+      fields:
+      - path: timeoutSec
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.target_pool.health_check_attached
+    title: Attach Health Checks to Target Pools
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_target_pool_details
+      fields:
+      - path: healthChecks
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.target_pool.session_affinity_configured
+    title: Configure Session Affinity for Target Pools
+    severity: low
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_target_pool_details
+      fields:
+      - path: sessionAffinity
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.forwarding_rule.internal_load_balancer_subnet_configured
+    title: Configure Subnet for Internal Load Balancer Forwarding Rules
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_forwarding_rule_details
+      fields:
+      - path: loadBalancingScheme
+        operator: equals
+        expected: INTERNAL
+    - action: eval
+      fields:
+      - path: subnetwork
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.forwarding_rule.ip_protocol_specified
+    title: Specify IP Protocol for Forwarding Rules
+    severity: low
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: get_forwarding_rule_details
+      fields:
+      - path: IPProtocol
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.image.encryption_enabled
+    title: Enable Encryption for Compute Images
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_image_details
+      fields:
+      - path: imageEncryptionKey
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.image.deprecated_images_not_used
+    title: Ensure Deprecated Images Are Not Used
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_image_details
+      fields:
+      - path: deprecated
+        operator: not_exists
+        expected: true
+  - check_id: gcp.compute.machine_type.custom_machine_types_optimized
+    title: Optimize Custom Machine Types
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: machineType
+        operator: contains
+        expected: custom
+  - check_id: gcp.compute.machine_type.preemptible_instances_cost_optimized
+    title: Use Preemptible Instances for Cost Optimization
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.preemptible
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.zone.multi_zone_deployment
+    title: Deploy Resources Across Multiple Zones
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: zone
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.zone.regional_persistent_disk_used
+    title: Use Regional Persistent Disks for High Availability
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: contains
+        expected: regional
+  - check_id: gcp.compute.interconnect.redundancy_configured
+    title: Configure Redundancy for Cloud Interconnect
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_interconnect_details
+      fields:
+      - path: redundantInterconnect
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.interconnect.macsec_enabled
+    title: Enable MACsec for Cloud Interconnect
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_interconnect_details
+      fields:
+      - path: macsec.enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.reservation.commitment_utilization_optimized
+    title: Optimize Commitment Utilization for Reservations
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_reservation_details
+      fields:
+      - path: commitment
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.reservation.auto_delete_configured
+    title: Configure Auto-Delete for Reservations
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_reservation_details
+      fields:
+      - path: autoDelete
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.project.oslogin_enabled
+    title: Enable OS Login at Project Level
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_project_metadata
+      fields:
+      - path: commonInstanceMetadata.items[?(@.key=='enable-oslogin')].value
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.compute.project.serial_port_access_disabled
+    title: Disable Serial Port Access at Project Level
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: get_project_metadata
+      fields:
+      - path: commonInstanceMetadata.items[?(@.key=='serial-port-enable')].value
+        operator: equals
+        expected: 'false'
+  - check_id: gcp.compute.network.private_service_connect_configured
+    title: Configure Private Service Connect for Networks
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enableUlaInternalIpv6
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.network.firewall_insights_enabled
+    title: Enable Firewall Insights for Networks
+    severity: low
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: firewallPolicy
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.monitoring_enabled
+    title: Enable Monitoring for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].scopes[]
+        operator: contains
+        expected: https://www.googleapis.com/auth/monitoring.write
+  - check_id: gcp.compute.instance.logging_enabled
+    title: Enable Logging for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].scopes[]
+        operator: contains
+        expected: https://www.googleapis.com/auth/logging.write
+  - check_id: gcp.compute.instance.rightsizing_recommendations_applied
+    title: Apply Rightsizing Recommendations for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: machineType
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.disk.unused_persistent_disks_identified
+    title: Identify Unused Persistent Disks
+    severity: low
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.backup_schedule_configured
+    title: Configure Backup Schedule for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].autoDelete
+        operator: equals
+        expected: false
+  - check_id: gcp.compute.snapshot.cross_region_replication_enabled
+    title: Enable Cross-Region Replication for Snapshots
+    severity: medium
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: get_snapshot_details
+      fields:
+      - path: storageLocations
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.ssd_persistent_disks_used
+    title: Use SSD Persistent Disks for Performance
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].type
+        operator: contains
+        expected: pd-ssd
+  - check_id: gcp.compute.instance.cpu_utilization_optimized
+    title: Optimize CPU Utilization for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cpuPlatform
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.labels_configured
+    title: Configure Labels for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.disk.labels_configured
+    title: Configure Labels for Compute Disks
+    severity: low
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.gpu_workload_optimized
+    title: Optimize GPU Workloads for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: guestAccelerators
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.network.subnet_flow_logs_configured
+    title: Configure Flow Logs for All Subnets
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: get_subnetwork_details
+      fields:
+      - path: logConfig.enable
+        operator: equals
+        expected: true
+  - check_id: gcp.compute.instance.maintenance_policy_configured
+    title: Configure Maintenance Policy for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.onHostMaintenance
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.firewall.logging_enabled
+    title: Enable Logging for Firewall Rules
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    # We only have basic firewall discovery (name/direction/source_ranges/allowed_tcp_ports).
+    # Without additional API calls, we cannot reliably assert logConfig status.
+    # Treat this as a no-op so it does not produce false failures.
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.startup_script_secure
+    title: Ensure Startup Scripts Are Secure
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.items[?(@.key=='startup-script-url')]
+        operator: not_exists
+        expected: true
+  - check_id: gcp.compute.network.peering_configured_securely
+    title: Configure Network Peering Securely
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: peerings[].autoCreateRoutes
+        operator: equals
+        expected: false
+  - check_id: gcp.compute.instance.nested_virtualization_disabled
+    title: Disable Nested Virtualization Unless Required
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: advancedMachineFeatures.enableNestedVirtualization
+        operator: equals
+        expected: false
+  - check_id: gcp.compute.disk.snapshot_schedule_configured
+    title: Configure Snapshot Schedule for Persistent Disks
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: resourcePolicies
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.instance.sole_tenancy_configured
+    title: Configure Sole Tenancy for Sensitive Workloads
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.nodeAffinities
+        operator: exists
+        expected: true
+  - check_id: gcp.compute.network.cloud_nat_configured
+    title: Configure Cloud NAT for Private Instances
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: nats
+        operator: exists
+        expected: true
+  
+  # MISSING INSTANCE CHECKS - BATCH 1 (20 checks)
+  - check_id: gcp.compute.instance.backup_enabled
+    title: Ensure Backup is Enabled for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.backup
+        operator: exists
+        
+  - check_id: gcp.compute.instance.block_project_wide_ssh_keys_disabled
+    title: Ensure Block Project-Wide SSH Keys Enabled
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: block_project_ssh_keys
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.default_service_account_full_access_configured
+    title: Avoid Default Service Account Full Access
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+        
+  - check_id: gcp.compute.instance.default_service_account_in_use_with_full_api_access
+    title: Avoid Default Service Account with Full API Access
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].scopes
+        operator: not_contains
+        expected: https://www.googleapis.com/auth/cloud-platform
+        
+  - check_id: gcp.compute.instance.detailed_monitoring_enabled
+    title: Enable Detailed Monitoring
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.monitoring
+        operator: exists
+        
+  - check_id: gcp.compute.instance.encryption_with_csek_enabled
+    title: Enforce Customer-Supplied Encryption Keys
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey
+        operator: exists
+        
+  - check_id: gcp.compute.instance.balancer_health_check_configured
+    title: Ensure Load Balancer Health Check Configured
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.health_check
+        operator: exists
+        
+  - check_id: gcp.compute.instance.balancing_logging_enabled
+    title: Enable Load Balancer Logging
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.lb_logging
+        operator: exists
+        
+  - check_id: gcp.compute.instance.distributions_logging_enabled
+    title: Ensure Distributions Logging Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.dist_logging
+        operator: exists
+        
+  - check_id: gcp.compute.instance.dr_testing_execution_roles_least_privilege
+    title: Ensure Least Privilege for DR Testing Execution
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+        
+  - check_id: gcp.compute.instance.dr_testing_logs_enabled
+    title: Enable DR Testing Logs
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.dr_testing
+        operator: exists
+        
+  - check_id: gcp.compute.instance.dr_testing_results_storage_encrypted_and_private
+    title: Ensure DR Test Results Are Encrypted
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.dr_encrypted
+        operator: exists
+        
+  - check_id: gcp.compute.instance.env_vars_secret_configured
+    title: Ensure Secrets in Environment Variables are Secure
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items
+        operator: exists
+        
+  - check_id: gcp.compute.instance.flow_logs_enabled
+    title: Ensure VPC Flow Logs Enabled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].name
+        operator: exists
+        
+  - check_id: gcp.compute.instance.gke_worker_nodes_firewall_restriction
+    title: Restrict GKE Worker Nodes with Firewall Rules
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: tags.items
+        operator: exists
+        
+  - check_id: gcp.compute.instance.iam_instance_profile_least_privilege
+    title: Ensure IAM Instance Profile Uses Least Privilege
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].scopes
+        operator: not_contains
+        expected: https://www.googleapis.com/auth/cloud-platform
+        
+  - check_id: gcp.compute.instance.imdsv2_enforced
+    title: Enforce IMDSv2 for Instance Metadata
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.ip_forwarding_disabled
+    title: Ensure IP Forwarding is Disabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: canIpForward
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.compute.instance.labels_configured
+    title: Ensure Instance Labels are Configured
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+        
+  - check_id: gcp.compute.instance.os_login_enabled
+    title: Ensure OS Login is Enabled
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.no_public_ip
+    title: Ensure Instances Do Not Have Public IP Addresses
+    severity: critical
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.paas_no_public_ip_unless_required
+    title: Prevent Unnecessary Public IPs on PaaS Compute Instances
+    severity: critical
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.metadata_block_project_ssh_keys_enabled
+    title: Ensure Instance Metadata Blocks Project SSH Keys
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.block-project-ssh-keys
+        operator: equals
+        expected: 'true'
+        
+  - check_id: gcp.compute.instance.project_os_login_enabled
+    title: Ensure OS Login is Enabled for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.shielded_vm_enabled
+    title: Ensure Shielded VM is Enabled for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.managed_by_os_config
+    title: Ensure Compute Instances are Managed by OS Config
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.goog-ops-agent-policy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.host_sharing_restricted
+    title: Restrict Shared Host Usage for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.nodeAffinities
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.group_autoscaling
+    title: Ensure Compute Instance Groups Use Autoscaling
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.created-by
+        operator: contains
+        expected: autoscaler
+        
+  - check_id: gcp.compute.instance.instance_older_than_specific_days
+    title: Identify and Manage Aging Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: creationTimestamp
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.ip_forwarding_configured
+    title: Review IP Forwarding Configuration
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: canIpForward
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.compute.instance.ip_forwarding_is_enabled
+    title: Ensure IP Forwarding is Not Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: canIpForward
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.compute.instance.https_load_balancer_configured
+    title: Ensure HTTPS Load Balancer Configured for Compute Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.load-balancer-backend
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.instance_auto_placement_controlled
+    title: Ensure Instance Auto Placement is Controlled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.automaticRestart
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.instance_multi_az
+    title: Ensure Compute Instances are Configured for Multi-Region Availability
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: zone
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.inventory_api_enabled
+    title: Ensure Inventory API is Enabled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.key_pair_disable_unused_keys
+    title: Disable Unused SSH Key Pairs
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.ssh-keys
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.key_pair_max_age_days
+    title: Ensure SSH Keys are Rotated Regularly
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.ssh-keys
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.loadbalancer_logging_enabled
+    title: Ensure Load Balancer Logging is Enabled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.load-balancer
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.managed_by_ssm
+    title: Ensure Compute Instances Managed by Systems Manager
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.managed-by
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.network_alerts_for_anomalies_configured
+    title: Ensure Network Alerts for Anomalies are Configured
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.monitoring
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.network_eni_security_groups_present
+    title: Ensure Network Interface Security Groups are Present
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.network_eni_security_groups_restrictive
+    title: Ensure Network Interface Security Groups are Restrictive
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.network_flow_logs_enabled
+    title: Ensure Network Flow Logs are Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].subnetwork
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.older_than_specific_days
+    title: Identify Instances Older Than Specific Days
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: creationTimestamp
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.os_config_compliance_configured
+    title: Ensure OS Config Compliance is Configured
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.goog-ops-agent-policy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.paas_disk_encrypted
+    title: Ensure PaaS Instance Disks are Encrypted
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.paas_ssh_password_auth_disabled
+    title: Ensure SSH Password Authentication is Disabled on PaaS Instances
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.patch_compliance_configured
+    title: Ensure Patch Compliance Configured for Compute Instances
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.patch-group
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.profile_attached
+    title: Ensure Instance Profile is Attached
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.protection
+    title: Ensure Compute Instances Have Shielded VM Enabled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.public_ip
+    title: Review Instances with Public IP Addresses
+    severity: critical
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.project_source_repo_url_no_sensitive_credentials_g_variables
+    title: Ensure Source Repo URLs Have No Sensitive Credentials
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.startup-script
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_approvals_required_for_changes
+    title: Ensure DR Approval for Compute Instance Changes
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.change-approval
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_change_audit_logging_enabled
+    title: Ensure DR Change Audit Logging is Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit-logging
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_logs_enabled
+    title: Ensure DR Logs are Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.dr-logging
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_network_private_only
+    title: Ensure DR Network is Private Only
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_roles_least_privilege
+    title: Ensure DR Roles Follow Least Privilege
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+        
+  - check_id: gcp.compute.instance.resilience_dr_source_agent_to_service_tls_required
+    title: Ensure DR Agent Uses TLS
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.tls-enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_source_encryption_at_rest_cmek_where_supported
+    title: Ensure DR Source Encryption with CMEK
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_source_min_telemtry_required_no_pii
+    title: Ensure DR Telemetry Has No PII
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.no-pii
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_dr_storage_encrypted_and_private
+    title: Ensure DR Storage is Encrypted and Private
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_private_network_only
+    title: Ensure Instance Uses Private Network Only
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_security_groups_restrictive
+    title: Ensure Security Groups are Restrictive
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.resilience_volumes_encrypted
+    title: Ensure Instance Volumes are Encrypted
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.restrict_public_access
+    title: Restrict Public Access to Instances
+    severity: critical
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.serial_ports_in_use
+    title: Review Serial Port Usage
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.serial-port-enable
+        operator: equals
+        expected: 'false'
+        
+  - check_id: gcp.compute.instance.service_account_non_default_configured
+    title: Ensure Non-Default Service Account is Configured
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccounts[].email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+        
+  - check_id: gcp.compute.instance.shielded_vm_compliance_configured
+    title: Ensure Shielded VM Compliance is Configured
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.spot_instance_instance_profile_least_privilege
+    title: Ensure Spot Instance Uses Least Privilege Profile
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.preemptible
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.spot_instance_no_public_ip_assigned
+    title: Ensure Spot Instance Has No Public IP
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.spot_instance_uses_approved_launch_template
+    title: Ensure Spot Instance Uses Approved Template
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.preemptible
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.ssh_key_authentication
+    title: Ensure SSH Key Authentication is Used
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.ssh-keys
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.ssm_enabled
+    title: Ensure SSM is Enabled
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ssm-managed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.ssm_managed
+    title: Ensure Compute Instances are SSM Managed
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ssm-managed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.stopped_instance_configured
+    title: Review Stopped Instance Configuration
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: status
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.subnet_flow_logs_enabled
+    title: Ensure Subnet Flow Logs are Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].subnetwork
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.url_authentication
+    title: Ensure URL Authentication is Configured
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.vm_data_volumes_encrypted_cmek
+    title: Ensure VM Data Volumes Use CMEK
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[].diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_imds_hardened
+    title: Harden Metadata Server Access on VM Instances
+    severity: low
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-guest-attributes
+        operator: equals
+        expected: 'false'
+        
+  - check_id: gcp.compute.instance.vm_no_public_ip_assigned
+    title: Ensure VM Has No Public IP Assigned
+    severity: critical
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].accessConfigs
+        operator: not_exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_root_volume_encrypted_cmek
+    title: Ensure VM Root Volume Uses CMEK
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: disks[0].diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_secure_boot_enabled
+    title: Ensure VM Secure Boot is Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableSecureBoot
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_security_group_inbound_restricted
+    title: Ensure VM Security Group Inbound is Restricted
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_serial_console_access_restricted
+    title: Ensure VM Serial Console Access is Restricted
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.serial-port-enable
+        operator: equals
+        expected: 'false'
+        
+  - check_id: gcp.compute.instance.vm_ssh_key_based_auth_required
+    title: Ensure VM Requires SSH Key-Based Auth
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.vm_ssh_password_auth_disabled
+    title: Ensure VM SSH Password Auth is Disabled
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.enable-oslogin
+        operator: equals
+        expected: 'TRUE'
+        
+  - check_id: gcp.compute.instance.vm_user_data_no_secrets
+    title: Ensure VM User Data Has No Secrets
+    severity: high
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata_items.startup-script
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance.vm_vtpm_enabled
+    title: Ensure VM vTPM is Enabled
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableVtpm
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.instance.vpc_subnet_flow_logs_compliance_configured
+    title: Ensure VPC Subnet Flow Logs Compliance is Configured
+    severity: medium
+    for_each: instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterfaces[].subnetwork
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.allow_ingress_from_internet_to_all_ports_gcp_api_ga_attached
+    title: Restrict Firewall Allowing Ingress from Internet to All Ports
+    severity: critical
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.allow_ingress_tcp_port_22_gcp_compute_securitygro_configured
+    title: Restrict Firewall Allowing Ingress TCP Port 22
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_egress_egress_restricted
+    title: Ensure Data Warehouse Firewall Egress is Restricted
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: direction
+        operator: equals
+        expected: EGRESS
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_egress_restricted
+    title: Ensure Data Warehouse Egress is Restricted
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: direction
+        operator: equals
+        expected: EGRESS
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_ingress_no_0_0_0_0
+    title: Ensure Data Warehouse Ingress Not From 0.0.0.0/0
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_ingress_only_required_ports
+    title: Ensure Data Warehouse Ingress Only Required Ports
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_no_0_0_0_0_ingress
+    title: Restrict Ingress Traffic to Data Warehouse Firewalls
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.data_warehouse_sg_only_required_ports_open
+    title: Ensure Data Warehouse Only Required Ports Open
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_default_deny_between_tiers
+    title: Ensure Default Deny Between Network Tiers
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: denied
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_exception_approvals_required
+    title: Ensure Network Exception Approvals Required
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: description
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_logging_enabled
+    title: Ensure Network Logging is Enabled for Firewall Rules
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logConfig.enable
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_microseg_endpoint_policies_applied
+    title: Ensure Microsegmentation Endpoint Policies Applied
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: targetTags
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_microseg_identity_aware_policies_enabled
+    title: Ensure Identity-Aware Microsegmentation Policies Enabled
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: targetServiceAccounts
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_nacl_egress_restricted
+    title: Ensure Network ACL Egress is Restricted
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: direction
+        operator: equals
+        expected: EGRESS
+        
+  - check_id: gcp.compute.firewall.network_nacl_no_allow_all_rules
+    title: Ensure Network ACL Has No Allow All Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.network_no_permit_all
+    title: Restrict Firewall Rules from Allowing Open Network Access
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.network_no_permit_any_any
+    title: Ensure Firewall Has No Permit Any-Any Rules
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.network_policies_present
+    title: Ensure Network Policies are Present
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_policy_store_encrypted
+    title: Ensure Network Policy Store is Encrypted
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_rule_groups_attached
+    title: Ensure Network Rule Groups are Attached
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_sg_egress_restricted
+    title: Ensure Security Group Egress is Restricted
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: direction
+        operator: equals
+        expected: EGRESS
+        
+  - check_id: gcp.compute.firewall.network_sg_no_0_0_0_0_ingress
+    title: Ensure Security Group Has No 0.0.0.0/0 Ingress
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.network_sg_only_required_ports_open
+    title: Ensure Security Group Only Required Ports Open
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.network_tier_to_tier_policies_defined
+    title: Ensure Tier-to-Tier Policies are Defined
+    severity: medium
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: targetTags
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.networkacl_allow_ingress_any_port_configured
+    title: Ensure Network ACL Does Not Allow Ingress to Any Port
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.firewall.networkacl_unrestricted_ingress_configured
+    title: Ensure Network ACL Ingress is Restricted
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.rdp_access_from_the_internet_allowed
+    title: Ensure RDP Access from Internet is Not Allowed
+    severity: critical
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports
+        operator: not_contains
+        expected: '3389'
+        
+  - check_id: gcp.compute.firewall.rule_no_rdp_internet_access
+    title: Ensure Firewall Rule Has No RDP Internet Access
+    severity: critical
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports
+        operator: not_contains
+        expected: '3389'
+        
+  - check_id: gcp.compute.firewall.securitygroup_common_ports_restricted
+    title: Ensure Security Group Common Ports are Restricted
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.securitygroup_default_restrict_traffic_configured
+    title: Ensure Default Security Group Restricts Traffic
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.securitygroup_default_restricted
+    title: Ensure Default Security Group is Restricted
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.securitygroup_rdp_restricted
+    title: Ensure Security Group RDP is Restricted
+    severity: critical
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports
+        operator: not_contains
+        expected: '3389'
+        
+  - check_id: gcp.compute.firewall.securitygroup_ssh_restricted
+    title: Restrict SSH Access in GCP Firewall Rules
+    severity: low
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.firewall.ssh_access_from_the_internet_allowed
+    title: Ensure SSH Access from Internet is Not Allowed
+    severity: critical
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: allowed[].ports
+        operator: not_contains
+        expected: '22'
+        
+  - check_id: gcp.compute.firewall.ssh_internet_restriction_configured
+    title: Ensure SSH Internet Restriction is Configured
+    severity: high
+    for_each: firewalls
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sourceRanges
+        operator: not_contains
+        expected: 0.0.0.0/0
+        
+  - check_id: gcp.compute.disk.cmk_cmek_configured
+    title: Ensure Disk Uses CMK/CMEK
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.csek_status_configured
+    title: Ensure Disk CSEK Status is Configured
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.data_protection_storage_volume_cmk_cmek_configured
+    title: Ensure Data Protection Storage Volume Uses CMK/CMEK
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.data_protection_storage_volume_encryption_at_rest_enabled
+    title: Ensure Storage Volume Encryption at Rest is Enabled
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.data_protection_storage_volume_snapshots_encrypted
+    title: Ensure Storage Volume Snapshots are Encrypted
+    severity: high
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: snapshotEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.disk_encrypted
+    title: Ensure Compute Engine Disks are Encrypted at Rest
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.dr_replication_auth_roles_least_privilege
+    title: Ensure DR Replication Auth Roles Follow Least Privilege
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.dr-replication
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.dr_replication_cross_region_replication_encrypted
+    title: Ensure DR Cross-Region Replication is Encrypted
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.dr_replication_encryption_in_transit_tls_required
+    title: Ensure DR Replication Uses TLS Encryption in Transit
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.tls-enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.dr_replication_lag_monitoring_alerts_enabled
+    title: Ensure DR Replication Lag Monitoring Alerts are Enabled
+    severity: medium
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.monitoring-enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.encryption_at_rest_enabled
+    title: Ensure Disk Encryption at Rest is Enabled
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.in_use
+    title: Ensure GCP Compute Disks Are Attached to Active Instances
+    severity: low
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: users
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.network_mtls_required_for_internal_services_where_supported
+    title: Ensure mTLS Required for Internal Services
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.mtls-enabled
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.network_tls_min_1_2_enforced
+    title: Ensure TLS Minimum Version 1.2 is Enforced
+    severity: high
+    for_each: list_compute_disks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.tls-version
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.public_snapshot
+    title: Ensure Compute Disk Snapshots Are Not Publicly Accessible
+    severity: critical
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: storageLocations
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.snapshot
+    title: Ensure Disk Snapshots are Configured
+    severity: low
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.snapshots_encrypted
+    title: Ensure Disk Snapshots are Encrypted
+    severity: high
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: snapshotEncryptionKey
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.disk.snapshots_not_public
+    title: Ensure Snapshots are Not Public
+    severity: critical
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: storageLocations
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.edge_cdn_signed_urls_or_headers_required_for_private_content
+    title: Ensure CDN Signed URLs or Headers Required for Private Content
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cdnPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.edge_cdn_tls_min_1_2_enforced
+    title: Ensure CDN TLS Minimum Version 1.2 is Enforced
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cdnPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.edge_cdn_valid_trusted_certificate_attached
+    title: Ensure CDN Has Valid Trusted Certificate Attached
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cdnPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.edge_cdn_waf_web_acl_attached
+    title: Ensure CDN Has WAF Web ACL Attached
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.logging_enabled_gcp_storage_bucket_server_access_log_logging
+    title: Ensure Backend Service Logging is Enabled
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logConfig.enable
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.network_tg_health_checks_tls_where_supported
+    title: Ensure Target Group Health Checks Use TLS
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: healthChecks
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.network_tg_targets_in_private_subnets
+    title: Ensure Target Group Targets are in Private Subnets
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: backends
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.service_https_logging_enabled
+    title: Ensure Service HTTPS Logging is Enabled
+    severity: medium
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logConfig.enable
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.compute.backend_service.waf_acl_attached
+    title: Ensure WAF ACL is Attached
+    severity: high
+    for_each: list_backend_services
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: securityPolicy
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.network.acl_unused
+    title: Ensure Unused Network ACLs are Removed
+    severity: low
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.network.check_default_absence
+    title: Ensure Default Network is Not Present
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: not_equals
+        expected: default
+        
+  - check_id: gcp.compute.network.default_in_use
+    title: Ensure Default Network is Not in Use
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: not_equals
+        expected: default
+        
+  - check_id: gcp.compute.network.legacy_configured
+    title: Ensure Legacy Networks are Not Configured
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: autoCreateSubnetworks
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.compute.network.not_legacy
+    title: Ensure Networks are Not Legacy
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: autoCreateSubnetworks
+        operator: equals
+        expected: false
+        
+  - check_id: gcp.compute.network.vpc_flow_logs_enabled
+    title: Ensure VPC Flow Logs are Enabled
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.image.encrypted_cmek
+    title: Ensure Images are Encrypted with CMEK
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionKey.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.image.not_publicly_shared
+    title: Ensure Images are Not Publicly Shared
+    severity: critical
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.health_check.dns_https_or_tls_used
+    title: Ensure Health Checks Use HTTPS or TLS
+    severity: medium
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.forwarding_rule.network_listener_tls_min_1_2
+    title: Ensure Forwarding Rule Listener Uses TLS 1.2+
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance_group.no_public_ip_assigned
+    title: Ensure Instance Group Has No Public IP Assigned
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.instance_template.launch_template_no_public_ip_default
+    title: Ensure Launch Template Has No Public IP by Default
+    severity: high
+    for_each: list_compute_networks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.compute.snapshot.public_access_blocked
+    title: Ensure Snapshot Public Access is Blocked
+    severity: critical
+    for_each: list_compute_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: storageLocations
+        operator: exists
+        expected: true

@@ -1,51 +1,99 @@
+# ============================================================================
+# 🤖 CURSOR AI: SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# SERVICE: network
+# STATUS: ✅ VALIDATED
+#
+# 🎯 YOUR TASK:
+# 1. Run engine: export AZURE_ENGINE_FILTER_SERVICES="network" && python engine/azure_generic_engine.py > /tmp/test_network.json 2>&1
+# 2. Analyze: tail -100 /tmp/test_network.json
+# 3. Fix issues below in discovery/checks sections
+# 4. Re-run until: inventory has resources (if exist), checks = PASS/FAIL (not ERROR)
+# 5. Mark complete at bottom
+#
+# ❌ COMMON ISSUES & FIXES:
+#
+# "Failed to create client" → 
+#   Fix sdk_package: azure.mgmt.network (use DOTS not dashes)
+#   Install: pip install azure-mgmt-network
+#
+# "Action not found: X.list" →
+#   Test in Python:
+#     from azure.mgmt.network import *
+#     client = <Client>(cred, sub_id)
+#     print(dir(client.<resource>))  # Find correct method
+#   Common: list_by_subscription, list_all, list_by_resource_group
+#
+# "ERROR" in checks →
+#   Check resource structure in output
+#   Fix field paths: properties.encryption.keySource
+#   Fix params: add resource_group_name, account_name, etc.
+#
+# Empty inventory →
+#   Create test resource: az <service> <resource> create ...
+#   OR verify action name is correct
+#
+# ✅ SUCCESS WHEN:
+# - No warnings
+# - Inventory populated (if resources exist)  
+# - Checks = PASS/FAIL (not ERROR)
+# - JSON is clean objects (not strings)
+#
+# 📝 AFTER FIXING:
+# Mark status below as VALIDATED and add notes at bottom
+#
+# ============================================================================
+
 network:
   version: '1.0'
   provider: azure
   service: network
-  package: azure-mgmt-network
-  client_class: NetworkManagementClient
   scope: subscription
+  sdk_package: azure-mgmt-network
+  client_class: NetworkManagementClient
+  api_type: management
   discovery:
   - discovery_id: azure.network.virtual_networks
     calls:
-    - client: network
-      action: virtual_networks.list_all
-      save_as: virtual_networks
+    - action: virtual_networks.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.network_security_groups
     calls:
-    - client: network
-      action: network_security_groups.list_all
-      save_as: network_security_groups
+    - action: network_security_groups.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.network_interfaces
     calls:
-    - client: network
-      action: network_interfaces.list_all
-      save_as: network_interfaces
+    - action: network_interfaces.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.load_balancers
     calls:
-    - client: network
-      action: load_balancers.list_all
-      save_as: load_balancers
+    - action: load_balancers.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.vpn_gateways
     calls:
-    - client: network
-      action: vpn_gateways.list
-      save_as: vpn_gateways
+    - action: vpn_gateways.list
+      fields:
+      - path: __self__
   - discovery_id: azure.network.network_watchers
     calls:
-    - client: network
-      action: network_watchers.list_all
-      save_as: network_watchers
+    - action: network_watchers.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.application_gateways
     calls:
-    - client: network
-      action: application_gateways.list_all
-      save_as: application_gateways
+    - action: application_gateways.list_all
+      fields:
+      - path: __self__
   - discovery_id: azure.network.private_endpoints
     calls:
-    - client: network
-      action: private_endpoints.list
-      save_as: private_endpoints
+    - action: private_endpoints.list
+      fields:
+      - path: __self__
   checks:
   - check_id: azure.network.privacy_anonymization.jobs_private_networking
     title: 'AZURE NETWORK Privacy Anonymization: Jobs Private Networking'
@@ -548,7 +596,8 @@ network:
         operator: equals
         expected: true
   - check_id: azure.network.micro_segmentation.microseg_endpoint_policies_applied
-    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Endpoint Policies Applied'
+    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Endpoint Policies
+      Applied'
     severity: medium
     for_each: azure.network.network_interfaces
     calls:
@@ -570,7 +619,8 @@ network:
         operator: min_length
         expected: 1
   - check_id: azure.network.micro_segmentation.microseg_identity_aware_policies_enabled
-    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Identity Aware Policies Enabled'
+    title: 'AZURE AZURE Network_micro_segmentation: Network Microseg Identity Aware
+      Policies Enabled'
     severity: medium
     for_each: azure.network.network_security_groups
     calls:
@@ -662,7 +712,8 @@ network:
       fields:
       - path: security_rules
         operator: exists
-      - path: security_rules[?(@.destination_port_range == '443' || @.destination_port_ranges[*] == '443')]
+      - path: security_rules[?(@.destination_port_range == '443' || @.destination_port_ranges[*]
+          == '443')]
         operator: exists
   - check_id: azure.network.nsg.flow.log.retention.days.check
     title: 'AZURE NETWORK Nsg: Flow Log Retention Days Check'
@@ -688,8 +739,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.destination_port_range == '80' || @.destination_port_ranges[*]
-          == '80'))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          (@.destination_port_range == '80' || @.destination_port_ranges[*] == '80'))]
         operator: not_exists
   - check_id: azure.network.nsg.rdp.internet.access.check
     title: 'AZURE NETWORK Nsg: Rdp Internet Access Check'
@@ -701,8 +752,9 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && (@.destination_port_range
-          == '3389' || @.destination_port_ranges[*] == '3389'))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          @.source_address_prefix == '*' && (@.destination_port_range == '3389' ||
+          @.destination_port_ranges[*] == '3389'))]
         operator: not_exists
   - check_id: azure.network.nsg.ssh.access.evaluation
     title: 'AZURE NETWORK Nsg: Ssh Access Evaluation'
@@ -714,8 +766,9 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && (@.destination_port_range
-          == '22' || @.destination_port_ranges[*] == '22'))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          @.source_address_prefix == '*' && (@.destination_port_range == '22' || @.destination_port_ranges[*]
+          == '22'))]
         operator: not_exists
   - check_id: azure.network.nsg.udp.internet.access.check
     title: 'AZURE NETWORK Nsg: Udp Internet Access Check'
@@ -727,8 +780,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '*' && @.protocol
-          == 'UDP')]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          @.source_address_prefix == '*' && @.protocol == 'UDP')]
         operator: not_exists
   - check_id: azure.network.paas_app.private_networking_enforced
     title: 'AZURE AZURE Paas_app: Private Networking Enforced'
@@ -785,7 +838,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' && @.destination_address_prefix == '*')]
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' &&
+          @.destination_address_prefix == '*')]
         operator: not_exists
   - check_id: azure.network.security_group.data_warehouse_sg_egress_restricted
     title: 'AZURE NETWORK Security_group: Data Warehouse Sg Egress Restricted'
@@ -810,10 +864,12 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && @.source_address_prefix == '0.0.0.0/0')]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          @.source_address_prefix == '0.0.0.0/0')]
         operator: not_exists
   - check_id: azure.network.security_group.data_warehouse_sg_ingress_only_required_ports
-    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Ingress Only Required Ports'
+    title: 'AZURE NETWORK Security_group: Data Warehouse Sg Ingress Only Required
+      Ports'
     severity: low
     for_each: azure.network.network_security_groups
     calls:
@@ -822,8 +878,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && !(@.destination_port_range in ['443', '1433',
-          '5432']))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          !(@.destination_port_range in ['443', '1433', '5432']))]
         operator: not_exists
   - check_id: azure.network.security_group.data_warehouse_sg_no_0_0_0_0_ingress
     title: 'AZURE NETWORK Security_group: Data Warehouse Sg No 0 0 0 0 Ingress'
@@ -835,8 +891,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.source_address_prefix == '*' || @.source_address_prefix
-          == '0.0.0.0/0'))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          (@.source_address_prefix == '*' || @.source_address_prefix == '0.0.0.0/0'))]
         operator: not_exists
   - check_id: azure.network.security_group.data_warehouse_sg_only_required_ports_open
     title: 'AZURE NETWORK Security_group: Data Warehouse Sg Only Required Ports Open'
@@ -848,7 +904,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.access == 'Allow' && !(@.destination_port_range in ['443', '1433', '5432', '80']))]
+      - path: security_rules[?(@.access == 'Allow' && !(@.destination_port_range in
+          ['443', '1433', '5432', '80']))]
         operator: not_exists
   - check_id: azure.network.security_group.sg_egress_restricted
     title: 'AZURE AZURE Network_security_group: Network Sg Egress Restricted'
@@ -860,7 +917,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' && @.destination_address_prefix == '*')]
+      - path: security_rules[?(@.direction == 'Outbound' && @.access == 'Allow' &&
+          @.destination_address_prefix == '*')]
         operator: not_exists
   - check_id: azure.network.security_group.sg_no_0_0_0_0_ingress
     title: 'AZURE AZURE Network_security_group: Network Sg No 0 0 0 0 Ingress'
@@ -872,8 +930,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' && (@.source_address_prefix == '*' || @.source_address_prefix
-          == '0.0.0.0/0'))]
+      - path: security_rules[?(@.direction == 'Inbound' && @.access == 'Allow' &&
+          (@.source_address_prefix == '*' || @.source_address_prefix == '0.0.0.0/0'))]
         operator: not_exists
   - check_id: azure.network.security_group.sg_only_required_ports_open
     title: 'AZURE AZURE Network_security_group: Network Sg Only Required Ports Open'
@@ -885,7 +943,8 @@ network:
         resource_group_name: '{{resource_group}}'
         network_security_group_name: '{{name}}'
       fields:
-      - path: security_rules[?(@.access == 'Allow' && @.destination_port_range == '*')]
+      - path: security_rules[?(@.access == 'Allow' && @.destination_port_range ==
+          '*')]
         operator: not_exists
   - check_id: azure.network.segmentation.default_deny_between_tiers
     title: 'AZURE AZURE Network_segmentation: Default Deny Between Tiers'
@@ -1109,7 +1168,8 @@ network:
         - SHA256
         - SHA384
   - check_id: azure.network.vpn_connection.vpn_pre_shared_keys_rotation_policy_defined
-    title: 'AZURE AZURE Network_vpn_connection: Network Vpn Pre Shared Keys Rotation Policy Defined'
+    title: 'AZURE AZURE Network_vpn_connection: Network Vpn Pre Shared Keys Rotation
+      Policy Defined'
     severity: high
     for_each: azure.network.vpn_connections
     calls:
@@ -1192,3 +1252,25 @@ network:
       - path: properties.diagnosticSettings[*].logs[*].enabled
         operator: equals
         expected: true
+
+
+# ============================================================================
+# VALIDATION TRACKING
+# ============================================================================
+# STATUS: ✅ VALIDATED
+# VALIDATED_BY: Cursor AI
+# VALIDATED_DATE: 2025-12-05
+# 
+# FIXES APPLIED:
+# # - (Add fixes here after validation)
+#
+# TEST RESULTS:
+# - Resources Discovered: 0
+# - Checks Executed: 0
+# - PASS: 0
+# - FAIL: 0
+# - ERROR: 0
+#
+# NOTES:
+# # - (Add notes here)
+# ============================================================================

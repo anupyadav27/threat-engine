@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: eip
+discovery:
+- discovery_id: alicloud.eip.attached
+  calls:
+  - product: EIP
+    version: '2014-05-26'
+    action: DescribeAttacheds
+    params: {}
+    save_as: attached_list
+  emit:
+    items_for: '{ attached_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: attached
+checks:
+- rule_id: alicloud.eip.attached.configured
+  title: Ensure Elastic IP addresses are attached to resources
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.eip.attached
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

@@ -1,0 +1,1012 @@
+iam:
+  version: '1.0'
+  provider: gcp
+  service: iam
+  scope: global
+  discovery:
+  - discovery_id: list_iam_groups
+    calls:
+    - action: list
+      resource: groups
+      fields:
+      - path: name
+        var: group_name
+      - path: members
+        var: group_members
+  - discovery_id: list_iam_service_accounts
+    calls:
+    - action: list
+      resource: serviceAccounts
+      fields:
+      - path: name
+        var: service_account_name
+      - path: keys
+        var: service_account_keys
+  - discovery_id: list_iam_policies
+    calls:
+    - action: list
+      resource: policies
+      fields:
+      - path: name
+        var: policy_name
+      - path: bindings
+        var: policy_bindings
+  - discovery_id: list_iam_roles
+    calls:
+    - action: list
+      resource: roles
+      fields:
+      - path: name
+        var: role_name
+      - path: includedPermissions
+        var: role_permissions
+  - discovery_id: list_iam_users
+    calls:
+    - action: list
+      resource: users
+      fields:
+      - path: primaryEmail
+        var: user_email
+      - path: suspended
+        var: user_suspended
+  checks:
+  - check_id: gcp.iam.group.has_users
+    title: Ensure IAM Groups Contain Active Users
+    severity: medium
+    for_each: list_iam_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: members
+        operator: exists
+      - path: members
+        operator: not_equals
+        expected: []
+  - check_id: gcp.iam.group.identity_access_rbac_attached_policies_not_admin_star
+    title: Restrict Admin Role in Group IAM Policies
+    severity: high
+    for_each: list_iam_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.iam.group.identity_access_rbac_external_sharing_restricted_w_supported
+    title: Restrict External Sharing of IAM Group Access
+    severity: high
+    for_each: list_iam_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  - check_id: gcp.iam.group.identity_access_rbac_no_inline_policies
+    title: Avoid Inline Policies for IAM Group Access Control
+    severity: medium
+    for_each: list_iam_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: inlinePolicies
+        operator: not_exists
+  - check_id: gcp.iam.key.90_days
+    title: Ensure IAM Keys Are Rotated Every 90 Days
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys[].validAfterTime
+        operator: exists
+    - action: get_key_age
+      fields:
+      - path: keys[].validAfterTime
+        operator: less_than
+        expected: 90
+  - check_id: gcp.iam.key.access_key_90_days
+    title: Rotate IAM Access Keys Every 90 Days
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_key_metadata
+      fields:
+      - path: keys[].keyType
+        operator: equals
+        expected: USER_MANAGED
+    - action: eval
+      fields:
+      - path: keys[].validAfterTime
+        operator: less_than_days
+        expected: 90
+  - check_id: gcp.iam.key.key_configured
+    title: Ensure IAM Keys are Properly Configured
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys[].keyAlgorithm
+        operator: exists
+      - path: keys[].keyOrigin
+        operator: equals
+        expected: GOOGLE_PROVIDED
+  - check_id: gcp.iam.policy.attached_only_to_group_or_roles
+    title: Ensure IAM Policies Are Attached Only to Groups or Roles
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: 'user:'
+  - check_id: gcp.iam.policy.audit_logs_enabled
+    title: Ensure IAM Audit Logs Are Enabled for All Services
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_audit_config
+      fields:
+      - path: auditConfigs[].service
+        operator: contains
+        expected: allServices
+      - path: auditConfigs[].auditLogConfigs[].logType
+        operator: contains
+        expected: ADMIN_READ
+  - check_id: gcp.iam.policy.cloud_asset_inventory_enabled
+    title: Ensure Cloud Asset Inventory is Enabled for IAM Policies
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_asset_inventory_config
+      fields:
+      - path: assetInventory.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.policy.compliance
+    title: Ensure IAM Policies Meet Compliance Standards
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition
+        operator: exists
+      - path: version
+        operator: equals
+        expected: 3
+  - check_id: gcp.iam.policy.console_mfa_enabled
+    title: Ensure Multi-Factor Authentication for Console Access
+    severity: critical
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_mfa_config
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: access.mfa_enabled
+  - check_id: gcp.iam.policy.domain_compliance_configured
+    title: Ensure Domain Compliance for IAM Policies
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: request.auth.access_levels
+  - check_id: gcp.iam.policy.identity_access_rbac_conditions_used_where_applicable
+    title: Ensure Use of Conditional Access in IAM Policies
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition
+        operator: exists
+  - check_id: gcp.iam.policy.identity_access_rbac_no_action_star_on_resource_star
+    title: Restrict IAM Action Star on Resource Star
+    severity: high
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: includedPermissions[]
+        operator: not_equals
+        expected: '*'
+  - check_id: gcp.iam.policy.identity_access_rbac_no_policy_allows_without_constraints
+    title: Restrict IAM Policies Without Constraints
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition
+        operator: exists
+  - check_id: gcp.iam.policy.identity_access_rbac_resource_constraints_present
+    title: Ensure RBAC Resource Constraints are Defined in IAM Policies
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: resource.
+  - check_id: gcp.iam.policy.minimum_length_14
+    title: Enforce IAM Policy Password Minimum Length of 14 Characters
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_password_policy
+      fields:
+      - path: passwordPolicy.minimumLength
+        operator: greater_than_or_equal
+        expected: 14
+  - check_id: gcp.iam.policy.no_administrative_privileges
+    title: Restrict IAM Policies to Prevent Excessive Privileges
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/owner
+  - check_id: gcp.iam.policy.overly_permissive
+    title: Identify and Mitigate Overly Permissive IAM Policies
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_equals
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_equals
+        expected: allAuthenticatedUsers
+  - check_id: gcp.iam.policy.password_complexity_enabled
+    title: Ensure Password Complexity Requirements are Enabled
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_password_policy
+      fields:
+      - path: passwordPolicy.requireUppercase
+        operator: equals
+        expected: true
+      - path: passwordPolicy.requireLowercase
+        operator: equals
+        expected: true
+      - path: passwordPolicy.requireNumbers
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.policy.password_expiry_90_days
+    title: Ensure Password Expiry is Set to 90 Days
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_password_policy
+      fields:
+      - path: passwordPolicy.maxPasswordAge
+        operator: less_than_or_equal
+        expected: 90
+  - check_id: gcp.iam.policy.password_history_enabled
+    title: Ensure Password History is Enabled
+    severity: low
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_password_policy
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: greater_than_or_equal
+        expected: 5
+  - check_id: gcp.iam.policy.password_lockout_enabled
+    title: Ensure Account Lockout Policy is Enabled
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_lockout_policy
+      fields:
+      - path: lockoutPolicy.maxFailedAttempts
+        operator: less_than_or_equal
+        expected: 5
+  - check_id: gcp.iam.policy.password_reuse_prevention
+    title: Ensure Password Reuse Prevention is Configured
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_password_policy
+      fields:
+      - path: passwordPolicy.passwordHistoryLength
+        operator: greater_than_or_equal
+        expected: 12
+  - check_id: gcp.iam.policy.privileged_access_management_enabled
+    title: Ensure Privileged Access Management is Enabled
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_pam_config
+      fields:
+      - path: privilegedAccessManagement.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.policy.root_access_key_check
+    title: Ensure Root Access Keys are Not Used
+    severity: critical
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: email
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+  - check_id: gcp.iam.policy.service_account_admin_privileges
+    title: Restrict Service Account Admin Privileges
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: 'serviceAccount:'
+      condition:
+      - path: bindings[].role
+        operator: equals
+        expected: roles/owner
+  - check_id: gcp.iam.policy.service_account_key_rotation
+    title: Ensure Service Account Key Rotation Policy
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_key_rotation_policy
+      fields:
+      - path: keyRotationPolicy.rotationPeriod
+        operator: less_than_or_equal
+        expected: 90d
+  - check_id: gcp.iam.policy.session_timeout_configured
+    title: Ensure Session Timeout is Configured
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_session_config
+      fields:
+      - path: sessionConfig.maxIdleTime
+        operator: less_than_or_equal
+        expected: 8h
+  - check_id: gcp.iam.policy.unused_credentials_removed
+    title: Ensure Unused Credentials are Removed
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_usage_metrics
+      fields:
+      - path: lastUsed
+        operator: less_than_days
+        expected: 90
+  - check_id: gcp.iam.role.admin_separation
+    title: Ensure Admin Role Separation
+    severity: high
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: includedPermissions[]
+        operator: not_contains
+        expected: iam.serviceAccounts.actAs
+      condition:
+      - path: name
+        operator: contains
+        expected: admin
+  - check_id: gcp.iam.role.custom_role_permissions_minimal
+    title: Ensure Custom Roles Have Minimal Permissions
+    severity: medium
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: stage
+        operator: not_equals
+        expected: DISABLED
+      - path: includedPermissions
+        operator: exists
+      condition:
+      - path: name
+        operator: contains
+        expected: projects/
+  - check_id: gcp.iam.role.least_privilege_principle
+    title: Ensure Least Privilege Principle for IAM Roles
+    severity: high
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: includedPermissions[]
+        operator: not_contains
+        expected: '*'
+  - check_id: gcp.iam.role.no_wildcard_permissions
+    title: Ensure No Wildcard Permissions in Custom Roles
+    severity: high
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: includedPermissions[]
+        operator: not_contains
+        expected: '*'
+  - check_id: gcp.iam.role.predefined_roles_used
+    title: Prefer Predefined Roles Over Custom Roles
+    severity: low
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: contains
+        expected: roles/
+  - check_id: gcp.iam.role.regular_review_process
+    title: Ensure Regular Review Process for IAM Roles
+    severity: medium
+    for_each: list_iam_roles
+    logic: AND
+    calls:
+    - action: get_role_metadata
+      fields:
+      - path: lastModified
+        operator: less_than_days
+        expected: 180
+  - check_id: gcp.iam.role.role_based_access_control
+    title: Ensure Role-Based Access Control Implementation
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: contains
+        expected: 'group:'
+  - check_id: gcp.iam.role.service_account_roles_minimal
+    title: Ensure Service Account Roles are Minimal
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/editor
+      condition:
+      - path: bindings[].members[]
+        operator: contains
+        expected: 'serviceAccount:'
+  - check_id: gcp.iam.service_account.cross_project_access_restricted
+    title: Restrict Cross-Project Service Account Access
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_cross_project_bindings
+      fields:
+      - path: crossProjectBindings
+        operator: not_exists
+  - check_id: gcp.iam.service_account.default_service_account_not_used
+    title: Ensure Default Service Account is Not Used
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: email
+        operator: not_contains
+        expected: -compute@developer.gserviceaccount.com
+  - check_id: gcp.iam.service_account.external_key_management
+    title: Use External Key Management for Service Accounts
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys[].keyOrigin
+        operator: equals
+        expected: GOOGLE_PROVIDED
+  - check_id: gcp.iam.service_account.impersonation_restricted
+    title: Restrict Service Account Impersonation
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/iam.serviceAccountTokenCreator
+  - check_id: gcp.iam.service_account.key_expiration_set
+    title: Ensure Service Account Key Expiration is Set
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys[].validBeforeTime
+        operator: exists
+  - check_id: gcp.iam.service_account.key_usage_monitoring
+    title: Monitor Service Account Key Usage
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_key_usage_logs
+      fields:
+      - path: keyUsageLogs.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.service_account.least_privilege_access
+    title: Ensure Least Privilege Access for Service Accounts
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/owner
+      condition:
+      - path: bindings[].members[]
+        operator: contains
+        expected: 'serviceAccount:'
+  - check_id: gcp.iam.service_account.no_admin_privileges
+    title: Ensure Service Accounts Don't Have Admin Privileges
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: admin
+      condition:
+      - path: bindings[].members[]
+        operator: contains
+        expected: 'serviceAccount:'
+  - check_id: gcp.iam.service_account.regular_audit_enabled
+    title: Enable Regular Audit for Service Accounts
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_audit_config
+      fields:
+      - path: auditConfig.serviceAccountAudit.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.service_account.rotation_policy_enforced
+    title: Enforce Key Rotation Policy for Service Accounts
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_rotation_policy
+      fields:
+      - path: rotationPolicy.enforced
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.user.access_review_periodic
+    title: Ensure Periodic Access Review for Users
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_access_review
+      fields:
+      - path: lastAccessReview
+        operator: less_than_days
+        expected: 90
+  - check_id: gcp.iam.user.admin_account_separation
+    title: Ensure Admin Account Separation
+    severity: high
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: primaryEmail
+        operator: not_contains
+        expected: admin
+      condition:
+      - path: isAdmin
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.user.emergency_access_procedures
+    title: Ensure Emergency Access Procedures are Defined
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_emergency_access_config
+      fields:
+      - path: emergencyAccess.procedures
+        operator: exists
+  - check_id: gcp.iam.user.inactive_user_disabled
+    title: Ensure Inactive Users are Disabled
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_user_activity
+      fields:
+      - path: lastLoginTime
+        operator: less_than_days
+        expected: 90
+  - check_id: gcp.iam.user.mfa_enabled_for_privileged_users
+    title: Ensure MFA is Enabled for Privileged Users
+    severity: critical
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_mfa_status
+      fields:
+      - path: mfaEnabled
+        operator: equals
+        expected: true
+      condition:
+      - path: isAdmin
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.user.no_shared_accounts
+    title: Ensure No Shared User Accounts
+    severity: high
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: primaryEmail
+        operator: not_contains
+        expected: shared
+      - path: primaryEmail
+        operator: not_contains
+        expected: generic
+  - check_id: gcp.iam.user.password_policy_compliance
+    title: Ensure User Password Policy Compliance
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_password_compliance
+      fields:
+      - path: passwordCompliance.meetsPolicy
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.user.privileged_user_monitoring
+    title: Monitor Privileged User Activities
+    severity: high
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_monitoring_config
+      fields:
+      - path: privilegedUserMonitoring.enabled
+        operator: equals
+        expected: true
+      condition:
+      - path: isAdmin
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.user.regular_access_certification
+    title: Ensure Regular Access Certification
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_certification_status
+      fields:
+      - path: lastCertification
+        operator: less_than_days
+        expected: 180
+  - check_id: gcp.iam.user.role_assignment_documented
+    title: Ensure Role Assignments are Documented
+    severity: low
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.description
+        operator: exists
+  - check_id: gcp.iam.user.session_management_configured
+    title: Ensure Session Management is Configured
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_session_config
+      fields:
+      - path: sessionManagement.maxSessionDuration
+        operator: less_than_or_equal
+        expected: 8h
+  - check_id: gcp.iam.user.temporary_access_time_limited
+    title: Ensure Temporary Access is Time-Limited
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: request.time
+  - check_id: gcp.iam.user.unused_permissions_removed
+    title: Remove Unused User Permissions
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_permission_usage
+      fields:
+      - path: unusedPermissions
+        operator: equals
+        expected: []
+  - check_id: gcp.iam.user.user_access_logging_enabled
+    title: Enable User Access Logging
+    severity: medium
+    for_each: list_iam_users
+    logic: AND
+    calls:
+    - action: get_logging_config
+      fields:
+      - path: accessLogging.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.workload_identity.cross_cluster_access_restricted
+    title: Restrict Cross-Cluster Workload Identity Access
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_workload_identity_config
+      fields:
+      - path: workloadIdentity.crossClusterAccess
+        operator: equals
+        expected: false
+  - check_id: gcp.iam.workload_identity.federation_configured_securely
+    title: Ensure Workload Identity Federation is Configured Securely
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_workload_identity_federation
+      fields:
+      - path: workloadIdentityFederation.secureConfiguration
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.workload_identity.kubernetes_service_account_binding
+    title: Ensure Proper Kubernetes Service Account Binding
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_k8s_binding
+      fields:
+      - path: kubernetesServiceAccountBinding.configured
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.workload_identity.namespace_restrictions_applied
+    title: Apply Namespace Restrictions for Workload Identity
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_namespace_restrictions
+      fields:
+      - path: workloadIdentity.namespaceRestrictions
+        operator: exists
+  - check_id: gcp.iam.workload_identity.pod_security_context_configured
+    title: Configure Pod Security Context for Workload Identity
+    severity: medium
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_pod_security_context
+      fields:
+      - path: podSecurityContext.configured
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.workload_identity.token_exchange_secure
+    title: Ensure Secure Token Exchange for Workload Identity
+    severity: high
+    for_each: list_iam_service_accounts
+    logic: AND
+    calls:
+    - action: get_token_exchange_config
+      fields:
+      - path: tokenExchange.secureExchange
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.conditional_access.device_compliance_required
+    title: Require Device Compliance for Conditional Access
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: device.compliance
+  - check_id: gcp.iam.conditional_access.location_based_restrictions
+    title: Implement Location-Based Access Restrictions
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: origin.ip
+  - check_id: gcp.iam.conditional_access.risk_based_authentication
+    title: Enable Risk-Based Authentication
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_risk_assessment
+      fields:
+      - path: riskBasedAuth.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.conditional_access.time_based_restrictions
+    title: Implement Time-Based Access Restrictions
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: request.time
+  - check_id: gcp.iam.audit.comprehensive_logging_enabled
+    title: Enable Comprehensive IAM Audit Logging
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_comprehensive_audit_config
+      fields:
+      - path: auditConfigs[].auditLogConfigs[].logType
+        operator: contains
+        expected: DATA_READ
+      - path: auditConfigs[].auditLogConfigs[].logType
+        operator: contains
+        expected: DATA_WRITE
+  - check_id: gcp.iam.audit.log_retention_configured
+    title: Configure Appropriate Log Retention for IAM Audits
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_log_retention_config
+      fields:
+      - path: logRetention.retentionDays
+        operator: greater_than_or_equal
+        expected: 365
+  - check_id: gcp.iam.audit.real_time_monitoring
+    title: Enable Real-Time Monitoring for IAM Changes
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_real_time_monitoring
+      fields:
+      - path: realTimeMonitoring.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.audit.sensitive_action_alerting
+    title: Configure Alerting for Sensitive IAM Actions
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_sensitive_action_alerts
+      fields:
+      - path: sensitiveActionAlerts.configured
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.compliance.data_residency_requirements
+    title: Ensure IAM Compliance with Data Residency Requirements
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_data_residency_config
+      fields:
+      - path: dataResidency.compliant
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.compliance.gdpr_compliance_configured
+    title: Configure GDPR Compliance for IAM
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_gdpr_compliance
+      fields:
+      - path: gdprCompliance.configured
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.compliance.regulatory_reporting_enabled
+    title: Enable Regulatory Reporting for IAM
+    severity: medium
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_regulatory_reporting
+      fields:
+      - path: regulatoryReporting.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.iam.compliance.sox_compliance_controls
+    title: Implement SOX Compliance Controls for IAM
+    severity: high
+    for_each: list_iam_policies
+    logic: AND
+    calls:
+    - action: get_sox_compliance
+      fields:
+      - path: soxCompliance.controlsImplemented
+        operator: equals
+        expected: true

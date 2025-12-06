@@ -1,0 +1,66 @@
+version: '1.0'
+provider: alicloud
+service: ddos
+discovery:
+- discovery_id: alicloud.ddos.advanced
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeAdvanceds
+    params: {}
+    save_as: advanced_response
+  emit:
+    items_for: '{ advanced_response.Advanceds.Advanced }'
+    as: r
+    item:
+      id: '{{ r.AdvancedId }}'
+      name: '{{ r.AdvancedId }}'
+      resource_type: advanced
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.ddos.log
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeLogs
+    params: {}
+    save_as: log_response
+  emit:
+    items_for: '{ log_response.Logs.Log }'
+    as: r
+    item:
+      id: '{{ r.LogId }}'
+      name: '{{ r.LogId }}'
+      resource_type: log
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.ddos.advanced.protection_in_internet_facing_load_balancers
+  title: Ensure Anti-DDoS Pro/Premium Protection is Enabled for Internet-Facing Load Balancers
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.ddos.advanced
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.ddos.log.collection_status
+  title: Anti-DDoS Pro Log Collection Status Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.ddos.log
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true

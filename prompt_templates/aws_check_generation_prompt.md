@@ -1,63 +1,5 @@
 # AWS Compliance Check Generation Prompt Template
 
-## ⚠️ CRITICAL: Minimal Check Structure
-
-**Checks should contain ONLY:**
-- `rule_id` - Lookup key for metadata
-- `for_each` - Iteration structure
-- `conditions` - Validation logic
-
-**Do NOT include in checks:**
-- ❌ `title` - Lives in metadata
-- ❌ `severity` - Lives in metadata  
-- ❌ `remediation` - Lives in metadata
-- ❌ `references` - Lives in metadata
-- ❌ `description` - Lives in metadata
-- ❌ `assertion_id` - Not needed (use rule_id)
-
-**All descriptive data is looked up from metadata using `rule_id`!**
-
-## ⚠️ CRITICAL: Proper Check Implementation Required
-
-**DO NOT create placeholder checks that only verify resource existence!**
-
-Each check MUST actually validate the security control it claims to check.
-
-### ❌ WRONG - Placeholder Check (DO NOT DO THIS)
-```yaml
-checks:
-  - rule_id: aws.s3.bucket.encryption.enabled
-    for_each:
-      as: resource
-      item: id
-    conditions:
-      var: item.id
-      op: exists  # ❌ Only checks if bucket exists, NOT if encryption is enabled!
-```
-
-### ✅ CORRECT - Proper Validation
-```yaml
-discovery:
-  - discovery_id: aws.s3.bucket_encryption
-    for_each: aws.s3.buckets
-    calls:
-      - client: s3
-        action: get_bucket_encryption  # Get actual encryption config
-        params:
-          Bucket: '{{ item.name }}'
-
-checks:
-  - rule_id: aws.s3.bucket.encryption.enabled
-    for_each:
-      as: resource
-      item: id
-    conditions:
-      var: encryption.encryption_enabled  # ✅ Actually validates encryption is ON
-      op: equals
-      value: true
-```
-
----
 
 ## Context
 
@@ -65,8 +7,6 @@ You are a compliance engineer creating **WORKING** security checks for AWS infra
 1. **Fetch the actual configuration** (not just list resources)
 2. **Validate the security setting** (not just check existence)
 3. **Match the check title** (what you check must match what the title says)
-
-**Note**: This prompt generates the **rule file** only. For **CSP metadata**, use `aws_metadata_generation_prompt.md`.
 
 ---
 

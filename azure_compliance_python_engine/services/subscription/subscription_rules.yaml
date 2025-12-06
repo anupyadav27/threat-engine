@@ -1,39 +1,95 @@
+# ============================================================================
+# 🤖 CURSOR AI: SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# SERVICE: subscription
+# STATUS: ⏳ NOT_VALIDATED
+#
+# 🎯 YOUR TASK:
+# 1. Run engine: export AZURE_ENGINE_FILTER_SERVICES="subscription" && python engine/azure_generic_engine.py > /tmp/test_subscription.json 2>&1
+# 2. Analyze: tail -100 /tmp/test_subscription.json
+# 3. Fix issues below in discovery/checks sections
+# 4. Re-run until: inventory has resources (if exist), checks = PASS/FAIL (not ERROR)
+# 5. Mark complete at bottom
+#
+# ❌ COMMON ISSUES & FIXES:
+#
+# "Failed to create client" → 
+#   Fix sdk_package: azure.mgmt.subscription (use DOTS not dashes)
+#   Install: pip install azure-mgmt-subscription
+#
+# "Action not found: X.list" →
+#   Test in Python:
+#     from azure.mgmt.subscription import *
+#     client = <Client>(cred, sub_id)
+#     print(dir(client.<resource>))  # Find correct method
+#   Common: list_by_subscription, list_all, list_by_resource_group
+#
+# "ERROR" in checks →
+#   Check resource structure in output
+#   Fix field paths: properties.encryption.keySource
+#   Fix params: add resource_group_name, account_name, etc.
+#
+# Empty inventory →
+#   Create test resource: az <service> <resource> create ...
+#   OR verify action name is correct
+#
+# ✅ SUCCESS WHEN:
+# - No warnings
+# - Inventory populated (if resources exist)  
+# - Checks = PASS/FAIL (not ERROR)
+# - JSON is clean objects (not strings)
+#
+# 📝 AFTER FIXING:
+# Mark status below as VALIDATED and add notes at bottom
+#
+# ============================================================================
+
 subscription:
   version: '1.0'
   provider: azure
   service: subscription
-  package: azure-mgmt-subscription
+  sdk_package: azure.mgmt.subscription
   client_class: SubscriptionClient
+  api_type: management
   scope: subscription
   discovery:
   - discovery_id: azure.subscription.subscriptions
     calls:
-    - client: subscription
-      action: subscriptions.list
-      save_as: subscriptions
-  - discovery_id: azure.subscription.tenants
-    calls:
-    - client: subscription
-      action: tenants.list
-      save_as: tenants
-  - discovery_id: azure.subscription.operations
-    calls:
-    - client: subscription
-      action: operations.list
-      save_as: operations
-  - discovery_id: azure.subscription.locations
-    calls:
-    - client: subscription
-      action: subscriptions.list_locations
-      save_as: locations
+    - action: subscriptions.list
+      fields:
+      - path: __self__
   checks:
   - check_id: azure.subscription.owner.count.check
     title: 'AZURE SUBSCRIPTION Owner: Count Check'
     severity: low
     for_each: azure.subscription.subscriptions
     calls:
-    - action: role_assignments.list_for_subscription
-      params: {}
+    - action: subscriptions.get
+      params:
+        subscription_id: '{{id}}'
       fields:
       - path: value[?(@.properties.role_definition_id =~ /.*8e3af657-a8ff-443c-a75c-2fe8c4bcb635$/)].properties.principal_id
         operator: exists
+
+
+# ============================================================================
+# VALIDATION TRACKING
+# ============================================================================
+# STATUS: ⏳ NOT_VALIDATED
+# VALIDATED_BY: 
+# VALIDATED_DATE: 
+# 
+# FIXES APPLIED:
+# # - (Add fixes here after validation)
+#
+# TEST RESULTS:
+# - Resources Discovered: 0
+# - Checks Executed: 0
+# - PASS: 0
+# - FAIL: 0
+# - ERROR: 0
+#
+# NOTES:
+# # - (Add notes here)
+# ============================================================================

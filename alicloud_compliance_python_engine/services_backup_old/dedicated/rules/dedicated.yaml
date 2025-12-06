@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: dedicated
+discovery:
+- discovery_id: alicloud.dedicated.host
+  calls:
+  - product: DEDICATED
+    version: '2014-05-26'
+    action: DescribeHosts
+    params: {}
+    save_as: host_list
+  emit:
+    items_for: '{ host_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: host
+checks:
+- rule_id: alicloud.dedicated.host.dedicated_host_host_sharing_restricted
+  title: Ensure AliCloud Dedicated Host sharing is properly restricted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dedicated.host
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

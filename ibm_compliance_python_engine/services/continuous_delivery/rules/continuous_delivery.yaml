@@ -1,0 +1,161 @@
+continuous_delivery:
+  version: '1.0'
+  provider: ibm
+  service: continuous_delivery
+  scope: regional
+  package: ibm-cloud-sdk-core
+  client_class: Continuous_DeliveryV1
+  discovery:
+  - discovery_id: continuous_delivery.resources
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.resources'
+      save_as: resources
+  - discovery_id: continuous_delivery.groups
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.groups'
+      save_as: groups
+  - discovery_id: continuous_delivery.project_artifact_encryptions
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.project_artifact_encryptions'
+      save_as: project_artifact_encryptions
+  - discovery_id: continuous_delivery.project_older_90_dayss
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.project_older_90_dayss'
+      save_as: project_older_90_dayss
+  - discovery_id: continuous_delivery.users
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.users'
+      save_as: users
+  - discovery_id: continuous_delivery.projects
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for continuous_delivery.projects'
+      save_as: projects
+  checks:
+  - check_id: ibm.continuous_delivery.resource.packages_external_public_publishing_disabled
+    title: Disable External Public Publishing for Continuous Delivery Packages
+    severity: critical
+    for_each: continuous_delivery.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in continuous_delivery.resources response'
+  - check_id: ibm.continuous_delivery.group.export_encrypted
+    title: Enforce Encryption for Exported Continuous Delivery Groups
+    severity: medium
+    for_each: continuous_delivery.groups
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in continuous_delivery.groups response'
+  - check_id: ibm.continuous_delivery.project_artifact_encryption.project_artifact_encryption_enabled
+    title: Ensure Encryption of Continuous Delivery Project Artifacts
+    severity: high
+    for_each: continuous_delivery.project_artifact_encryptions
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in continuous_delivery.project_artifact_encryptions
+      response'
+  - check_id: ibm.continuous_delivery.resource.project_cos_logs_encrypted
+    title: Ensure COS Logs Encryption for Continuous Delivery Projects
+    severity: medium
+    for_each: continuous_delivery.resources
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in continuous_delivery.resources response'
+  - check_id: ibm.continuous_delivery.resource.project_envvar_awscred_enabled
+    title: Ensure AWS Credentials in Project Environment Variables Are Disabled
+    severity: low
+    for_each: continuous_delivery.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in continuous_delivery.resources response'
+  - check_id: ibm.continuous_delivery.resource.project_logging_enabled
+    title: Ensure Project Logging is Enabled for Continuous Delivery Resources
+    severity: medium
+    for_each: continuous_delivery.resources
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in continuous_delivery.resources response'
+  - check_id: ibm.continuous_delivery.project_older_90_days.project_age_90_days_maximum
+    title: Enforce 90-Day Maximum Age for Continuous Delivery Projects
+    severity: low
+    for_each: continuous_delivery.project_older_90_dayss
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in continuous_delivery.project_older_90_dayss response'
+  - check_id: ibm.continuous_delivery.resource.project_source_repo_url_enabled
+    title: Ensure Project Source Repository URL is Enabled in Continuous Delivery
+    severity: low
+    for_each: continuous_delivery.resources
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in continuous_delivery.resources response'
+  - check_id: ibm.continuous_delivery.user.controlled_buildspec
+    title: Enforce Secure and Verified Buildspec in Continuous Delivery
+    severity: medium
+    for_each: continuous_delivery.users
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in continuous_delivery.users response'
+  - check_id: ibm.continuous_delivery.project.no_secrets_in_variables_..._cluster_audit_logging
+    title: Ensure Secrets Are Not Stored in Cluster Audit Logging Variables
+    severity: high
+    for_each: continuous_delivery.projects
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in continuous_delivery.projects response'
+  - check_id: ibm.continuous_delivery.project.source_repo_url_no_..._secrets_in_variables
+    title: Prevent Secrets in Continuous Delivery Project Source Repo URLs
+    severity: high
+    for_each: continuous_delivery.projects
+    calls:
+    - action: self
+      fields:
+      - path: '...secrets.in.variables'
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "...secrets.in.variables" exists in continuous_delivery.projects response'

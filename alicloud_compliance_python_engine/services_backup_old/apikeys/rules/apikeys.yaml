@@ -1,0 +1,55 @@
+version: '1.0'
+provider: alicloud
+service: apikeys
+discovery:
+- discovery_id: alicloud.apikeys.api
+  calls:
+  - product: APIKEYS
+    version: '2014-05-26'
+    action: DescribeApis
+    params: {}
+    save_as: api_list
+  emit:
+    items_for: '{ api_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: api
+- discovery_id: alicloud.apikeys.key
+  calls:
+  - product: APIKEYS
+    version: '2014-05-26'
+    action: DescribeKeys
+    params: {}
+    save_as: key_list
+  emit:
+    items_for: '{ key_list }'
+    as: r
+    item:
+      id: '{{ r.id }}'
+      name: '{{ r.name }}'
+      resource_type: key
+checks:
+- rule_id: alicloud.apikeys.api.restrictions_configured
+  title: Alibaba Cloud API Keys Should Have Access Restrictions Configured
+  severity: medium
+  assertion_id: iso27001_2022_multi_cloud_A.8.12_0067
+  for_each: alicloud.apikeys.api
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+- rule_id: alicloud.apikeys.key.rotated_in_90_days
+  title: AliCloud API Keys should be rotated within 90 days
+  severity: medium
+  assertion_id: iso27001_2022_multi_cloud_A.5.16_0012
+  for_each: alicloud.apikeys.key
+  params: {}
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null

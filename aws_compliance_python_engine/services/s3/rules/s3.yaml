@@ -30,7 +30,8 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      encryption_enabled: '{{ encryption.ServerSideEncryptionConfiguration.Rules | length > 0 }}'
+      encryption_enabled: '{{ encryption.ServerSideEncryptionConfiguration.Rules |
+        length > 0 }}'
       sse_algorithm: '{{ encryption.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm
         if encryption.ServerSideEncryptionConfiguration.Rules else null }}'
       kms_key_id: '{{ encryption.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID
@@ -61,8 +62,10 @@ discovery:
     item:
       bucket: '{{ item.name }}'
       logging_enabled: '{{ logging.LoggingEnabled is defined }}'
-      target_bucket: '{{ logging.LoggingEnabled.TargetBucket if logging.LoggingEnabled else null }}'
-      target_prefix: '{{ logging.LoggingEnabled.TargetPrefix if logging.LoggingEnabled else null }}'
+      target_bucket: '{{ logging.LoggingEnabled.TargetBucket if logging.LoggingEnabled
+        else null }}'
+      target_prefix: '{{ logging.LoggingEnabled.TargetPrefix if logging.LoggingEnabled
+        else null }}'
 - discovery_id: aws.s3.public_access_block
   for_each: aws.s3.buckets
   calls:
@@ -75,14 +78,14 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      block_public_acls: '{{ public_access.PublicAccessBlockConfiguration.BlockPublicAcls if public_access.PublicAccessBlockConfiguration
-        else false }}'
-      ignore_public_acls: '{{ public_access.PublicAccessBlockConfiguration.IgnorePublicAcls if public_access.PublicAccessBlockConfiguration
-        else false }}'
-      block_public_policy: '{{ public_access.PublicAccessBlockConfiguration.BlockPublicPolicy if public_access.PublicAccessBlockConfiguration
-        else false }}'
-      restrict_public_buckets: '{{ public_access.PublicAccessBlockConfiguration.RestrictPublicBuckets if public_access.PublicAccessBlockConfiguration
-        else false }}'
+      block_public_acls: '{{ public_access.PublicAccessBlockConfiguration.BlockPublicAcls
+        if public_access.PublicAccessBlockConfiguration else false }}'
+      ignore_public_acls: '{{ public_access.PublicAccessBlockConfiguration.IgnorePublicAcls
+        if public_access.PublicAccessBlockConfiguration else false }}'
+      block_public_policy: '{{ public_access.PublicAccessBlockConfiguration.BlockPublicPolicy
+        if public_access.PublicAccessBlockConfiguration else false }}'
+      restrict_public_buckets: '{{ public_access.PublicAccessBlockConfiguration.RestrictPublicBuckets
+        if public_access.PublicAccessBlockConfiguration else false }}'
 - discovery_id: aws.s3.bucket_policy
   for_each: aws.s3.buckets
   calls:
@@ -111,7 +114,8 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      lifecycle_enabled: '{{ lifecycle.Rules | length > 0 if lifecycle.Rules else false }}'
+      lifecycle_enabled: '{{ lifecycle.Rules | length > 0 if lifecycle.Rules else
+        false }}'
       rules_count: '{{ lifecycle.Rules | length if lifecycle.Rules else 0 }}'
 - discovery_id: aws.s3.bucket_object_lock
   for_each: aws.s3.buckets
@@ -125,10 +129,10 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      object_lock_enabled: '{{ object_lock.ObjectLockConfiguration.ObjectLockEnabled == "Enabled" if object_lock.ObjectLockConfiguration
-        else false }}'
-      retention_mode: '{{ object_lock.ObjectLockConfiguration.Rule.DefaultRetention.Mode if object_lock.ObjectLockConfiguration.Rule
-        else null }}'
+      object_lock_enabled: '{{ object_lock.ObjectLockConfiguration.ObjectLockEnabled
+        == "Enabled" if object_lock.ObjectLockConfiguration else false }}'
+      retention_mode: '{{ object_lock.ObjectLockConfiguration.Rule.DefaultRetention.Mode
+        if object_lock.ObjectLockConfiguration.Rule else null }}'
 - discovery_id: aws.s3.bucket_acl
   for_each: aws.s3.buckets
   calls:
@@ -158,8 +162,8 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      replication_enabled: '{{ replication.ReplicationConfiguration.Rules | length > 0 if replication.ReplicationConfiguration.Rules
-        else false }}'
+      replication_enabled: '{{ replication.ReplicationConfiguration.Rules | length
+        > 0 if replication.ReplicationConfiguration.Rules else false }}'
 - discovery_id: aws.s3.account_public_access_block
   calls:
   - client: s3control
@@ -172,14 +176,14 @@ discovery:
     - PublicAccessBlockConfiguration
   emit:
     item:
-      block_public_acls: '{{ account_public_access.PublicAccessBlockConfiguration.BlockPublicAcls if account_public_access.PublicAccessBlockConfiguration
-        else false }}'
-      ignore_public_acls: '{{ account_public_access.PublicAccessBlockConfiguration.IgnorePublicAcls if account_public_access.PublicAccessBlockConfiguration
-        else false }}'
-      block_public_policy: '{{ account_public_access.PublicAccessBlockConfiguration.BlockPublicPolicy if account_public_access.PublicAccessBlockConfiguration
-        else false }}'
-      restrict_public_buckets: '{{ account_public_access.PublicAccessBlockConfiguration.RestrictPublicBuckets if account_public_access.PublicAccessBlockConfiguration
-        else false }}'
+      block_public_acls: '{{ account_public_access.PublicAccessBlockConfiguration.BlockPublicAcls
+        if account_public_access.PublicAccessBlockConfiguration else false }}'
+      ignore_public_acls: '{{ account_public_access.PublicAccessBlockConfiguration.IgnorePublicAcls
+        if account_public_access.PublicAccessBlockConfiguration else false }}'
+      block_public_policy: '{{ account_public_access.PublicAccessBlockConfiguration.BlockPublicPolicy
+        if account_public_access.PublicAccessBlockConfiguration else false }}'
+      restrict_public_buckets: '{{ account_public_access.PublicAccessBlockConfiguration.RestrictPublicBuckets
+        if account_public_access.PublicAccessBlockConfiguration else false }}'
 - discovery_id: aws.s3.bucket_notification
   for_each: aws.s3.buckets
   calls:
@@ -192,8 +196,9 @@ discovery:
   emit:
     item:
       bucket: '{{ item.name }}'
-      has_notifications: '{{ (notification.TopicConfigurations | length > 0) or (notification.QueueConfigurations | length
-        > 0) or (notification.LambdaFunctionConfigurations | length > 0) }}'
+      has_notifications: '{{ (notification.TopicConfigurations | length > 0) or (notification.QueueConfigurations
+        | length > 0) or (notification.LambdaFunctionConfigurations | length > 0)
+        }}'
       has_secure_destination: '{{ true }}'
 checks:
 - title: S3 Bucket Encryption at Rest Enabled
@@ -207,14 +212,6 @@ checks:
     var: encryption.encryption_enabled
     op: equals
     value: true
-  remediation: "Enable S3 bucket encryption at rest:\n1. Open S3 console and select the bucket\n2. Go to Properties > Default\
-    \ encryption\n3. Click Edit and enable encryption\n4. Choose AES-256 (SSE-S3) or AWS-KMS (SSE-KMS)\n5. For KMS, select\
-    \ a CMK or use the default aws/s3 key\n\nAWS CLI:\naws s3api put-bucket-encryption --bucket <bucket-name> \\\n  --server-side-encryption-configuration\
-    \ '{\n    \"Rules\": [{\n      \"ApplyServerSideEncryptionByDefault\": {\n        \"SSEAlgorithm\": \"AES256\"\n     \
-    \ }\n    }]\n  }'\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
 - title: S3 Bucket Default Encryption Configured
   severity: high
   rule_id: aws.s3.bucket.default_encryption_configured
@@ -225,19 +222,6 @@ checks:
   conditions:
     var: encryption.sse_algorithm
     op: exists
-  remediation: 'Configure default encryption for S3 bucket:
-
-    1. Go to S3 console > Select bucket > Properties
-
-    2. Under Default encryption, click Edit
-
-    3. Enable server-side encryption
-
-    4. Select encryption key type (SSE-S3 or SSE-KMS)
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
 - title: S3 Bucket KMS Encryption Configured
   severity: medium
   rule_id: aws.s3.bucket.kms_encryption_configured
@@ -249,19 +233,6 @@ checks:
     var: encryption.sse_algorithm
     op: equals
     value: aws:kms
-  remediation: 'Enable KMS encryption for S3 bucket:
-
-    1. S3 console > Bucket > Properties > Default encryption
-
-    2. Select "AWS Key Management Service key (SSE-KMS)"
-
-    3. Choose a KMS key (customer-managed or AWS-managed)
-
-    4. Save changes
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html
 - title: S3 Bucket Versioning Enabled
   severity: medium
   rule_id: aws.s3.bucket.versioning_enabled
@@ -273,11 +244,6 @@ checks:
     var: versioning.versioning_enabled
     op: equals
     value: true
-  remediation: "Enable S3 bucket versioning:\n1. S3 console > Select bucket > Properties\n2. Find Bucket Versioning section\n\
-    3. Click Edit and select Enable\n4. Save changes\n\nAWS CLI:\naws s3api put-bucket-versioning --bucket <bucket-name> \\\
-    \n  --versioning-configuration Status=Enabled\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html
 - title: S3 Bucket Access Logging Enabled
   severity: medium
   rule_id: aws.s3.bucket.access_logging_enabled
@@ -289,12 +255,6 @@ checks:
     var: logging.logging_enabled
     op: equals
     value: true
-  remediation: "Enable S3 bucket access logging:\n1. S3 console > Bucket > Properties > Server access logging\n2. Click Edit\
-    \ and enable logging\n3. Choose a target bucket for logs\n4. Optionally set a target prefix\n5. Save changes\n\nAWS CLI:\n\
-    aws s3api put-bucket-logging --bucket <source-bucket> \\\n  --bucket-logging-status '{\n    \"LoggingEnabled\": {\n  \
-    \    \"TargetBucket\": \"<log-bucket>\",\n      \"TargetPrefix\": \"logs/\"\n    }\n  }'\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html
 - title: S3 Bucket Block Public Access Enabled
   severity: critical
   rule_id: aws.s3.bucket.block_public_access_enabled
@@ -316,12 +276,6 @@ checks:
     - var: public_access.restrict_public_buckets
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n1. S3 console > Bucket > Permissions > Block public access\n2. Click\
-    \ Edit\n3. Enable all four settings:\n   - Block all public ACLs\n   - Block public bucket policies\n   - Ignore public\
-    \ ACLs\n   - Restrict public bucket policies\n4. Confirm and save\n\nAWS CLI:\naws s3api put-public-access-block --bucket\
-    \ <bucket-name> \\\n  --public-access-block-configuration \\\n  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html
 - title: S3 Bucket Block Public Access Configured
   severity: critical
   rule_id: aws.s3.bucket.block_public_access_configured
@@ -337,15 +291,6 @@ checks:
     - var: public_access.block_public_policy
       op: equals
       value: true
-  remediation: 'Configure public access block for S3 bucket (at minimum):
-
-    1. Enable at least BlockPublicAcls or BlockPublicPolicy
-
-    2. Recommended: Enable all four settings for maximum security
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html
 - title: S3 Bucket Object Lock Enabled
   severity: medium
   rule_id: aws.s3.bucket.immutability_or_object_lock_if_supported
@@ -357,13 +302,6 @@ checks:
     var: object_lock.object_lock_enabled
     op: equals
     value: true
-  remediation: "Enable S3 Object Lock (Note: Can only be enabled during bucket creation):\n1. When creating a new bucket,\
-    \ enable \"Object Lock\" under Advanced settings\n2. After creation, configure retention settings:\n   - S3 console >\
-    \ Bucket > Properties > Object Lock\n   - Set default retention mode (Governance or Compliance)\n   - Set retention period\n\
-    \nFor existing buckets without Object Lock:\n1. Create a new bucket with Object Lock enabled\n2. Use S3 Batch Operations\
-    \ to copy objects\n3. Update applications to use the new bucket\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
 - title: S3 Bucket Immutable or WORM Enabled
   severity: medium
   rule_id: aws.s3.bucket.immutable_or_worm_enabled_if_supported
@@ -375,17 +313,6 @@ checks:
     var: object_lock.object_lock_enabled
     op: equals
     value: true
-  remediation: 'Enable WORM (Write Once Read Many) protection:
-
-    1. Enable Object Lock when creating bucket
-
-    2. Configure retention mode (Compliance for WORM)
-
-    3. Set retention period based on compliance requirements
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
 - title: S3 Bucket Lifecycle Policy Configured
   severity: low
   rule_id: aws.s3.bucket.lifecycle_policy_configured
@@ -397,12 +324,6 @@ checks:
     var: lifecycle.lifecycle_enabled
     op: equals
     value: true
-  remediation: "Configure S3 bucket lifecycle policy:\n1. S3 console > Bucket > Management > Lifecycle rules\n2. Click \"\
-    Create lifecycle rule\"\n3. Define rule scope (prefix, tags, or entire bucket)\n4. Add transitions (e.g., to IA, Glacier)\
-    \ and expiration actions\n5. Review and create rule\n\nAWS CLI example:\naws s3api put-bucket-lifecycle-configuration\
-    \ --bucket <bucket-name> \\\n  --lifecycle-configuration file://lifecycle.json\n"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
 - title: S3 Bucket Lifecycle Enabled
   severity: low
   rule_id: aws.s3.bucket.lifecycle_enabled
@@ -414,17 +335,6 @@ checks:
     var: lifecycle.lifecycle_enabled
     op: equals
     value: true
-  remediation: 'Enable lifecycle management for cost optimization:
-
-    1. Create lifecycle rules to transition old objects to cheaper storage classes
-
-    2. Set expiration policies for temporary data
-
-    3. Use intelligent-tiering for unpredictable access patterns
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html
 - title: S3 Bucket Replication Enabled
   severity: low
   rule_id: aws.s3.bucket.replication_enabled
@@ -436,25 +346,6 @@ checks:
     var: replication.replication_enabled
     op: equals
     value: true
-  remediation: 'Enable S3 bucket replication:
-
-    1. Ensure source bucket has versioning enabled
-
-    2. S3 console > Bucket > Management > Replication rules
-
-    3. Click "Create replication rule"
-
-    4. Configure source (entire bucket or filtered)
-
-    5. Choose destination bucket (can be in different region/account)
-
-    6. Set up IAM role for replication
-
-    7. Save rule
-
-    '
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html
 - title: 'S3 account: Level Public Access Blocks Configured'
   severity: high
   rule_id: aws.s3.account.level_public_access_blocks_configured
@@ -476,15 +367,6 @@ checks:
     - var: public_access.restrict_public_buckets
       op: equals
       value: true
-  remediation: "Enable account-level S3 public access block:\n      1. S3 console > Block Public Access settings for this\
-    \ account\n      2. Click Edit\n      3. Enable all four settings:\n         - Block all public ACLs\n         - Block\
-    \ public bucket policies\n         - Ignore public ACLs\n         - Restrict public bucket policies\n      4. Confirm\
-    \ and save\n      \n      AWS CLI:\n      aws s3control put-public-access-block \\\n        --account-id <account-id>\
-    \ \\\n        --public-access-block-configuration \\\n        BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Backup Storage Immutability Enabled'
   severity: medium
   rule_id: aws.s3.bucket.backup_storage_immutability_enabled
@@ -496,13 +378,6 @@ checks:
     var: object_lock.object_lock_enabled
     op: equals
     value: true
-  remediation: "Enable S3 Object Lock for immutability:\n      1. Create new bucket with Object Lock enabled (cannot be enabled\
-    \ on existing buckets)\n      2. Configure retention settings:\n         - Compliance mode for immutability\n        \
-    \ - Governance mode for flexible retention\n      3. Set retention period\n      4. Migrate data from existing bucket\
-    \ if needed"
-  references:
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Cmk Cmek Configured'
   severity: medium
   rule_id: aws.s3.bucket.cmk_cmek_configured
@@ -517,13 +392,6 @@ checks:
       value: aws:kms
     - var: encryption.kms_key_id
       op: exists
-  remediation: "Enable customer-managed KMS encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n\
-    \      2. Select \"AWS Key Management Service key (SSE-KMS)\"\n      3. Choose \"Choose from your AWS KMS keys\"\n   \
-    \   4. Select a customer-managed CMK\n      5. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Cmk Cmek Key Configured'
   severity: medium
   rule_id: aws.s3.bucket.cmk_cmek_key_configured
@@ -538,13 +406,6 @@ checks:
       value: aws:kms
     - var: encryption.kms_key_id
       op: exists
-  remediation: "Enable customer-managed KMS encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n\
-    \      2. Select \"AWS Key Management Service key (SSE-KMS)\"\n      3. Choose \"Choose from your AWS KMS keys\"\n   \
-    \   4. Select a customer-managed CMK\n      5. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Destination Private Only Configured'
   severity: high
   rule_id: aws.s3.bucket.destination_private_only_configured
@@ -556,14 +417,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Destination Private Only Configuration\n      2.\
-    \ Checks high-priority security configuration for Amazon S3 bucket to mitigate significant security risks. This control\
-    \ addresses vulnerabilities that could lead to unauthorized access, data exposure, o\n      3. Apply appropriate security\
-    \ settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Encryption At Rest Cmek Configured'
   severity: high
   rule_id: aws.s3.bucket.encryption_at_rest_cmek_configured
@@ -578,13 +431,6 @@ checks:
       value: aws:kms
     - var: encryption.kms_key_id
       op: exists
-  remediation: "Enable customer-managed KMS encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n\
-    \      2. Select \"AWS Key Management Service key (SSE-KMS)\"\n      3. Choose \"Choose from your AWS KMS keys\"\n   \
-    \   4. Select a customer-managed CMK\n      5. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: Backup encryption is enabled
   severity: high
   rule_id: aws.s3.bucket.encryption_enabled
@@ -596,12 +442,6 @@ checks:
     var: encryption.encryption_enabled
     op: equals
     value: true
-  remediation: "Enable S3 encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n      2. Enable server-side\
-    \ encryption\n      3. Choose AES-256 (SSE-S3) or AWS-KMS (SSE-KMS)\n      4. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 bucket: Encryption In Transit Tls Min 1 2 Configured'
   severity: high
   rule_id: aws.s3.bucket.encryption_in_transit_tls_min_1_2_configured
@@ -613,14 +453,6 @@ checks:
     var: policy.has_tls_requirement
     op: equals
     value: true
-  remediation: "Enable TLS/HTTPS-only access for S3:\n      1. S3 console > Bucket > Permissions > Bucket Policy\n      2.\
-    \ Add policy to deny non-HTTPS requests:\n      {\n        \"Effect\": \"Deny\",\n        \"Principal\": \"*\",\n    \
-    \    \"Action\": \"s3:*\",\n        \"Resource\": [\n          \"arn:aws:s3:::bucket-name\",\n          \"arn:aws:s3:::bucket-name/*\"\
-    \n        ],\n        \"Condition\": {\n          \"Bool\": { \"aws:SecureTransport\": \"false\" }\n        }\n      }"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 bucket: Key Policy Least Privilege'
   severity: high
   rule_id: aws.s3.bucket.key_policy_least_privilege
@@ -632,16 +464,6 @@ checks:
     var: policy.has_least_privilege
     op: equals
     value: true
-  remediation: "Review and enforce least privilege on S3 bucket policy:\n      1. S3 console > Bucket > Permissions > Bucket\
-    \ Policy\n      2. Review current policy for overly permissive statements\n      3. Remove wildcard (*) principals and\
-    \ actions where possible\n      4. Use specific ARNs and actions\n      5. Apply conditions for additional security\n\
-    \      6. Save changes\n      \n      Best practices:\n      - Use principal-specific ARNs instead of \"*\"\n      - Grant\
-    \ only required actions (avoid s3:*)\n      - Use condition keys (aws:SourceIp, aws:SecureTransport, etc.)\n      - Regularly\
-    \ audit and review policies"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: Create immutable backup copies
   severity: medium
   rule_id: aws.s3.bucket.key_rotation_enabled
@@ -653,14 +475,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Key Rotation Enabled\n      2. Verifies security\
-    \ configuration for Amazon S3 bucket to ensure alignment with AWS security best practices and compliance requirements.\
-    \ Proper configuration reduces security risks, maintains defense in\n      3. Apply appropriate security settings\n  \
-    \    4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Metrics Enabled'
   severity: medium
   rule_id: aws.s3.bucket.metrics_enabled
@@ -672,12 +486,6 @@ checks:
     var: bucket.metrics_enabled
     op: equals
     value: true
-  remediation: "Enable S3 metrics:\n      1. S3 console > Bucket > Metrics\n      2. Create request metrics configuration\n\
-    \      3. Define filter (prefix, tags, or entire bucket)\n      4. Enable metrics\n      5. Monitor via CloudWatch"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: Compliance logging is enabled
   severity: medium
   rule_id: aws.s3.bucket.object_level_write_logging_enabled
@@ -689,15 +497,6 @@ checks:
     var: logging.logging_enabled
     op: equals
     value: true
-  remediation: "Enable S3 access logging:\n      1. S3 console > Bucket > Properties > Server access logging\n      2. Click\
-    \ Edit and enable logging\n      3. Choose a target bucket for logs\n      4. Set target prefix (e.g., \"logs/\")\n  \
-    \    5. Save changes\n      \n      AWS CLI:\n      aws s3api put-bucket-logging --bucket <bucket-name> \\\n        --bucket-logging-status\
-    \ '{\n          \"LoggingEnabled\": {\n            \"TargetBucket\": \"<log-bucket>\",\n            \"TargetPrefix\":\
-    \ \"logs/\"\n          }\n        }'"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 bucket: Object Versioning Configured'
   severity: low
   rule_id: aws.s3.bucket.object_versioning_configured
@@ -709,13 +508,6 @@ checks:
     var: versioning.versioning_enabled
     op: equals
     value: true
-  remediation: "Enable S3 bucket versioning:\n      1. S3 console > Bucket > Properties > Bucket Versioning\n      2. Click\
-    \ Edit and select Enable\n      3. Save changes\n      \n      AWS CLI:\n      aws s3api put-bucket-versioning --bucket\
-    \ <bucket-name> \\\n        --versioning-configuration Status=Enabled"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Policy Denies Public And Insecure Configured'
   severity: high
   rule_id: aws.s3.bucket.policy_denies_public_and_insecure_configured
@@ -731,12 +523,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Policy Public Write Access Configured'
   severity: high
   rule_id: aws.s3.bucket.policy_public_write_access_configured
@@ -752,12 +538,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Public Access Configured'
   severity: high
   rule_id: aws.s3.bucket.public_access_configured
@@ -773,12 +553,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Public Read Prohibited Configured'
   severity: high
   rule_id: aws.s3.bucket.public_read_prohibited_configured
@@ -794,12 +568,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Public Write Prohibited Configured'
   severity: high
   rule_id: aws.s3.bucket.public_write_prohibited_configured
@@ -815,12 +583,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Rbac Least Privilege'
   severity: high
   rule_id: aws.s3.bucket.rbac_least_privilege
@@ -832,16 +594,6 @@ checks:
     var: policy.has_least_privilege
     op: equals
     value: true
-  remediation: "Review and enforce least privilege on S3 bucket policy:\n      1. S3 console > Bucket > Permissions > Bucket\
-    \ Policy\n      2. Review current policy for overly permissive statements\n      3. Remove wildcard (*) principals and\
-    \ actions where possible\n      4. Use specific ARNs and actions\n      5. Apply conditions for additional security\n\
-    \      6. Save changes\n      \n      Best practices:\n      - Use principal-specific ARNs instead of \"*\"\n      - Grant\
-    \ only required actions (avoid s3:*)\n      - Use condition keys (aws:SourceIp, aws:SecureTransport, etc.)\n      - Regularly\
-    \ audit and review policies"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Require Tls In Transit Configured'
   severity: high
   rule_id: aws.s3.bucket.require_tls_in_transit_configured
@@ -853,14 +605,6 @@ checks:
     var: policy.has_tls_requirement
     op: equals
     value: true
-  remediation: "Enable TLS/HTTPS-only access for S3:\n      1. S3 console > Bucket > Permissions > Bucket Policy\n      2.\
-    \ Add policy to deny non-HTTPS requests:\n      {\n        \"Effect\": \"Deny\",\n        \"Principal\": \"*\",\n    \
-    \    \"Action\": \"s3:*\",\n        \"Resource\": [\n          \"arn:aws:s3:::bucket-name\",\n          \"arn:aws:s3:::bucket-name/*\"\
-    \n        ],\n        \"Condition\": {\n          \"Bool\": { \"aws:SecureTransport\": \"false\" }\n        }\n      }"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Retention Days Minimum'
   severity: low
   rule_id: aws.s3.bucket.retention_days_minimum
@@ -872,14 +616,6 @@ checks:
     var: lifecycle.lifecycle_enabled
     op: equals
     value: true
-  remediation: "Configure S3 lifecycle policy:\n      1. S3 console > Bucket > Management > Lifecycle rules\n      2. Click\
-    \ \"Create lifecycle rule\"\n      3. Define rule name and scope\n      4. Add lifecycle rule actions:\n         - Transition\
-    \ to IA after X days\n         - Transition to Glacier after Y days\n         - Expire objects after Z days\n      5.\
-    \ Review and create rule"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: S3 Encrypted At Rest'
   severity: high
   rule_id: aws.s3.bucket.s3_encrypted_at_rest
@@ -891,14 +627,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: S3 Encrypted At Rest\n      2. Checks high-priority\
-    \ security configuration for Amazon S3 bucket to mitigate significant security risks. This control addresses vulnerabilities\
-    \ that could lead to unauthorized access, data exposure, o\n      3. Apply appropriate security settings\n      4. Verify\
-    \ compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Schedule Defined Min Frequency Configured'
   severity: medium
   rule_id: aws.s3.bucket.schedule_defined_min_frequency_configured
@@ -910,14 +638,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Schedule Defined Min Frequency Configuration\n\
-    \      2. Verifies security configuration for Amazon S3 bucket to ensure alignment with AWS security best practices and\
-    \ compliance requirements. Proper configuration reduces security risks, maintains defense in\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket: Secure Transport Policy Configured'
   severity: high
   rule_id: aws.s3.bucket.secure_transport_policy_configured
@@ -929,16 +649,6 @@ checks:
     var: policy.has_least_privilege
     op: equals
     value: true
-  remediation: "Review and enforce least privilege on S3 bucket policy:\n      1. S3 console > Bucket > Permissions > Bucket\
-    \ Policy\n      2. Review current policy for overly permissive statements\n      3. Remove wildcard (*) principals and\
-    \ actions where possible\n      4. Use specific ARNs and actions\n      5. Apply conditions for additional security\n\
-    \      6. Save changes\n      \n      Best practices:\n      - Use principal-specific ARNs instead of \"*\"\n      - Grant\
-    \ only required actions (avoid s3:*)\n      - Use condition keys (aws:SourceIp, aws:SecureTransport, etc.)\n      - Regularly\
-    \ audit and review policies"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: Audit public access permissions
   severity: medium
   rule_id: aws.s3.bucket.server_access_logging_enabled
@@ -950,15 +660,6 @@ checks:
     var: logging.logging_enabled
     op: equals
     value: true
-  remediation: "Enable S3 access logging:\n      1. S3 console > Bucket > Properties > Server access logging\n      2. Click\
-    \ Edit and enable logging\n      3. Choose a target bucket for logs\n      4. Set target prefix (e.g., \"logs/\")\n  \
-    \    5. Save changes\n      \n      AWS CLI:\n      aws s3api put-bucket-logging --bucket <bucket-name> \\\n        --bucket-logging-status\
-    \ '{\n          \"LoggingEnabled\": {\n            \"TargetBucket\": \"<log-bucket>\",\n            \"TargetPrefix\":\
-    \ \"logs/\"\n          }\n        }'"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 bucket: Storage Encrypted And Private'
   severity: high
   rule_id: aws.s3.bucket.storage_encrypted_and_private
@@ -970,14 +671,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Storage Encrypted And Private\n      2. Checks\
-    \ high-priority security configuration for Amazon S3 bucket to mitigate significant security risks. This control addresses\
-    \ vulnerabilities that could lead to unauthorized access, data exposure, o\n      3. Apply appropriate security settings\n\
-    \      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket encryption: Bucket At Rest Cmek Enabled'
   severity: medium
   rule_id: aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
@@ -992,13 +685,6 @@ checks:
       value: aws:kms
     - var: encryption.kms_key_id
       op: exists
-  remediation: "Enable customer-managed KMS encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n\
-    \      2. Select \"AWS Key Management Service key (SSE-KMS)\"\n      3. Choose \"Choose from your AWS KMS keys\"\n   \
-    \   4. Select a customer-managed CMK\n      5. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket encryption: In Transit Tls Min 1 2 Configured'
   severity: high
   rule_id: aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
@@ -1010,14 +696,6 @@ checks:
     var: policy.has_tls_requirement
     op: equals
     value: true
-  remediation: "Enable TLS/HTTPS-only access for S3:\n      1. S3 console > Bucket > Permissions > Bucket Policy\n      2.\
-    \ Add policy to deny non-HTTPS requests:\n      {\n        \"Effect\": \"Deny\",\n        \"Principal\": \"*\",\n    \
-    \    \"Action\": \"s3:*\",\n        \"Resource\": [\n          \"arn:aws:s3:::bucket-name\",\n          \"arn:aws:s3:::bucket-name/*\"\
-    \n        ],\n        \"Condition\": {\n          \"Bool\": { \"aws:SecureTransport\": \"false\" }\n        }\n      }"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket notification: Bucket Cross Account Destinations Restricted'
   severity: medium
   rule_id: aws.s3.bucket_notification.bucket_cross_account_destinations_restricted
@@ -1029,14 +707,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket Cross Account Destinations Restricted\n\
-    \      2. Verifies security configuration for Amazon S3 bucket notification to ensure alignment with AWS security best\
-    \ practices and compliance requirements. Proper configuration reduces security risks, maintai\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket notification: Bucket Destination Encrypted'
   severity: high
   rule_id: aws.s3.bucket_notification.bucket_destination_encrypted
@@ -1048,14 +718,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket Destination Encrypted\n      2. Checks high-priority\
-    \ security configuration for Amazon S3 bucket notification to mitigate significant security risks. This control addresses\
-    \ vulnerabilities that could lead to unauthorized access, dat\n      3. Apply appropriate security settings\n      4.\
-    \ Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucket notification: Bucket Destination Least Privilege'
   severity: high
   rule_id: aws.s3.bucket_notification.bucket_destination_least_privilege
@@ -1067,16 +729,6 @@ checks:
     var: policy.has_least_privilege
     op: equals
     value: true
-  remediation: "Review and enforce least privilege on S3 bucket policy:\n      1. S3 console > Bucket > Permissions > Bucket\
-    \ Policy\n      2. Review current policy for overly permissive statements\n      3. Remove wildcard (*) principals and\
-    \ actions where possible\n      4. Use specific ARNs and actions\n      5. Apply conditions for additional security\n\
-    \      6. Save changes\n      \n      Best practices:\n      - Use principal-specific ARNs instead of \"*\"\n      - Grant\
-    \ only required actions (avoid s3:*)\n      - Use condition keys (aws:SourceIp, aws:SecureTransport, etc.)\n      - Regularly\
-    \ audit and review policies"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucketpolicy: Bucket Deny Insecure Transport Configured'
   severity: medium
   rule_id: aws.s3.bucketpolicy.bucket_deny_insecure_transport_configured
@@ -1088,12 +740,6 @@ checks:
     var: encryption.encryption_enabled
     op: equals
     value: true
-  remediation: "Enable S3 encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n      2. Enable server-side\
-    \ encryption\n      3. Choose AES-256 (SSE-S3) or AWS-KMS (SSE-KMS)\n      4. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucketpolicy: Bucket Deny Unencrypted Puts'
   severity: high
   rule_id: aws.s3.bucketpolicy.bucket_deny_unencrypted_puts
@@ -1105,13 +751,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket Deny Unencrypted Puts\n      2. Checks high-priority\
-    \ security configuration for Amazon S3 bucketpolicy to mitigate significant security risks. This control addresses vulnerabilities\
-    \ that could lead to unauthorized access, data expos\n      3. Apply appropriate security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucketpolicy: Bucket No Wildcards On Actions Or Principals Configured'
   severity: medium
   rule_id: aws.s3.bucketpolicy.bucket_no_wildcards_on_actions_or_principals_configured
@@ -1123,14 +762,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket No Wildcards On Actions Or Principals Configuration\n\
-    \      2. Verifies security configuration for Amazon S3 bucketpolicy to ensure alignment with AWS security best practices\
-    \ and compliance requirements. Proper configuration reduces security risks, maintains defe\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 bucketpolicy: No Public Principals Configured'
   severity: high
   rule_id: aws.s3.bucketpolicy.no_public_principals_configured
@@ -1146,12 +777,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 intelligent tiering: Bucket Enforced On Sensitive Datasets Configured'
   severity: medium
   rule_id: aws.s3.intelligent_tiering.bucket_enforced_on_sensitive_datasets_configured
@@ -1163,14 +788,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket Enforced On Sensitive Datasets Configuration\n\
-    \      2. Verifies security configuration for Amazon S3 intelligent tiering to ensure alignment with AWS security best\
-    \ practices and compliance requirements. Proper configuration reduces security risks, maintai\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 intelligent tiering: Policies Configured'
   severity: medium
   rule_id: aws.s3.intelligent_tiering.policies_configured
@@ -1182,14 +799,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Policies Configuration\n      2. Verifies security\
-    \ configuration for Amazon S3 intelligent tiering to ensure alignment with AWS security best practices and compliance\
-    \ requirements. Proper configuration reduces security risks, maintai\n      3. Apply appropriate security settings\n \
-    \     4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 intelligent tiering: Protected From Public Override Configured'
   severity: high
   rule_id: aws.s3.intelligent_tiering.protected_from_public_override_configured
@@ -1205,12 +814,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Bucket Enforced On Sensitive Datasets Configured'
   severity: medium
   rule_id: aws.s3.lifecycle_configuration.bucket_enforced_on_sensitive_datasets_configured
@@ -1222,14 +825,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Bucket Enforced On Sensitive Datasets Configuration\n\
-    \      2. Verifies security configuration for Amazon S3 lifecycle configuration to ensure alignment with AWS security\
-    \ best practices and compliance requirements. Proper configuration reduces security risks, mai\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Certificate Expiration Rules Configured'
   severity: medium
   rule_id: aws.s3.lifecycle_configuration.certificate_expiration_rules_configured
@@ -1241,14 +836,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Certificate Expiration Rules Configuration\n  \
-    \    2. Verifies security configuration for Amazon S3 lifecycle configuration to ensure alignment with AWS security best\
-    \ practices and compliance requirements. Proper configuration reduces security risks, mai\n      3. Apply appropriate\
-    \ security settings\n      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Immutable Retention Locked Where Required'
   severity: low
   rule_id: aws.s3.lifecycle_configuration.immutable_retention_locked_where_required
@@ -1260,14 +847,6 @@ checks:
     var: lifecycle.lifecycle_enabled
     op: equals
     value: true
-  remediation: "Configure S3 lifecycle policy:\n      1. S3 console > Bucket > Management > Lifecycle rules\n      2. Click\
-    \ \"Create lifecycle rule\"\n      3. Define rule name and scope\n      4. Add lifecycle rule actions:\n         - Transition\
-    \ to IA after X days\n         - Transition to Glacier after Y days\n         - Expire objects after Z days\n      5.\
-    \ Review and create rule"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Policies Configured'
   severity: medium
   rule_id: aws.s3.lifecycle_configuration.policies_configured
@@ -1279,14 +858,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Policies Configuration\n      2. Verifies security\
-    \ configuration for Amazon S3 lifecycle configuration to ensure alignment with AWS security best practices and compliance\
-    \ requirements. Proper configuration reduces security risks, mai\n      3. Apply appropriate security settings\n     \
-    \ 4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Protected From Public Override Configured'
   severity: high
   rule_id: aws.s3.lifecycle_configuration.protected_from_public_override_configured
@@ -1302,12 +873,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 lifecycle configuration: Versioning Enabled If Supported'
   severity: low
   rule_id: aws.s3.lifecycle_configuration.versioning_enabled_if_supported
@@ -1319,13 +884,6 @@ checks:
     var: versioning.versioning_enabled
     op: equals
     value: true
-  remediation: "Enable S3 bucket versioning:\n      1. S3 console > Bucket > Properties > Bucket Versioning\n      2. Click\
-    \ Edit and select Enable\n      3. Save changes\n      \n      AWS CLI:\n      aws s3api put-bucket-versioning --bucket\
-    \ <bucket-name> \\\n        --versioning-configuration Status=Enabled"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 macie classification jobs status: Macie Classification Jobs Status Configured'
   severity: medium
   rule_id: aws.s3.macie_classification_jobs_status.macie_classification_jobs_status_configured
@@ -1337,12 +895,6 @@ checks:
     var: bucket.macie_enabled
     op: equals
     value: true
-  remediation: "Enable Amazon Macie for S3:\n      1. Open Macie console\n      2. Click \"Get started\" or \"Enable Macie\"\
-    \n      3. Configure S3 buckets to scan\n      4. Set up classification jobs\n      5. Review findings regularly"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: Encrypt data in public buckets
   severity: medium
   rule_id: aws.s3.object.encryption_at_rest_enabled
@@ -1354,12 +906,6 @@ checks:
     var: encryption.encryption_enabled
     op: equals
     value: true
-  remediation: "Enable S3 encryption:\n      1. S3 console > Bucket > Properties > Default encryption\n      2. Enable server-side\
-    \ encryption\n      3. Choose AES-256 (SSE-S3) or AWS-KMS (SSE-KMS)\n      4. Save changes"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 object: Lock Or Immutability Enabled If Supported'
   severity: medium
   rule_id: aws.s3.object.lock_or_immutability_enabled_if_supported
@@ -1371,14 +917,6 @@ checks:
     var: object_lock.object_lock_enabled
     op: equals
     value: true
-  remediation: "Enable S3 Object Lock for immutability:\n      1. Create new bucket with Object Lock enabled (cannot be enabled\
-    \ on existing buckets)\n      2. Configure retention settings:\n         - Compliance mode for immutability\n        \
-    \ - Governance mode for flexible retention\n      3. Set retention period\n      4. Migrate data from existing bucket\
-    \ if needed"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 object: Not Publicly Readable Configured'
   severity: high
   rule_id: aws.s3.object.not_publicly_readable_configured
@@ -1394,12 +932,6 @@ checks:
     - var: public_access.ignore_public_acls
       op: equals
       value: true
-  remediation: "Enable S3 bucket public access block:\n      1. S3 console > Bucket > Permissions > Block public access\n\
-    \      2. Click Edit and enable all settings\n      3. Confirm and save"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 replication: Auth Roles Least Privilege'
   severity: high
   rule_id: aws.s3.replication.auth_roles_least_privilege
@@ -1411,16 +943,6 @@ checks:
     var: policy.has_least_privilege
     op: equals
     value: true
-  remediation: "Review and enforce least privilege on S3 bucket policy:\n      1. S3 console > Bucket > Permissions > Bucket\
-    \ Policy\n      2. Review current policy for overly permissive statements\n      3. Remove wildcard (*) principals and\
-    \ actions where possible\n      4. Use specific ARNs and actions\n      5. Apply conditions for additional security\n\
-    \      6. Save changes\n      \n      Best practices:\n      - Use principal-specific ARNs instead of \"*\"\n      - Grant\
-    \ only required actions (avoid s3:*)\n      - Use condition keys (aws:SourceIp, aws:SecureTransport, etc.)\n      - Regularly\
-    \ audit and review policies"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 replication: Encryption In Transit Tls Required'
   severity: high
   rule_id: aws.s3.replication.encryption_in_transit_tls_required
@@ -1432,14 +954,6 @@ checks:
     var: policy.has_tls_requirement
     op: equals
     value: true
-  remediation: "Enable TLS/HTTPS-only access for S3:\n      1. S3 console > Bucket > Permissions > Bucket Policy\n      2.\
-    \ Add policy to deny non-HTTPS requests:\n      {\n        \"Effect\": \"Deny\",\n        \"Principal\": \"*\",\n    \
-    \    \"Action\": \"s3:*\",\n        \"Resource\": [\n          \"arn:aws:s3:::bucket-name\",\n          \"arn:aws:s3:::bucket-name/*\"\
-    \n        ],\n        \"Condition\": {\n          \"Bool\": { \"aws:SecureTransport\": \"false\" }\n        }\n      }"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-encryption.html
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
 - title: 'S3 replication: Lag Monitoring Alerts Enabled'
   severity: medium
   rule_id: aws.s3.replication.lag_monitoring_alerts_enabled
@@ -1451,14 +965,6 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Lag Monitoring Alerts Enabled\n      2. Validates\
-    \ that Amazon S3 replication has monitoring and alerting configured to detect anomalies, performance issues, and security\
-    \ events. Proactive monitoring enables early threat detection, reduces m\n      3. Apply appropriate security settings\n\
-    \      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
 - title: 'S3 website https only: Website Https Only Configured'
   severity: medium
   rule_id: aws.s3.website_https_only.website_https_only_configured
@@ -1470,11 +976,3 @@ checks:
     var: bucket.compliant
     op: equals
     value: true
-  remediation: "Configure S3 for compliance:\n      1. Review requirement: Website Https Only Configuration\n      2. Verifies\
-    \ security configuration for Amazon S3 website https only to ensure alignment with AWS security best practices and compliance\
-    \ requirements. Proper configuration reduces security risks, maintain\n      3. Apply appropriate security settings\n\
-    \      4. Verify compliance"
-  references:
-  - https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
-  - https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
-  - https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html

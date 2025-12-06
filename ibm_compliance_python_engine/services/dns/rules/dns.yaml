@@ -1,0 +1,259 @@
+dns:
+  version: '1.0'
+  provider: ibm
+  service: dns
+  scope: regional
+  package: ibm-cloud-sdk-core
+  client_class: DnsV1
+  discovery:
+  - discovery_id: dns.zones
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.zones'
+      save_as: zones
+  - discovery_id: dns.monitors
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.monitors'
+      save_as: monitors
+  - discovery_id: dns.dnssec_keys
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.dnssec_keys'
+      save_as: dnssec_keys
+  - discovery_id: dns.policies
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.policies'
+      save_as: policies
+  - discovery_id: dns.resource_records
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.resource_records'
+      save_as: resource_records
+  - discovery_id: dns.resources
+    calls:
+    - action: self
+      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for dns.resources'
+      save_as: resources
+  checks:
+  - check_id: ibm.dns.zone.dnssec_disabled
+    title: Ensure DNSSEC is Disabled for DNS Zones to Prevent Misconfiguration
+    severity: low
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.zones response'
+  - check_id: ibm.dns.monitor.alerts_configured
+    title: Ensure DNS Monitors Have Alerts Configured for Enhanced Security
+    severity: low
+    for_each: dns.monitors
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.monitors response'
+  - check_id: ibm.dns.monitor.https_or_tls_used
+    title: Ensure DNS Monitors Use HTTPS or TLS for Secure Data Transmission
+    severity: medium
+    for_each: dns.monitors
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.monitors response'
+  - check_id: ibm.dns.monitor.no_plaintext_credentials_in_url
+    title: Ensure No Plaintext Credentials in DNS Monitor URLs
+    severity: high
+    for_each: dns.monitors
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.monitors response'
+  - check_id: ibm.dns.dnssec_key.sign_in_dnssec
+    title: Ensure DNSSEC Key is Enabled for DNS Security and Integrity
+    severity: medium
+    for_each: dns.dnssec_keys
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.dnssec_keys response'
+  - check_id: ibm.dns.policy.traffic_health_checks_required_for_failover
+    title: Mandatory Traffic Health Checks for DNS Failover Policies
+    severity: medium
+    for_each: dns.policies
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.policies response'
+  - check_id: ibm.dns.policy.traffic_policy_documents_encrypted_and_private
+    title: Enforce Encryption and Privacy for DNS Traffic Policy Documents
+    severity: medium
+    for_each: dns.policies
+    calls:
+    - action: self
+      fields:
+      - path: encryption_at_rest
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in dns.policies response'
+  - check_id: ibm.dns.policy.traffic_targets_approved_domains_only
+    title: Enforce DNS Traffic to Approved Domains Only
+    severity: medium
+    for_each: dns.policies
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.policies response'
+  - check_id: ibm.dns.resource_record.record_set_alias_targets_in_approved_services
+    title: Ensure Record Set Alias Targets Are Within Approved Services
+    severity: low
+    for_each: dns.resource_records
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.resource_records response'
+  - check_id: ibm.dns.resource_record.record_set_caa_records_present_for_root_and_wildcard
+    title: Ensure CAA Records for Root and Wildcard DNS Entries
+    severity: critical
+    for_each: dns.resource_records
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.resource_records response'
+  - check_id: ibm.dns.resource_record.record_set_dmarc_record_present_when_mx_present
+    title: Ensure DMARC Record Exists for Domains with MX Records
+    severity: low
+    for_each: dns.resource_records
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.resource_records response'
+  - check_id: ibm.dns.resource_record.record_set_no_..._sensitive_zones
+    title: Ensure DNS Records Avoid Usage in Sensitive Zones
+    severity: low
+    for_each: dns.resource_records
+    calls:
+    - action: self
+      fields:
+      - path: '...sensitive.zones'
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "...sensitive.zones" exists in dns.resource_records response'
+  - check_id: ibm.dns.resource_record.record_set_no_rfc1918_in_public_zones
+    title: Prevent RFC1918 Addresses in Public DNS Zones for Enhanced Security
+    severity: critical
+    for_each: dns.resource_records
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.resource_records response'
+  - check_id: ibm.dns.zone.rsasha1_in_use_to_zone_sign_in_dnssec_enabled
+    title: Ensure RSA-SHA1 Is Not Used for DNSSEC Zone Signing
+    severity: low
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.zones response'
+  - check_id: ibm.dns.zone.cross_account_sharing_restricted
+    title: Restrict Cross-Account DNS Zone Sharing for Enhanced Security
+    severity: low
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.zones response'
+  - check_id: ibm.dns.zone.dnssec_enabled_where_supported
+    title: Ensure DNSSEC is Enabled for DNS Zones Where Supported
+    severity: low
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.zones response'
+  - check_id: ibm.dns.zone.query_logging_enabled
+    title: Ensure DNS Zone Query Logging is Enabled for Enhanced Security
+    severity: medium
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in dns.zones response'
+  - check_id: ibm.dns.zone.zone_transfer_restricted_or_tsig_required
+    title: Ensure DNS Zone Transfers are Restricted or TSIG-Secured
+    severity: low
+    for_each: dns.zones
+    calls:
+    - action: self
+      fields:
+      - path: enabled
+        operator: exists
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in dns.zones response'
+  - check_id: ibm.dns.resource.public_hosted_zones_cloudwatch_logging_enabled
+    title: Ensure Cloudwatch Logging is Enabled for Public DNS Hosted Zones
+    severity: critical
+    for_each: dns.resources
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in dns.resources response'
+  - check_id: ibm.dns.resource.public_hosted_zones_monitoring_logging_enabled
+    title: Ensure Public Hosted Zones Have Monitoring and Logging Enabled
+    severity: critical
+    for_each: dns.resources
+    calls:
+    - action: self
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in dns.resources response'

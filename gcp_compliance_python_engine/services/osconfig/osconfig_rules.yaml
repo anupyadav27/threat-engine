@@ -1,0 +1,402 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+osconfig:
+  version: '1.0'
+  provider: gcp
+  service: osconfig
+  scope: regional
+  discovery:
+  - discovery_id: list_guest_policies
+    calls:
+    - action: list
+      resource: guestPolicies
+      fields:
+      - path: name
+        var: guest_policy_name
+      - path: assignment
+        var: guest_policy_assignment
+      - path: recipes
+        var: guest_policy_recipes
+      - path: packageRepositories
+        var: package_repositories
+      - path: packages
+        var: packages
+  - discovery_id: list_patch_deployments
+    calls:
+    - action: list
+      resource: patchDeployments
+      fields:
+      - path: name
+        var: patch_deployment_name
+      - path: instanceFilter
+        var: instance_filter
+      - path: patchConfig
+        var: patch_config
+      - path: duration
+        var: duration
+      - path: oneTimeSchedule
+        var: one_time_schedule
+      - path: recurringSchedule
+        var: recurring_schedule
+      - path: rollout
+        var: rollout
+  - discovery_id: list_patch_jobs
+    calls:
+    - action: list
+      resource: patchJobs
+      fields:
+      - path: name
+        var: patch_job_name
+      - path: state
+        var: patch_job_state
+      - path: instanceFilter
+        var: patch_job_instance_filter
+      - path: patchConfig
+        var: patch_job_config
+  - discovery_id: get_project_iam_policy
+    calls:
+    - action: eval
+      fields:
+      - path: bindings
+        var: iam_bindings
+  checks:
+  - check_id: gcp.osconfig.guest_policy.patch_compliance_configured
+    title: Ensure OS Config Patch Compliance is Configured
+    severity: medium
+    for_each: list_guest_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: packages
+        operator: exists
+    - action: eval
+      fields:
+      - path: packageRepositories
+        operator: exists
+    - action: eval
+      fields:
+      - path: recipes
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.compliant_patching
+    title: Ensure Patch Deployment Compliance in OS Config
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.rebootConfig
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.apt.type
+        operator: equals
+        expected: SECURITY
+    - action: eval
+      fields:
+      - path: patchConfig.yum.security
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: patchConfig.windowsUpdate.classifications
+        operator: contains
+        expected: SECURITY_UPDATE
+  - check_id: gcp.osconfig.patch_deployment.config_managed_compliant_patching_configured
+    title: Ensure Managed Compliant Patching is Configured for OS Config
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule
+        operator: exists
+    - action: eval
+      fields:
+      - path: rollout.mode
+        operator: equals
+        expected: ZONE_BY_ZONE
+    - action: eval
+      fields:
+      - path: rollout.disruptionBudget
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.managed_compliant_patching
+    title: Ensure Patch Deployments Are Managed and Compliant
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.preStep
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.postStep
+        operator: exists
+    - action: eval
+      fields:
+      - path: instanceFilter.zones
+        operator: exists
+    - action: eval
+      fields:
+      - path: duration
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.managed_compliant_patching_gcp_gke_cluster_uses_a_su_enabled
+    title: Ensure SU Enabled for GKE Cluster Patch Deployments
+    severity: medium
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: instanceFilter.groupLabels[].labels["goog-gke-node"]
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.preStep.linuxExecStepConfig.allowedSuccessExitCodes
+        operator: contains
+        expected: 0
+    - action: eval
+      fields:
+      - path: patchConfig.preStep.linuxExecStepConfig.interpreter
+        operator: equals
+        expected: SHELL
+  - check_id: gcp.osconfig.patch_deployment.patch_deployment_exists_configured
+    title: Ensure Patch Deployment Configured for OS Patching
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+    - action: eval
+      fields:
+      - path: instanceFilter
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig
+        operator: exists
+    - action: eval
+      fields:
+      - path: __self__
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.vuln_baseline_exemptions_have_expiry_and_owner
+    title: Ensure Patch Deployment Exemptions Have Expiry and Owner
+    severity: medium
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.apt.excludes
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.yum.excludes
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule.endTime
+        operator: exists
+    - action: get_resource_labels
+      fields:
+      - path: labels.owner
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.vuln_baseline_required_controls_present
+    title: Ensure Vulnerability Baseline Controls in Patch Deployments
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.apt.type
+        operator: equals
+        expected: SECURITY
+    - action: eval
+      fields:
+      - path: patchConfig.yum.security
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: patchConfig.windowsUpdate.classifications
+        operator: contains
+        expected: CRITICAL_UPDATE
+    - action: eval
+      fields:
+      - path: patchConfig.rebootConfig
+        operator: equals
+        expected: IF_REQUIRED
+  - check_id: gcp.osconfig.patch_deployment.vuln_maintenance_execution_roles_least_privilege
+    title: Ensure Least Privilege for Patch Deployment Roles
+    severity: high
+    for_each: get_project_iam_policy
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[?(@.role=="roles/osconfig.patchDeploymentAdmin")].members
+        operator: exists
+    - action: eval
+      fields:
+      - path: bindings[?(@.role=="roles/osconfig.patchDeploymentViewer")].members
+        operator: exists
+    - action: eval
+      fields:
+      - path: bindings[?(@.role=="roles/osconfig.patchJobExecutor")].members
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.vuln_maintenance_window_defined
+    title: Define Vulnerability Maintenance Window for Patch Deployment
+    severity: medium
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: recurringSchedule.timeZone
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule.timeOfDay
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule.frequency
+        operator: exists
+    - action: eval
+      fields:
+      - path: duration
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.vuln_patch_approval_rules_defined
+    title: Define Vulnerability Patch Approval Rules for Patch Deployments
+    severity: high
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.preStep
+        operator: exists
+    - action: eval
+      fields:
+      - path: rollout.mode
+        operator: equals
+        expected: ZONE_BY_ZONE
+    - action: eval
+      fields:
+      - path: rollout.disruptionBudget.fixed
+        operator: exists
+    - action: get_resource_labels
+      fields:
+      - path: labels.approval_required
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.osconfig.patch_deployment.vuln_patch_baseline_defined_for_families
+    title: Ensure Vulnerability Patch Baseline for OS Families in GCP
+    severity: high
+    for_each: list_patch_deployments
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: patchConfig.apt
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.yum
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.goo
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.zypper
+        operator: exists
+    - action: eval
+      fields:
+      - path: patchConfig.windowsUpdate
+        operator: exists
+  - check_id: gcp.osconfig.patch_deployment.vuln_patch_maintenance_windows_configured
+    title: Ensure Patch Maintenance Windows Are Configured for Vulnerability Patching
+    severity: medium
+    for_each: list_patch_deployments
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: recurringSchedule.weekly
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule.monthly
+        operator: exists
+    - action: eval
+      fields:
+      - path: recurringSchedule.timeZone
+        operator: exists
+    - action: eval
+      fields:
+      - path: duration
+        operator: exists
+  api_name: osconfig
+  api_version: v1
+  project_param_format: projects/{{project_id}}

@@ -1,0 +1,227 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+cloudidentity:
+  version: '1.0'
+  provider: gcp
+  service: cloudidentity
+  scope: global
+  discovery:
+  - discovery_id: list_cloudidentity_groups
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: group_name
+      - path: groupKey.id
+        var: group_id
+      - path: parent
+        var: parent_org
+  - discovery_id: list_cloudidentity_memberships
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: membership_name
+      - path: preferredMemberKey.id
+        var: member_id
+      - path: roles
+        var: member_roles
+      - path: createTime
+        var: create_time
+      - path: updateTime
+        var: update_time
+  checks:
+  - check_id: gcp.cloudidentity.group.identity_access_attached_policies_not_admin_star
+    title: Restrict Admin * Policies on Cloud Identity Groups
+    severity: high
+    for_each: list_cloudidentity_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.cloudidentity.googleapis.com/groups.security.type
+        operator: not_equals
+        expected: admin
+    - action: get_group_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/*Admin
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+  - check_id: gcp.cloudidentity.group.identity_access_membership_review_enabled_where_supported
+    title: Enable Identity Access Membership Review in Cloud Identity Groups
+    severity: medium
+    for_each: list_cloudidentity_groups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: groupKey.namespace
+        operator: exists
+    - action: get_group_security_settings
+      fields:
+      - path: memberRestriction.evaluation.state
+        operator: equals
+        expected: ENABLED
+      - path: memberRestriction.query
+        operator: exists
+  - check_id: gcp.cloudidentity.group.identity_access_no_inline_policies
+    title: Ensure No Inline Policies on Cloud Identity Groups
+    severity: medium
+    for_each: list_cloudidentity_groups
+    logic: AND
+    calls:
+    - action: get_group_iam_policy
+      fields:
+      - path: bindings[].condition.expression
+        operator: not_exists
+    - action: eval
+      fields:
+      - path: additionalGroupKeys
+        operator: not_exists
+      - path: dynamicGroupMetadata.queries
+        operator: not_exists
+  - check_id: gcp.cloudidentity.membership.identity_access_access_keys_rotated_90_days_or_less__present
+    title: Ensure Access Keys Are Rotated Every 90 Days
+    severity: high
+    for_each: list_cloudidentity_memberships
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: updateTime
+        operator: exists
+    - action: get_member_security_settings
+      fields:
+      - path: accessKeyRotationPolicy.maxAge
+        operator: equals
+        expected: 7776000s
+      - path: lastAccessKeyRotation
+        operator: exists
+  - check_id: gcp.cloudidentity.membership.identity_access_console_password_present_only_if_required
+    title: Ensure Console Passwords Set Only When Necessary
+    severity: medium
+    for_each: list_cloudidentity_memberships
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: roles[].name
+        operator: not_contains
+        expected: MEMBER
+    - action: get_member_credentials
+      fields:
+      - path: passwordEnabled
+        operator: equals
+        expected: false
+      - path: ssoOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudidentity.membership.identity_access_inactive_90_days_disabled
+    title: Disable Inactive Identity Access After 90 Days
+    severity: high
+    for_each: list_cloudidentity_memberships
+    logic: OR
+    calls:
+    - action: get_member_activity
+      fields:
+      - path: lastLoginTime
+        operator: exists
+    - action: eval
+      fields:
+      - path: deliverySetting
+        operator: equals
+        expected: DISABLED
+    - action: get_member_status
+      fields:
+      - path: state
+        operator: not_equals
+        expected: ACTIVE
+  - check_id: gcp.cloudidentity.membership.identity_access_mfa_required
+    title: Enforce MFA for Cloud Identity Membership Access
+    severity: critical
+    for_each: list_cloudidentity_memberships
+    logic: AND
+    calls:
+    - action: get_member_security_settings
+      fields:
+      - path: mfaEnrollmentStatus
+        operator: equals
+        expected: ENROLLED
+      - path: mfaState
+        operator: equals
+        expected: ENFORCED
+    - action: eval
+      fields:
+      - path: roles[].name
+        operator: contains
+        expected: MEMBER
+  - check_id: gcp.cloudidentity.membership.identity_access_no_inline_policies_attached
+    title: Prevent Inline Policies on Cloud Identity Memberships
+    severity: medium
+    for_each: list_cloudidentity_memberships
+    logic: AND
+    calls:
+    - action: get_membership_iam_policy
+      fields:
+      - path: bindings[].condition
+        operator: not_exists
+    - action: eval
+      fields:
+      - path: roles[].restrictionEvaluations.memberRestrictionEvaluation.state
+        operator: not_equals
+        expected: QUERY_EVALUATED
+      - path: type
+        operator: equals
+        expected: USER
+  api_name: cloudidentity
+  api_version: v1

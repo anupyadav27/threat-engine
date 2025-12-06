@@ -1,0 +1,245 @@
+version: '1.0'
+provider: alicloud
+service: hologres
+discovery:
+- discovery_id: alicloud.hologres.database
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDatabases
+    params: {}
+    save_as: database_response
+  emit:
+    items_for: '{ database_response.Databases.Database }'
+    as: r
+    item:
+      id: '{{ r.DatabaseId }}'
+      name: '{{ r.DatabaseId }}'
+      resource_type: database
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hologres.parameter
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeParameters
+    params: {}
+    save_as: parameter_response
+  emit:
+    items_for: '{ parameter_response.Parameters.Parameter }'
+    as: r
+    item:
+      id: '{{ r.ParameterId }}'
+      name: '{{ r.ParameterId }}'
+      resource_type: parameter
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hologres.snapshot
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeSnapshots
+    params: {}
+    save_as: snapshot_response
+  emit:
+    items_for: '{ snapshot_response.Snapshots.Snapshot }'
+    as: r
+    item:
+      id: '{{ r.SnapshotId }}'
+      name: '{{ r.SnapshotId }}'
+      resource_type: snapshot
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hologres.snapshot_kms
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeSnapshotKmss
+    params: {}
+    save_as: snapshot_kms_response
+  emit:
+    items_for: '{ snapshot_kms_response.SnapshotKmss.SnapshotKms }'
+    as: r
+    item:
+      id: '{{ r.SnapshotKmsId }}'
+      name: '{{ r.SnapshotKmsId }}'
+      resource_type: snapshot_kms
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.hologres.database.access_policies_least_privilege
+  title: Ensure AliCloud Hologres Database Access Policies Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hologres.database.cluster_admin_access_least_privilege
+  title: Hologres Database Cluster Admin Access Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hologres.database.cluster_audit_logging_enabled
+  title: Ensure AliCloud Hologres Database Cluster Audit Logging is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hologres.database.cluster_encryption_at_rest_cmek
+  title: Ensure AliCloud Hologres database clusters use customer-managed encryption keys (CMEK) for encryption at rest
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hologres.database.cluster_private_networking_enforced
+  title: Ensure AliCloud Hologres Database Cluster Private Networking is Enforced
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.hologres.database.cluster_tls_min_1_2_enforced
+  title: Ensure Hologres Database Cluster Enforces Minimum TLS Version 1.2
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.hologres.database.encrypted
+  title: Ensure AliCloud Hologres Database Encryption is Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.hologres.database.public_sharing_disabled
+  title: Ensure AliCloud Hologres Database Public Sharing is Disabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.database
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hologres.parameter.audit_logging_enabled
+  title: Ensure Hologres Instance Has Audit Logging Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.parameter
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hologres.parameter.tls_required
+  title: Ensure AliCloud Hologres instances have TLS encryption required for client connections
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hologres.parameter
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hologres.snapshot.at_rest_cmek
+  title: Alibaba Cloud Hologres snapshots should be encrypted at rest with customer-managed encryption keys (CMEK)
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.hologres.snapshot
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hologres.snapshot.publicly_shared
+  title: Ensure AliCloud Hologres snapshots are not publicly shared
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.snapshot
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.hologres.snapshot_kms.least_privilege
+  title: Hologres snapshot KMS keys should follow least privilege access principles
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hologres.snapshot_kms
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'

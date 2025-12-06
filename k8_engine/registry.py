@@ -9,6 +9,10 @@ class ActionRegistry:
         self.v1 = v1_api
         self.rbac = client.RbacAuthorizationV1Api(api_client) if api_client else None
         self.apps = client.AppsV1Api(api_client) if api_client else None
+        self.networking = client.NetworkingV1Api(api_client) if api_client else None
+        self.storage = client.StorageV1Api(api_client) if api_client else None
+        self.batch = client.BatchV1Api(api_client) if api_client else None
+        self.policy = client.PolicyV1Api(api_client) if api_client else None
         self.inventory = inventory or {}
         self.mocks = mocks or {}
 
@@ -28,7 +32,11 @@ class ActionRegistry:
         # Serve mocks for list/get actions when available (flat and nested forms)
         if action in {
             'list_namespaces', 'list_cluster_roles', 'list_cluster_role_bindings',
-            'list_roles', 'list_role_bindings', 'list_pods', 'list_deployments', 'list_statefulsets'
+            'list_roles', 'list_role_bindings', 'list_pods', 'list_deployments', 'list_statefulsets',
+            'list_services', 'list_network_policies', 'list_ingresses', 'list_daemonsets',
+            'list_jobs', 'list_cronjobs', 'list_configmaps', 'list_secrets',
+            'list_persistent_volumes', 'list_persistent_volume_claims', 'list_storage_classes',
+            'list_service_accounts', 'list_pod_security_policies', 'list_pod_disruption_budgets'
         }:
             # flat direct mock
             if action in self.mocks:
@@ -60,6 +68,43 @@ class ActionRegistry:
         if action == 'list_statefulsets':
             namespace = params.get('namespace')
             return self._list_statefulsets(namespace)
+        if action == 'list_daemonsets':
+            namespace = params.get('namespace')
+            return self._list_daemonsets(namespace)
+        if action == 'list_services':
+            namespace = params.get('namespace')
+            return self._list_services(namespace)
+        if action == 'list_network_policies':
+            namespace = params.get('namespace')
+            return self._list_network_policies(namespace)
+        if action == 'list_ingresses':
+            namespace = params.get('namespace')
+            return self._list_ingresses(namespace)
+        if action == 'list_jobs':
+            namespace = params.get('namespace')
+            return self._list_jobs(namespace)
+        if action == 'list_cronjobs':
+            namespace = params.get('namespace')
+            return self._list_cronjobs(namespace)
+        if action == 'list_configmaps':
+            namespace = params.get('namespace')
+            return self._list_configmaps(namespace)
+        if action == 'list_secrets':
+            namespace = params.get('namespace')
+            return self._list_secrets(namespace)
+        if action == 'list_persistent_volumes':
+            return self._list_persistent_volumes()
+        if action == 'list_persistent_volume_claims':
+            namespace = params.get('namespace')
+            return self._list_persistent_volume_claims(namespace)
+        if action == 'list_storage_classes':
+            return self._list_storage_classes()
+        if action == 'list_service_accounts':
+            namespace = params.get('namespace')
+            return self._list_service_accounts(namespace)
+        if action == 'list_pod_disruption_budgets':
+            namespace = params.get('namespace')
+            return self._list_pod_disruption_budgets(namespace)
         if action == 'get_cluster_info':
             return self.inventory.get('cluster_info', {})
         if action == 'get_provider':
@@ -289,6 +334,199 @@ class ActionRegistry:
                     'apiServerArguments': arg_map if component == 'kube-apiserver' else None,
                 })
         return configs
+
+    def _list_daemonsets(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.apps:
+            return []
+        items = self.apps.list_namespaced_daemon_set(namespace=namespace).items if namespace else self.apps.list_daemon_set_for_all_namespaces().items
+        dsets: List[Dict[str, Any]] = []
+        for ds in items:
+            dsets.append({
+                'name': ds.metadata.name,
+                'namespace': ds.metadata.namespace,
+                'labels': ds.metadata.labels or {},
+                'annotations': ds.metadata.annotations or {},
+                'selector': (ds.spec.selector or {}).to_dict() if ds.spec.selector else {},
+            })
+        return dsets
+
+    def _list_services(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        items = self.v1.list_namespaced_service(namespace=namespace).items if namespace else self.v1.list_service_for_all_namespaces().items
+        services: List[Dict[str, Any]] = []
+        for svc in items:
+            services.append({
+                'name': svc.metadata.name,
+                'namespace': svc.metadata.namespace,
+                'labels': svc.metadata.labels or {},
+                'annotations': svc.metadata.annotations or {},
+                'type': svc.spec.type,
+                'cluster_ip': svc.spec.cluster_ip,
+                'external_ips': svc.spec.external_i_ps or [],
+                'ports': [{'port': p.port, 'targetPort': p.target_port, 'protocol': p.protocol} for p in (svc.spec.ports or [])],
+                'selector': svc.spec.selector or {},
+            })
+        return services
+
+    def _list_network_policies(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.networking:
+            return []
+        items = self.networking.list_namespaced_network_policy(namespace=namespace).items if namespace else self.networking.list_network_policy_for_all_namespaces().items
+        policies: List[Dict[str, Any]] = []
+        for np in items:
+            policies.append({
+                'name': np.metadata.name,
+                'namespace': np.metadata.namespace,
+                'labels': np.metadata.labels or {},
+                'pod_selector': (np.spec.pod_selector or {}).to_dict() if np.spec.pod_selector else {},
+                'policy_types': np.spec.policy_types or [],
+                'ingress': [ing.to_dict() for ing in (np.spec.ingress or [])],
+                'egress': [eg.to_dict() for eg in (np.spec.egress or [])],
+            })
+        return policies
+
+    def _list_ingresses(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.networking:
+            return []
+        items = self.networking.list_namespaced_ingress(namespace=namespace).items if namespace else self.networking.list_ingress_for_all_namespaces().items
+        ingresses: List[Dict[str, Any]] = []
+        for ing in items:
+            ingresses.append({
+                'name': ing.metadata.name,
+                'namespace': ing.metadata.namespace,
+                'labels': ing.metadata.labels or {},
+                'annotations': ing.metadata.annotations or {},
+                'rules': [r.to_dict() for r in (ing.spec.rules or [])],
+                'tls': [t.to_dict() for t in (ing.spec.tls or [])] if ing.spec.tls else [],
+            })
+        return ingresses
+
+    def _list_jobs(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.batch:
+            return []
+        items = self.batch.list_namespaced_job(namespace=namespace).items if namespace else self.batch.list_job_for_all_namespaces().items
+        jobs: List[Dict[str, Any]] = []
+        for job in items:
+            jobs.append({
+                'name': job.metadata.name,
+                'namespace': job.metadata.namespace,
+                'labels': job.metadata.labels or {},
+                'annotations': job.metadata.annotations or {},
+            })
+        return jobs
+
+    def _list_cronjobs(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.batch:
+            return []
+        items = self.batch.list_namespaced_cron_job(namespace=namespace).items if namespace else self.batch.list_cron_job_for_all_namespaces().items
+        cronjobs: List[Dict[str, Any]] = []
+        for cj in items:
+            cronjobs.append({
+                'name': cj.metadata.name,
+                'namespace': cj.metadata.namespace,
+                'labels': cj.metadata.labels or {},
+                'annotations': cj.metadata.annotations or {},
+                'schedule': cj.spec.schedule,
+                'suspend': cj.spec.suspend,
+            })
+        return cronjobs
+
+    def _list_configmaps(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        items = self.v1.list_namespaced_config_map(namespace=namespace).items if namespace else self.v1.list_config_map_for_all_namespaces().items
+        configmaps: List[Dict[str, Any]] = []
+        for cm in items:
+            configmaps.append({
+                'name': cm.metadata.name,
+                'namespace': cm.metadata.namespace,
+                'labels': cm.metadata.labels or {},
+                'annotations': cm.metadata.annotations or {},
+                'data': cm.data or {},
+            })
+        return configmaps
+
+    def _list_secrets(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        items = self.v1.list_namespaced_secret(namespace=namespace).items if namespace else self.v1.list_secret_for_all_namespaces().items
+        secrets: List[Dict[str, Any]] = []
+        for sec in items:
+            secrets.append({
+                'name': sec.metadata.name,
+                'namespace': sec.metadata.namespace,
+                'labels': sec.metadata.labels or {},
+                'annotations': sec.metadata.annotations or {},
+                'type': sec.type,
+                'data_keys': list(sec.data.keys()) if sec.data else [],
+            })
+        return secrets
+
+    def _list_persistent_volumes(self) -> List[Dict[str, Any]]:
+        items = self.v1.list_persistent_volume().items
+        pvs: List[Dict[str, Any]] = []
+        for pv in items:
+            pvs.append({
+                'name': pv.metadata.name,
+                'labels': pv.metadata.labels or {},
+                'capacity': pv.spec.capacity or {},
+                'access_modes': pv.spec.access_modes or [],
+                'storage_class_name': pv.spec.storage_class_name,
+            })
+        return pvs
+
+    def _list_persistent_volume_claims(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        items = self.v1.list_namespaced_persistent_volume_claim(namespace=namespace).items if namespace else self.v1.list_persistent_volume_claim_for_all_namespaces().items
+        pvcs: List[Dict[str, Any]] = []
+        for pvc in items:
+            pvcs.append({
+                'name': pvc.metadata.name,
+                'namespace': pvc.metadata.namespace,
+                'labels': pvc.metadata.labels or {},
+                'access_modes': pvc.spec.access_modes or [],
+                'storage_class_name': pvc.spec.storage_class_name,
+                'volume_name': pvc.spec.volume_name,
+            })
+        return pvcs
+
+    def _list_storage_classes(self) -> List[Dict[str, Any]]:
+        if not self.storage:
+            return []
+        items = self.storage.list_storage_class().items
+        scs: List[Dict[str, Any]] = []
+        for sc in items:
+            scs.append({
+                'name': sc.metadata.name,
+                'provisioner': sc.provisioner,
+                'parameters': sc.parameters or {},
+                'reclaim_policy': sc.reclaim_policy,
+                'volume_binding_mode': sc.volume_binding_mode,
+            })
+        return scs
+
+    def _list_service_accounts(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        items = self.v1.list_namespaced_service_account(namespace=namespace).items if namespace else self.v1.list_service_account_for_all_namespaces().items
+        sas: List[Dict[str, Any]] = []
+        for sa in items:
+            sas.append({
+                'name': sa.metadata.name,
+                'namespace': sa.metadata.namespace,
+                'labels': sa.metadata.labels or {},
+                'annotations': sa.metadata.annotations or {},
+                'secrets': [s.name for s in (sa.secrets or [])],
+            })
+        return sas
+
+    def _list_pod_disruption_budgets(self, namespace: Optional[str]) -> List[Dict[str, Any]]:
+        if not self.policy:
+            return []
+        items = self.policy.list_namespaced_pod_disruption_budget(namespace=namespace).items if namespace else self.policy.list_pod_disruption_budget_for_all_namespaces().items
+        pdbs: List[Dict[str, Any]] = []
+        for pdb in items:
+            pdbs.append({
+                'name': pdb.metadata.name,
+                'namespace': pdb.metadata.namespace,
+                'labels': pdb.metadata.labels or {},
+                'min_available': pdb.spec.min_available,
+                'max_unavailable': pdb.spec.max_unavailable,
+                'selector': (pdb.spec.selector or {}).to_dict() if pdb.spec.selector else {},
+            })
+        return pdbs
 
     @staticmethod
     def resolve_path(payload: Any, path_expr: Optional[str]) -> Any:

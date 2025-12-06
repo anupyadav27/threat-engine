@@ -1,0 +1,149 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+datastudio:
+  version: '1.0'
+  provider: gcp
+  service: datastudio
+  scope: regional
+  discovery:
+  - discovery_id: list_datastudio_reports
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: report_name
+      - path: reportId
+        var: report_id
+      - path: projectId
+        var: project_id
+  - discovery_id: list_datastudio_data_sources
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: datasource_name
+      - path: dataSourceId
+        var: datasource_id
+  checks:
+  - check_id: gcp.datastudio.report.data_analytics_export_controls_enabled
+    title: Enable Data Analytics Export Controls in Data Studio Reports
+    severity: high
+    for_each: list_datastudio_reports
+    logic: AND
+    calls:
+    - action: get_report_settings
+      fields:
+      - path: settings.exportControls.enabled
+        operator: equals
+        expected: true
+      - path: settings.exportControls.downloadRestricted
+        operator: equals
+        expected: true
+      - path: settings.exportControls.printRestricted
+        operator: equals
+        expected: true
+  - check_id: gcp.datastudio.report.data_analytics_public_embeds_disabled
+    title: Disable Public Embeds for Data Studio Reports
+    severity: high
+    for_each: list_datastudio_reports
+    logic: AND
+    calls:
+    - action: get_report_sharing_settings
+      fields:
+      - path: sharingSettings.embedSettings.publicEmbedEnabled
+        operator: equals
+        expected: false
+      - path: sharingSettings.embedSettings.requireAuthentication
+        operator: equals
+        expected: true
+      - path: sharingSettings.embedSettings.allowedDomains
+        operator: exists
+  - check_id: gcp.datastudio.report.data_analytics_sharing_restricted_to_org
+    title: Restrict Data Studio Report Sharing to Organization
+    severity: medium
+    for_each: list_datastudio_reports
+    logic: AND
+    calls:
+    - action: get_report_permissions
+      fields:
+      - path: permissions.shareSettings.linkSharingEnabled
+        operator: equals
+        expected: false
+      - path: permissions.shareSettings.orgRestricted
+        operator: equals
+        expected: true
+      - path: permissions.shareSettings.allowedDomains
+        operator: exists
+    - action: eval
+      fields:
+      - path: permissions.users[].email
+        operator: contains
+        expected: '@{{organization_domain}}'
+  - check_id: gcp.datastudio.report.data_analytics_sso_required
+    title: Ensure Single Sign-On for Data Studio Reports
+    severity: critical
+    for_each: list_datastudio_reports
+    logic: AND
+    calls:
+    - action: get_report_auth_settings
+      fields:
+      - path: authenticationSettings.ssoRequired
+        operator: equals
+        expected: true
+      - path: authenticationSettings.allowGuestAccess
+        operator: equals
+        expected: false
+      - path: authenticationSettings.identityProvider
+        operator: exists
+    - action: eval
+      fields:
+      - path: authenticationSettings.identityProvider.type
+        operator: equals
+        expected: SAML
