@@ -8,8 +8,11 @@ certificate_manager:
   discovery:
   - discovery_id: certificate_manager.certificates
     calls:
-    - action: self
-      note: 'MANUAL_REVIEW_REQUIRED: Add real SDK method for certificate_manager.certificates'
+    - action: rest_api_call
+      method: GET
+      endpoint: "/api/v2/{instance_id}/certificates/"
+      auth_header: "Authorization: Bearer {iam_token}"
+      note: 'List all certificates in Certificate Manager instance'
       save_as: certificates
   checks:
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_monitored
@@ -17,31 +20,34 @@ certificate_manager:
     severity: low
     for_each: certificate_manager.certificates
     calls:
-    - action: self
+    - action: rest_api_call
       fields:
-      - path: enabled
+      - path: status
+        operator: equals
+        expected: "active"
+      - path: expiration_date
         operator: exists
-        expected: true
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in certificate_manager.certificates response'
+        expected: null
+    note: 'Check certificate status and expiration monitoring'
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._flow_logs_enabled
     title: Ensure Certificate Expiration Monitoring with IBM Flow Logs Enabled
     severity: low
     for_each: certificate_manager.certificates
     calls:
-    - action: self
+    - action: rest_api_call
       fields:
-      - path: logging_enabled
+      - path: monitoring.flow_logs_enabled
         operator: equals
         expected: true
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in certificate_manager.certificates response'
+    note: 'Verify certificate monitoring with flow logs enabled'
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._deprecated_ssl_protocols
     title: Certificate Expiration and Deprecated SSL Protocols Compliance Check
     severity: medium
     for_each: certificate_manager.certificates
     calls:
-    - action: self
+    - action: rest_api_call
       fields:
-      - path: '...deprecated.ssl.protocols'
-        operator: exists
-        expected: true
-    note: 'MANUAL_REVIEW: Verify field path "...deprecated.ssl.protocols" exists in certificate_manager.certificates response'
+      - path: ssl_configuration.deprecated_protocols
+        operator: not_equals
+        expected: []
+    note: 'Check for deprecated SSL protocols in certificate configuration'
