@@ -162,3 +162,5 @@ def generate_markdown(services_list, inventory, output_file, total_checks):
 
 if __name__ == '__main__':
     main()
+
+
