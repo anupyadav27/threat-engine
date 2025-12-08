@@ -13,7 +13,7 @@ from datetime import datetime
 from openai import OpenAI
 
 # Configuration
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'your-openai-api-key-here')
 INPUT_FILE = "rule_ids_ENRICHED_AI_ENHANCED.yaml"
 OUTPUT_FILE = "rule_ids_ENRICHED_AI_ENHANCED.yaml"
 PROGRESS_FILE = "enhancement_progress_oci.json"

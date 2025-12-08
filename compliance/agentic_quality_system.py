@@ -5,7 +5,7 @@ Multi-agent orchestration for CSP rule validation and improvement
 """
 
 import os
-os.environ['ANTHROPIC_API_KEY'] = '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'
+os.environ['ANTHROPIC_API_KEY'] = os.getenv('ANTHROPIC_API_KEY', 'your-anthropic-api-key-here')
 
 import yaml
 import json
