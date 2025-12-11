@@ -3,51 +3,48 @@ certificate_manager:
   provider: ibm
   service: certificate_manager
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: Certificate_ManagerV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: certificate_manager.certificates
     calls:
-    - action: rest_api_call
-      method: GET
-      endpoint: "/api/v2/{instance_id}/certificates/"
-      auth_header: "Authorization: Bearer {iam_token}"
-      note: 'List all certificates in Certificate Manager instance'
+    - action: list_resource_instances
+      params: {}
       save_as: certificates
   checks:
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_monitored
     title: Ensuring Certificate Expiration Monitoring in IBM Certificate Manager
     severity: low
-    for_each: certificate_manager.certificates
+    for_each: certificates
     calls:
     - action: rest_api_call
       fields:
       - path: status
         operator: equals
-        expected: "active"
+        expected: active
       - path: expiration_date
         operator: exists
         expected: null
-    note: 'Check certificate status and expiration monitoring'
+    note: Check certificate status and expiration monitoring
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._flow_logs_enabled
     title: Ensure Certificate Expiration Monitoring with IBM Flow Logs Enabled
     severity: low
-    for_each: certificate_manager.certificates
+    for_each: certificates
     calls:
     - action: rest_api_call
       fields:
       - path: monitoring.flow_logs_enabled
         operator: equals
         expected: true
-    note: 'Verify certificate monitoring with flow logs enabled'
+    note: Verify certificate monitoring with flow logs enabled
   - check_id: ibm.certificate_manager.certificate.certificates_expiration_check_ibm_..._deprecated_ssl_protocols
     title: Certificate Expiration and Deprecated SSL Protocols Compliance Check
     severity: medium
-    for_each: certificate_manager.certificates
+    for_each: certificates
     calls:
     - action: rest_api_call
       fields:
       - path: ssl_configuration.deprecated_protocols
         operator: not_equals
         expected: []
-    note: 'Check for deprecated SSL protocols in certificate configuration'
+    note: Check for deprecated SSL protocols in certificate configuration
+  sdk_package: ibm_platform_services

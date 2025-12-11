@@ -1,0 +1,1071 @@
+iam:
+  version: '1.0'
+  provider: ibm
+  service: iam
+  scope: account
+  package: ibm-platform-services
+  client_class: IamIdentityV1
+  discovery:
+  - discovery_id: iam.checkss
+    calls:
+    - action: get_account_settings
+      note: IBM IAM get_account_settings method
+      save_as: checkss
+  - discovery_id: iam.resources
+    calls:
+    - action: get_account_settings
+      note: IBM IAM get_account_settings method
+      save_as: resources
+  - discovery_id: iam.api_keys
+    calls:
+    - action: list_api_keys
+      params:
+        account_id: '{{ account_id }}'
+      response_path: apikeys
+      save_as: api_keys
+  - discovery_id: iam.global_admin_in_less_than_five_userss
+    calls:
+    - action: list_users
+      note: IBM IAM list_users method
+      save_as: global_admin_in_less_than_five_userss
+  - discovery_id: iam.policies
+    calls:
+    - action: list_policies
+      note: IBM IAM list_policies method
+      save_as: policies
+  - discovery_id: iam.trusted_named_locations_existss
+    calls:
+    - action: get_account_settings
+      note: IBM IAM get_account_settings method
+      save_as: trusted_named_locations_existss
+  - discovery_id: iam.users
+    calls:
+    - action: list_account_settings
+      params: {}
+      response_path: users
+      save_as: users
+  - discovery_id: iam.users_cannot_create_microsoft_365_groupss
+    calls:
+    - action: list_users
+      note: IBM IAM list_users method
+      save_as: users_cannot_create_microsoft_365_groupss
+  - discovery_id: iam.access_groups
+    calls:
+    - action: list_access_groups
+      note: IBM IAM list_access_groups method
+      save_as: access_groups
+  - discovery_id: iam.account_settings
+    calls:
+    - action: get_account_settings
+      params:
+        account_id: '{{ account_id }}'
+      response_path: null
+      save_as: account_settings
+  - discovery_id: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      note: IBM IAM get_account_settings method
+      save_as: identity_providers
+  - discovery_id: iam.roles
+    calls:
+    - action: list_roles
+      note: IBM IAM list_roles method
+      save_as: roles
+  - discovery_id: iam.service_ids
+    calls:
+    - action: list_service_ids
+      params:
+        account_id: '{{ account_id }}'
+      response_path: serviceids
+      save_as: service_ids
+  checks:
+  - check_id: ibm.iam.checks.defined
+    title: Ensure IAM Security Checks are Defined for Robust Authentication
+    severity: medium
+    for_each: iam.checkss
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.checkss response'
+  - check_id: ibm.iam.resource.feature_enabled
+    title: Ensure Critical IAM Features are Enabled for Enhanced Security
+    severity: medium
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.resources response'
+  - check_id: ibm.iam.resource.enabled_requiredfindings
+    title: Enforce Required Findings for Enhanced IAM Security
+    severity: medium
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.resources response'
+  - check_id: ibm.iam.api_key.api_restrictions_configured
+    title: Enforce API Key Restrictions for Enhanced Security
+    severity: medium
+    for_each: iam.api_keys
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.api_key.rotated_in_90_days
+    title: Regular Rotation of IBM Cloud API Keys Every 90 Days
+    severity: medium
+    for_each: iam.api_keys
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: created_at
+        operator: age_days
+        expected: 90
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.resource.directory_log_forwarding_enabled
+    title: Ensure Directory Log Forwarding is Enabled for IAM Resources
+    severity: low
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in iam.resources
+      response'
+  - check_id: ibm.iam.resource.supported_mfa_radius_enabled
+    title: Enforce MFA with RADIUS for Enhanced IAM Security
+    severity: high
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "mfa" exists in iam.resources response'
+  - check_id: ibm.iam.global_admin_in_less_than_five_users.global_admin_in_less_than_five_users_enabled
+    title: Limit Global Admin Access to Fewer Than Five Users
+    severity: critical
+    for_each: iam.global_admin_in_less_than_five_userss
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.global_admin_in_less_than_five_userss
+      response'
+  - check_id: ibm.iam.policy.default_users_cannot_create_security_groups
+    title: Restrict Default Users from Creating Security Groups in IBM Cloud
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.default_user_cannot_create_apps
+    title: Restrict Default User Permissions to Prevent Unauthorized App Creation
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.default_user_cannot_create_tenants
+    title: Restrict Tenant Creation to Non-Default Users in IBM IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.guest_invite_only_for_admin_roles
+    title: Restrict Guest Invites to Admin Roles for Enhanced Security
+    severity: critical
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.guest_users_access_restrictions
+    title: Restrict Guest User Access to Sensitive IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.require_mfa_for_management_api
+    title: Enforce MFA for Enhanced Security on IBM Cloud Management API Access
+    severity: high
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "mfa" exists in iam.policies response'
+  - check_id: ibm.iam.policy.require_mfa_for_management_app
+    title: Enforce MFA for Management Application Access in IBM IAM Policies
+    severity: high
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "mfa" exists in iam.policies response'
+  - check_id: ibm.iam.policy.restricts_user_consent_for_apps
+    title: Restrict User Consent in IBM Cloud IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.user_consent_for_verified_apps
+    title: Enforce User Consent for Third-Party App Access in IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.user_consent_for_verified_..._access_is_enabled
+    title: Ensure User Consent for Verified Access is Enabled in IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: '...access.is.enabled'
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "...access.is.enabled" exists in iam.policies
+      response'
+  - check_id: ibm.iam.resource.defaults_enabled
+    title: Ensure Default IAM Resource Security Configurations Are Enabled
+    severity: medium
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.resources response'
+  - check_id: ibm.iam.trusted_named_locations_exists.trusted_named_locations_exists_enabled
+    title: Ensure Trusted Named Locations are Configured and Enabled for IAM
+    severity: medium
+    for_each: iam.trusted_named_locations_existss
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.trusted_named_locations_existss
+      response'
+  - check_id: ibm.iam.user.has_mfa
+    title: Enforce MFA for Enhanced IAM User Authentication
+    severity: high
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.has_mfa_entra_privileged_user_has_mfa
+    title: Ensure MFA for Entra Privileged Users in IBM IAM
+    severity: high
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.with_vm_access_has_mfa
+    title: Enforce MFA for Users with Virtual Machine Access
+    severity: high
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.users_cannot_create_microsoft_365_groups.users_cannot_create_microsoft_365_groups_enabled
+    title: Prevent User-Creation of Microsoft 365 Groups for Enhanced Security
+    severity: medium
+    for_each: iam.users_cannot_create_microsoft_365_groupss
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.users_cannot_create_microsoft_365_groupss
+      response'
+  - check_id: ibm.iam.access_group.identity_attached_policies_not_admin_star
+    title: Restrict Admin Star Policies in IAM Access Groups
+    severity: critical
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.access_group.identity_membership_review_enabled_where_supported
+    title: Ensure Identity Membership Review is Enabled for Access Groups
+    severity: medium
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.access_group.identity_prohibitedinline_policies
+    title: Enforce Prohibition of Inline Policies in IAM Access Groups
+    severity: medium
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.account_settings.password_policy_lockout_threshold_defined
+    title: Ensure Password Policy Lockout Threshold is Configured
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.password_policy_max_age_90_days_or_less
+    title: Enforce Password Policy Max Age of 90 Days or Less
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.password_policy_min_length_14
+    title: Enforce Minimum Password Length of 14 for Enhanced Security
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: restrict_create_platform_apikey
+        operator: equals
+        expected: RESTRICTED
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.password_policy_prevent_reuse_last_24
+    title: Enforce Password Reuse Prevention for Last 24 Passwords in IBM Cloud IAM
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.password_policy_require_upper_lower_number_special
+    title: Enforce Complex Password Policies for Enhanced Account Security
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: mfa
+        operator: not_equals
+        expected: NONE
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_api_access_keys_root_or_owner_disallowed
+    title: Restrict Root and Owner API Keys for Enhanced Security
+    severity: critical
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_break_glass_accounts_mfa_enforced
+    title: Enforce MFA for IBM Cloud Tenant Break Glass Accounts
+    severity: high
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_console_mfa_required_org_wide
+    title: Enforce Org-Wide Multi-Factor Authentication for Tenant Console Access
+    severity: high
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_inactive_user_disable_threshold_configured
+    title: Configure Tenant Inactive User Disable Threshold for Enhanced Security
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_user
+      fields:
+      - path: locked
+        operator: equals
+        expected: false
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_password_policy_compliant
+    title: Ensure Compliance with IBM Cloud Tenant Password Policy
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.tenant_sso_federation_configured_where_supported
+    title: Ensure Tenant SSO Federation is Configured in IBM Cloud Accounts
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.mfa_enabled
+    title: Enforce Multi-Factor Authentication for Enhanced Account Security
+    severity: high
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.mfa_status_enabled
+    title: Enforce Multi-Factor Authentication for Enhanced Account Security
+    severity: high
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.resource.api_keys_rotation_90_days_enabled
+    title: Enforce 90-Day Rotation for IBM Cloud API Keys
+    severity: high
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: created_at
+        operator: age_days
+        expected: 90
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "created_at" exists in iam.resources response'
+  - check_id: ibm.iam.resource.console_mfa_enabled
+    title: Enforce Multi-Factor Authentication for IBM Cloud Console Access
+    severity: high
+    for_each: iam.resources
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "mfa" exists in iam.resources response'
+  - check_id: ibm.iam.access_group.rbac_attached_policies_not_admin_star
+    title: Ensure RBAC Policies Avoid Overbroad Admin Permissions in Access Groups
+    severity: critical
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.access_group.rbac_external_sharing_restricted_where_supported
+    title: Restrict External Sharing for Access Groups in IAM
+    severity: medium
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.access_group.rbac_inline_policies_prohibited
+    title: Prohibition of Inline RBAC Policies in Access Groups for Enhanced Security
+    severity: medium
+    for_each: iam.access_groups
+    calls:
+    - action: get_access_group
+      fields:
+      - path: name
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.access_groups
+      response'
+  - check_id: ibm.iam.account_settings.identity_federation_status_enabled
+    title: Ensure Identity Federation is Enabled for Enhanced Security
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.identity_provider.oidc_allowed_client_ids_audiences_restricted
+    title: Restrict OIDC Allowed Client IDs and Audiences for Enhanced Security
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.oidc_issuer_https_and_matches_discovery
+    title: Enforce HTTPS and Discovery Match for OIDC Issuers in IBM IAM
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.oidc_thumbprints_or_jwks_pinning_configured
+    title: Enforce OIDC Thumbprints or JWKS Pinning for Enhanced Identity Security
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.oidc_token_lifetime_reasonable
+    title: Ensure OIDC Token Lifetime is Appropriately Configured
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.saml_assertion_lifetime_reasonable
+    title: Ensure Reasonable SAML Assertion Lifetime for Identity Providers
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.saml_audience_restriction_configured
+    title: Ensure SAML Audience Restriction is Configured for Identity Providers
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.saml_certificates_not_expired
+    title: Ensure SAML Certificates Are Valid and Not Expired
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.identity_provider.saml_idp_metadata_signed
+    title: Ensure SAML IdP Metadata is Signed for Enhanced Security
+    severity: medium
+    for_each: iam.identity_providers
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.identity_providers
+      response'
+  - check_id: ibm.iam.api_key.unused_detection
+    title: Detect and Mitigate Unused IBM Cloud API Keys
+    severity: medium
+    for_each: iam.api_keys
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.no_guest_accounts_with_permissions_enabled
+    title: Enforce Zero Permissions for Guest Accounts in IBM Cloud IAM
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.organization_essential_contacts_configured
+    title: Ensure Organization Essential Contacts are Configured in IBM Cloud IAM
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.account_settings.reuse_24_ibm_devops_..._cluster_audit_logging
+    title: Enforce 24-Hour Reuse for IBM DevOps Cluster Audit Logging
+    severity: medium
+    for_each: iam.account_settings
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: logging_enabled
+        operator: equals
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.policy.rbac_conditions_used_where_applicable
+    title: Enforce RBAC Conditions in IAM Policies to Enhance Security
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.rbac_no_action_star_on_resource_star
+    title: Restrict Wildcard Permissions in IBM IAM Policies for Enhanced Security
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.policy.rbac_allow_blockedpolicy_allows_without_constraints
+    title: Enforce Constraints on RBAC Allow Policies to Prevent Unrestricted Access
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: locked
+        operator: equals
+        expected: false
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "locked" exists in iam.policies response'
+  - check_id: ibm.iam.policy.rbac_resource_constraints_present
+    title: Enforce RBAC Resource Constraints in IAM Policies
+    severity: medium
+    for_each: iam.policies
+    calls:
+    - action: get_policy
+      fields:
+      - path: state
+        operator: exists
+        expected: active
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.policies response'
+  - check_id: ibm.iam.role.attached_policies_not_admin_star
+    title: 'Restrict IAM Role Policies: Avoid Wildcard Admin Privileges'
+    severity: critical
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.max_session_duration_reasonable
+    title: Ensure Reasonable Max Session Duration for IAM Roles
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: session_timeout
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.prohibitedinline_policies
+    title: Prohibit Use of Inline Policies for IAM Roles
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.rbac_attached_policies_not_admin_star
+    title: 'Enforce Least Privilege: Avoid Admin * in RBAC Policies'
+    severity: critical
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.rbac_inline_policies_prohibited
+    title: Prohibition of RBAC Inline Policies in IBM IAM Roles
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.rbac_session_duration_reasonable_where_applicable
+    title: Ensure Reasonable Session Duration for IAM Role-Based Access Control
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: session_timeout
+        operator: exists
+        expected: null
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.trust_principals_allowlist_only
+    title: Enforce Trust Principals Allowlist for IAM Role Security
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.role.trust_external_id_required
+    title: Enforce Trust External ID for Secure Role Assumption in IBM IAM
+    severity: medium
+    for_each: iam.roles
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in iam.roles response'
+  - check_id: ibm.iam.service_id.no_admin_wildcard
+    title: Prevent Admin Wildcard Permissions for Service IDs in IBM IAM
+    severity: critical
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.role_attached
+    title: Ensuring Service IDs Have Appropriate Role Attachments in IAM
+    severity: medium
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.role_policies_least_privilege
+    title: Enforce Least Privilege on IBM Cloud IAM Service IDs
+    severity: high
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.keys_rotated_90d
+    title: Enforce 90-Day Rotation for IBM IAM Service ID Keys
+    severity: high
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: created_at
+        operator: age_days
+        expected: 90
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.no_user_managed_long_lived_keys
+    title: Enforce No User-Managed Long-Lived Keys for Service IDs
+    severity: high
+    for_each: iam.service_ids
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.scopes_or_roles_least_privilege
+    title: Enforce Least Privilege for Service ID Scopes and Roles
+    severity: high
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.service_id.workload_identity_federation_enabled
+    title: Ensure Workload Identity Federation is Enabled for Service IDs
+    severity: medium
+    for_each: iam.service_ids
+    calls:
+    - action: get_account_settings
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.group_membership
+    title: Enforce IAM User Group Membership for Enhanced Access Control
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.keys_rotated_90_days_or_less_when_present
+    title: User Keys Must Be Rotated Every 90 Days for Optimal Security
+    severity: high
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: created_at
+        operator: age_days
+        expected: 90
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.console_password_present_only_if_required
+    title: Ensure Console Passwords are Set Only When Necessary
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.inactive_90_days_disabled
+    title: Enforce Account Disablement for Users Inactive Over 90 Days
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: locked
+        operator: equals
+        expected: false
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.mfa_required
+    title: Enforce Multi-Factor Authentication for IBM Cloud IAM Users
+    severity: high
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: mfa
+        operator: equals
+        expected: TOTP
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.prohibitedinline_policies_attached
+    title: Restrict Inline Policies for Enhanced IAM Security
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: active
+        operator: exists
+        expected: true
+      note: IBM IAM compliance check using real API fields
+  - check_id: ibm.iam.user.inactive_accounts_enabled
+    title: Ensure Inactive IAM User Accounts are Disabled for Security
+    severity: medium
+    for_each: iam.users
+    calls:
+    - action: get_user
+      fields:
+      - path: locked
+        operator: equals
+        expected: false
+      note: IBM IAM compliance check using real API fields

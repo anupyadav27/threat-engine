@@ -3,59 +3,58 @@ containers:
   provider: ibm
   service: containers
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: ContainersV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: containers.task_definitions_logging_block_modes
     calls:
-    - action: get_cluster
-      note: IBM Container Service get_cluster method
+    - action: list_resource_instances
+      params: &id001 {}
       save_as: task_definitions_logging_block_modes
   - discovery_id: containers.resources
     calls:
-    - action: list_clusters
-      note: IBM Container Service list_clusters method
+    - action: list_resource_instances
+      params: *id001
       save_as: resources
   - discovery_id: containers.services
     calls:
-    - action: get_cluster
-      note: IBM Container Service get_cluster method
+    - action: list_resource_instances
+      params: *id001
       save_as: services
   - discovery_id: containers.clusters
     calls:
-    - action: list_clusters
-      note: IBM Container Service list_clusters method
+    - action: list_resource_instances
+      params: *id001
       save_as: clusters
   - discovery_id: containers.cluster_addons
     calls:
-    - action: list_clusters
-      note: IBM Container Service list_clusters method
+    - action: list_resource_instances
+      params: *id001
       save_as: cluster_addons
   - discovery_id: containers.workers
     calls:
-    - action: get_workers
-      note: IBM Container Service get_workers method
+    - action: list_resource_instances
+      params: *id001
       save_as: workers
   - discovery_id: containers.worker_pools
     calls:
-    - action: get_workers
-      note: IBM Container Service get_workers method
+    - action: list_resource_instances
+      params: *id001
       save_as: worker_pools
   - discovery_id: containers.vms
     calls:
-    - action: get_cluster
-      note: IBM Container Service get_cluster method
+    - action: list_resource_instances
+      params: *id001
       save_as: vms
   - discovery_id: containers.security_context_constraints
     calls:
-    - action: get_cluster
-      note: IBM Container Service get_cluster method
+    - action: list_resource_instances
+      params: *id001
       save_as: security_context_constraints
   checks:
   - check_id: ibm.containers.task_definitions_logging_block_mode.task_definitions_logging_block_mode_enabled
     title: Enforce Task Definitions Logging Block Mode for Enhanced Security
     severity: medium
-    for_each: containers.task_definitions_logging_block_modes
+    for_each: task_definitions_logging_block_modes
     calls:
     - action: get_cluster
       fields:
@@ -63,12 +62,11 @@ containers:
         operator: equals
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.task_definitions_logging_block_modes
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.task_definitions_logging_block_modes response'
   - check_id: ibm.containers.resource.task_definitions_logging_enabled
     title: Ensure Logging is Enabled for IBM Cloud Container Task Definitions
     severity: medium
-    for_each: containers.resources
+    for_each: resources
     calls:
     - action: get_cluster
       fields:
@@ -76,12 +74,11 @@ containers:
         operator: equals
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.resources response'
   - check_id: ibm.containers.service.account_token_audit
     title: Ensure Regular Audit of Kubernetes Service Account Tokens
     severity: medium
-    for_each: containers.services
+    for_each: services
     calls:
     - action: get_cluster
       fields:
@@ -89,12 +86,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.services
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.services response'
   - check_id: ibm.containers.cluster.scc_privileged_containers_restriction
     title: Restrict Privileged Container Access in IBM Cloud Kubernetes Clusters
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -102,12 +98,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster_addon.containers_addon_from_trusted_channel
     title: Enforce Use of Trusted Channels for Container Addon Deployment
     severity: low
-    for_each: containers.cluster_addons
+    for_each: cluster_addons
     calls:
     - action: get_cluster
       fields:
@@ -115,12 +110,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons response'
   - check_id: ibm.containers.cluster_addon.containers_addon_no_privileged_permissions
     title: Ensure Add-ons in IBM Cloud Clusters Run with Least Privilege
     severity: high
-    for_each: containers.cluster_addons
+    for_each: cluster_addons
     calls:
     - action: get_cluster
       fields:
@@ -128,12 +122,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons response'
   - check_id: ibm.containers.cluster_addon.containers_addon_version_pinned_and_supported_required
     title: Ensure Supported and Pinned Version for Containers Add-ons
     severity: low
-    for_each: containers.cluster_addons
+    for_each: cluster_addons
     calls:
     - action: get_cluster
       fields:
@@ -141,12 +134,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.cluster_addons response'
   - check_id: ibm.containers.cluster.containers_admission_host_namespace_usage_denied
     title: Restrict Containers from Using Host Namespace to Enhance Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -154,12 +146,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_admission_image_registry_allowlist_enforced
     title: Enforce Image Registry Allowlist for Secure Container Deployments
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -167,12 +158,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_admission_image_signature_verification_enabled
     title: Ensure Image Signature Verification is Enabled in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -180,12 +170,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_admission_pod_security_admission_restricted_default
     title: Enforce Restricted Default Pod Security Admission in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -193,12 +182,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_admission_privilege_escalation_denied
     title: Prevent Privilege Escalation in Kubernetes with Admission Controls
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -206,12 +194,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_audit_logging_enabled
     title: Enable Audit Logging for IBM Cloud Kubernetes Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -219,12 +206,11 @@ containers:
         operator: equals
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_default_service_account_automount_disabled
     title: Disable Automounting for Default Service Accounts in Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -232,12 +218,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_private_control_plane_endpoint_enabled
     title: Enforce Private Endpoint for IBM Cloud Kubernetes Control Plane
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -245,12 +230,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_secrets_encryption_kms_enabled
     title: Ensure KMS Encryption for IBM Cloud Container Secrets is Enabled
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -258,12 +242,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_service_..._approved_sources
     title: Enforce Approved Sources for IBM Cloud Kubernetes Cluster Services
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -271,12 +254,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "...approved.sources" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "...approved.sources" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_cluster_service_kube_system_services_not_public
     title: Restrict Public Access to Kubernetes System Services in IBM Cloud Clusters
     severity: critical
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -284,12 +266,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_namespace_default_service_account_automount_disabled
     title: Enforce Disabling Automount for Default Service Account in Kubernetes
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -297,12 +278,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_namespace_network_policies_present
     title: Enforce Namespace Network Policies for Secure IBM Cloud Kubernetes Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -310,12 +290,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_namespace_pod_security_level_restricted
     title: Enforce Pod Security to Restricted Level in IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -323,12 +302,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_networkpolicy_default_deny_egress_per_namespace
     title: Ensure Default Deny Egress Network Policies Per Namespace in IBM Cloud
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -336,12 +314,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_networkpolicy_default_deny_ingress_per_namespace
     title: Enforce Default Deny Ingress Policies in Kubernetes Namespaces
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -349,12 +326,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_networkpolicy_req_allowlist_for_namespace_services
     title: Enforce Network Policy Allowlisting for Namespace Services in Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -362,12 +338,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_fargate_profile_execution_role_least_privilege
     title: Ensure Least Privilege for Containers Fargate Profile Execution Role
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -375,12 +350,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_fargate_profile_logging_enabled
     title: Ensure Fargate Profile Logging is Enabled for IBM Cloud Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -388,12 +362,11 @@ containers:
         operator: equals
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_fargate_profile_private_subnets_only
     title: Ensure Fargate Profiles Utilize Private Subnets for Enhanced Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -401,12 +374,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_service_external_ips_not_used
     title: Restrict Usage of External IPs in IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -414,12 +386,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_service_nodeport_usage_restricted
     title: Restrict NodePort Usage in IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -427,12 +398,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_service_type_loadbalancer_internal_only_where_req
     title: Enforce Internal-Only LoadBalancers for Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -440,12 +410,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.worker.containers_container_instance_env_no_plaintext_secrets
     title: Prevent Plaintext Secrets in Container Instance Environment Variables
     severity: high
-    for_each: containers.workers
+    for_each: workers
     calls:
     - action: get_cluster
       fields:
@@ -453,12 +422,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers response'
   - check_id: ibm.containers.worker.containers_container_instance_no_privileged_containers
     title: Enforce Non-Privileged Containers in IBM Cloud Kubernetes Worker Nodes
     severity: high
-    for_each: containers.workers
+    for_each: workers
     calls:
     - action: get_cluster
       fields:
@@ -466,12 +434,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers response'
   - check_id: ibm.containers.worker.containers_container_instance_read_only_root_filesystem
     title: Enforce Read-Only Root Filesystem for Container Instances
     severity: critical
-    for_each: containers.workers
+    for_each: workers
     calls:
     - action: get_cluster
       fields:
@@ -479,12 +446,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers response'
   - check_id: ibm.containers.worker_pool.containers_node_pool_disk_encryption_enabled
     title: Ensure Disk Encryption is Enabled for IBM Cloud Worker Pools
     severity: high
-    for_each: containers.worker_pools
+    for_each: worker_pools
     calls:
     - action: get_cluster
       fields:
@@ -492,12 +458,11 @@ containers:
         operator: equals
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in containers.worker_pools
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in containers.worker_pools response'
   - check_id: ibm.containers.worker_pool.containers_node_pool_nodes_no_public_ip
     title: Ensure Nodes in Containers Worker Pools Lack Public IP Addresses
     severity: critical
-    for_each: containers.worker_pools
+    for_each: worker_pools
     calls:
     - action: get_cluster
       fields:
@@ -505,12 +470,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools response'
   - check_id: ibm.containers.worker_pool.containers_node_pool_shielded_secure_boot_enabled
     title: Ensure Shielded Secure Boot is Enabled for Container Node Pools
     severity: low
-    for_each: containers.worker_pools
+    for_each: worker_pools
     calls:
     - action: get_cluster
       fields:
@@ -518,12 +482,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools response'
   - check_id: ibm.containers.worker_pool.containers_node_pool_workload_identity_enabled
     title: Ensure Workload Identity is Enabled for Containers Node Pools
     severity: medium
-    for_each: containers.worker_pools
+    for_each: worker_pools
     calls:
     - action: get_cluster
       fields:
@@ -531,12 +494,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.worker_pools response'
   - check_id: ibm.containers.cluster.containers_workload_drop_net_raw_and_reduce_caps
     title: Enforce Capabilities Restrictions for Enhanced Container Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -544,12 +506,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_env_no_plaintext_secrets
     title: 'Secure Environment: Avoid Plaintext Secrets in Container Workloads'
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -557,12 +518,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_host_network_pid_ipc_disabled
     title: Disable Host Network, PID, and IPC in Container Workloads
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -570,12 +530,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_image_tag_not_latest
     title: Ensure Containers Do Not Use 'Latest' Image Tag for Workload Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -583,12 +542,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_no_hostpath_mounts
     title: Ensure Containers Workload Avoids HostPath Mounts in Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -596,12 +554,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_no_privileged_containers
     title: Prevent Use of Privileged Containers in IBM Cloud Kubernetes Clusters
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -609,12 +566,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_read_only_root_filesystem
     title: Enforce Read-Only Root Filesystem for Container Workloads
     severity: critical
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -622,12 +578,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_run_as_non_root
     title: Enforce Containers to Run as Non-Root in IBM Cloud Clusters
     severity: critical
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -635,12 +590,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.containers_workload_seccomp_profile_runtime_default
     title: Enforce Default Seccomp Profiles for Container Workloads in IBM Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -648,12 +602,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.worker_nodes_latest_patch_enabled
     title: Ensure IBM Cloud Worker Nodes Are Patched with Latest Security Updates
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -661,12 +614,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kube_controller_manager_bind_address_enabled
     title: Ensure Kube Controller Manager Bind Address is Configured
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -674,12 +626,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.account_credentials_enabled
     title: Ensure Account Credentials are Disabled in IBM Cloud Kubernetes Clusters
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -687,12 +638,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.account_lookup_enabled
     title: Ensure Account Lookup is Enabled for IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -700,12 +650,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.vm.shareable_disks
     title: Ensure VM Disks Are Not Shareable in IBM Cloud Container Services
     severity: low
-    for_each: containers.vms
+    for_each: vms
     calls:
     - action: get_cluster
       fields:
@@ -717,7 +666,7 @@ containers:
   - check_id: ibm.containers.cluster.admission_control_enabled
     title: Enforce Admission Control in IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -725,12 +674,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.admission_control_namespace_lifecycle_enabled
     title: Enable Namespace Lifecycle Admission Control in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -738,12 +686,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.admission_control_serviceaccount_enabled
     title: Ensure Admission Control ServiceAccount is Enabled in IBM Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -751,12 +698,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.admission_plugin_noderestriction_enabled
     title: Ensure NodeRestriction Admission Plugin is Enabled in Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -764,12 +710,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.admission_securitycontextconstraint_enabled
     title: Ensure Admission SecurityContextConstraint is Enabled for IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -777,12 +722,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.apiserver_authorization_mode_enabled
     title: Enforce Apiserver Authorization Modes for Secure Cluster Operations
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -790,12 +734,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.apiserver_basic_auth_file_absence_enabled
     title: Ensure Absence of Basic Auth File in API Server Configuration
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -803,12 +746,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.api_priority_and_fairness_enabled
     title: Enforce API Priority and Fairness in Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -816,12 +758,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.unsupported_config_overrides_compliance_enabled
     title: Ensure Compliance with Unsupported Config Overrides in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -829,12 +770,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.cni_file_ownership_enabled
     title: Enforce CNI File Ownership for Secure Kubernetes Operations
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -842,12 +782,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.controller_manager_bind_address_enabled
     title: Ensure Controller Manager Bind Address is Enabled on IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -855,12 +794,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.etcd_permissions_enabled
     title: Enable Etcd Permissions for Secure Kubernetes Management
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -868,12 +806,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.hyperconverged_ksm_configuration_enabled
     title: Ensure Hyperconverged KSM Configuration is Enabled in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -881,12 +818,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.image_provenance_registry_sources_configured
     title: Ensure Container Image Provenance from Trusted Registry Sources
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -894,12 +830,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kube_apiserver_token_auth_file_absence_enabled
     title: Ensure Kube Apiserver Token Auth File is Disabled for Enhanced Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -907,12 +842,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_anonymous_auth_enabled
     title: Ensure Kubelet Anonymous Authentication is Disabled in IBM Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -920,12 +854,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_authorization_mode_enabled
     title: Ensure Kubelet Authorization Mode is Enabled on IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -933,12 +866,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_cert_rotation_enabled
     title: Ensure Kubelet Certificate Rotation is Enabled for Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -946,12 +878,11 @@ containers:
         operator: age_days
         expected: 90
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "last_rotation" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "last_rotation" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_cipher_enabled
     title: Enforce Kubelet Cipher Suites for Enhanced Cluster Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -959,12 +890,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.worker.kubelet_client_ca_file_verification_enabled
     title: Ensure Kubelet Client CA File Verification is Enabled on Workers
     severity: low
-    for_each: containers.workers
+    for_each: workers
     calls:
     - action: get_cluster
       fields:
@@ -972,12 +902,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.workers response'
   - check_id: ibm.containers.cluster.kubelet_conf_permissions_enabled
     title: Ensure Secure Permissions for Kubelet Configuration Files
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -985,12 +914,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_config_file_ownership_enabled
     title: Ensure Kubelet Config File Ownership is Properly Configured
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -998,12 +926,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_kubeapiqps_compliance_enabled
     title: Enforce Kubelet Kubeapiqps Compliance for Enhanced Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1011,12 +938,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.kubelet_make_iptables_util_chains_enabled
     title: Ensure Kubelet Make Iptables Util Chains is Enabled for Security
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1024,12 +950,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.namespace_isolation_enabled
     title: Ensuring Namespace Isolation in IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1037,12 +962,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.namespace_resource_verification_enabled
     title: Ensuring Namespace Resource Verification in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1050,12 +974,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.disabled_enabled
     title: Ensure Kubernetes Cluster Security Features Are Enabled
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1063,12 +986,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.networkpolicy_enabled
     title: Ensure Network Policies are Enabled for IBM Cloud Kubernetes Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1076,12 +998,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.networkpolicy_cni_support_enabled
     title: Ensuring NetworkPolicy CNI Support in IBM Cloud Kubernetes Clusters
     severity: medium
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1089,12 +1010,11 @@ containers:
         operator: exists
         expected: true
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.node_kubelet_conf_ownership_enabled
     title: Ensure Node Kubelet Configuration Ownership is Enabled
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1102,12 +1022,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.node_streaming_connection_idle_timeout_enabled
     title: Enforce Node Streaming Connection Idle Timeout in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1115,12 +1034,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.pki_keyfile_permissions_enabled
     title: Enforce Secure PKI Keyfile Permissions in IBM Cloud Clusters
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1128,12 +1046,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.pod_seccomp_profile_enabled
     title: Ensure Pod Seccomp Profile is Enabled for IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1141,12 +1058,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.scc_capabilities_enabled
     title: Ensure Secure Capability Settings in Kubernetes Service Accounts
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1154,12 +1070,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.security_context_constraint.scc_capabilities_minimized_enabled
     title: Enforce Minimized SCC Capabilities for Enhanced Container Security
     severity: low
-    for_each: containers.security_context_constraints
+    for_each: security_context_constraints
     calls:
     - action: get_cluster
       fields:
@@ -1167,12 +1082,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints response'
   - check_id: ibm.containers.security_context_constraint.scc_enforce_non_root_containers_enabled
     title: Enforce Non-Root Containers for Enhanced Kubernetes Security
     severity: critical
-    for_each: containers.security_context_constraints
+    for_each: security_context_constraints
     calls:
     - action: get_cluster
       fields:
@@ -1180,12 +1094,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints response'
   - check_id: ibm.containers.security_context_constraint.scc_host_ipc_restriction_enabled
     title: Ensure Host IPC Restriction is Enabled for Kubernetes SCC
     severity: low
-    for_each: containers.security_context_constraints
+    for_each: security_context_constraints
     calls:
     - action: get_cluster
       fields:
@@ -1193,12 +1106,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.security_context_constraints response'
   - check_id: ibm.containers.cluster.scc_host_pid_restriction_enabled
     title: Ensure SCC Host PID Restriction is Enabled in IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1206,12 +1118,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.scc_net_raw_capability_enabled
     title: Ensure SCC Net Raw Capability is Disabled for Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1219,12 +1130,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.scheduler_file_ownership_enabled
     title: Ensure Scheduler File Ownership is Enabled for IBM Cloud Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1232,12 +1142,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.secrets_as_files_enabled
     title: Enforce Secrets as Files in IBM Cloud Kubernetes Clusters
     severity: high
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1245,12 +1154,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.account_usage_enabled
     title: Ensure Account Usage is Enabled for IBM Cloud Kubernetes Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1258,12 +1166,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.file_ownership_enabled
     title: Enforce File Ownership on IBM Cloud Container Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1271,12 +1178,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.cluster.vlan_configuration_enabled
     title: Ensure VLAN Configuration is Enabled for IBM Cloud Container Clusters
     severity: low
-    for_each: containers.clusters
+    for_each: clusters
     calls:
     - action: get_cluster
       fields:
@@ -1284,12 +1190,11 @@ containers:
         operator: exists
         expected: normal
       note: IBM Container Service compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.clusters response'
   - check_id: ibm.containers.vm.feature_gate_non_root_enabled
     title: Enforce Non-Root Feature Gate on IBM Cloud Container VMs
     severity: critical
-    for_each: containers.vms
+    for_each: vms
     calls:
     - action: get_cluster
       fields:
@@ -1301,7 +1206,7 @@ containers:
   - check_id: ibm.containers.vm.mac_spoof_filtering_enabled
     title: Ensure MAC Spoof Filtering is Enabled on IBM Cloud VMs
     severity: low
-    for_each: containers.vms
+    for_each: vms
     calls:
     - action: get_cluster
       fields:
@@ -1310,3 +1215,4 @@ containers:
         expected: normal
       note: IBM Container Service compliance check
     note: 'MANUAL_REVIEW: Verify field path "enabled" exists in containers.vms response'
+  sdk_package: ibm_platform_services

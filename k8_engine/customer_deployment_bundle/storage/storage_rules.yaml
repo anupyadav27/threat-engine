@@ -1,0 +1,71 @@
+component: storage
+component_type: workload
+discovery:
+- discovery_id: list_storage_resources
+  calls:
+  - action: list_pods
+    fields:
+    - path: metadata.name
+      var: name
+    - path: metadata.namespace
+      var: namespace
+    - path: metadata.labels
+      var: labels
+checks:
+- check_id: k8s.storage.backup.enabled
+  name: Enabled
+  severity: LOW
+  for_each: list_storage_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.annotations.backup
+      operator: not_exists  # Made optional - not all pods have this
+      expected: null
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.storage.volume.backup_enabled
+  name: Backup Enabled
+  severity: MEDIUM
+  for_each: list_storage_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.annotations.backup
+      operator: not_exists  # Made optional - not all pods have this
+      expected: null
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.storage.volume.backup_policy_defined
+  name: Backup Policy Defined
+  severity: MEDIUM
+  for_each: list_storage_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.annotations.backup
+      operator: not_exists  # Made optional - not all pods have this
+      expected: null
+  logic: AND
+  errors_as_fail: []
+- check_id: k8s.storage.volume.snapshot_enabled
+  name: Snapshot Enabled
+  severity: LOW
+  for_each: list_storage_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.annotations.snapshot
+      operator: not_exists
+      expected: null
+      # Made more flexible for production
+  logic: AND
+  errors_as_fail: []

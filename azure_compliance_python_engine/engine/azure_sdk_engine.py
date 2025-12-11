@@ -30,6 +30,11 @@ if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
 # Toggle caching
 ENABLE_CALL_CACHE = os.getenv('COMPLIANCE_ENABLE_CALL_CACHE', 'true').lower() == 'true'
 
+# Retry/backoff settings
+MAX_RETRIES = int(os.getenv('COMPLIANCE_MAX_RETRIES', '5'))
+BASE_DELAY = float(os.getenv('COMPLIANCE_BASE_DELAY', '0.8'))
+BACKOFF_FACTOR = float(os.getenv('COMPLIANCE_BACKOFF_FACTOR', '2.0'))
+
 # ------------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------------
@@ -247,6 +252,20 @@ def _make_hashable(obj: Any):
     return obj
 
 
+def _retry_call(func, *args, **kwargs):
+    """Retry a function call with exponential backoff"""
+    from time import sleep
+    for attempt in range(MAX_RETRIES):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            delay = BASE_DELAY * (BACKOFF_FACTOR ** attempt)
+            logger.debug(f"Retrying after error: {e} (attempt {attempt+1}/{MAX_RETRIES}, sleep {delay:.2f}s)")
+            sleep(delay)
+
+
 def call_azure(client_obj: Any, action: str, params: Optional[Dict[str, Any]] = None):
     if action in (None, '', 'self'):
         # Direct resource passthrough handled by caller
@@ -255,9 +274,14 @@ def call_azure(client_obj: Any, action: str, params: Optional[Dict[str, Any]] = 
     target = client_obj
     for p in parts:
         target = getattr(target, p)
-    if params:
-        return target(**params)
-    return target()
+    
+    # Execute with retry
+    def _execute():
+        if params:
+            return target(**params)
+        return target()
+    
+    return _retry_call(_execute)
 
 
 def call_azure_cached(client_obj: Any, action: str, params: Optional[Dict[str, Any]], cache: _CallCache):

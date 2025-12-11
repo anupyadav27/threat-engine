@@ -1,0 +1,183 @@
+# K8s CSMP Testing Profiles Configuration
+# Environment-specific test configurations and parameters
+
+# Default testing profile
+default:
+  max_iterations: 5
+  target_success_rate: 95.0
+  max_corrections_per_file: 10
+  max_corrections_per_iteration: 50
+  connection_timeout: 30
+  test_timeout: 300
+  parallel_services: false  # Sequential testing for stability
+  
+# Docker Desktop local testing
+docker_desktop:
+  max_iterations: 3
+  target_success_rate: 90.0
+  max_corrections_per_file: 15
+  max_corrections_per_iteration: 30
+  connection_timeout: 15
+  test_timeout: 180
+  parallel_services: false
+  cluster_type: "local"
+  expected_provider: "docker-desktop"
+  
+# Development environment
+dev:
+  max_iterations: 7
+  target_success_rate: 98.0
+  max_corrections_per_file: 20
+  max_corrections_per_iteration: 100
+  connection_timeout: 45
+  test_timeout: 600
+  parallel_services: true
+  cluster_type: "development"
+  
+# Production validation (read-only)
+prod:
+  max_iterations: 1  # No corrections in prod
+  target_success_rate: 99.0
+  max_corrections_per_file: 0
+  max_corrections_per_iteration: 0
+  connection_timeout: 60
+  test_timeout: 900
+  parallel_services: false
+  cluster_type: "production"
+  read_only: true
+  
+# Quick testing profile
+quick:
+  max_iterations: 2
+  target_success_rate: 80.0
+  max_corrections_per_file: 5
+  max_corrections_per_iteration: 20
+  connection_timeout: 10
+  test_timeout: 60
+  parallel_services: false
+  cluster_type: "quick"
+
+# Comprehensive testing profile  
+comprehensive:
+  max_iterations: 10
+  target_success_rate: 99.5
+  max_corrections_per_file: 25
+  max_corrections_per_iteration: 200
+  connection_timeout: 120
+  test_timeout: 1800
+  parallel_services: true
+  cluster_type: "comprehensive"
+
+# Service-specific configurations
+services:
+  # High-priority security services
+  security_critical:
+    - "rbac"
+    - "pod_security" 
+    - "network"
+    - "policy"
+    target_success_rate: 99.0
+    max_iterations: 8
+    
+  # Core infrastructure services
+  infrastructure:
+    - "apiserver"
+    - "etcd"
+    - "kubelet"
+    - "controlplane"
+    target_success_rate: 95.0
+    max_iterations: 5
+    
+  # Application services
+  application:
+    - "pod"
+    - "service"
+    - "ingress"
+    - "configmap"
+    - "secret"
+    target_success_rate: 90.0
+    max_iterations: 4
+    
+  # Monitoring and observability
+  observability:
+    - "monitoring"
+    - "audit"
+    - "event"
+    target_success_rate: 85.0
+    max_iterations: 3
+
+# Correction confidence thresholds
+correction_thresholds:
+  high_confidence: 0.8
+  medium_confidence: 0.5
+  low_confidence: 0.3
+  minimum_confidence: 0.1
+
+# Failure analysis settings
+failure_analysis:
+  max_related_failures: 5
+  pattern_matching_enabled: true
+  smart_suggestions_enabled: true
+  confidence_scoring_enabled: true
+  
+# Backup and rollback settings
+backup:
+  enabled: true
+  retention_days: 30
+  compression_enabled: false
+  auto_cleanup_enabled: true
+  
+# Reporting settings
+reporting:
+  detailed_reports: true
+  failure_reports: true
+  correction_reports: true
+  trend_analysis: true
+  export_formats: ["json", "yaml"]
+  
+# Cloud provider specific settings
+providers:
+  aws_eks:
+    expected_labels:
+      - "eks.amazonaws.com"
+      - "alpha.eksctl.io"
+    managed_control_plane: true
+    
+  gcp_gke:
+    expected_labels:
+      - "cloud.google.com"  
+      - "k8s.gke.io"
+    managed_control_plane: true
+    
+  azure_aks:
+    expected_labels:
+      - "kubernetes.azure.com"
+      - "aks"
+    managed_control_plane: true
+    
+  docker_desktop:
+    expected_labels: []
+    managed_control_plane: false
+    local_cluster: true
+    
+  openshift:
+    expected_labels:
+      - "node.openshift.io"
+      - "machine.openshift.io"
+    managed_control_plane: false
+
+# Performance tuning
+performance:
+  api_rate_limit: 100  # requests per second
+  batch_size: 10       # checks per batch
+  retry_attempts: 3
+  retry_delay: 2       # seconds
+  memory_limit: "2Gi"
+  cpu_limit: "1000m"
+
+# Debugging and development
+debug:
+  verbose_logging: false
+  save_intermediate_results: true
+  preserve_temp_files: false
+  mock_mode_available: true

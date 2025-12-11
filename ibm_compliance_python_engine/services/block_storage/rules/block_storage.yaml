@@ -3,29 +3,28 @@ block_storage:
   provider: ibm
   service: block_storage
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: Block_StorageV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: block_storage.snapshots
     calls:
-    - action: list_block_storage_resources
-      note: IBM block_storage SDK method
+    - action: list_resource_instances
+      params: &id001 {}
       save_as: snapshots
   - discovery_id: block_storage.volumes
     calls:
-    - action: list_block_storage_resources
-      note: IBM block_storage SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: volumes
   - discovery_id: block_storage.snapshot_encryptions
     calls:
-    - action: list_block_storage_resources
-      note: IBM block_storage SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: snapshot_encryptions
   checks:
   - check_id: ibm.block_storage.snapshot.cross_region_copy_encrypted
     title: Enforce Encryption for Cross-Region Block Storage Snapshot Transfers
     severity: medium
-    for_each: block_storage.snapshots
+    for_each: snapshots
     calls:
     - action: get_block_storage_resource
       fields:
@@ -33,12 +32,11 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshots
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshots response'
   - check_id: ibm.block_storage.snapshot.encrypted
     title: Ensure Encryption of IBM Cloud Block Storage Snapshots at Rest
     severity: medium
-    for_each: block_storage.snapshots
+    for_each: snapshots
     calls:
     - action: get_block_storage_resource
       fields:
@@ -46,12 +44,11 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshots
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshots response'
   - check_id: ibm.block_storage.snapshot.not_public
     title: Ensure Block Storage Snapshots Are Not Publicly Accessible
     severity: critical
-    for_each: block_storage.snapshots
+    for_each: snapshots
     calls:
     - action: get_block_storage_resource
       fields:
@@ -59,12 +56,11 @@ block_storage:
         operator: exists
         expected: active
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in block_storage.snapshots
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in block_storage.snapshots response'
   - check_id: ibm.block_storage.volume.cmk_cmek_configured
     title: Ensure CMK-Based Encryption Configured for Block Storage Volumes
     severity: medium
-    for_each: block_storage.volumes
+    for_each: volumes
     calls:
     - action: get_block_storage_resource
       fields:
@@ -72,12 +68,11 @@ block_storage:
         operator: exists
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in block_storage.volumes
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption.kms_key_crn" exists in block_storage.volumes response'
   - check_id: ibm.block_storage.volume.encryption_at_rest_enabled
     title: Ensure Encryption at Rest is Enabled for IBM Block Storage Volumes
     severity: high
-    for_each: block_storage.volumes
+    for_each: volumes
     calls:
     - action: get_block_storage_resource
       fields:
@@ -85,12 +80,11 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.volumes
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.volumes response'
   - check_id: ibm.block_storage.volume.snapshots_encrypted
     title: Ensure Encryption of Snapshots for IBM Block Storage Volumes
     severity: medium
-    for_each: block_storage.volumes
+    for_each: volumes
     calls:
     - action: get_block_storage_resource
       fields:
@@ -98,12 +92,11 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.volumes
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.volumes response'
   - check_id: ibm.block_storage.snapshot_encryption.snapshot_encryption_enabled
     title: Ensure Snapshot Encryption is Enabled for Block Storage
     severity: high
-    for_each: block_storage.snapshot_encryptions
+    for_each: snapshot_encryptions
     calls:
     - action: get_block_storage_resource
       fields:
@@ -111,12 +104,11 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshot_encryptions
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in block_storage.snapshot_encryptions response'
   - check_id: ibm.block_storage.volume.backup_configured
     title: Ensure Backup Configurations for IBM Cloud Block Storage Volumes
     severity: medium
-    for_each: block_storage.volumes
+    for_each: volumes
     calls:
     - action: get_block_storage_resource
       fields:
@@ -124,5 +116,5 @@ block_storage:
         operator: equals
         expected: true
       note: IBM block_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in block_storage.volumes
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in block_storage.volumes response'
+  sdk_package: ibm_platform_services

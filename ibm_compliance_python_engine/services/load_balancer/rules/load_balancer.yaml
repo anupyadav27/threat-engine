@@ -3,54 +3,53 @@ load_balancer:
   provider: ibm
   service: load_balancer
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: Load_BalancerV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: load_balancer.insecure_ssl_cipherss
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: &id001 {}
       save_as: insecure_ssl_cipherss
   - discovery_id: load_balancer.internet_facings
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: internet_facings
   - discovery_id: load_balancer.is_in_multiple_azs
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: is_in_multiple_azs
   - discovery_id: load_balancer.resources
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: {}
       save_as: resources
   - discovery_id: load_balancer.ssl_listenerss
     calls:
-    - action: list_load_balancer_listeners
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: ssl_listenerss
   - discovery_id: load_balancer.deletion_protections
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: deletion_protections
   - discovery_id: load_balancer.groups
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: groups
   - discovery_id: load_balancer.waf_acl_attacheds
     calls:
-    - action: list_load_balancers
-      note: IBM load_balancer service method
+    - action: list_resource_instances
+      params: *id001
       save_as: waf_acl_attacheds
   checks:
   - check_id: ibm.load_balancer.insecure_ssl_ciphers.insecure_ssl_ciphers_enabled
     title: Disable Insecure SSL Ciphers on IBM Cloud Load Balancers
     severity: medium
-    for_each: load_balancer.insecure_ssl_cipherss
+    for_each: insecure_ssl_cipherss
     calls:
     - action: get_load_balancer_details
       fields:
@@ -58,12 +57,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.insecure_ssl_cipherss
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.insecure_ssl_cipherss response'
   - check_id: ibm.load_balancer.internet_facing.internet_facing_enabled
     title: Ensure Internet-Facing Load Balancers are Appropriately Configured
     severity: low
-    for_each: load_balancer.internet_facings
+    for_each: internet_facings
     calls:
     - action: get_load_balancer_details
       fields:
@@ -71,12 +69,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.internet_facings
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.internet_facings response'
   - check_id: ibm.load_balancer.is_in_multiple_az.is_in_multiple_az_enabled
     title: Ensure Load Balancer is Configured Across Multiple Availability Zones
     severity: low
-    for_each: load_balancer.is_in_multiple_azs
+    for_each: is_in_multiple_azs
     calls:
     - action: get_load_balancer_details
       fields:
@@ -84,12 +81,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.is_in_multiple_azs
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.is_in_multiple_azs response'
   - check_id: ibm.load_balancer.resource.logging_enabled
     title: Ensure Logging is Enabled for IBM Cloud Load Balancers
     severity: medium
-    for_each: load_balancer.resources
+    for_each: resources
     calls:
     - action: get_load_balancer_details
       fields:
@@ -97,12 +93,11 @@ load_balancer:
         operator: equals
         expected: true
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in load_balancer.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in load_balancer.resources response'
   - check_id: ibm.load_balancer.ssl_listeners.ssl_listeners_enabled
     title: Ensure SSL Listeners are Enabled on IBM Cloud Load Balancers
     severity: medium
-    for_each: load_balancer.ssl_listenerss
+    for_each: ssl_listenerss
     calls:
     - action: get_load_balancer_details
       fields:
@@ -110,12 +105,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.ssl_listenerss
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.ssl_listenerss response'
   - check_id: ibm.load_balancer.deletion_protection.deletion_protection_enabled
     title: Enable Deletion Protection for IBM Cloud Load Balancers
     severity: low
-    for_each: load_balancer.deletion_protections
+    for_each: deletion_protections
     calls:
     - action: get_load_balancer_details
       fields:
@@ -123,12 +117,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.deletion_protections
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.deletion_protections response'
   - check_id: ibm.load_balancer.group.health_check_enabled
     title: Ensure Health Check is Enabled for IBM Cloud Load Balancer Groups
     severity: low
-    for_each: load_balancer.groups
+    for_each: groups
     calls:
     - action: get_load_balancer_details
       fields:
@@ -136,12 +129,11 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.groups
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.groups response'
   - check_id: ibm.load_balancer.waf_acl_attached.waf_acl_attached_enabled
     title: Ensure WAF ACL is Attached and Enabled on IBM Cloud Load Balancers
     severity: low
-    for_each: load_balancer.waf_acl_attacheds
+    for_each: waf_acl_attacheds
     calls:
     - action: get_load_balancer_details
       fields:
@@ -149,5 +141,5 @@ load_balancer:
         operator: exists
         expected: active
       note: IBM load_balancer compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.waf_acl_attacheds
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in load_balancer.waf_acl_attacheds response'
+  sdk_package: ibm_platform_services

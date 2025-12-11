@@ -3,44 +3,43 @@ monitoring:
   provider: ibm
   service: monitoring
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: MonitoringV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: monitoring.diagnostic_setting_with_appropriate_categoriess
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: &id001 {}
       save_as: diagnostic_setting_with_appropriate_categoriess
   - discovery_id: monitoring.diagnostic_settings_existss
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: diagnostic_settings_existss
   - discovery_id: monitoring.alerts
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: alerts
   - discovery_id: monitoring.dashboards
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: dashboards
   - discovery_id: monitoring.captures
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: captures
   - discovery_id: monitoring.notification_channels
     calls:
-    - action: list_monitoring_resources
-      note: IBM monitoring SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: notification_channels
   checks:
   - check_id: ibm.monitoring.diagnostic_setting_with_appropriate_categories.diagnostic_setting_with_appropriate_categories_enabled
     title: Ensure Diagnostic Settings Include Appropriate Logging Categories
     severity: low
-    for_each: monitoring.diagnostic_setting_with_appropriate_categoriess
+    for_each: diagnostic_setting_with_appropriate_categoriess
     calls:
     - action: get_monitoring_resource
       fields:
@@ -53,7 +52,7 @@ monitoring:
   - check_id: ibm.monitoring.diagnostic_settings_exists.diagnostic_settings_exists_enabled
     title: Ensure Diagnostic Settings Are Enabled for Monitoring Services
     severity: low
-    for_each: monitoring.diagnostic_settings_existss
+    for_each: diagnostic_settings_existss
     calls:
     - action: get_monitoring_resource
       fields:
@@ -61,12 +60,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.diagnostic_settings_existss
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.diagnostic_settings_existss response'
   - check_id: ibm.monitoring.alert.alarm_actions_configured
     title: Ensure Alarm Actions Are Configured for Monitoring Alerts
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -74,12 +72,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.critical_alarms_enabled
     title: Ensuring Critical Alarms are Enabled for IBM Cloud Monitoring
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -87,12 +84,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.data_analytics_admin_activity_logging_enabled
     title: Ensure Data Analytics Admin Activity Logging is Enabled for Alerts
     severity: critical
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -100,12 +96,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.data_analytics_logs_retention_days_minimum_configured
     title: Ensure Minimum Retention Days for Data Analytics Logs in IBM Monitoring
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -113,12 +108,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.data_analytics_query_access_logging_enabled
     title: Ensure Data Analytics Query Access Logging is Enabled for Alerts
     severity: medium
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -126,12 +120,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.destinations_authenticated
     title: Ensure Authentication for Monitoring Alert Destinations
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -139,12 +132,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.dr_alerts_for_backup_failures_configured
     title: Ensure DR Alerts for Backup Failures Are Configured in IBM Monitoring
     severity: medium
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -152,12 +144,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.dr_alerts_for_replication_lag_configured
     title: Ensure DR Alerts for Replication Lag Are Configured in IBM Monitoring
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -165,12 +156,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.dr_alerts_for_rpo_rto_breach_configured
     title: Ensure DR Alerts for RPO/RTO Breach Are Configured in IBM Monitoring
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -178,12 +168,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.dr_destinations_configured
     title: Ensure Disaster Recovery Destinations for Monitoring Alerts
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -191,12 +180,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.console_root_login_detected_filter_present
     title: Detection of Console Root Login Attempts in IBM Cloud Monitoring
     severity: critical
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -204,12 +192,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.iam_policy_change_detected_filter_present
     title: Ensure IAM Policy Change Alerts Include Specific Filters
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -217,12 +204,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.kms_deletion_alert
     title: KMS Key Deletion Alert Monitoring for Improved Security
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -230,12 +216,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.network_change_alert
     title: Network Change Alert Monitoring for Enhanced Security
     severity: medium
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -243,12 +228,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.anomaly_alerts_configured
     title: Configuration of Anomaly Alerts in IBM Cloud Monitoring
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -256,12 +240,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.anomaly_detectors_enabled
     title: Enable Anomaly Detectors for Enhanced Monitoring Security
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -269,12 +252,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.alert.anomaly_training_data_sources_approved
     title: Approval of Anomaly Training Data Sources in Monitoring Alerts
     severity: low
-    for_each: monitoring.alerts
+    for_each: alerts
     calls:
     - action: get_monitoring_resource
       fields:
@@ -282,12 +264,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.alerts response'
   - check_id: ibm.monitoring.dashboard.public_embeds_disabled
     title: Enforce Disabling of Public Embeds for Monitoring Dashboards
     severity: critical
-    for_each: monitoring.dashboards
+    for_each: dashboards
     calls:
     - action: get_monitoring_resource
       fields:
@@ -295,12 +276,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards response'
   - check_id: ibm.monitoring.dashboard.sharing_restricted_to_org
     title: Ensure Monitoring Dashboards Are Shared Within Organization Only
     severity: low
-    for_each: monitoring.dashboards
+    for_each: dashboards
     calls:
     - action: get_monitoring_resource
       fields:
@@ -308,12 +288,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards response'
   - check_id: ibm.monitoring.dashboard.sso_required
     title: Enforce SSO for Secure IBM Cloud Monitoring Dashboards
     severity: low
-    for_each: monitoring.dashboards
+    for_each: dashboards
     calls:
     - action: get_monitoring_resource
       fields:
@@ -321,12 +300,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.dashboards response'
   - check_id: ibm.monitoring.capture.group_retention_policy_..._lifecycle_en
     title: Ensure Retention Policy Lifecycle Management for Monitoring Groups
     severity: low
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -334,12 +312,11 @@ monitoring:
         operator: exists
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "...lifecycle.en" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "...lifecycle.en" exists in monitoring.captures response'
   - check_id: ibm.monitoring.capture.policy_changes_..._console_access_unused
     title: Monitor Unused Console Access for Policy Changes in IBM Cloud
     severity: medium
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -347,12 +324,11 @@ monitoring:
         operator: exists
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "...console.access.unused" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "...console.access.unused" exists in monitoring.captures response'
   - check_id: ibm.monitoring.notification_channel.incident_escalation_change_audit_logging_enabled
     title: Audit Logging for Incident Escalation Changes in Notification Channels
     severity: medium
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -360,12 +336,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "logging_enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_escalation_oncall_contacts_verified
     title: Verification of Oncall Contacts for Incident Escalation in Monitoring
     severity: low
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -373,12 +348,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_escalation_policy_exists_for_critical_severity
     title: Ensure Critical Incident Escalation Policy Exists for Monitoring Channels
     severity: low
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -386,12 +360,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_notification_destinations_configured
     title: Ensure Incident Notification Destinations Are Configured in IBM Cloud
     severity: low
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -399,12 +372,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_notification_endpoints_authenticated
     title: Ensure Authentication of Incident Notification Endpoints in IBM Cloud Monitoring
     severity: low
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -412,12 +384,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_notification_message_encryption_in_transit
     title: Ensure Encryption In Transit for Monitoring Notification Channels
     severity: high
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -425,12 +396,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.notification_channel.incident_notification_no_public_webhooks
     title: Prohibit Public Webhooks for Incident Notifications in IBM Cloud Monitoring
     severity: critical
-    for_each: monitoring.notification_channels
+    for_each: notification_channels
     calls:
     - action: get_monitoring_resource
       fields:
@@ -438,12 +408,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.notification_channels response'
   - check_id: ibm.monitoring.capture.rbac_least_privilege
     title: Enforce RBAC Least Privilege for IBM Cloud Monitoring
     severity: high
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -451,12 +420,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures response'
   - check_id: ibm.monitoring.capture.rules_present
     title: Ensuring Monitoring Capture Rules are Present for Audit Compliance
     severity: low
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -464,12 +432,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures response'
   - check_id: ibm.monitoring.capture.storage_encrypted
     title: Ensure Encryption at Rest for IBM Cloud Monitoring Storage
     severity: medium
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -477,12 +444,11 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.captures response'
   - check_id: ibm.monitoring.capture.retention_days_minimum_configured
     title: Ensure Minimum Retention Days Configured for Monitoring Capture
     severity: low
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -490,12 +456,11 @@ monitoring:
         operator: exists
         expected: active
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in monitoring.captures response'
   - check_id: ibm.monitoring.capture.store_encrypted
     title: Ensure Encryption of Stored Monitoring Data
     severity: medium
-    for_each: monitoring.captures
+    for_each: captures
     calls:
     - action: get_monitoring_resource
       fields:
@@ -503,5 +468,5 @@ monitoring:
         operator: equals
         expected: true
       note: IBM monitoring compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.captures
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in monitoring.captures response'
+  sdk_package: ibm_platform_services

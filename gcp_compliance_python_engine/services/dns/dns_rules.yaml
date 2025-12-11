@@ -1,0 +1,261 @@
+service_name: dns
+
+dns:
+  version: '1.0'
+  provider: gcp
+  service: dns
+  scope: global
+  api_name: dns
+  api_version: v1
+  project_param_format: projects/{{project_id}}
+  discovery:
+  - discovery_id: list_managed_zones
+    calls:
+    - action: list_managedZones
+      fields:
+      - path: name
+        var: zone_name
+      - path: id
+        var: zone_id
+      - path: visibility
+        var: zone_visibility
+      - path: dnssecConfig
+        var: dnssec_config
+  - discovery_id: list_policies
+    calls:
+    - action: list_policies
+      fields:
+      - path: name
+        var: policy_name
+      - path: enableLogging
+        var: policy_logging
+  - discovery_id: list_resource_record_sets
+    for_each: list_managed_zones
+    calls:
+    - action: list_resourceRecordSets
+      params:
+        managedZone: "{{name}}"
+      fields:
+      - path: name
+        var: record_name
+      - path: type
+        var: record_type
+      - path: rrdatas
+        var: record_data
+  checks:
+  - check_id: gcp.dns.managed_zone.dnssec_disabled
+    title: Ensure DNSSEC is Disabled (if required)
+    severity: low
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.state
+        operator: equals
+        expected: off
+  - check_id: gcp.dns.managed_zone.rsasha1_in_use_to_zone_sign_in_dnssec_configured
+    title: Ensure RSASHA1 is Not Used for Zone Signing
+    severity: medium
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.defaultKeySpecs[].algorithm
+        operator: not_contains
+        expected: RSASHA1
+  - check_id: gcp.dns.managed_zone.sign_in_dnssec
+    title: Ensure DNSSEC Signing is Enabled
+    severity: high
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.state
+        operator: equals
+        expected: on
+  - check_id: gcp.dns.managed_zone.zone_cross_account_sharing_restricted
+    title: Restrict Cross-Account Sharing of DNS Zones
+    severity: medium
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: privateVisibilityConfig.networks
+        operator: exists
+  - check_id: gcp.dns.managed_zone.zone_dnssec_enabled_where_supported
+    title: Ensure DNSSEC is Enabled Where Supported
+    severity: high
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.state
+        operator: equals
+        expected: on
+  - check_id: gcp.dns.managed_zone.zone_dnssec_enabled
+    title: Ensure DNSSEC is Enabled for Managed Zones
+    severity: high
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.state
+        operator: equals
+        expected: on
+  - check_id: gcp.dns.managed_zone.zone_dnssec_no_rsa_sha1_key
+    title: Ensure DNSSEC Keys Do Not Use RSASHA1
+    severity: medium
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.defaultKeySpecs[].algorithm
+        operator: not_contains
+        expected: RSASHA1
+  - check_id: gcp.dns.managed_zone.zone_dnssec_zone_signing_algorithm_not_rsa_sha1
+    title: Ensure DNSSEC Zone Signing Algorithm is Not RSASHA1
+    severity: medium
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: dnssecConfig.defaultKeySpecs[].keyType
+        operator: equals
+        expected: zoneSigning
+      - path: dnssecConfig.defaultKeySpecs[].algorithm
+        operator: not_contains
+        expected: RSASHA1
+  - check_id: gcp.dns.managed_zone.zone_query_logging_enabled
+    title: Ensure Query Logging is Enabled for DNS Zones
+    severity: medium
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: forwardingConfig
+        operator: not_exists
+        # Only check if not forwarding zone?
+      - path: loggingConfig.enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.dns.managed_zone.zone_zone_transfer_restricted_or_tsig_required
+    title: Restrict Zone Transfers or Require TSIG
+    severity: high
+    for_each: list_managed_zones
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: peeringConfig
+        operator: not_exists
+  - check_id: gcp.dns.policy.logging_enabled
+    title: Ensure DNS Policy Logging is Enabled
+    severity: medium
+    for_each: list_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.dns.policy.traffic_health_checks_required_for_failover
+    title: Require Health Checks for DNS Traffic Failover
+    severity: medium
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: rrdatas
+        operator: exists
+  - check_id: gcp.dns.policy.traffic_policy_documents_encrypted_and_private
+    title: Ensure Traffic Policy Documents are Encrypted and Private
+    severity: high
+    for_each: list_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+  - check_id: gcp.dns.policy.traffic_targets_approved_domains_only
+    title: Restrict Traffic Targets to Approved Domains
+    severity: medium
+    for_each: list_policies
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: alternativeNameServerConfig.targetNameServers
+        operator: exists
+  - check_id: gcp.dns.resource_record_set.record_set_alias_targets_in_approved_services
+    title: Ensure Alias Targets are in Approved Services
+    severity: low
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: A
+  - check_id: gcp.dns.resource_record_set.record_set_caa_records_present_for_root_and_wildcard
+    title: Ensure CAA Records Present for Root and Wildcard
+    severity: medium
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: CAA
+  - check_id: gcp.dns.resource_record_set.record_set_dmarc_record_present_when_mx_present
+    title: Ensure DMARC Record Present When MX Record Exists
+    severity: medium
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: MX
+  - check_id: gcp.dns.resource_record_set.record_set_no_overly_broad_wildcard_records_in_sensiti_zones
+    title: Prevent Overly Broad Wildcard Records in Sensitive Zones
+    severity: high
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: not_contains
+        expected: '*'
+  - check_id: gcp.dns.resource_record_set.record_set_no_rfc1918_in_public_zones
+    title: Ensure No RFC1918 Addresses in Public Zones
+    severity: high
+    for_each: list_resource_record_sets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: rrdatas
+        operator: not_contains
+        expected: 192.168.
+
+
+
+
+
+

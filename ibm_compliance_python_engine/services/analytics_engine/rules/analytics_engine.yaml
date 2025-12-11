@@ -3,24 +3,23 @@ analytics_engine:
   provider: ibm
   service: analytics_engine
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: Analytics_EngineV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: analytics_engine.resources
     calls:
-    - action: list_analytics_engine_resources
-      note: IBM analytics_engine SDK method
+    - action: list_resource_instances
+      params: {}
       save_as: resources
   - discovery_id: analytics_engine.clusters
     calls:
-    - action: list_analytics_engine_resources
-      note: IBM analytics_engine SDK method
+    - action: list_resource_instances
+      params: {}
       save_as: clusters
   checks:
   - check_id: ibm.analytics_engine.resource.encrypted_with_cmks_disabled
     title: Enforce Customer-Managed Key Encryption for Analytics Engine
     severity: medium
-    for_each: analytics_engine.resources
+    for_each: resources
     calls:
     - action: get_analytics_engine_resource
       fields:
@@ -28,12 +27,11 @@ analytics_engine:
         operator: equals
         expected: true
       note: IBM analytics_engine compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in analytics_engine.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in analytics_engine.resources response'
   - check_id: ibm.analytics_engine.cluster.account_public_block_enabled
     title: Ensure Public Access Block is Enabled for IBM Analytics Engine Clusters
     severity: critical
-    for_each: analytics_engine.clusters
+    for_each: clusters
     calls:
     - action: get_analytics_engine_resource
       fields:
@@ -41,12 +39,11 @@ analytics_engine:
         operator: exists
         expected: active
       note: IBM analytics_engine compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters response'
   - check_id: ibm.analytics_engine.cluster.master_nodes_no_public_ip
     title: Ensure Master Nodes in IBM Analytics Engine Lack Public IP Addresses
     severity: critical
-    for_each: analytics_engine.clusters
+    for_each: clusters
     calls:
     - action: get_analytics_engine_resource
       fields:
@@ -54,12 +51,11 @@ analytics_engine:
         operator: exists
         expected: active
       note: IBM analytics_engine compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters response'
   - check_id: ibm.analytics_engine.cluster.publicly_accesible
     title: Prevent Public Access to IBM Analytics Engine Clusters
     severity: critical
-    for_each: analytics_engine.clusters
+    for_each: clusters
     calls:
     - action: get_analytics_engine_resource
       fields:
@@ -67,5 +63,5 @@ analytics_engine:
         operator: exists
         expected: active
       note: IBM analytics_engine compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in analytics_engine.clusters response'
+  sdk_package: ibm_platform_services

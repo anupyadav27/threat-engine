@@ -20,6 +20,11 @@ import yaml
 MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_MAX_WORKERS", "16"))
 REGION_MAX_WORKERS = int(os.getenv("COMPLIANCE_ENGINE_REGION_MAX_WORKERS", "16"))
 
+# Retry/backoff settings
+MAX_RETRIES = int(os.getenv('COMPLIANCE_MAX_RETRIES', '5'))
+BASE_DELAY = float(os.getenv('COMPLIANCE_BASE_DELAY', '0.8'))
+BACKOFF_FACTOR = float(os.getenv('COMPLIANCE_BACKOFF_FACTOR', '2.0'))
+
 # Filters
 _SERVICE_FILTER: Set[str] = {s.strip() for s in os.getenv("GCP_ENGINE_FILTER_SERVICES", "").split(",") if s.strip()}
 _REGION_FILTER: Set[str] = {s.strip() for s in os.getenv("GCP_ENGINE_FILTER_REGIONS", "").split(",") if s.strip()}
@@ -30,6 +35,20 @@ _RESOURCE_NAME_FILTER: Optional[str] = os.getenv("GCP_ENGINE_FILTER_RESOURCE_NAM
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
+
+def _retry_call(func, *args, **kwargs):
+    """Retry a function call with exponential backoff"""
+    from time import sleep
+    for attempt in range(MAX_RETRIES):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            delay = BASE_DELAY * (BACKOFF_FACTOR ** attempt)
+            print(f"Retrying after error: {e} (attempt {attempt+1}/{MAX_RETRIES}, sleep {delay:.2f}s)")
+            sleep(delay)
+
 
 def extract_value(obj: Any, path: str):
     """Extract value from nested object using dot notation"""
@@ -279,6 +298,14 @@ def execute_api_call(client: Any, action: str, project_id: str, region: Optional
     method = parsed['method']
     resource = parsed['resource']
     
+    def _execute():
+        return _execute_api_call_internal(client, action, method, resource, project_id, region, resource_item, **kwargs)
+    
+    return _retry_call(_execute)
+
+
+def _execute_api_call_internal(client: Any, action: str, method: str, resource: str, project_id: str, region: Optional[str] = None, resource_item: Any = None, **kwargs) -> Any:
+    """Internal execution logic for API calls"""
     try:
         # Handle SDK clients (like GCS) vs Discovery API clients differently
         if hasattr(client, 'list_buckets'):

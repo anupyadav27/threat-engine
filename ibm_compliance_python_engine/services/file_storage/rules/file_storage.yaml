@@ -3,29 +3,28 @@ file_storage:
   provider: ibm
   service: file_storage
   scope: regional
-  package: ibm-cloud-sdk-core
-  client_class: File_StorageV1
+  client_class: ResourceControllerV2
   discovery:
   - discovery_id: file_storage.resources
     calls:
-    - action: list_file_storage_resources
-      note: IBM file_storage SDK method
+    - action: list_resource_instances
+      params: {}
       save_as: resources
   - discovery_id: file_storage.not_publicly_accessibles
     calls:
-    - action: list_file_storage_resources
-      note: IBM file_storage SDK method
+    - action: list_resource_instances
+      params: &id001 {}
       save_as: not_publicly_accessibles
   - discovery_id: file_storage.shares
     calls:
-    - action: list_file_storage_resources
-      note: IBM file_storage SDK method
+    - action: list_resource_instances
+      params: *id001
       save_as: shares
   checks:
   - check_id: ibm.file_storage.resource.backup_enabled
     title: Ensuring Backup for IBM Cloud File Storage Resources
     severity: medium
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -33,12 +32,11 @@ file_storage:
         operator: equals
         expected: true
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources response'
   - check_id: ibm.file_storage.resource.encryption_at_rest_enabled
     title: Ensure Encryption at Rest is Enabled for IBM Cloud File Storage
     severity: high
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -46,12 +44,11 @@ file_storage:
         operator: equals
         expected: true
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in file_storage.resources response'
   - check_id: ibm.file_storage.resource.have_backup_enabled
     title: Ensure Backup is Enabled for IBM Cloud File Storage Resources
     severity: medium
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -59,12 +56,11 @@ file_storage:
         operator: equals
         expected: true
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources response'
   - check_id: ibm.file_storage.resource.multi_az_enabled
     title: Ensure Multi-AZ Configuration for IBM Cloud File Storage
     severity: low
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -72,12 +68,11 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources response'
   - check_id: ibm.file_storage.not_publicly_accessible.not_publicly_accessible_blocked
     title: Prevent Public Accessibility of IBM Cloud File Storage
     severity: critical
-    for_each: file_storage.not_publicly_accessibles
+    for_each: not_publicly_accessibles
     calls:
     - action: get_file_storage_resource
       fields:
@@ -85,12 +80,11 @@ file_storage:
         operator: equals
         expected: false
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "public_access" exists in file_storage.not_publicly_accessibles
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "public_access" exists in file_storage.not_publicly_accessibles response'
   - check_id: ibm.file_storage.share.encryption_at_rest_enabled
     title: Ensure Encryption at Rest is Enabled for IBM Cloud File Storage Shares
     severity: high
-    for_each: file_storage.shares
+    for_each: shares
     calls:
     - action: get_file_storage_resource
       fields:
@@ -98,12 +92,11 @@ file_storage:
         operator: equals
         expected: true
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in file_storage.shares
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "encryption_at_rest" exists in file_storage.shares response'
   - check_id: ibm.file_storage.share.kms_key_policy_least_privilege
     title: Enforce Least Privilege for KMS Key Policy in IBM File Storage
     severity: high
-    for_each: file_storage.shares
+    for_each: shares
     calls:
     - action: get_file_storage_resource
       fields:
@@ -111,12 +104,11 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares response'
   - check_id: ibm.file_storage.share.private_network_only
     title: Enforce Private Network Access for IBM Cloud File Storage Shares
     severity: medium
-    for_each: file_storage.shares
+    for_each: shares
     calls:
     - action: get_file_storage_resource
       fields:
@@ -124,12 +116,11 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares response'
   - check_id: ibm.file_storage.share.snapshots_enabled
     title: Ensure Snapshots Are Enabled for IBM Cloud File Storage Shares
     severity: low
-    for_each: file_storage.shares
+    for_each: shares
     calls:
     - action: get_file_storage_resource
       fields:
@@ -137,12 +128,11 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.shares response'
   - check_id: ibm.file_storage.resource.file_system_copy_tags_to_backups_enabled
     title: Ensure Tags on File System Copies Are Propagated to Backups
     severity: medium
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -150,12 +140,11 @@ file_storage:
         operator: equals
         expected: true
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "backup_enabled" exists in file_storage.resources response'
   - check_id: ibm.file_storage.resource.file_system_copy_tags_to_volumes_enabled
     title: Ensure File System Tags are Copied to Volumes for Enhanced Traceability
     severity: low
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -163,12 +152,11 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources response'
   - check_id: ibm.file_storage.resource.windows_file_system_multi_az_enabled
     title: Ensure Multi-AZ Enabled for Windows File System in IBM Cloud
     severity: low
-    for_each: file_storage.resources
+    for_each: resources
     calls:
     - action: get_file_storage_resource
       fields:
@@ -176,5 +164,5 @@ file_storage:
         operator: exists
         expected: active
       note: IBM file_storage compliance check
-    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources
-      response'
+    note: 'MANUAL_REVIEW: Verify field path "enabled" exists in file_storage.resources response'
+  sdk_package: ibm_platform_services
