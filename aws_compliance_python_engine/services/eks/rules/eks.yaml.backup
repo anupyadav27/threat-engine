@@ -1,0 +1,698 @@
+version: '1.0'
+provider: aws
+service: eks
+discovery:
+- discovery_id: aws.eks.describe_cluster_versions
+  calls:
+  - action: describe_cluster_versions
+    save_as: describe_cluster_versions_response
+  emit:
+    items_for: '{{ describe_cluster_versions_response.clusterVersions }}'
+    as: resource
+    item:
+      cluster_version: '{{ resource.clusterVersion }}'
+      cluster_type: '{{ resource.clusterType }}'
+      default_platform_version: '{{ resource.defaultPlatformVersion }}'
+      default_version: '{{ resource.defaultVersion }}'
+      release_date: '{{ resource.releaseDate }}'
+      end_of_standard_support_date: '{{ resource.endOfStandardSupportDate }}'
+      end_of_extended_support_date: '{{ resource.endOfExtendedSupportDate }}'
+      status: '{{ resource.status }}'
+      version_status: '{{ resource.versionStatus }}'
+      kubernetes_patch_version: '{{ resource.kubernetesPatchVersion }}'
+- discovery_id: aws.eks.describe_addon_versions
+  calls:
+  - action: describe_addon_versions
+    save_as: describe_addon_versions_response
+  emit:
+    items_for: '{{ describe_addon_versions_response.addons }}'
+    as: resource
+    item:
+      addon_name: '{{ resource.addonName }}'
+      type: '{{ resource.type }}'
+      addon_versions: '{{ resource.addonVersions }}'
+      publisher: '{{ resource.publisher }}'
+      owner: '{{ resource.owner }}'
+      marketplace_information: '{{ resource.marketplaceInformation }}'
+      default_namespace: '{{ resource.defaultNamespace }}'
+- discovery_id: aws.eks.create_cluster
+  calls:
+  - action: create_cluster
+    save_as: create_cluster_response
+    params:
+      name: '{{ item.id }}'
+      roleArn: '{{ item.id }}'
+      resourcesVpcConfig: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      name: '{{ create_cluster_response.cluster.name }}'
+      arn: '{{ create_cluster_response.cluster.arn }}'
+      created_at: '{{ create_cluster_response.cluster.createdAt }}'
+      version: '{{ create_cluster_response.cluster.version }}'
+      endpoint: '{{ create_cluster_response.cluster.endpoint }}'
+- discovery_id: aws.eks.create_nodegroup
+  calls:
+  - action: create_nodegroup
+    save_as: create_nodegroup_response
+    params:
+      clusterName: '{{ item.id }}'
+      nodegroupName: '{{ item.id }}'
+      subnets: '{{ item.id }}'
+      nodeRole: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      nodegroup_name: '{{ create_nodegroup_response.nodegroup.nodegroupName }}'
+      nodegroup_arn: '{{ create_nodegroup_response.nodegroup.nodegroupArn }}'
+      cluster_name: '{{ create_nodegroup_response.nodegroup.clusterName }}'
+      version: '{{ create_nodegroup_response.nodegroup.version }}'
+      release_version: '{{ create_nodegroup_response.nodegroup.releaseVersion }}'
+- discovery_id: aws.eks.associate_encryption_config
+  calls:
+  - action: associate_encryption_config
+    save_as: associate_encryption_config_response
+    params:
+      clusterName: '{{ item.id }}'
+      encryptionConfig: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ associate_encryption_config_response.update.id }}'
+      status: '{{ associate_encryption_config_response.update.status }}'
+      type: '{{ associate_encryption_config_response.update.type }}'
+      params: '{{ associate_encryption_config_response.update.params }}'
+      created_at: '{{ associate_encryption_config_response.update.createdAt }}'
+- discovery_id: aws.eks.create_pod_identity_association
+  calls:
+  - action: create_pod_identity_association
+    save_as: create_pod_identity_association_response
+    params:
+      clusterName: '{{ item.id }}'
+      namespace: '{{ item.id }}'
+      serviceAccount: '{{ item.id }}'
+      roleArn: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      cluster_name: '{{ create_pod_identity_association_response.association.clusterName
+        }}'
+      namespace: '{{ create_pod_identity_association_response.association.namespace
+        }}'
+      service_account: '{{ create_pod_identity_association_response.association.serviceAccount
+        }}'
+      role_arn: '{{ create_pod_identity_association_response.association.roleArn }}'
+      association_arn: '{{ create_pod_identity_association_response.association.associationArn
+        }}'
+- discovery_id: aws.eks.create_access_entry
+  calls:
+  - action: create_access_entry
+    save_as: create_access_entry_response
+    params:
+      clusterName: '{{ item.id }}'
+      principalArn: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      cluster_name: '{{ create_access_entry_response.accessEntry.clusterName }}'
+      principal_arn: '{{ create_access_entry_response.accessEntry.principalArn }}'
+      kubernetes_groups: '{{ create_access_entry_response.accessEntry.kubernetesGroups
+        }}'
+      access_entry_arn: '{{ create_access_entry_response.accessEntry.accessEntryArn
+        }}'
+      created_at: '{{ create_access_entry_response.accessEntry.createdAt }}'
+- discovery_id: aws.eks.create_addon
+  calls:
+  - action: create_addon
+    save_as: create_addon_response
+    params:
+      clusterName: '{{ item.id }}'
+      addonName: '{{ item.addon_name }}'
+    on_error: continue
+  for_each: aws.eks.describe_addon_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      addon_name: '{{ create_addon_response.addon.addonName }}'
+      cluster_name: '{{ create_addon_response.addon.clusterName }}'
+      status: '{{ create_addon_response.addon.status }}'
+      addon_version: '{{ create_addon_response.addon.addonVersion }}'
+      health: '{{ create_addon_response.addon.health }}'
+- discovery_id: aws.eks.create_fargate_profile
+  calls:
+  - action: create_fargate_profile
+    save_as: create_fargate_profile_response
+    params:
+      fargateProfileName: '{{ item.id }}'
+      clusterName: '{{ item.id }}'
+      podExecutionRoleArn: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_cluster_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      fargate_profile_name: '{{ create_fargate_profile_response.fargateProfile.fargateProfileName
+        }}'
+      fargate_profile_arn: '{{ create_fargate_profile_response.fargateProfile.fargateProfileArn
+        }}'
+      cluster_name: '{{ create_fargate_profile_response.fargateProfile.clusterName
+        }}'
+      created_at: '{{ create_fargate_profile_response.fargateProfile.createdAt }}'
+      pod_execution_role_arn: '{{ create_fargate_profile_response.fargateProfile.podExecutionRoleArn
+        }}'
+- discovery_id: aws.eks.describe_addon_configuration
+  calls:
+  - action: describe_addon_configuration
+    save_as: describe_addon_configuration_response
+    params:
+      addonName: '{{ item.addon_name }}'
+      addonVersion: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.eks.describe_addon_versions
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      service_account: '{{ describe_addon_configuration_response.podIdentityConfiguration.serviceAccount
+        }}'
+      recommended_managed_policies: '{{ describe_addon_configuration_response.podIdentityConfiguration.recommendedManagedPolicies
+        }}'
+checks:
+- rule_id: aws.eks.cluster.encryption_at_rest_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.cluster.anonymous_auth_disabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.identity
+    op: equals
+    value:
+      oidc:
+        issuer: https://oidc.eks.<region>.amazonaws.com/id/<eks-cluster-id>
+- rule_id: aws.eks.nodegroup.nodes_no_public_ip_configured
+  for_each: aws.eks.create_nodegroup
+  conditions:
+    var: item.remote_access
+    op: equals
+- rule_id: aws.eks.api.image_signature_verification_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.resource.control_plane_logging_all_types_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.logging
+    op: exists
+- rule_id: aws.eks.cluster.secrets_encryption_kms_cmk_configured
+  for_each: aws.eks.associate_encryption_config
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.type
+      op: equals
+      value: KMS
+- rule_id: aws.eks.api.env_no_plaintext_secrets_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.api.cluster_required_allowlist_for_namespace_services
+  for_each: aws.eks.create_pod_identity_association
+  conditions:
+    var: item.namespace
+    op: exists
+- rule_id: aws.eks.api.read_only_root_filesystem_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.nodegroup.node_shielded_secure_boot_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.api.wildcard_verbs_disallowed_configured
+  for_each: aws.eks.create_access_entry
+  conditions:
+    var: item.kubernetes_groups
+    op: not_contains
+    value:
+    - '*'
+- rule_id: aws.eks.api.tls_min_version_1_2_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.version
+    op: equals
+    value: '1.2'
+- rule_id: aws.eks.api.host_namespace_usage_denied_configured
+  for_each: aws.eks.create_pod_identity_association
+  conditions:
+    var: item.namespace
+    op: equals
+    value: default
+- rule_id: aws.eks.resource.kubelet_event_record_qps_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.configuration_values
+    op: contains
+    value: eventRecordQPS
+- rule_id: aws.eks.api.no_cluster_admin_to_authenticated_configured
+  for_each: aws.eks.create_access_entry
+  conditions:
+    var: item.kubernetes_groups
+    op: not_contains
+    value:
+    - system:masters
+- rule_id: aws.eks.api.default_service_account_automount_disabled
+  for_each: aws.eks.create_pod_identity_association
+  conditions:
+    var: item.service_account
+    op: equals
+    value: false
+- rule_id: aws.eks.api.nodeport_usage_restricted
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.kubernetes_network_config
+    op: exists
+- rule_id: aws.eks.cluster.private_control_plane_endpoint_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.resources_vpc_config
+    op: contains
+    value: privateAccess
+- rule_id: aws.eks.fargateprofile.execution_role_least_privilege
+  for_each: aws.eks.create_fargate_profile
+  conditions:
+    var: item.pod_execution_role_arn
+    op: exists
+- rule_id: aws.eks.api.image_registry_allowlist_enforced
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.api.drop_net_raw_and_reduce_caps_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.status
+      op: equals
+      value: ENABLED
+- rule_id: aws.eks.nodegroup.node_workload_identity_enabled
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.pod_identity_associations
+    op: exists
+- rule_id: aws.eks.cluster.audit_logging_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.logging
+    op: exists
+- rule_id: aws.eks.api.default_deny_egress_per_namespace_configured
+  for_each: aws.eks.describe_addon_versions
+  conditions:
+    var: item.default_namespace
+    op: exists
+- rule_id: aws.eks.api.pod_security_level_restricted
+  for_each: aws.eks.create_addon
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.configuration_values
+      op: contains
+      value: restricted
+- rule_id: aws.eks.fargateprofile.client_cert_rotation_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.cluster.profiling_disabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.logging
+    op: equals
+    value:
+      clusterLogging:
+      - types:
+        - api
+        - audit
+        - authenticator
+        - controllerManager
+        - scheduler
+        enabled: false
+- rule_id: aws.eks.cluster.service_account_token_signing_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.certificate.monitored
+  for_each: aws.eks.create_cluster
+  conditions:
+    all:
+    - var: item.logging
+      op: exists
+    - var: item.status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.eks.api.admission_psa_enforce_mode_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENFORCED
+- rule_id: aws.eks.fargateprofile.read_only_port_disabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.nodegroup.node_read_only_port_disabled
+  for_each: aws.eks.create_nodegroup
+  conditions:
+    var: item.remote_access
+    op: equals
+- rule_id: aws.eks.addon.no_privileged_permissions_configured
+  for_each: aws.eks.describe_addon_configuration
+  conditions:
+    var: item.recommended_managed_policies
+    op: equals
+    value: []
+- rule_id: aws.eks.fargateprofile.logging_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.logging
+    op: exists
+- rule_id: aws.eks.api.default_deny_ingress_per_namespace_configured
+  for_each: aws.eks.describe_addon_versions
+  conditions:
+    var: item.default_namespace
+    op: equals
+    value: default
+- rule_id: aws.eks.api.external_ips_not_used_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.endpoint
+    op: equals
+- rule_id: aws.eks.addon.version_pinned_and_supported_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    all:
+    - var: item.addon_version
+      op: exists
+    - var: item.addon_version
+      op: equals
+      value: supported_version
+- rule_id: aws.eks.cluster.leader_election_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.nodegroup.anonymous_auth_disabled
+  for_each: aws.eks.create_nodegroup
+  conditions:
+    var: item.remote_access
+    op: equals
+    value: false
+- rule_id: aws.eks.cluster.client_cert_auth_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.certificate_authority
+    op: exists
+- rule_id: aws.eks.api.no_hostpath_mounts_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.pod_identity_associations
+    op: equals
+    value: []
+- rule_id: aws.eks.cluster.tls_min_version_1_2_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.version
+    op: equals
+    value: '1.2'
+- rule_id: aws.eks.api.read_only_port_disabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.kubernetes_network_config
+    op: exists
+- rule_id: aws.eks.api.client_cert_rotation_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.certificate_authority
+    op: exists
+- rule_id: aws.eks.cluster.default_service_account_automount_disabled
+  for_each: aws.eks.create_pod_identity_association
+  conditions:
+    var: item.service_account
+    op: equals
+    value: false
+- rule_id: aws.eks.api.type_loadbalancer_internal_only_where_required
+  for_each: aws.eks.create_cluster
+  conditions:
+    all:
+    - var: item.resources_vpc_config
+      op: exists
+    - var: item.endpoint
+      op: exists
+- rule_id: aws.eks.api.network_policies_present
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.kubernetes_network_config
+    op: exists
+- rule_id: aws.eks.api.leader_election_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.api.dns_and_metrics_from_approved_sources_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    all:
+    - var: item.logging
+      op: exists
+    - var: item.status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.eks.api.privilege_escalation_denied_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.status
+      op: equals
+      value: ENABLED
+- rule_id: aws.eks.api.no_privileged_containers_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.configuration_values
+    op: equals
+    value: []
+- rule_id: aws.eks.nodegroup.node_protect_kernel_defaults_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.cluster.kms_cmk_encryption_in_secrets_enabled
+  for_each: aws.eks.associate_encryption_config
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.type
+      op: equals
+      value: KMS
+- rule_id: aws.eks.api.run_as_non_root_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.configuration_values
+    op: contains
+    value: 'runAsNonRoot: true'
+- rule_id: aws.eks.cluster.endpoint_access_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.endpoint
+    op: exists
+- rule_id: aws.eks.cluster.private_nodes_configuration_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.resources_vpc_config
+    op: contains
+    value:
+      endpointPrivateAccess: true
+- rule_id: aws.eks.nodegroup.disk_encryption_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.api.host_network_pid_ipc_disabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.kubernetes_network_config
+    op: equals
+    value:
+      ipFamily: ipv4
+      serviceIpv4Cidr: 10.100.0.0/16
+- rule_id: aws.eks.api.service_account_token_signing_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.fargateprofile.anonymous_auth_disabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.cluster.admission_psa_enforce_mode_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.api.seccomp_profile_runtime_default_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.api.default_sa_not_cluster_admin_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.service_account_role_arn
+    op: equals
+- rule_id: aws.eks.cluster.secure_port_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.endpoint
+    op: exists
+- rule_id: aws.eks.cluster.secrets_encryption_kms_enabled
+  for_each: aws.eks.associate_encryption_config
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.type
+      op: equals
+      value: KMS
+- rule_id: aws.eks.resource.node_kubelet_read_only_port_configured
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.api.kube_system_services_not_public_configured
+  for_each: aws.eks.create_cluster
+  conditions:
+    all:
+    - var: item.resources_vpc_config
+      op: exists
+    - var: item.status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.eks.api.profiling_disabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: DISABLED
+- rule_id: aws.eks.addon.from_trusted_channel_configured
+  for_each: aws.eks.describe_addon_versions
+  conditions:
+    all:
+    - var: item.publisher
+      op: equals
+      value: AWS
+    - var: item.owner
+      op: equals
+      value: Amazon
+- rule_id: aws.eks.api.secure_port_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.endpoint
+    op: exists
+- rule_id: aws.eks.fargateprofile.private_subnets_only_configured
+  for_each: aws.eks.create_fargate_profile
+  conditions:
+    var: item.subnets
+    op: equals
+    value:
+    - subnet-12345678
+    - subnet-87654321
+- rule_id: aws.eks.api.anonymous_auth_disabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.identity
+    op: exists
+- rule_id: aws.eks.api.pod_security_admission_restricted_default_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.configuration_values
+      op: exists
+- rule_id: aws.eks.fargateprofile.protect_kernel_defaults_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.eks.api.audit_logging_enabled
+  for_each: aws.eks.create_cluster
+  conditions:
+    var: item.logging
+    op: exists
+- rule_id: aws.eks.api.image_tag_not_latest_configured
+  for_each: aws.eks.create_addon
+  conditions:
+    var: item.addon_version
+    op: not_equals
+    value: latest
+- rule_id: aws.eks.api.protect_kernel_defaults_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.eks.nodegroup.client_cert_rotation_enabled
+  for_each: aws.eks.describe_cluster_versions
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED

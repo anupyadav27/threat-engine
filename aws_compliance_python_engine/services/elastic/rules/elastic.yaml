@@ -1,18 +1,17 @@
+# ES Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/es_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: es
 discovery:
 - discovery_id: aws.elastic.resources
   calls:
-  - client: es
-    action: list_domain_names
-    save_as: resource_list
-    on_error: continue
+  - action: list_domain_names
     fields:
     - Elastics
   emit:
-    items_for: resource_list[]
-    as: resource
+    items_for: list_domain_names_response[]
     item:
       id: '{{ resource.Id }}'
       name: '{{ resource.Name }}'
@@ -20,11 +19,8 @@ checks:
 - title: 'ELASTIC resource: Disaster Recovery Drill Execution Configured'
   severity: medium
   rule_id: aws.elastic.resource.disaster_recovery_drill_execution_configured
-  for_each:
-    discovery: aws.elastic.resources
-    as: resource
-    item: resource
+  for_each: aws.elastic.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true

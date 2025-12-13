@@ -1,166 +1,105 @@
+# FARGATE Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/fargate_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: fargate
 discovery:
 - discovery_id: aws.fargate.services
   calls:
-  - client: fargate
-    action: list_fargates
-    save_as: service_list
-    on_error: continue
+  - action: list_fargates
     fields:
     - Fargates
   emit:
-    items_for: service_list[]
-    as: service
+    items_for: list_fargates_response[]
     item:
       id: '{{ service.Id }}'
       name: '{{ service.Name }}'
 - discovery_id: aws.fargate.service_logging
   for_each: aws.fargate.services
   calls:
-  - client: fargate
-    action: describe_service_logging
+  - action: describe_service_logging
     params:
       ServiceId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      logging_enabled: '{{ describe_service_logging_response.LoggingEnabled is defined
+        if describe_service_logging_response else false }}'
 - discovery_id: aws.fargate.task_logging
   calls:
-  - client: fargate
-    action: list_task_logging
-    save_as: task_logging
-    on_error: continue
+  - action: list_task_logging
   emit:
-    items_for: task_logging[]
-    as: task_logging
+    items_for: list_task_logging_response[]
     item:
-      id: '{{ task_logging.Id }}'
+      id: '{{ list_task_logging_response.Id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.fargate.tasks
   for_each: aws.fargate.task
   calls:
-  - client: fargate
-    action: describe_task_execution
-    save_as: tasks
-    on_error: continue
+  - action: describe_task_execution
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 checks:
-- title: 'FARGATE task: Vpc Private Networking Enabled'
-  severity: high
-  rule_id: aws.fargate.task.vpc_private_networking_enabled
-  for_each:
-    discovery: aws.fargate.tasks
-    as: task
-    item: task
+- rule_id: aws.fargate.task.vpc_private_networking_enabled
+  for_each: aws.fargate.tasks
   conditions:
-    var: task.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'FARGATE task: Logging And Tracing Enabled'
-  severity: medium
-  rule_id: aws.fargate.task.logging_and_tracing_enabled
-  for_each:
-    discovery: aws.fargate.task_logging
-    as: task
-    item: task
+- rule_id: aws.fargate.task.logging_and_tracing_enabled
+  for_each: aws.fargate.task_logging
   conditions:
     var: logging.logging_enabled
     op: equals
     value: true
-- title: 'FARGATE service: Role Least Privilege'
-  severity: high
-  rule_id: aws.fargate.service.role_least_privilege
-  for_each:
-    discovery: aws.fargate.services
-    as: service
-    item: service
+- rule_id: aws.fargate.service.role_least_privilege
+  for_each: aws.fargate.services
   conditions:
-    var: service.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'FARGATE service: Fargate Env No Plaintext Secrets Configured'
-  severity: medium
-  rule_id: aws.fargate.service.fargate_env_no_plaintext_secrets_configured
-  for_each:
-    discovery: aws.fargate.services
-    as: service
-    item: service
+- rule_id: aws.fargate.service.fargate_env_no_plaintext_secrets_configured
+  for_each: aws.fargate.services
   conditions:
-    var: service.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'FARGATE service: Logging And Tracing Enabled'
-  severity: medium
-  rule_id: aws.fargate.service.logging_and_tracing_enabled
-  for_each:
-    discovery: aws.fargate.service_logging
-    as: service
-    item: service
+- rule_id: aws.fargate.service.logging_and_tracing_enabled
+  for_each: aws.fargate.service_logging
   conditions:
     var: logging.logging_enabled
     op: equals
     value: true
-- title: 'FARGATE service: Dead Letter Queue Configured'
-  severity: medium
-  rule_id: aws.fargate.service.dead_letter_queue_configured
-  for_each:
-    discovery: aws.fargate.services
-    as: service
-    item: service
+- rule_id: aws.fargate.service.dead_letter_queue_configured
+  for_each: aws.fargate.services
   conditions:
-    var: service.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'FARGATE task: Role Least Privilege'
-  severity: high
-  rule_id: aws.fargate.task.role_least_privilege
-  for_each:
-    discovery: aws.fargate.tasks
-    as: task
-    item: task
+- rule_id: aws.fargate.task.role_least_privilege
+  for_each: aws.fargate.tasks
   conditions:
-    var: task.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'FARGATE task: Dead Letter Queue Configured'
-  severity: medium
-  rule_id: aws.fargate.task.dead_letter_queue_configured
-  for_each:
-    discovery: aws.fargate.tasks
-    as: task
-    item: task
+- rule_id: aws.fargate.task.dead_letter_queue_configured
+  for_each: aws.fargate.tasks
   conditions:
-    var: task.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'FARGATE task: Fargate Env No Plaintext Secrets Configured'
-  severity: medium
-  rule_id: aws.fargate.task.fargate_env_no_plaintext_secrets_configured
-  for_each:
-    discovery: aws.fargate.tasks
-    as: task
-    item: task
+- rule_id: aws.fargate.task.fargate_env_no_plaintext_secrets_configured
+  for_each: aws.fargate.tasks
   conditions:
-    var: task.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'FARGATE service: Vpc Private Networking Enabled'
-  severity: high
-  rule_id: aws.fargate.service.vpc_private_networking_enabled
-  for_each:
-    discovery: aws.fargate.services
-    as: service
-    item: service
+- rule_id: aws.fargate.service.vpc_private_networking_enabled
+  for_each: aws.fargate.services
   conditions:
-    var: service.is_public
+    var: item.is_public
     op: equals
     value: false

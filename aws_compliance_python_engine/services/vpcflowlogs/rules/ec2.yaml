@@ -1,0 +1,53 @@
+# EC2 Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/ec2_metadata.yaml
+
+version: '1.0'
+provider: aws
+service: ec2
+discovery:
+- discovery_id: aws.vpcflowlogs.flowlogs
+  calls:
+  - action: describe_flow_logs
+    fields:
+    - Vpcflowlogss
+  emit:
+    items_for: describe_flow_logs_response[]
+    item:
+      id: '{{ flowlog.Id }}'
+      name: '{{ flowlog.Name }}'
+- discovery_id: aws.vpcflowlogs.flowlog_logging
+  for_each: aws.vpcflowlogs.flowlogs
+  calls:
+  - action: describe_flowlog_logging
+    params:
+      FlowlogId: '{{ item.id }}'
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ describe_flowlog_logging_response.LoggingEnabled is defined
+        if describe_flowlog_logging_response else false }}'
+checks:
+- rule_id: aws.vpcflowlogs.flowlog.alerts_for_anomalies_configured
+  for_each: aws.vpcflowlogs.flowlog_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpcflowlogs.flowlog.log_s_enabled
+  for_each: aws.vpcflowlogs.flowlog_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpcflowlogs.flowlog.alert_destinations_configured
+  for_each: aws.vpcflowlogs.flowlog_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpcflowlogs.flowlog.log_ids_ips_enabled_if_supported
+  for_each: aws.vpcflowlogs.flowlog_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true

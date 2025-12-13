@@ -3,11 +3,26 @@ import json
 import fnmatch
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
+from pathlib import Path
 import yaml
+
+# Import exception reading from exception_manager to avoid duplication
+from aws_compliance_python_engine.utils.exception_manager import (
+    list_service_exceptions,
+    list_check_exceptions
+)
 
 
 def _config_dir() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config"))
+
+
+def _output_dir() -> str:
+    """Get output base directory"""
+    package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    output_dir = os.path.join(package_root, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
 
 
 def generate_arn(service: str, region: str, account_id: str, resource_id: str, resource_type: str = None) -> str:
@@ -124,42 +139,149 @@ def is_global_service(service: str) -> bool:
 
 
 def _timestamp() -> str:
-    return datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    """Generate timestamp for scan ID"""
+    return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+
+def create_scan_folder(scan_id: str = None) -> tuple:
+    """
+    Create timestamped scan folder with logs subdirectory
+    
+    Returns:
+        (scan_folder_path, scan_id)
+    """
+    if scan_id is None:
+        scan_id = f"scan_{_timestamp()}"
+    
+    output_base = _output_dir()
+    scan_folder = os.path.join(output_base, scan_id)
+    os.makedirs(scan_folder, exist_ok=True)
+    
+    # Create logs subdirectory inside scan folder
+    logs_dir = os.path.join(scan_folder, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Create latest symlink
+    latest_link = os.path.join(output_base, "latest")
+    if os.path.islink(latest_link) or os.path.exists(latest_link):
+        os.remove(latest_link)
+    os.symlink(scan_id, latest_link)
+    
+    return scan_folder, scan_id
 
 
 def create_report_folder() -> str:
-    package_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    base = os.path.join(package_root, "reporting")
-    os.makedirs(base, exist_ok=True)
-    folder = os.path.join(base, f"reporting_{_timestamp()}")
-    os.makedirs(folder, exist_ok=True)
-    return folder
+    """Legacy compatibility - calls create_scan_folder"""
+    scan_folder, _ = create_scan_folder()
+    return scan_folder
+
+
+def get_scan_log_file(scan_folder: str, log_type: str = "scan") -> str:
+    """
+    Get log file path inside scan folder
+    
+    Args:
+        scan_folder: Path to scan folder
+        log_type: 'scan', 'errors', or account_id
+    
+    Returns:
+        Path to log file
+    """
+    logs_dir = os.path.join(scan_folder, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    if log_type == "scan":
+        return os.path.join(logs_dir, "scan.log")
+    elif log_type == "errors":
+        return os.path.join(logs_dir, "errors.log")
+    else:
+        # Account-specific log
+        return os.path.join(logs_dir, f"account_{log_type}.log")
+
+
+def setup_scan_logging(scan_folder: str, scan_id: str):
+    """
+    Setup logging for a scan
+    
+    Args:
+        scan_folder: Path to scan folder
+        scan_id: Scan identifier
+    
+    Returns:
+        Logger instance
+    """
+    import logging
+    
+    log_file = get_scan_log_file(scan_folder, "scan")
+    error_log_file = get_scan_log_file(scan_folder, "errors")
+    
+    # Ensure log files exist
+    Path(log_file).touch(exist_ok=True)
+    Path(error_log_file).touch(exist_ok=True)
+    
+    # Create main scan logger
+    logger = logging.getLogger(f'compliance_scan_{scan_id}')
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()  # Remove any existing handlers
+    
+    # File handler - all logs
+    fh = logging.FileHandler(log_file)
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    logger.addHandler(fh)
+    
+    # Error file handler - errors only
+    eh = logging.FileHandler(error_log_file)
+    eh.setLevel(logging.ERROR)
+    eh.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    logger.addHandler(eh)
+    
+    # Console handler
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    logger.addHandler(ch)
+    
+    # ALSO configure the service scanner logger (compliance-boto3)
+    # This ensures service-level logs also go to the scan folder
+    service_logger = logging.getLogger('compliance-boto3')
+    service_logger.setLevel(logging.INFO)
+    service_logger.handlers.clear()
+    
+    # Add same handlers to service logger
+    service_logger.addHandler(fh)
+    service_logger.addHandler(eh)
+    service_logger.addHandler(ch)
+    
+    # Configure root logger for botocore and other libs
+    root_logger = logging.getLogger()
+    root_logger.addHandler(fh)
+    root_logger.addHandler(eh)
+    
+    logger.info(f"[SCAN-START] {scan_id}")
+    logger.info(f"Scan folder: {scan_folder}")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Error log: {error_log_file}")
+    
+    return logger
 
 
 def _meta(account_id: str | None, folder: str) -> Dict[str, Any]:
     return {"account_id": account_id, "generated_at": datetime.utcnow().isoformat() + "Z", "report_folder": os.path.abspath(folder)}
 
 
-def _load_service_exceptions() -> List[Dict[str, Any]]:
-    path = os.path.join(_config_dir(), "service_list.json")
-    data: Dict[str, Any] = {}
-    if os.path.exists(path):
-        with open(path) as fh:
-            data = json.load(fh) or {}
-    out: List[Dict[str, Any]] = []
-    for s in (data.get("services") or []):
-        for ex in (s.get("exceptions") or []):
-            out.append({**ex, "service": s.get("name")})
-    return out
-
-
-def _load_check_exceptions() -> List[Dict[str, Any]]:
-    path = os.path.join(_config_dir(), "check_exceptions.yaml")
-    if not os.path.exists(path):
-        return []
-    with open(path) as fh:
-        data = yaml.safe_load(fh) or {}
-    return list((data.get("exceptions") or []))
+# NOTE: Exception reading functions removed - now using exception_manager.py
+# This eliminates code duplication and provides single source of truth
+# Use list_service_exceptions() and list_check_exceptions() imported above
 
 
 def _load_actions_config() -> Dict[str, Any]:
@@ -200,10 +322,160 @@ def _match_scope(val: str | None, pattern: str | None) -> bool:
     return fnmatch.fnmatch(val, pattern)
 
 
-def save_reporting_bundle(results: List[Dict[str, Any]], account_id: str | None = None) -> str:
-    folder = create_report_folder()
-    svc_ex = _load_service_exceptions()
-    chk_ex = _load_check_exceptions()
+def save_metadata(scan_folder: str, metadata: dict) -> None:
+    """Save scan metadata to metadata.json"""
+    metadata_path = os.path.join(scan_folder, "metadata.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+
+def save_summary(scan_folder: str, summary: dict) -> None:
+    """Save scan summary to summary.json"""
+    summary_path = os.path.join(scan_folder, "summary.json")
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+
+
+def save_account_summary(scan_folder: str, account_id: str, summary: dict) -> None:
+    """Save account-level summary"""
+    account_dir = os.path.join(scan_folder, f"account_{account_id}")
+    os.makedirs(account_dir, exist_ok=True)
+    
+    summary_path = os.path.join(account_dir, "account_summary.json")
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+
+
+def save_region_summary(scan_folder: str, account_id: str, region: str, summary: dict) -> None:
+    """Save region-level summary"""
+    region_dir = os.path.join(scan_folder, f"account_{account_id}", region)
+    os.makedirs(region_dir, exist_ok=True)
+    
+    summary_path = os.path.join(region_dir, "region_summary.json")
+    with open(summary_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+
+
+def save_chunked_resources(scan_folder: str, account_id: str, region: str, 
+                           service: str, resources: list, chunk_size: int = 100) -> str:
+    """
+    Save resources in chunked, compressed format
+    
+    Args:
+        scan_folder: Base scan folder path
+        account_id: AWS account ID
+        region: AWS region (or 'global')
+        service: Service name (e.g., 'ec2', 's3')
+        resources: List of resource dictionaries with inventory + compliance
+        chunk_size: Number of resources per chunk file
+    
+    Returns:
+        Path to service directory
+    """
+    import gzip
+    
+    # Create directory structure
+    service_dir = os.path.join(
+        scan_folder,
+        f"account_{account_id}",
+        region,
+        service
+    )
+    os.makedirs(service_dir, exist_ok=True)
+    
+    # Split into chunks and save
+    chunks_metadata = []
+    total_resources = len(resources)
+    
+    for i in range(0, total_resources, chunk_size):
+        chunk = resources[i:i + chunk_size]
+        chunk_id = i // chunk_size
+        
+        chunk_data = {
+            "chunk_id": chunk_id,
+            "account_id": account_id,
+            "region": region,
+            "service": service,
+            "scan_id": os.path.basename(scan_folder),
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "resource_count": len(chunk),
+            "resources": chunk
+        }
+        
+        # Write compressed chunk
+        chunk_file = f"chunk_{chunk_id:03d}.json.gz"
+        chunk_path = os.path.join(service_dir, chunk_file)
+        
+        with gzip.open(chunk_path, 'wt', encoding='utf-8') as f:
+            json.dump(chunk_data, f, indent=2)
+        
+        # Get file sizes
+        compressed_size = os.path.getsize(chunk_path)
+        
+        # Calculate stats
+        failed_count = sum(1 for r in chunk 
+                          if r.get("compliance", {}).get("failed", 0) > 0)
+        total_checks = sum(r.get("compliance", {}).get("total_checks", 0) 
+                          for r in chunk)
+        passed_checks = sum(r.get("compliance", {}).get("passed", 0) 
+                           for r in chunk)
+        failed_checks = sum(r.get("compliance", {}).get("failed", 0) 
+                           for r in chunk)
+        
+        chunks_metadata.append({
+            "chunk_id": chunk_id,
+            "file": chunk_file,
+            "resource_count": len(chunk),
+            "size_compressed": compressed_size,
+            "resource_ids": [r["resource_id"] for r in chunk],
+            "stats": {
+                "resources_with_failures": failed_count,
+                "total_checks": total_checks,
+                "passed": passed_checks,
+                "failed": failed_checks
+            }
+        })
+    
+    # Write service index
+    index_data = {
+        "account_id": account_id,
+        "region": region,
+        "service": service,
+        "scan_id": os.path.basename(scan_folder),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "total_resources": total_resources,
+        "total_chunks": len(chunks_metadata),
+        "chunk_size": chunk_size,
+        "chunks": chunks_metadata,
+        "summary": {
+            "total_checks": sum(c["stats"]["total_checks"] for c in chunks_metadata),
+            "passed": sum(c["stats"]["passed"] for c in chunks_metadata),
+            "failed": sum(c["stats"]["failed"] for c in chunks_metadata),
+            "resources_with_failures": sum(c["stats"]["resources_with_failures"] 
+                                          for c in chunks_metadata),
+            "compliance_rate": 0
+        }
+    }
+    
+    # Calculate compliance rate
+    if index_data["summary"]["total_checks"] > 0:
+        index_data["summary"]["compliance_rate"] = round(
+            100.0 * index_data["summary"]["passed"] / 
+            index_data["summary"]["total_checks"], 2
+        )
+    
+    index_path = os.path.join(service_dir, "index.json")
+    with open(index_path, 'w') as f:
+        json.dump(index_data, f, indent=2)
+    
+    return service_dir
+
+
+def save_reporting_bundle(results: List[Dict[str, Any]], account_id: str | None = None, scan_folder: str = None) -> str:
+    # Use provided scan_folder or create new one
+    folder = scan_folder if scan_folder else create_report_folder()
+    svc_ex = list_service_exceptions()  # Using exception_manager (no duplication)
+    chk_ex = list_check_exceptions()     # Using exception_manager (no duplication)
     actions_cfg = _load_actions_config()
     selected = _load_actions_selection()
     standard_actions = actions_cfg.get("standard_actions") or {}

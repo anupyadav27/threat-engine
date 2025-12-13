@@ -1,30 +1,24 @@
+# EDR Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/edr_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: edr
 discovery:
 - discovery_id: aws.edr.resources
   calls:
-  - client: edr
-    action: list_edrs
-    save_as: resource_list
-    on_error: continue
+  - action: list_edrs
     fields:
     - Edrs
   emit:
-    items_for: resource_list[]
-    as: resource
+    items_for: list_edrs_response[]
     item:
       id: '{{ resource.Id }}'
       name: '{{ resource.Name }}'
 checks:
-- title: 'EDR resource: Edr Operational Readiness Configured'
-  severity: medium
-  rule_id: aws.edr.resource.edr_operational_readiness_configured
-  for_each:
-    discovery: aws.edr.resources
-    as: resource
-    item: resource
+- rule_id: aws.edr.resource.edr_operational_readiness_configured
+  for_each: aws.edr.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true

@@ -2,510 +2,325 @@ version: '1.0'
 provider: aws
 service: lambda
 discovery:
-- discovery_id: aws.lambda.provisioned_concurrencys
+- discovery_id: aws.lambda.list_functions
   calls:
-  - client: lambda
-    action: list_functions
-    save_as: provisioned_concurrency_list
-    on_error: continue
-    fields:
-    - Functions
+  - action: list_functions
+    save_as: list_functions_response
   emit:
-    items_for: provisioned_concurrency_list[]
-    as: provisioned_concurrency
+    items_for: '{{ list_functions_response.Functions }}'
+    as: resource
     item:
-      id: '{{ provisioned_concurrency.FunctionArn }}'
-      name: '{{ provisioned_concurrency.FunctionName }}'
-- discovery_id: aws.lambda.provisioned_concurrency_encryption
-  for_each: aws.lambda.provisioned_concurrencys
+      function_name: '{{ resource.FunctionName }}'
+      function_arn: '{{ resource.FunctionArn }}'
+      runtime: '{{ resource.Runtime }}'
+      role: '{{ resource.Role }}'
+      handler: '{{ resource.Handler }}'
+      code_size: '{{ resource.CodeSize }}'
+      description: '{{ resource.Description }}'
+      timeout: '{{ resource.Timeout }}'
+      memory_size: '{{ resource.MemorySize }}'
+      last_modified: '{{ resource.LastModified }}'
+- discovery_id: aws.lambda.get_account_settings
   calls:
-  - client: lambda
-    action: list_functions
-    params:
-      Provisioned_concurrencyId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
+  - action: get_account_settings
+    save_as: get_account_settings_response
   emit:
+    items_for: '{{ get_account_settings_response.AccountLimit }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.lambda.provisioned_concurrency_logging
-  for_each: aws.lambda.provisioned_concurrencys
-  calls:
-  - client: lambda
-    action: describe_provisioned_concurrency_logging
-    params:
-      Provisioned_concurrencyId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
+      total_code_size: '{{ resource.TotalCodeSize }}'
+      code_size_unzipped: '{{ resource.CodeSizeUnzipped }}'
+      code_size_zipped: '{{ resource.CodeSizeZipped }}'
+      concurrent_executions: '{{ resource.ConcurrentExecutions }}'
+      unreserved_concurrent_executions: '{{ resource.UnreservedConcurrentExecutions
         }}'
-- discovery_id: aws.lambda.layers
-  for_each: aws.lambda.layer
+- discovery_id: aws.lambda.list_event_source_mappings
   calls:
-  - client: lambda
-    action: describe_layers
-    save_as: layers
+  - action: list_event_source_mappings
+    save_as: list_event_source_mappings_response
+  emit:
+    items_for: '{{ list_event_source_mappings_response.EventSourceMappings }}'
+    as: resource
+    item:
+      uuid: '{{ resource.UUID }}'
+      starting_position: '{{ resource.StartingPosition }}'
+      starting_position_timestamp: '{{ resource.StartingPositionTimestamp }}'
+      batch_size: '{{ resource.BatchSize }}'
+      maximum_batching_window_in_seconds: '{{ resource.MaximumBatchingWindowInSeconds
+        }}'
+      parallelization_factor: '{{ resource.ParallelizationFactor }}'
+      event_source_arn: '{{ resource.EventSourceArn }}'
+      filter_criteria: '{{ resource.FilterCriteria }}'
+      function_arn: '{{ resource.FunctionArn }}'
+      last_modified: '{{ resource.LastModified }}'
+- discovery_id: aws.lambda.list_code_signing_configs
+  calls:
+  - action: list_code_signing_configs
+    save_as: list_code_signing_configs_response
+  emit:
+    items_for: '{{ list_code_signing_configs_response.CodeSigningConfigs }}'
+    as: resource
+    item:
+      code_signing_config_id: '{{ resource.CodeSigningConfigId }}'
+      code_signing_config_arn: '{{ resource.CodeSigningConfigArn }}'
+      description: '{{ resource.Description }}'
+      allowed_publishers: '{{ resource.AllowedPublishers }}'
+      code_signing_policies: '{{ resource.CodeSigningPolicies }}'
+      last_modified: '{{ resource.LastModified }}'
+- discovery_id: aws.lambda.create_function_url_config
+  calls:
+  - action: create_function_url_config
+    save_as: create_function_url_config_response
+    params:
+      FunctionName: '{{ item.function_name }}'
+      AuthType: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.lambda.list_functions
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.lambda.event_source_mappings
-  for_each: aws.lambda.event_source_mapping
+      resource_id: '{{ item.resource_id }}'
+      allow_credentials: '{{ create_function_url_config_response.Cors.AllowCredentials
+        }}'
+      allow_headers: '{{ create_function_url_config_response.Cors.AllowHeaders }}'
+      allow_methods: '{{ create_function_url_config_response.Cors.AllowMethods }}'
+      allow_origins: '{{ create_function_url_config_response.Cors.AllowOrigins }}'
+      expose_headers: '{{ create_function_url_config_response.Cors.ExposeHeaders }}'
+- discovery_id: aws.lambda.list_function_url_configs
   calls:
-  - client: lambda
-    action: describe_event_source_mappings
-    save_as: event_source_mappings
+  - action: list_function_url_configs
+    save_as: list_function_url_configs_response
+    params:
+      FunctionName: '{{ item.function_name }}'
     on_error: continue
+  for_each: aws.lambda.list_functions
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.lambda.versions
-  for_each: aws.lambda.version
-  calls:
-  - client: lambda
-    action: describe_versions
-    save_as: versions
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.lambda.functions
-  for_each: aws.lambda.function
-  calls:
-  - client: lambda
-    action: describe_functions
-    save_as: functions
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.lambda.function_logging
-  calls:
-  - client: lambda
-    action: list_aliases
-    save_as: function_logging
-    on_error: continue
-  emit:
-    items_for: function_logging[]
-    as: function_logging
-    item:
-      id: '{{ function_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.lambda.function_encryption
-  calls:
-  - client: lambda
-    action: list_aliases
-    save_as: function_encryption
-    on_error: continue
-  emit:
-    items_for: function_encryption[]
-    as: function_encryption
-    item:
-      id: '{{ function_encryption.Id }}'
-      compliant: '{{ true }}'
+      resource_id: '{{ item.resource_id }}'
+      function_url: '{{ list_function_url_configs_response.FunctionUrlConfigs.FunctionUrl
+        }}'
+      function_arn: '{{ list_function_url_configs_response.FunctionUrlConfigs.FunctionArn
+        }}'
+      creation_time: '{{ list_function_url_configs_response.FunctionUrlConfigs.CreationTime
+        }}'
+      last_modified_time: '{{ list_function_url_configs_response.FunctionUrlConfigs.LastModifiedTime
+        }}'
+      cors: '{{ list_function_url_configs_response.FunctionUrlConfigs.Cors }}'
 checks:
-- title: 'LAMBDA function: Execution Role Existence Configured'
-  severity: high
-  rule_id: aws.lambda.function.execution_role_existence_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+- rule_id: aws.lambda.function.execution_role_existence_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Runtime Support Configured'
-  severity: medium
-  rule_id: aws.lambda.function.runtime_support_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.function.runtime_support_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Vpc Private Networking Enabled'
-  severity: high
-  rule_id: aws.lambda.function.vpc_private_networking_enabled
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.runtime
+    op: contains
+    value:
+    - nodejs14.x
+    - python3.8
+    - java11
+    - go1.x
+    - ruby2.7
+    - provided.al2
+- rule_id: aws.lambda.function.vpc_private_networking_enabled
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Env No Plaintext Secrets Configured'
-  severity: medium
-  rule_id: aws.lambda.function.env_no_plaintext_secrets_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.function.env_no_plaintext_secrets_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
+    var: item.environment
     op: equals
-    value: true
-- title: 'LAMBDA function: Restrict Public Access Configured'
-  severity: high
-  rule_id: aws.lambda.function.restrict_public_access_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    value: []
+- rule_id: aws.lambda.function.restrict_public_access_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Execution Roles Least Privilege'
-  severity: high
-  rule_id: aws.lambda.function.execution_roles_least_privilege
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.function.execution_roles_least_privilege
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA version: Published And Immutable Configured'
-  severity: medium
-  rule_id: aws.lambda.version.published_and_immutable_configured
-  for_each:
-    discovery: aws.lambda.versions
-    as: version
-    item: version
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.function.environment_variables_kms_encryption_enabled
+  for_each: aws.lambda.list_functions
   conditions:
-    var: version.versioning_enabled
-    op: equals
-    value: true
-- title: Environment variables are encrypted in serverless functions
-  severity: high
-  rule_id: aws.lambda.function.environment_variables_kms_encryption_enabled
-  for_each:
-    discovery: aws.lambda.function_encryption
-    as: function
-    item: function
+    var: item.environment
+    op: exists
+- rule_id: aws.lambda.function.logging_and_tracing_enabled
+  for_each: aws.lambda.list_functions
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Logging And Tracing Enabled'
-  severity: medium
-  rule_id: aws.lambda.function.logging_and_tracing_enabled
-  for_each:
-    discovery: aws.lambda.function_logging
-    as: function
-    item: function
+    all:
+    - var: item.role
+      op: exists
+    - var: item.environment
+      op: exists
+- rule_id: aws.lambda.function.url_cors_policy_configured
+  for_each: aws.lambda.create_function_url_config
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Url Cors Policy Configured'
-  severity: high
-  rule_id: aws.lambda.function.url_cors_policy_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    all:
+    - var: item.allow_credentials
+      op: equals
+      value: true
+    - var: item.allow_headers
+      op: exists
+    - var: item.allow_methods
+      op: exists
+    - var: item.allow_origins
+      op: exists
+    - var: item.expose_headers
+      op: exists
+    - var: item.max_age
+      op: exists
+- rule_id: aws.lambda.function.dead_letter_queue_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Dead Letter Queue Configured'
-  severity: medium
-  rule_id: aws.lambda.function.dead_letter_queue_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.dead_letter_config
+    op: exists
+- rule_id: aws.lambda.function.outputs_encrypted
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Outputs Encrypted'
-  severity: high
-  rule_id: aws.lambda.function.outputs_encrypted
-  for_each:
-    discovery: aws.lambda.function_encryption
-    as: function
-    item: function
+    var: item.environment
+    op: exists
+- rule_id: aws.lambda.function.vpc_multi_az_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Vpc Multi Az Configured'
-  severity: high
-  rule_id: aws.lambda.function.vpc_multi_az_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.function.unique_iam_role_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.in_vpc
-    op: equals
-    value: true
-- title: 'LAMBDA function: Unique Iam Role Configured'
-  severity: high
-  rule_id: aws.lambda.function.unique_iam_role_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Execution Role No Admin Privileges Configured'
-  severity: high
-  rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.role
+    op: not_contains
+    value: AdministratorAccess
+- rule_id: aws.lambda.function.reserved_concurrency_configured
+  for_each: aws.lambda.get_account_settings
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Reserved Concurrency Configured'
-  severity: medium
-  rule_id: aws.lambda.function.reserved_concurrency_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.unreserved_concurrent_executions
+    op: gt
+    value: 0
+- rule_id: aws.lambda.function.cloudwatch_lambda_insights_enabled
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: function.compliant
+    var: item.state
     op: equals
-    value: true
-- title: 'LAMBDA function: Cloudwatch Lambda Insights Enabled'
-  severity: medium
-  rule_id: aws.lambda.function.cloudwatch_lambda_insights_enabled
-  for_each:
-    discovery: aws.lambda.function_logging
-    as: function
-    item: function
+    value: ENABLED
+- rule_id: aws.lambda.function.not_publicly_accessible_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Not Publicly Accessible Configured'
-  severity: high
-  rule_id: aws.lambda.function.not_publicly_accessible_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.function.inside_vpc_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Inside Vpc Configured'
-  severity: high
-  rule_id: aws.lambda.function.inside_vpc_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.function.code_signing_config_present
+  for_each: aws.lambda.list_code_signing_configs
   conditions:
-    var: function.in_vpc
-    op: equals
-    value: true
-- title: 'LAMBDA function: Code Signing Config Present'
-  severity: medium
-  rule_id: aws.lambda.function.code_signing_config_present
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.code_signing_config_id
+    op: exists
+- rule_id: aws.lambda.provisioned_concurrency.execution_role_least_privilege
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA provisioned concurrency: Execution Role Least Privilege'
-  severity: high
-  rule_id: aws.lambda.provisioned_concurrency.execution_role_least_privilege
-  for_each:
-    discovery: aws.lambda.provisioned_concurrencys
-    as: provisioned_concurrency
-    item: provisioned_concurrency
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.layer.version_immutable_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: provisioned_concurrency.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA layer: Version Immutable Configured'
-  severity: low
-  rule_id: aws.lambda.layer.version_immutable_configured
-  for_each:
-    discovery: aws.lambda.layers
-    as: layer
-    item: layer
+    var: item.version
+    op: exists
+- rule_id: aws.lambda.function.invoke_api_operations_cloudtrail_logging_enabled
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: layer.versioning_enabled
+    var: item.state
     op: equals
-    value: true
-- title: 'LAMBDA function: Invoke Api Operations Cloudtrail Logging Enabled'
-  severity: medium
-  rule_id: aws.lambda.function.invoke_api_operations_cloudtrail_logging_enabled
-  for_each:
-    discovery: aws.lambda.function_logging
-    as: function
-    item: function
+    value: ENABLED
+- rule_id: aws.lambda.function.change_audit_logging_enabled
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: logging.logging_enabled
+    var: item.state
     op: equals
-    value: true
-- title: Audit secret access by functions
-  severity: medium
-  rule_id: aws.lambda.function.change_audit_logging_enabled
-  for_each:
-    discovery: aws.lambda.function_logging
-    as: function
-    item: function
+    value: ENABLED
+- rule_id: aws.lambda.function.url_authentication_configured
+  for_each: aws.lambda.list_function_url_configs
   conditions:
-    var: logging.logging_enabled
+    var: item.auth_type
     op: equals
-    value: true
-- title: 'LAMBDA function: Url Authentication Configured'
-  severity: critical
-  rule_id: aws.lambda.function.url_authentication_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    value: AWS_IAM
+- rule_id: aws.lambda.function.remediation_roles_least_privilege
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA version: Rollforward Rollback Controls Present'
-  severity: medium
-  rule_id: aws.lambda.version.rollforward_rollback_controls_present
-  for_each:
-    discovery: aws.lambda.versions
-    as: version
-    item: version
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.layer.source_trusted_configured
+  for_each: aws.lambda.list_code_signing_configs
   conditions:
-    var: version.versioning_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Remediation Roles Least Privilege'
-  severity: high
-  rule_id: aws.lambda.function.remediation_roles_least_privilege
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    all:
+    - var: item.allowed_publishers
+      op: exists
+    - var: item.code_signing_policies
+      op: exists
+- rule_id: aws.lambda.function.url_public_configured
+  for_each: aws.lambda.list_function_url_configs
   conditions:
-    var: function.is_public
+    var: item.auth_type
     op: equals
-    value: false
-- title: 'LAMBDA layer: Source Trusted Configured'
-  severity: medium
-  rule_id: aws.lambda.layer.source_trusted_configured
-  for_each:
-    discovery: aws.lambda.layers
-    as: layer
-    item: layer
+    value: AWS_IAM
+- rule_id: aws.lambda.event_source_mapping.permissions_least_privilege
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: layer.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Url Public Configured'
-  severity: high
-  rule_id: aws.lambda.function.url_public_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    all:
+    - var: item.state
+      op: equals
+      value: ENABLED
+    - var: item.function_arn
+      op: exists
+- rule_id: aws.lambda.function.artifacts_encrypted_and_private
+  for_each: aws.lambda.list_code_signing_configs
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA event source mapping: Permissions Least Privilege'
-  severity: high
-  rule_id: aws.lambda.event_source_mapping.permissions_least_privilege
-  for_each:
-    discovery: aws.lambda.event_source_mappings
-    as: event_source_mapping
-    item: event_source_mapping
+    all:
+    - var: item.code_signing_config_id
+      op: exists
+    - var: item.allowed_publishers
+      op: not_equals
+      value: []
+- rule_id: aws.lambda.function.role_least_privilege
+  for_each: aws.lambda.list_functions
   conditions:
-    var: event_source_mapping.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Artifacts Encrypted And Private'
-  severity: high
-  rule_id: aws.lambda.function.artifacts_encrypted_and_private
-  for_each:
-    discovery: aws.lambda.function_encryption
-    as: function
-    item: function
+    var: item.role
+    op: exists
+- rule_id: aws.lambda.function.policies_present_for_sensitive_fields_configured
+  for_each: aws.lambda.list_code_signing_configs
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'LAMBDA function: Role Least Privilege'
-  severity: high
-  rule_id: aws.lambda.function.role_least_privilege
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    all:
+    - var: item.code_signing_policies
+      op: exists
+    - var: item.allowed_publishers
+      op: exists
+- rule_id: aws.lambda.function.jobs_private_networking_configured
+  for_each: aws.lambda.list_functions
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA function: Policies Present For Sensitive Fields Configured'
-  severity: medium
-  rule_id: aws.lambda.function.policies_present_for_sensitive_fields_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    var: item.vpc_config
+    op: exists
+- rule_id: aws.lambda.event_source_mapping.source_authenticated_configured
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: function.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Jobs Private Networking Configured'
-  severity: high
-  rule_id: aws.lambda.function.jobs_private_networking_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
+    all:
+    - var: item.state
+      op: equals
+      value: ENABLED
+    - var: item.destination_config
+      op: exists
+- rule_id: aws.lambda.function.resource_policy_cross_account_access_configured
+  for_each: aws.lambda.list_event_source_mappings
   conditions:
-    var: function.is_public
-    op: equals
-    value: false
-- title: 'LAMBDA event source mapping: Source Authenticated Configured'
-  severity: medium
-  rule_id: aws.lambda.event_source_mapping.source_authenticated_configured
-  for_each:
-    discovery: aws.lambda.event_source_mappings
-    as: event_source_mapping
-    item: event_source_mapping
-  conditions:
-    var: event_source_mapping.compliant
-    op: equals
-    value: true
-- title: 'LAMBDA function: Resource Policy Cross Account Access Configured'
-  severity: high
-  rule_id: aws.lambda.function.resource_policy_cross_account_access_configured
-  for_each:
-    discovery: aws.lambda.functions
-    as: function
-    item: function
-  conditions:
-    var: function.is_public
-    op: equals
-    value: false
+    var: item.function_arn
+    op: exists

@@ -2,156 +2,81 @@ version: '1.0'
 provider: aws
 service: opensearch
 discovery:
-- discovery_id: aws.opensearch.services
+- discovery_id: aws.opensearch.create_domain
   calls:
-  - client: opensearch
-    action: list_domain_names
-    save_as: service_list
-    on_error: continue
-    fields:
-    - Opensearchs
-  emit:
-    items_for: service_list[]
-    as: service
-    item:
-      id: '{{ service.Id }}'
-      name: '{{ service.Name }}'
-- discovery_id: aws.opensearch.service_encryption
-  for_each: aws.opensearch.services
-  calls:
-  - client: opensearch
-    action: list_domain_names
+  - action: create_domain
+    save_as: create_domain_response
     params:
-      ServiceId: '{{ item.id }}'
-    save_as: encryption
+      DomainName: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.opensearch.PARENT_DISCOVERY
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.opensearch.service_logging
-  for_each: aws.opensearch.services
-  calls:
-  - client: opensearch
-    action: describe_domain
-    params:
-      ServiceId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      resource_id: '{{ item.resource_id }}'
+      domain_id: '{{ create_domain_response.DomainStatus.DomainId }}'
+      domain_name: '{{ create_domain_response.DomainStatus.DomainName }}'
+      arn: '{{ create_domain_response.DomainStatus.ARN }}'
+      created: '{{ create_domain_response.DomainStatus.Created }}'
+      deleted: '{{ create_domain_response.DomainStatus.Deleted }}'
 checks:
-- title: 'OPENSEARCH service: Domains Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
-  for_each:
-    discovery: aws.opensearch.service_encryption
-    as: service
-    item: service
+- rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: encryption.encryption_enabled
+    var: item.encryption_at_rest_options
     op: equals
     value: true
-- title: 'OPENSEARCH service: Opensearch Domains Https Communications Enforced'
-  severity: medium
-  rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
+- rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: service.compliant
+    var: item.domain_endpoint_options
+    op: equals
+    value:
+      EnforceHTTPS: true
+- rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.node_to_node_encryption_options
     op: equals
     value: true
-- title: 'OPENSEARCH service: Domains Node To Node Encryption Enabled'
-  severity: high
-  rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
-  for_each:
-    discovery: aws.opensearch.service_encryption
-    as: service
-    item: service
+- rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'OPENSEARCH service: Domains Not Publicly Accessible Configured'
-  severity: high
-  rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
+    all:
+    - var: item.domain_endpoint_options
+      op: equals
+      value:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
+        CustomEndpointEnabled: false
+    - var: item.vpc_options
+      op: exists
+- rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: service.is_public
-    op: equals
-    value: false
-- title: 'OPENSEARCH service: Domains Fault Tolerant Data Nodes Configured'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
+    var: item.cluster_config
+    op: exists
+- rule_id: aws.opensearch.service.domains_audit_logging_enabled
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: service.compliant
-    op: equals
-    value: true
-- title: 'OPENSEARCH service: Domains Audit Logging Enabled'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_audit_logging_enabled
-  for_each:
-    discovery: aws.opensearch.service_logging
-    as: service
-    item: service
+    var: item.log_publishing_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_access_control_enabled
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'OPENSEARCH service: Domains Access Control Enabled'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_access_control_enabled
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
+    var: item.access_policies
+    op: exists
+- rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: service.is_public
-    op: equals
-    value: false
-- title: 'OPENSEARCH service: Domains Cloudwatch Logging Enabled'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
-  for_each:
-    discovery: aws.opensearch.service_logging
-    as: service
-    item: service
+    var: item.log_publishing_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_internal_user_database_enabled
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'OPENSEARCH service: Domains Internal User Database Enabled'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_internal_user_database_enabled
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
+    var: item.advanced_security_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
+  for_each: aws.opensearch.create_domain
   conditions:
-    var: service.compliant
-    op: equals
-    value: true
-- title: 'OPENSEARCH service: Domains Fault Tolerant Master Nodes Configured'
-  severity: medium
-  rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
-  for_each:
-    discovery: aws.opensearch.services
-    as: service
-    item: service
-  conditions:
-    var: service.compliant
-    op: equals
-    value: true
+    var: item.cluster_config
+    op: exists

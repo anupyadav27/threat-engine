@@ -1,56 +1,46 @@
+# EVENTBRIDGE Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/eventbridge_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: eventbridge
 discovery:
 - discovery_id: aws.eventbridge.eventbuss
   calls:
-  - client: eventbridge
-    action: list_eventbridges
-    save_as: eventbus_list
-    on_error: continue
+  - action: list_eventbridges
     fields:
     - Eventbridges
   emit:
-    items_for: eventbus_list[]
-    as: eventbus
+    items_for: list_eventbridges_response[]
     item:
       id: '{{ eventbus.Id }}'
       name: '{{ eventbus.Name }}'
 - discovery_id: aws.eventbridge.eventbus_encryption
   for_each: aws.eventbridge.eventbuss
   calls:
-  - client: eventbridge
-    action: list_eventbridges
+  - action: list_eventbridges
     params:
       EventbusId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
+      encryption_enabled: '{{ list_eventbridges_response.Encrypted if list_eventbridges_response.Encrypted
+        is defined else false }}'
 - discovery_id: aws.eventbridge.eventbus_logging
   for_each: aws.eventbridge.eventbuss
   calls:
-  - client: eventbridge
-    action: describe_eventbus_logging
+  - action: describe_eventbus_logging
     params:
       EventbusId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      logging_enabled: '{{ describe_eventbus_logging_response.LoggingEnabled is defined
+        if describe_eventbus_logging_response else false }}'
 - discovery_id: aws.eventbridge.resources
   for_each: aws.eventbridge.resource
   calls:
-  - client: eventbridge
-    action: describe_resources
-    save_as: resources
-    on_error: continue
+  - action: describe_resources
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -58,256 +48,145 @@ discovery:
 - discovery_id: aws.eventbridge.rules
   for_each: aws.eventbridge.rule
   calls:
-  - client: eventbridge
-    action: describe_rule
-    save_as: rules
-    on_error: continue
+  - action: describe_rule
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.eventbridge.rule_logging
   calls:
-  - client: eventbridge
-    action: list_rule_logging
-    save_as: rule_logging
-    on_error: continue
+  - action: list_rule_logging
   emit:
-    items_for: rule_logging[]
-    as: rule_logging
+    items_for: list_rule_logging_response[]
     item:
-      id: '{{ rule_logging.Id }}'
+      id: '{{ list_rule_logging_response.Id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.eventbridge.rule_encryption
   calls:
-  - client: eventbridge
-    action: list_rule_encryption
-    save_as: rule_encryption
-    on_error: continue
+  - action: list_rule_encryption
   emit:
-    items_for: rule_encryption[]
-    as: rule_encryption
+    items_for: list_rule_encryption_response[]
     item:
-      id: '{{ rule_encryption.Id }}'
+      id: '{{ list_rule_encryption_response.Id }}'
       compliant: '{{ true }}'
 checks:
-- title: 'EVENTBRIDGE rule: Oncall Contacts Verified'
-  severity: medium
-  rule_id: aws.eventbridge.rule.oncall_contacts_verified
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.oncall_contacts_verified
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE eventbus: Oncall Contacts Verified'
-  severity: medium
-  rule_id: aws.eventbridge.eventbus.oncall_contacts_verified
-  for_each:
-    discovery: aws.eventbridge.eventbuss
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.oncall_contacts_verified
+  for_each: aws.eventbridge.eventbuss
   conditions:
-    var: eventbus.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Execution Roles Least Privilege'
-  severity: high
-  rule_id: aws.eventbridge.rule.execution_roles_least_privilege
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.execution_roles_least_privilege
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'EVENTBRIDGE eventbus: Change Audit Logging Enabled'
-  severity: medium
-  rule_id: aws.eventbridge.eventbus.change_audit_logging_enabled
-  for_each:
-    discovery: aws.eventbridge.eventbus_logging
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.change_audit_logging_enabled
+  for_each: aws.eventbridge.eventbus_logging
   conditions:
     var: logging.logging_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE eventbus: Policy Exists For Critical Severity Configured'
-  severity: high
-  rule_id: aws.eventbridge.eventbus.policy_exists_for_critical_severity_configured
-  for_each:
-    discovery: aws.eventbridge.eventbuss
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.policy_exists_for_critical_severity_configured
+  for_each: aws.eventbridge.eventbuss
   conditions:
-    var: eventbus.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'EVENTBRIDGE eventbus: Message Encryption In Transit Configured'
-  severity: high
-  rule_id: aws.eventbridge.eventbus.message_encryption_in_transit_configured
-  for_each:
-    discovery: aws.eventbridge.eventbus_encryption
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.message_encryption_in_transit_configured
+  for_each: aws.eventbridge.eventbus_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: No Public Webhooks Configured'
-  severity: high
-  rule_id: aws.eventbridge.rule.no_public_webhooks_configured
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.no_public_webhooks_configured
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'EVENTBRIDGE rule: Message Encryption In Transit Configured'
-  severity: high
-  rule_id: aws.eventbridge.rule.message_encryption_in_transit_configured
-  for_each:
-    discovery: aws.eventbridge.rule_encryption
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.message_encryption_in_transit_configured
+  for_each: aws.eventbridge.rule_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Private Networking Enforced'
-  severity: high
-  rule_id: aws.eventbridge.rule.private_networking_enforced
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.private_networking_enforced
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'EVENTBRIDGE rule: Eventbridge Logs And Metrics Enabled'
-  severity: medium
-  rule_id: aws.eventbridge.rule.eventbridge_logs_and_metrics_enabled
-  for_each:
-    discovery: aws.eventbridge.rule_logging
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.eventbridge_logs_and_metrics_enabled
+  for_each: aws.eventbridge.rule_logging
   conditions:
     var: logging.logging_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Eventbridge Destinations Configured'
-  severity: medium
-  rule_id: aws.eventbridge.rule.eventbridge_destinations_configured
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.eventbridge_destinations_configured
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE resource: Global Endpoint Event Replication Enabled'
-  severity: medium
-  rule_id: aws.eventbridge.resource.global_endpoint_event_replication_enabled
-  for_each:
-    discovery: aws.eventbridge.resources
-    as: resource
-    item: resource
+- rule_id: aws.eventbridge.resource.global_endpoint_event_replication_enabled
+  for_each: aws.eventbridge.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE eventbus: Endpoints Authenticated Configured'
-  severity: medium
-  rule_id: aws.eventbridge.eventbus.endpoints_authenticated_configured
-  for_each:
-    discovery: aws.eventbridge.eventbuss
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.endpoints_authenticated_configured
+  for_each: aws.eventbridge.eventbuss
   conditions:
-    var: eventbus.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Eventbridge Artifacts Private And Encrypted'
-  severity: high
-  rule_id: aws.eventbridge.rule.eventbridge_artifacts_private_and_encrypted
-  for_each:
-    discovery: aws.eventbridge.rule_encryption
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.eventbridge_artifacts_private_and_encrypted
+  for_each: aws.eventbridge.rule_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE eventbus: No Public Webhooks Configured'
-  severity: high
-  rule_id: aws.eventbridge.eventbus.no_public_webhooks_configured
-  for_each:
-    discovery: aws.eventbridge.eventbuss
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.no_public_webhooks_configured
+  for_each: aws.eventbridge.eventbuss
   conditions:
-    var: eventbus.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'EVENTBRIDGE eventbus: Eventbridge Destinations Configured'
-  severity: medium
-  rule_id: aws.eventbridge.eventbus.eventbridge_destinations_configured
-  for_each:
-    discovery: aws.eventbridge.eventbuss
-    as: eventbus
-    item: eventbus
+- rule_id: aws.eventbridge.eventbus.eventbridge_destinations_configured
+  for_each: aws.eventbridge.eventbuss
   conditions:
-    var: eventbus.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Kms Encryption Enabled'
-  severity: high
-  rule_id: aws.eventbridge.rule.kms_encryption_enabled
-  for_each:
-    discovery: aws.eventbridge.rule_encryption
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.kms_encryption_enabled
+  for_each: aws.eventbridge.rule_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Policy Exists For Critical Severity Configured'
-  severity: high
-  rule_id: aws.eventbridge.rule.policy_exists_for_critical_severity_configured
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.policy_exists_for_critical_severity_configured
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: Security alerting and notification systems are configured
-  severity: high
-  rule_id: aws.eventbridge.rule.change_audit_logging_enabled
-  for_each:
-    discovery: aws.eventbridge.rule_logging
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.change_audit_logging_enabled
+  for_each: aws.eventbridge.rule_logging
   conditions:
     var: logging.logging_enabled
     op: equals
     value: true
-- title: 'EVENTBRIDGE rule: Endpoints Authenticated Configured'
-  severity: medium
-  rule_id: aws.eventbridge.rule.endpoints_authenticated_configured
-  for_each:
-    discovery: aws.eventbridge.rules
-    as: rule
-    item: rule
+- rule_id: aws.eventbridge.rule.endpoints_authenticated_configured
+  for_each: aws.eventbridge.rules
   conditions:
-    var: rule.compliant
+    var: item.compliant
     op: equals
     value: true

@@ -2,413 +2,286 @@ version: '1.0'
 provider: aws
 service: dynamodb
 discovery:
-- discovery_id: aws.dynamodb.globaltables
+- discovery_id: aws.dynamodb.list_backups
   calls:
-  - client: dynamodb
-    action: list_tables
-    save_as: globaltable_list
-    on_error: continue
-    fields:
-    - Dynamodbs
+  - action: list_backups
+    save_as: list_backups_response
   emit:
-    items_for: globaltable_list[]
-    as: globaltable
+    items_for: '{{ list_backups_response.BackupSummaries }}'
+    as: resource
     item:
-      id: '{{ globaltable.Id }}'
-      name: '{{ globaltable.Name }}'
-- discovery_id: aws.dynamodb.globaltable_encryption
-  for_each: aws.dynamodb.globaltables
+      table_name: '{{ resource.TableName }}'
+      table_id: '{{ resource.TableId }}'
+      table_arn: '{{ resource.TableArn }}'
+      backup_arn: '{{ resource.BackupArn }}'
+      backup_name: '{{ resource.BackupName }}'
+      backup_creation_date_time: '{{ resource.BackupCreationDateTime }}'
+      backup_expiry_date_time: '{{ resource.BackupExpiryDateTime }}'
+      backup_status: '{{ resource.BackupStatus }}'
+      backup_type: '{{ resource.BackupType }}'
+      backup_size_bytes: '{{ resource.BackupSizeBytes }}'
+- discovery_id: aws.dynamodb.list_global_tables
   calls:
-  - client: dynamodb
-    action: list_tables
+  - action: list_global_tables
+    save_as: list_global_tables_response
+  emit:
+    items_for: '{{ list_global_tables_response.GlobalTables }}'
+    as: resource
+    item:
+      global_table_name: '{{ resource.GlobalTableName }}'
+      replication_group: '{{ resource.ReplicationGroup }}'
+- discovery_id: aws.dynamodb.describe_continuous_backups
+  calls:
+  - action: describe_continuous_backups
+    save_as: describe_continuous_backups_response
     params:
-      GlobaltableId: '{{ item.id }}'
-    save_as: encryption
+      TableName: '{{ item.table_name }}'
     on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.dynamodb.resource_encryption
+      resource_id: '{{ item.resource_id }}'
+      continuous_backups_status: '{{ describe_continuous_backups_response.ContinuousBackupsDescription.ContinuousBackupsStatus
+        }}'
+      point_in_time_recovery_description: '{{ describe_continuous_backups_response.ContinuousBackupsDescription.PointInTimeRecoveryDescription
+        }}'
+- discovery_id: aws.dynamodb.create_global_table
   calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: resource_encryption
+  - action: create_global_table
+    save_as: create_global_table_response
+    params:
+      GlobalTableName: '{{ item.table_name }}'
+      ReplicationGroup: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
-    items_for: resource_encryption[]
-    as: resource_encryption
     item:
-      id: '{{ resource_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.tables_encryption
+      resource_id: '{{ item.resource_id }}'
+      replication_group: '{{ create_global_table_response.GlobalTableDescription.ReplicationGroup
+        }}'
+      global_table_arn: '{{ create_global_table_response.GlobalTableDescription.GlobalTableArn
+        }}'
+      creation_date_time: '{{ create_global_table_response.GlobalTableDescription.CreationDateTime
+        }}'
+      global_table_status: '{{ create_global_table_response.GlobalTableDescription.GlobalTableStatus
+        }}'
+      global_table_name: '{{ create_global_table_response.GlobalTableDescription.GlobalTableName
+        }}'
+- discovery_id: aws.dynamodb.create_table
   calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: tables_encryption
+  - action: create_table
+    save_as: create_table_response
+    params:
+      AttributeDefinitions: '{{ item.api_id }}'
+      TableName: '{{ item.table_name }}'
+      KeySchema: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
-    items_for: tables_encryption[]
-    as: tables_encryption
     item:
-      id: '{{ tables_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.streams
-  for_each: aws.dynamodb.stream
+      resource_id: '{{ item.resource_id }}'
+      attribute_definitions: '{{ create_table_response.TableDescription.AttributeDefinitions
+        }}'
+      table_name: '{{ create_table_response.TableDescription.TableName }}'
+      key_schema: '{{ create_table_response.TableDescription.KeySchema }}'
+      table_status: '{{ create_table_response.TableDescription.TableStatus }}'
+      creation_date_time: '{{ create_table_response.TableDescription.CreationDateTime
+        }}'
+- discovery_id: aws.dynamodb.batch_get_item
   calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: streams
+  - action: batch_get_item
+    save_as: batch_get_item_response
+    params:
+      RequestItems: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.resources
-  for_each: aws.dynamodb.resource
+      resource_id: '{{ item.resource_id }}'
+      table_name: '{{ batch_get_item_response.ConsumedCapacity.TableName }}'
+      capacity_units: '{{ batch_get_item_response.ConsumedCapacity.CapacityUnits }}'
+      read_capacity_units: '{{ batch_get_item_response.ConsumedCapacity.ReadCapacityUnits
+        }}'
+      write_capacity_units: '{{ batch_get_item_response.ConsumedCapacity.WriteCapacityUnits
+        }}'
+      table: '{{ batch_get_item_response.ConsumedCapacity.Table }}'
+- discovery_id: aws.dynamodb.describe_export
   calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: resources
+  - action: describe_export
+    save_as: describe_export_response
+    params:
+      ExportArn: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.table_encryption
+      resource_id: '{{ item.resource_id }}'
+      export_arn: '{{ describe_export_response.ExportDescription.ExportArn }}'
+      export_status: '{{ describe_export_response.ExportDescription.ExportStatus }}'
+      start_time: '{{ describe_export_response.ExportDescription.StartTime }}'
+      end_time: '{{ describe_export_response.ExportDescription.EndTime }}'
+      export_manifest: '{{ describe_export_response.ExportDescription.ExportManifest
+        }}'
+- discovery_id: aws.dynamodb.describe_global_table_settings
   calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: table_encryption
+  - action: describe_global_table_settings
+    save_as: describe_global_table_settings_response
+    params:
+      GlobalTableName: '{{ item.table_name }}'
     on_error: continue
-  emit:
-    items_for: table_encryption[]
-    as: table_encryption
-    item:
-      id: '{{ table_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.tabless
-  for_each: aws.dynamodb.table
-  calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: tabless
-    on_error: continue
+  for_each: aws.dynamodb.list_backups
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.stream_encryption
-  calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: stream_encryption
-    on_error: continue
-  emit:
-    items_for: stream_encryption[]
-    as: stream_encryption
-    item:
-      id: '{{ stream_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.tables
-  for_each: aws.dynamodb.table
-  calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: tables
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.cluster_encryption
-  calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: cluster_encryption
-    on_error: continue
-  emit:
-    items_for: cluster_encryption[]
-    as: cluster_encryption
-    item:
-      id: '{{ cluster_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.clusters
-  for_each: aws.dynamodb.cluster
-  calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: clusters
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.table_protected_by_backup_plans
-  for_each: aws.dynamodb.table_protected_by_backup_plan
-  calls:
-  - client: dynamodb
-    action: describe_backup
-    save_as: table_protected_by_backup_plans
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.dynamodb.accelerator_encryption
-  calls:
-  - client: dynamodb
-    action: list_backups
-    save_as: accelerator_encryption
-    on_error: continue
-  emit:
-    items_for: accelerator_encryption[]
-    as: accelerator_encryption
-    item:
-      id: '{{ accelerator_encryption.Id }}'
-      compliant: '{{ true }}'
+      resource_id: '{{ item.resource_id }}'
+      region_name: '{{ describe_global_table_settings_response.ReplicaSettings.RegionName
+        }}'
+      replica_status: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaStatus
+        }}'
+      replica_billing_mode_summary: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaBillingModeSummary
+        }}'
+      replica_provisioned_read_capacity_units: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaProvisionedReadCapacityUnits
+        }}'
+      replica_provisioned_read_capacity_auto_scaling_settings: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaProvisionedReadCapacityAutoScalingSettings
+        }}'
 checks:
-- title: 'DYNAMODB tables: Table Pitr Enabled'
-  severity: medium
-  rule_id: aws.dynamodb.tables.table_pitr_enabled
-  for_each:
-    discovery: aws.dynamodb.tabless
-    as: tables
-    item: tables
+- rule_id: aws.dynamodb.tables.table_pitr_enabled
+  for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: tables.compliant
+    var: item.continuous_backups_status
     op: equals
-    value: true
-- title: 'DYNAMODB globaltable: Encryption At Rest All Regions Configured'
-  severity: high
-  rule_id: aws.dynamodb.globaltable.encryption_at_rest_all_regions_configured
-  for_each:
-    discovery: aws.dynamodb.globaltable_encryption
-    as: globaltable
-    item: globaltable
+    value: ENABLED
+- rule_id: aws.dynamodb.globaltable.encryption_at_rest_all_regions_configured
+  for_each: aws.dynamodb.create_global_table
   conditions:
-    var: encryption.encryption_enabled
+    var: item.global_table_status
     op: equals
-    value: true
-- title: 'DYNAMODB cluster: In Transit Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.cluster.in_transit_encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.cluster_encryption
-    as: cluster
-    item: cluster
+    value: ACTIVE
+- rule_id: aws.dynamodb.cluster.in_transit_encryption_enabled
+  for_each: aws.dynamodb.create_table
   conditions:
-    var: encryption.encryption_enabled
+    var: item.table_status
     op: equals
-    value: true
-- title: 'DYNAMODB table: Private Network Only If Supported'
-  severity: high
-  rule_id: aws.dynamodb.table.private_network_only_if_supported
-  for_each:
-    discovery: aws.dynamodb.tables
-    as: table
-    item: table
+    value: ACTIVE
+- rule_id: aws.dynamodb.table.private_network_only_if_supported
+  for_each: aws.dynamodb.list_backups
   conditions:
-    var: table.is_public
-    op: equals
-    value: false
-- title: 'DYNAMODB table: Rbac Least Privilege'
-  severity: high
-  rule_id: aws.dynamodb.table.rbac_least_privilege
-  for_each:
-    discovery: aws.dynamodb.tables
-    as: table
-    item: table
+    var: item.table_arn
+    op: exists
+- rule_id: aws.dynamodb.table.rbac_least_privilege
+  for_each: aws.dynamodb.batch_get_item
   conditions:
-    var: table.is_public
-    op: equals
-    value: false
-- title: 'DYNAMODB stream: Private Network Only If Supported'
-  severity: high
-  rule_id: aws.dynamodb.stream.private_network_only_if_supported
-  for_each:
-    discovery: aws.dynamodb.streams
-    as: stream
-    item: stream
+    all:
+    - var: item.read_capacity_units
+      op: gte
+      value: 1
+    - var: item.write_capacity_units
+      op: gte
+      value: 1
+- rule_id: aws.dynamodb.stream.private_network_only_if_supported
+  for_each: aws.dynamodb.create_table
   conditions:
-    var: stream.is_public
-    op: equals
-    value: false
-- title: 'DYNAMODB resource: Dynamodb Pitr Enabled'
-  severity: medium
-  rule_id: aws.dynamodb.resource.dynamodb_pitr_enabled
-  for_each:
-    discovery: aws.dynamodb.resources
-    as: resource
-    item: resource
+    all:
+    - var: item.stream_specification
+      op: exists
+    - var: item.table_status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.dynamodb.resource.dynamodb_pitr_enabled
+  for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: resource.compliant
+    var: item.continuous_backups_status
     op: equals
-    value: true
-- title: 'DYNAMODB cluster: Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.cluster.encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.cluster_encryption
-    as: cluster
-    item: cluster
+    value: ENABLED
+- rule_id: aws.dynamodb.cluster.encryption_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB table: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.dynamodb.table.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.dynamodb.table_encryption
-    as: table
-    item: table
+    var: item.s3_sse_algorithm
+    op: exists
+- rule_id: aws.dynamodb.table.encryption_at_rest_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB globaltable: Table Pitr Enabled If Supported'
-  severity: medium
-  rule_id: aws.dynamodb.globaltable.table_pitr_enabled_if_supported
-  for_each:
-    discovery: aws.dynamodb.globaltables
-    as: globaltable
-    item: globaltable
+    var: item.s3_sse_algorithm
+    op: exists
+- rule_id: aws.dynamodb.globaltable.table_pitr_enabled_if_supported
+  for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: globaltable.compliant
+    var: item.continuous_backups_status
     op: equals
-    value: true
-- title: 'DYNAMODB cluster: Dynamodb Multi Az Configured'
-  severity: medium
-  rule_id: aws.dynamodb.cluster.dynamodb_multi_az_configured
-  for_each:
-    discovery: aws.dynamodb.clusters
-    as: cluster
-    item: cluster
+    value: ENABLED
+- rule_id: aws.dynamodb.cluster.dynamodb_multi_az_configured
+  for_each: aws.dynamodb.list_global_tables
   conditions:
-    var: cluster.compliant
-    op: equals
-    value: true
-- title: 'DYNAMODB resource: Tables Kms Cmk Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.resource.tables_kms_cmk_encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.resource_encryption
-    as: resource
-    item: resource
+    var: item.replication_group
+    op: exists
+- rule_id: aws.dynamodb.resource.tables_kms_cmk_encryption_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB stream: Consumer Auth Required'
-  severity: medium
-  rule_id: aws.dynamodb.stream.consumer_auth_required
-  for_each:
-    discovery: aws.dynamodb.streams
-    as: stream
-    item: stream
+    var: item.s3_sse_kms_key_id
+    op: exists
+- rule_id: aws.dynamodb.stream.consumer_auth_required
+  for_each: aws.dynamodb.create_table
   conditions:
-    var: stream.compliant
-    op: equals
-    value: true
-- title: 'DYNAMODB table protected by backup plan: Table Protected By Backup Plan
-    Configured'
-  severity: medium
-  rule_id: aws.dynamodb.table_protected_by_backup_plan.table_protected_by_backup_plan_configured
-  for_each:
-    discovery: aws.dynamodb.table_protected_by_backup_plans
-    as: table_protected_by_backup_plan
-    item: table_protected_by_backup_plan
+    all:
+    - var: item.stream_specification
+      op: exists
+    - var: item.stream_specification
+      op: equals
+      value:
+        StreamEnabled: true
+- rule_id: aws.dynamodb.table_protected_by_backup_plan.table_protected_by_backup_plan_configured
+  for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: table_protected_by_backup_plan.versioning_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB resource: Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.resource.encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.resource_encryption
-    as: resource
-    item: resource
+    all:
+    - var: item.continuous_backups_status
+      op: equals
+      value: ENABLED
+    - var: item.point_in_time_recovery_description
+      op: exists
+- rule_id: aws.dynamodb.resource.encryption_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB resource: Dynamodb Autoscaling Enabled'
-  severity: medium
-  rule_id: aws.dynamodb.resource.dynamodb_autoscaling_enabled
-  for_each:
-    discovery: aws.dynamodb.resources
-    as: resource
-    item: resource
+    var: item.s3_sse_algorithm
+    op: exists
+- rule_id: aws.dynamodb.resource.dynamodb_autoscaling_enabled
+  for_each: aws.dynamodb.describe_global_table_settings
   conditions:
-    var: resource.compliant
-    op: equals
-    value: true
-- title: 'DYNAMODB tables: Kms Cmk Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.tables.kms_cmk_encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.tables_encryption
-    as: tables
-    item: tables
+    all:
+    - var: item.replica_provisioned_read_capacity_auto_scaling_settings
+      op: exists
+    - var: item.replica_provisioned_write_capacity_auto_scaling_settings
+      op: exists
+- rule_id: aws.dynamodb.tables.kms_cmk_encryption_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB stream: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.dynamodb.stream.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.dynamodb.stream_encryption
-    as: stream
-    item: stream
+    var: item.s3_sse_kms_key_id
+    op: exists
+- rule_id: aws.dynamodb.stream.encryption_at_rest_enabled
+  for_each: aws.dynamodb.create_table
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB resource: Global Tables Enabled'
-  severity: medium
-  rule_id: aws.dynamodb.resource.global_tables_enabled
-  for_each:
-    discovery: aws.dynamodb.resources
-    as: resource
-    item: resource
+    var: item.stream_specification
+    op: exists
+- rule_id: aws.dynamodb.resource.global_tables_enabled
+  for_each: aws.dynamodb.list_global_tables
   conditions:
-    var: resource.compliant
-    op: equals
-    value: true
-- title: 'DYNAMODB accelerator: Cluster Encryption Enabled'
-  severity: high
-  rule_id: aws.dynamodb.accelerator.cluster_encryption_enabled
-  for_each:
-    discovery: aws.dynamodb.accelerator_encryption
-    as: accelerator
-    item: accelerator
+    var: item.replication_group
+    op: exists
+- rule_id: aws.dynamodb.accelerator.cluster_encryption_enabled
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'DYNAMODB globaltable: Cross Region Replication Encrypted'
-  severity: high
-  rule_id: aws.dynamodb.globaltable.cross_region_replication_encrypted
-  for_each:
-    discovery: aws.dynamodb.globaltable_encryption
-    as: globaltable
-    item: globaltable
+    var: item.s3_sse_algorithm
+    op: exists
+- rule_id: aws.dynamodb.globaltable.cross_region_replication_encrypted
+  for_each: aws.dynamodb.describe_export
   conditions:
-    var: encryption.encryption_enabled
+    var: item.s3_sse_algorithm
     op: equals
-    value: true
-- title: 'DYNAMODB resource: Backup Enabled'
-  severity: medium
-  rule_id: aws.dynamodb.resource.backup_enabled
-  for_each:
-    discovery: aws.dynamodb.resources
-    as: resource
-    item: resource
+    value: aws:kms
+- rule_id: aws.dynamodb.resource.backup_enabled
+  for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: resource.versioning_enabled
-    op: equals
-    value: true
+    all:
+    - var: item.continuous_backups_status
+      op: equals
+      value: ENABLED
+    - var: item.point_in_time_recovery_description
+      op: exists

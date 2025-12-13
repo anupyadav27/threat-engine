@@ -1,28 +1,24 @@
+# IDENTITYSTORE Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/identitystore_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: identitystore
 discovery:
 - discovery_id: aws.identitycenter.groups
   calls:
-  - client: identitystore
-    action: list_users
-    save_as: group_list
-    on_error: continue
+  - action: list_users
     fields:
     - Identitycenters
   emit:
-    items_for: group_list[]
-    as: group
+    items_for: list_users_response[]
     item:
       id: '{{ group.Id }}'
       name: '{{ group.Name }}'
 - discovery_id: aws.identitycenter.users
   for_each: aws.identitycenter.user
   calls:
-  - client: identitystore
-    action: list_users
-    save_as: users
-    on_error: continue
+  - action: list_users
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -30,10 +26,7 @@ discovery:
 - discovery_id: aws.identitycenter.permissionsets
   for_each: aws.identitycenter.permissionset
   calls:
-  - client: identitystore
-    action: describe_permissionsets
-    save_as: permissionsets
-    on_error: continue
+  - action: describe_permissionsets
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -43,213 +36,156 @@ checks:
     Only Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.identitycenter_trust_principals_allowlist_only_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Max Session Duration Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.max_session_duration_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Scopes Or Roles Least Privilege'
   severity: high
   rule_id: aws.identitycenter.permissionset.scopes_or_roles_least_privilege
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Identitycenter Workload Identity Federation
     Used If Supported'
   severity: medium
   rule_id: aws.identitycenter.permissionset.identitycenter_workload_identity_federation_used_if_supported
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Identitycenter No Inline Policies Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.identitycenter_no_inline_policies_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Keys Not Used Or Rotated 90 Days Or Less Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.keys_not_used_or_rotated_90_days_or_less_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER user: Console Password Present Only If Required'
   severity: critical
   rule_id: aws.identitycenter.user.console_password_present_only_if_required
-  for_each:
-    discovery: aws.identitycenter.users
-    as: user
-    item: user
+  for_each: aws.identitycenter.users
   conditions:
-    var: user.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER user: Access Keys Rotated 90 Days Or Less When Present'
   severity: medium
   rule_id: aws.identitycenter.user.access_keys_rotated_90_days_or_less_when_present
-  for_each:
-    discovery: aws.identitycenter.users
-    as: user
-    item: user
+  for_each: aws.identitycenter.users
   conditions:
-    var: user.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Session Duration Reasonable If Applicable
     Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.session_duration_reasonable_if_applicable_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER user: Identitycenter No Inline Policies Enabled'
   severity: medium
   rule_id: aws.identitycenter.user.identitycenter_no_inline_policies_enabled
-  for_each:
-    discovery: aws.identitycenter.users
-    as: user
-    item: user
+  for_each: aws.identitycenter.users
   conditions:
-    var: user.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER group: Identitycenter Membership Review Enabled If Supported'
   severity: medium
   rule_id: aws.identitycenter.group.identitycenter_membership_review_enabled_if_supported
-  for_each:
-    discovery: aws.identitycenter.groups
-    as: group
-    item: group
+  for_each: aws.identitycenter.groups
   conditions:
-    var: group.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER group: Identitycenter External Sharing Restricted If Supported'
   severity: medium
   rule_id: aws.identitycenter.group.identitycenter_external_sharing_restricted_if_supported
-  for_each:
-    discovery: aws.identitycenter.groups
-    as: group
-    item: group
+  for_each: aws.identitycenter.groups
   conditions:
-    var: group.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER user: Identitycenter Inactive 90 Days Disabled'
   severity: medium
   rule_id: aws.identitycenter.user.identitycenter_inactive_90_days_disabled
-  for_each:
-    discovery: aws.identitycenter.users
-    as: user
-    item: user
+  for_each: aws.identitycenter.users
   conditions:
-    var: user.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER group: Identitycenter Attached Policies Not Admin Star Configured'
   severity: medium
   rule_id: aws.identitycenter.group.identitycenter_attached_policies_not_admin_star_configured
-  for_each:
-    discovery: aws.identitycenter.groups
-    as: group
-    item: group
+  for_each: aws.identitycenter.groups
   conditions:
-    var: group.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER group: Identitycenter No Inline Policies Configured'
   severity: medium
   rule_id: aws.identitycenter.group.identitycenter_no_inline_policies_configured
-  for_each:
-    discovery: aws.identitycenter.groups
-    as: group
-    item: group
+  for_each: aws.identitycenter.groups
   conditions:
-    var: group.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER user: Mfa Required'
   severity: critical
   rule_id: aws.identitycenter.user.mfa_required
-  for_each:
-    discovery: aws.identitycenter.users
-    as: user
-    item: user
+  for_each: aws.identitycenter.users
   conditions:
-    var: user.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'IDENTITYCENTER permissionset: Identitycenter Trust External Id Or Audience
     Required'
   severity: medium
   rule_id: aws.identitycenter.permissionset.identitycenter_trust_external_id_or_audience_required
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: Identitycenter Attached Policies Not Admin
     Star Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.identitycenter_attached_policies_not_admin_star_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'IDENTITYCENTER permissionset: No User Managed Long Lived Keys Configured'
   severity: medium
   rule_id: aws.identitycenter.permissionset.no_user_managed_long_lived_keys_configured
-  for_each:
-    discovery: aws.identitycenter.permissionsets
-    as: permissionset
-    item: permissionset
+  for_each: aws.identitycenter.permissionsets
   conditions:
-    var: permissionset.is_public
+    var: item.is_public
     op: equals
     value: false

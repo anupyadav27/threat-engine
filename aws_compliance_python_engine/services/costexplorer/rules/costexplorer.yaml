@@ -1,42 +1,35 @@
+# COSTEXPLORER Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/costexplorer_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: costexplorer
 discovery:
 - discovery_id: aws.costexplorer.costcategorys
   calls:
-  - client: costexplorer
-    action: list_costexplorers
-    save_as: costcategory_list
-    on_error: continue
+  - action: list_costexplorers
     fields:
     - Costexplorers
   emit:
-    items_for: costcategory_list[]
-    as: costcategory
+    items_for: list_costexplorers_response[]
     item:
       id: '{{ costcategory.Id }}'
       name: '{{ costcategory.Name }}'
 - discovery_id: aws.costexplorer.costcategory_encryption
   for_each: aws.costexplorer.costcategorys
   calls:
-  - client: costexplorer
-    action: list_costexplorers
+  - action: list_costexplorers
     params:
       CostcategoryId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
+      encryption_enabled: '{{ list_costexplorers_response.Encrypted if list_costexplorers_response.Encrypted
+        is defined else false }}'
 - discovery_id: aws.costexplorer.cost_allocation_tags
   for_each: aws.costexplorer.cost_allocation_tag
   calls:
-  - client: costexplorer
-    action: describe_cost_allocation_tags
-    save_as: cost_allocation_tags
-    on_error: continue
+  - action: describe_cost_allocation_tags
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -44,121 +37,68 @@ discovery:
 - discovery_id: aws.costexplorer.anomalydetectors
   for_each: aws.costexplorer.anomalydetector
   calls:
-  - client: costexplorer
-    action: describe_anomalydetectors
-    save_as: anomalydetectors
-    on_error: continue
+  - action: describe_anomalydetectors
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 checks:
-- title: 'COSTEXPLORER costcategory: Billing Admins Mfa Required'
-  severity: critical
-  rule_id: aws.costexplorer.costcategory.billing_admins_mfa_required
-  for_each:
-    discovery: aws.costexplorer.costcategorys
-    as: costcategory
-    item: costcategory
+- rule_id: aws.costexplorer.costcategory.billing_admins_mfa_required
+  for_each: aws.costexplorer.costcategorys
   conditions:
-    var: costcategory.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'COSTEXPLORER cost allocation tag: Costexplorer Required Cost Tags Present'
-  severity: medium
-  rule_id: aws.costexplorer.cost_allocation_tag.costexplorer_required_cost_tags_present
-  for_each:
-    discovery: aws.costexplorer.cost_allocation_tags
-    as: cost_allocation_tag
-    item: cost_allocation_tag
+- rule_id: aws.costexplorer.cost_allocation_tag.costexplorer_required_cost_tags_present
+  for_each: aws.costexplorer.cost_allocation_tags
   conditions:
-    var: cost_allocation_tag.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'COSTEXPLORER anomalydetector: Costexplorer Detectors Enabled'
-  severity: medium
-  rule_id: aws.costexplorer.anomalydetector.costexplorer_detectors_enabled
-  for_each:
-    discovery: aws.costexplorer.anomalydetectors
-    as: anomalydetector
-    item: anomalydetector
+- rule_id: aws.costexplorer.anomalydetector.costexplorer_detectors_enabled
+  for_each: aws.costexplorer.anomalydetectors
   conditions:
-    var: anomalydetector.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'COSTEXPLORER cost allocation tag: Untagged Resource Alerts Enabled'
-  severity: medium
-  rule_id: aws.costexplorer.cost_allocation_tag.untagged_resource_alerts_enabled
-  for_each:
-    discovery: aws.costexplorer.cost_allocation_tags
-    as: cost_allocation_tag
-    item: cost_allocation_tag
+- rule_id: aws.costexplorer.cost_allocation_tag.untagged_resource_alerts_enabled
+  for_each: aws.costexplorer.cost_allocation_tags
   conditions:
-    var: cost_allocation_tag.monitoring_enabled
+    var: item.monitoring_enabled
     op: equals
     value: true
-- title: 'COSTEXPLORER anomalydetector: Costexplorer Severity Thresholds Configured'
-  severity: medium
-  rule_id: aws.costexplorer.anomalydetector.costexplorer_severity_thresholds_configured
-  for_each:
-    discovery: aws.costexplorer.anomalydetectors
-    as: anomalydetector
-    item: anomalydetector
+- rule_id: aws.costexplorer.anomalydetector.costexplorer_severity_thresholds_configured
+  for_each: aws.costexplorer.anomalydetectors
   conditions:
-    var: anomalydetector.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'COSTEXPLORER cost allocation tag: Cost Tag Policy Enforced'
-  severity: high
-  rule_id: aws.costexplorer.cost_allocation_tag.cost_tag_policy_enforced
-  for_each:
-    discovery: aws.costexplorer.cost_allocation_tags
-    as: cost_allocation_tag
-    item: cost_allocation_tag
+- rule_id: aws.costexplorer.cost_allocation_tag.cost_tag_policy_enforced
+  for_each: aws.costexplorer.cost_allocation_tags
   conditions:
-    var: cost_allocation_tag.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'COSTEXPLORER costcategory: Billing Console Rbac Least Privilege'
-  severity: high
-  rule_id: aws.costexplorer.costcategory.billing_console_rbac_least_privilege
-  for_each:
-    discovery: aws.costexplorer.costcategorys
-    as: costcategory
-    item: costcategory
+- rule_id: aws.costexplorer.costcategory.billing_console_rbac_least_privilege
+  for_each: aws.costexplorer.costcategorys
   conditions:
-    var: costcategory.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'COSTEXPLORER anomalydetector: Alert Destinations Configured'
-  severity: medium
-  rule_id: aws.costexplorer.anomalydetector.alert_destinations_configured
-  for_each:
-    discovery: aws.costexplorer.anomalydetectors
-    as: anomalydetector
-    item: anomalydetector
+- rule_id: aws.costexplorer.anomalydetector.alert_destinations_configured
+  for_each: aws.costexplorer.anomalydetectors
   conditions:
-    var: anomalydetector.monitoring_enabled
+    var: item.monitoring_enabled
     op: equals
     value: true
-- title: 'COSTEXPLORER costcategory: Costexplorer Cost Export Destinations Least Privilege'
-  severity: high
-  rule_id: aws.costexplorer.costcategory.costexplorer_cost_export_destinations_least_privilege
-  for_each:
-    discovery: aws.costexplorer.costcategorys
-    as: costcategory
-    item: costcategory
+- rule_id: aws.costexplorer.costcategory.costexplorer_cost_export_destinations_least_privilege
+  for_each: aws.costexplorer.costcategorys
   conditions:
-    var: costcategory.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'COSTEXPLORER costcategory: Costexplorer Cost Data Exports Private And Encrypted'
-  severity: high
-  rule_id: aws.costexplorer.costcategory.costexplorer_cost_data_exports_private_and_encrypted
-  for_each:
-    discovery: aws.costexplorer.costcategory_encryption
-    as: costcategory
-    item: costcategory
+- rule_id: aws.costexplorer.costcategory.costexplorer_cost_data_exports_private_and_encrypted
+  for_each: aws.costexplorer.costcategory_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals

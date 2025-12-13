@@ -2,181 +2,83 @@ version: '1.0'
 provider: aws
 service: athena
 discovery:
-- discovery_id: aws.athena.workgroup_encryptions
+- discovery_id: aws.athena.list_work_groups
   calls:
-  - client: athena
-    action: list_work_groups
-    save_as: workgroup_encryption_list
-    on_error: continue
-    fields:
-    - Athenas
+  - action: list_work_groups
+    save_as: list_work_groups_response
   emit:
-    items_for: workgroup_encryption_list[]
-    as: workgroup_encryption
-    item:
-      id: '{{ workgroup_encryption.Id }}'
-      name: '{{ workgroup_encryption.Name }}'
-- discovery_id: aws.athena.workgroup_encryption_encryption
-  for_each: aws.athena.workgroup_encryptions
-  calls:
-  - client: athena
-    action: list_work_groups
-    params:
-      Workgroup_encryptionId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.athena.workgroup_encryption_logging
-  for_each: aws.athena.workgroup_encryptions
-  calls:
-  - client: athena
-    action: describe_workgroup_encryption_logging
-    params:
-      Workgroup_encryptionId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
-- discovery_id: aws.athena.workgroup_logging
-  calls:
-  - client: athena
-    action: list_application_dpu_sizes
-    save_as: workgroup_logging
-    on_error: continue
-  emit:
-    items_for: workgroup_logging[]
-    as: workgroup_logging
-    item:
-      id: '{{ workgroup_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.athena.workgroups
-  for_each: aws.athena.workgroup
-  calls:
-  - client: athena
-    action: list_work_groups
-    save_as: workgroups
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.athena.workgroup_encryption
-  calls:
-  - client: athena
-    action: list_application_dpu_sizes
-    save_as: workgroup_encryption
-    on_error: continue
-  emit:
-    items_for: workgroup_encryption[]
-    as: workgroup_encryption
-    item:
-      id: '{{ workgroup_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.athena.resource_logging
-  calls:
-  - client: athena
-    action: list_application_dpu_sizes
-    save_as: resource_logging
-    on_error: continue
-  emit:
-    items_for: resource_logging[]
-    as: resource_logging
-    item:
-      id: '{{ resource_logging.Id }}'
-      compliant: '{{ true }}'
-checks:
-- title: 'ATHENA resource: Workgroup Logging Enabled'
-  severity: medium
-  rule_id: aws.athena.resource.workgroup_logging_enabled
-  for_each:
-    discovery: aws.athena.resource_logging
+    items_for: '{{ list_work_groups_response.WorkGroups }}'
     as: resource
-    item: resource
+    item:
+      name: '{{ resource.Name }}'
+      state: '{{ resource.State }}'
+      description: '{{ resource.Description }}'
+      creation_time: '{{ resource.CreationTime }}'
+      engine_version: '{{ resource.EngineVersion }}'
+      identity_center_application_arn: '{{ resource.IdentityCenterApplicationArn }}'
+- discovery_id: aws.athena.get_work_group
+  calls:
+  - action: get_work_group
+    save_as: get_work_group_response
+    params:
+      WorkGroup: '{{ item.api_id }}'
+    on_error: continue
+  for_each: aws.athena.list_work_groups
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      name: '{{ get_work_group_response.WorkGroup.Name }}'
+      state: '{{ get_work_group_response.WorkGroup.State }}'
+      configuration: '{{ get_work_group_response.WorkGroup.Configuration }}'
+      description: '{{ get_work_group_response.WorkGroup.Description }}'
+      creation_time: '{{ get_work_group_response.WorkGroup.CreationTime }}'
+checks:
+- rule_id: aws.athena.resource.workgroup_logging_enabled
+  for_each: aws.athena.get_work_group
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: Analytics query monitoring and logging is enabled
-  severity: medium
-  rule_id: aws.athena.workgroup.admin_activity_logging_enabled
-  for_each:
-    discovery: aws.athena.workgroup_logging
-    as: workgroup
-    item: workgroup
+    var: item.configuration
+    op: exists
+- rule_id: aws.athena.workgroup.admin_activity_logging_enabled
+  for_each: aws.athena.list_work_groups
   conditions:
-    var: logging.logging_enabled
+    var: item.state
     op: equals
-    value: true
-- title: 'ATHENA workgroup: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.athena.workgroup.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.athena.workgroup_encryption
-    as: workgroup
-    item: workgroup
+    value: ENABLED
+- rule_id: aws.athena.workgroup.encryption_at_rest_enabled
+  for_each: aws.athena.get_work_group
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'ATHENA workgroup: Logs Retention Days Minimum'
-  severity: medium
-  rule_id: aws.athena.workgroup.logs_retention_days_minimum
-  for_each:
-    discovery: aws.athena.workgroup_logging
-    as: workgroup
-    item: workgroup
+    var: item.configuration
+    op: exists
+- rule_id: aws.athena.workgroup.logs_retention_days_minimum
+  for_each: aws.athena.list_work_groups
   conditions:
-    var: logging.logging_enabled
+    var: item.state
     op: equals
-    value: true
-- title: Analytics query monitoring and logging is enabled
-  severity: medium
-  rule_id: aws.athena.workgroup.query_access_logging_enabled
-  for_each:
-    discovery: aws.athena.workgroup_logging
-    as: workgroup
-    item: workgroup
+    value: ENABLED
+- rule_id: aws.athena.workgroup.query_access_logging_enabled
+  for_each: aws.athena.list_work_groups
   conditions:
-    var: logging.logging_enabled
+    var: item.state
     op: equals
-    value: true
-- title: 'ATHENA workgroup: Athena Allowed Data Sources Allowlist Configured'
-  severity: medium
-  rule_id: aws.athena.workgroup.athena_allowed_data_sources_allowlist_configured
-  for_each:
-    discovery: aws.athena.workgroups
-    as: workgroup
-    item: workgroup
+    value: ENABLED
+- rule_id: aws.athena.workgroup.athena_allowed_data_sources_allowlist_configured
+  for_each: aws.athena.get_work_group
   conditions:
-    var: workgroup.compliant
-    op: equals
-    value: true
-- title: 'ATHENA workgroup: Query Result Encryption Enabled'
-  severity: high
-  rule_id: aws.athena.workgroup.query_result_encryption_enabled
-  for_each:
-    discovery: aws.athena.workgroup_encryption
-    as: workgroup
-    item: workgroup
+    all:
+    - var: item.state
+      op: equals
+      value: ENABLED
+    - var: item.configuration
+      op: contains
+      value: AllowedDataSources
+- rule_id: aws.athena.workgroup.query_result_encryption_enabled
+  for_each: aws.athena.get_work_group
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'ATHENA workgroup encryption: At Rest Enabled'
-  severity: medium
-  rule_id: aws.athena.workgroup_encryption.at_rest_enabled
-  for_each:
-    discovery: aws.athena.workgroup_encryption_encryption
-    as: workgroup_encryption
-    item: workgroup_encryption
+    var: item.configuration
+    op: exists
+- rule_id: aws.athena.workgroup_encryption.at_rest_enabled
+  for_each: aws.athena.get_work_group
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.configuration
+    op: contains
+    value: EncryptionConfiguration

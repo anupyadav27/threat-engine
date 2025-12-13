@@ -1,199 +1,110 @@
 version: '1.0'
 provider: aws
-service: ec2
+service: ebs
 discovery:
-- discovery_id: aws.ebs.volumes
+- discovery_id: aws.ebs.list_snapshot_blocks
   calls:
-  - client: ec2
-    action: describe_volumes
-    save_as: volume_list
-    on_error: continue
-    fields:
-    - Ebss
-  emit:
-    items_for: volume_list[]
-    as: volume
-    item:
-      id: '{{ volume.Id }}'
-      name: '{{ volume.Name }}'
-- discovery_id: aws.ebs.volume_encryption
-  for_each: aws.ebs.volumes
-  calls:
-  - client: ec2
-    action: describe_volumes
+  - action: list_snapshot_blocks
+    save_as: list_snapshot_blocks_response
     params:
-      VolumeId: '{{ item.id }}'
-    save_as: encryption
+      SnapshotId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.ebs.snapshots
-  for_each: aws.ebs.snapshot
+      resource_id: '{{ item.resource_id }}'
+      block_index: '{{ list_snapshot_blocks_response.Blocks.BlockIndex }}'
+      block_token: '{{ list_snapshot_blocks_response.Blocks.BlockToken }}'
+- discovery_id: aws.ebs.start_snapshot
   calls:
-  - client: ec2
-    action: describe_snapshots
-    save_as: snapshots
+  - action: start_snapshot
+    save_as: start_snapshot_response
+    params:
+      VolumeSize: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.ebs.snapshot_encryption
+      resource_id: '{{ item.resource_id }}'
+      key: '{{ start_snapshot_response.Tags.Key }}'
+      value: '{{ start_snapshot_response.Tags.Value }}'
+- discovery_id: aws.ebs.list_changed_blocks
   calls:
-  - client: ec2
-    action: describe_volumes
-    save_as: snapshot_encryption
+  - action: list_changed_blocks
+    save_as: list_changed_blocks_response
+    params:
+      SecondSnapshotId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
   emit:
-    items_for: snapshot_encryption[]
-    as: snapshot_encryption
     item:
-      id: '{{ snapshot_encryption.Id }}'
-      compliant: '{{ true }}'
+      resource_id: '{{ item.resource_id }}'
+      block_index: '{{ list_changed_blocks_response.ChangedBlocks.BlockIndex }}'
+      first_block_token: '{{ list_changed_blocks_response.ChangedBlocks.FirstBlockToken
+        }}'
+      second_block_token: '{{ list_changed_blocks_response.ChangedBlocks.SecondBlockToken
+        }}'
 checks:
-- title: 'EBS volume: Snapshots Not Public Configured'
-  severity: high
-  rule_id: aws.ebs.volume.snapshots_not_public_configured
-  for_each:
-    discovery: aws.ebs.volumes
-    as: volume
-    item: volume
+- rule_id: aws.ebs.volume.snapshots_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
   conditions:
-    var: volume.is_public
-    op: equals
-    value: false
-- title: 'EBS volume: Backup Configured'
-  severity: medium
-  rule_id: aws.ebs.volume.backup_configured
-  for_each:
-    discovery: aws.ebs.volumes
-    as: volume
-    item: volume
+    var: item.block_token
+    op: exists
+- rule_id: aws.ebs.volume.backup_configured
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: volume.versioning_enabled
-    op: equals
-    value: true
-- title: 'EBS volume: Snapshots Encrypted'
-  severity: high
-  rule_id: aws.ebs.volume.snapshots_encrypted
-  for_each:
-    discovery: aws.ebs.volume_encryption
-    as: volume
-    item: volume
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.volume.snapshots_encrypted
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'EBS snapshot: Ebs Cmk Cmek Configured'
-  severity: medium
-  rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
-  for_each:
-    discovery: aws.ebs.snapshot_encryption
-    as: snapshot
-    item: snapshot
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'EBS volume: Ebs Cmk Cmek Configured'
-  severity: medium
-  rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
-  for_each:
-    discovery: aws.ebs.volume_encryption
-    as: volume
-    item: volume
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'EBS snapshot: Not Public Configured'
-  severity: high
-  rule_id: aws.ebs.snapshot.not_public_configured
-  for_each:
-    discovery: aws.ebs.snapshots
-    as: snapshot
-    item: snapshot
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.not_public_configured
+  for_each: aws.ebs.list_changed_blocks
   conditions:
-    var: snapshot.is_public
-    op: equals
-    value: false
-- title: 'EBS snapshot: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.ebs.snapshot_encryption
-    as: snapshot
-    item: snapshot
+    var: item.block_index
+    op: exists
+- rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'EBS snapshot: Ebs S Encrypted'
-  severity: high
-  rule_id: aws.ebs.snapshot.ebs_s_encrypted
-  for_each:
-    discovery: aws.ebs.snapshot_encryption
-    as: snapshot
-    item: snapshot
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.ebs_s_encrypted
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
+    var: item.key
     op: equals
-    value: true
-- title: 'EBS snapshot: S Not Public Configured'
-  severity: high
-  rule_id: aws.ebs.snapshot.s_not_public_configured
-  for_each:
-    discovery: aws.ebs.snapshots
-    as: snapshot
-    item: snapshot
+    value: Encrypted
+- rule_id: aws.ebs.snapshot.s_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
   conditions:
-    var: snapshot.is_public
-    op: equals
-    value: false
-- title: 'EBS snapshot: Snapshots Not Public Configured'
-  severity: high
-  rule_id: aws.ebs.snapshot.snapshots_not_public_configured
-  for_each:
-    discovery: aws.ebs.snapshots
-    as: snapshot
-    item: snapshot
+    var: item.block_token
+    op: exists
+- rule_id: aws.ebs.snapshot.snapshots_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
   conditions:
-    var: snapshot.is_public
+    var: item.block_token
     op: equals
-    value: false
-- title: 'EBS snapshot: Snapshots Encrypted'
-  severity: high
-  rule_id: aws.ebs.snapshot.snapshots_encrypted
-  for_each:
-    discovery: aws.ebs.snapshot_encryption
-    as: snapshot
-    item: snapshot
+    value: []
+- rule_id: aws.ebs.snapshot.snapshots_encrypted
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
+    var: item.key
     op: equals
-    value: true
-- title: 'EBS snapshot: Ebs Cross Region Copy Encrypted'
-  severity: high
-  rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
-  for_each:
-    discovery: aws.ebs.snapshot_encryption
-    as: snapshot
-    item: snapshot
+    value: Encrypted
+- rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
+  for_each: aws.ebs.start_snapshot
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'EBS volume: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.ebs.volume.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.ebs.volume_encryption
-    as: volume
-    item: volume
-  conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.key
+    op: exists

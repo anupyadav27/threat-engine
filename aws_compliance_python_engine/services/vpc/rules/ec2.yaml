@@ -1,0 +1,636 @@
+# EC2 Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/ec2_metadata.yaml
+
+version: '1.0'
+provider: aws
+service: ec2
+discovery:
+- discovery_id: aws.vpc.subnet_no_public_ip_by_defaults
+  calls:
+  - action: list_vpcs
+    fields:
+    - Vpcs
+  emit:
+    items_for: list_vpcs_response[]
+    item:
+      id: '{{ subnet_no_public_ip_by_default.Id }}'
+      name: '{{ subnet_no_public_ip_by_default.Name }}'
+- discovery_id: aws.vpc.subnet_no_public_ip_by_default_logging
+  for_each: aws.vpc.subnet_no_public_ip_by_defaults
+  calls:
+  - action: describe_subnet_no_public_ip_by_default_logging
+    params:
+      Subnet_no_public_ip_by_defaultId: '{{ item.id }}'
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      logging_enabled: '{{ describe_subnet_no_public_ip_by_default_logging_response.LoggingEnabled
+        is defined if describe_subnet_no_public_ip_by_default_logging_response else
+        false }}'
+- discovery_id: aws.vpc.subnet_different_azs
+  for_each: aws.vpc.subnet_different_az
+  calls:
+  - action: describe_subnet_different_azs
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.routetable_logging
+  calls:
+  - action: describe_route_tables
+  emit:
+    items_for: describe_route_tables_response[]
+    item:
+      id: '{{ describe_route_tables_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.subnets
+  for_each: aws.vpc.subnet
+  calls:
+  - action: describe_subnets
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.resources
+  for_each: aws.vpc.resource
+  calls:
+  - action: describe_resources
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.natgateways
+  for_each: aws.vpc.natgateway
+  calls:
+  - action: describe_natgateways
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.routetables
+  for_each: aws.vpc.routetable
+  calls:
+  - action: describe_route_tables
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.natgateway_logging
+  calls:
+  - action: list_natgateway_logging
+  emit:
+    items_for: list_natgateway_logging_response[]
+    item:
+      id: '{{ list_natgateway_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.customergateways
+  for_each: aws.vpc.customergateway
+  calls:
+  - action: describe_customergateways
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpngateway_logging
+  calls:
+  - action: list_vpngateway_logging
+  emit:
+    items_for: list_vpngateway_logging_response[]
+    item:
+      id: '{{ list_vpngateway_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.internetgateways
+  for_each: aws.vpc.internetgateway
+  calls:
+  - action: describe_internetgateways
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpcendpoint_logging
+  calls:
+  - action: list_vpcendpoint_logging
+  emit:
+    items_for: list_vpcendpoint_logging_response[]
+    item:
+      id: '{{ list_vpcendpoint_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.securitygroups
+  for_each: aws.vpc.securitygroup
+  calls:
+  - action: describe_security_groups
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.endpoint_services_allowed_principals_trust_boundariess
+  for_each: aws.vpc.endpoint_services_allowed_principals_trust_boundarie
+  calls:
+  - action: describe_endpoint_services_allowed_principals_trust_boundariess
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpn_connection_tunnels_ups
+  for_each: aws.vpc.vpn_connection_tunnels_up
+  calls:
+  - action: describe_vpn_connection_tunnels_ups
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.securitygroup_logging
+  calls:
+  - action: describe_security_groups
+  emit:
+    items_for: describe_security_groups_response[]
+    item:
+      id: '{{ describe_security_groups_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.networkacl_logging
+  calls:
+  - action: describe_network_acls
+  emit:
+    items_for: describe_network_acls_response[]
+    item:
+      id: '{{ describe_network_acls_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpcs
+  for_each: aws.vpc.vpc
+  calls:
+  - action: describe_vpcs
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.networks
+  for_each: aws.vpc.network
+  calls:
+  - action: describe_networks
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.flow_logging
+  calls:
+  - action: list_flow_logging
+  emit:
+    items_for: list_flow_logging_response[]
+    item:
+      id: '{{ list_flow_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpcendpoints
+  for_each: aws.vpc.vpcendpoint
+  calls:
+  - action: describe_vpcendpoints
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.peering_routing_tables_with_least_privileges
+  for_each: aws.vpc.peering_routing_tables_with_least_privilege
+  calls:
+  - action: describe_peering_routing_tables_with_least_privileges
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.different_regionss
+  for_each: aws.vpc.different_region
+  calls:
+  - action: describe_different_regionss
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.network_interface_logging
+  calls:
+  - action: list_network_interface_logging
+  emit:
+    items_for: list_network_interface_logging_response[]
+    item:
+      id: '{{ list_network_interface_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpnconnection_logging
+  calls:
+  - action: list_vpnconnection_logging
+  emit:
+    items_for: list_vpnconnection_logging_response[]
+    item:
+      id: '{{ list_vpnconnection_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.customergateway_logging
+  calls:
+  - action: list_customergateway_logging
+  emit:
+    items_for: list_customergateway_logging_response[]
+    item:
+      id: '{{ list_customergateway_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.nacl_ingress_restricted_ports_22_3389s
+  for_each: aws.vpc.nacl_ingress_restricted_ports_22_3389
+  calls:
+  - action: describe_nacl_ingress_restricted_ports_22_3389s
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpnconnections
+  for_each: aws.vpc.vpnconnection
+  calls:
+  - action: describe_vpnconnections
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.endpoint_connections_trust_boundariess
+  for_each: aws.vpc.endpoint_connections_trust_boundarie
+  calls:
+  - action: describe_endpoint_connections_trust_boundariess
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.resource_logging
+  calls:
+  - action: describe_load_balancers
+  emit:
+    items_for: describe_load_balancers_response[]
+    item:
+      id: '{{ describe_load_balancers_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpc_logging
+  calls:
+  - action: list_vpc_logging
+  emit:
+    items_for: list_vpc_logging_response[]
+    item:
+      id: '{{ list_vpc_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.internetgateway_logging
+  calls:
+  - action: list_internetgateway_logging
+  emit:
+    items_for: list_internetgateway_logging_response[]
+    item:
+      id: '{{ list_internetgateway_logging_response.Id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.network_interfaces
+  for_each: aws.vpc.network_interface
+  calls:
+  - action: describe_network_interfaces
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.vpngateways
+  for_each: aws.vpc.vpngateway
+  calls:
+  - action: describe_vpngateways
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.subnet_separate_private_publics
+  for_each: aws.vpc.subnet_separate_private_public
+  calls:
+  - action: describe_subnet_separate_private_publics
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.networkacls
+  for_each: aws.vpc.networkacl
+  calls:
+  - action: describe_network_acls
+  emit:
+    item:
+      resource_id: '{{ item.id }}'
+      compliant: '{{ true }}'
+- discovery_id: aws.vpc.subnet_logging
+  calls:
+  - action: describe_subnets
+  emit:
+    items_for: describe_subnets_response[]
+    item:
+      id: '{{ describe_subnets_response.Id }}'
+      compliant: '{{ true }}'
+checks:
+- rule_id: aws.vpc.subnet.dns_hostnames_and_support_configured
+  for_each: aws.vpc.subnets
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.customergateway.flow_logging_enabled
+  for_each: aws.vpc.customergateway_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.internetgateway.flow_logging_enabled
+  for_each: aws.vpc.internetgateway_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpcendpoint.dns_hostnames_and_support_configured
+  for_each: aws.vpc.vpcendpoints
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.subnet.flow_logging_enabled
+  for_each: aws.vpc.subnet_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpc.flow_logging_enabled
+  for_each: aws.vpc.vpc_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.securitygroup.security_closed_ports_restricted
+  for_each: aws.vpc.securitygroups
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.networkacl.network_dns_hostnames_and_support_configured
+  for_each: aws.vpc.networkacls
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.customergateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.customergateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.resource.flow_log_active_rejects_enabled
+  for_each: aws.vpc.resource_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpnconnection.flow_logging_enabled
+  for_each: aws.vpc.vpnconnection_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.securitygroup.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.securitygroups
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.nacl_ingress_restricted_ports_22_3389.nacl_ingress_restricted_ports_22_3389_configured
+  for_each: aws.vpc.nacl_ingress_restricted_ports_22_3389s
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.resource.endpoint_multi_az_enabled
+  for_each: aws.vpc.resources
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.network_interface.flow_logging_enabled
+  for_each: aws.vpc.network_interface_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.internetgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.internetgateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.routetable.s_no_unintended_internet_paths_configured
+  for_each: aws.vpc.routetables
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.resource.endpoint_for_ec2_enabled
+  for_each: aws.vpc.resources
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.network_interface.network_dns_hostnames_and_support_configured
+  for_each: aws.vpc.network_interfaces
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.routetable.dns_hostnames_and_support_configured
+  for_each: aws.vpc.routetables
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.resource.flow_logging_enabled
+  for_each: aws.vpc.resource_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.subnet_separate_private_public.subnet_separate_private_public_configured
+  for_each: aws.vpc.subnet_separate_private_publics
+  conditions:
+    var: item.is_public
+    op: equals
+    value: false
+- rule_id: aws.vpc.natgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.natgateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpngateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.vpngateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpcendpoint.flow_logging_enabled
+  for_each: aws.vpc.vpcendpoint_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.customergateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.customergateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.securitygroup.security_dns_hostnames_and_support_configured
+  for_each: aws.vpc.securitygroups
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.endpoint_services_allowed_principals_trust_boundaries.endpoint_principals_trust_boundaries_configured
+  for_each: aws.vpc.endpoint_services_allowed_principals_trust_boundariess
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.peering_routing_tables_with_least_privilege.privilege
+  for_each: aws.vpc.peering_routing_tables_with_least_privileges
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.natgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.natgateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.subnet_no_public_ip_by_default.subnet_no_public_ip_by_default_configured
+  for_each: aws.vpc.subnet_no_public_ip_by_defaults
+  conditions:
+    var: item.is_public
+    op: equals
+    value: false
+- rule_id: aws.vpc.networkacl.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.networkacls
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpngateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.vpngateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpngateway.flow_logging_enabled
+  for_each: aws.vpc.vpngateway_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.network.acl_unused_configured
+  for_each: aws.vpc.networks
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.securitygroup.flow_logging_enabled
+  for_each: aws.vpc.securitygroup_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.natgateway.flow_logging_enabled
+  for_each: aws.vpc.natgateway_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.endpoint_connections_trust_boundaries.endpoint_connections_trust_boundaries_configured
+  for_each: aws.vpc.endpoint_connections_trust_boundariess
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.flow.logging_enabled
+  for_each: aws.vpc.flow_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.network_interface.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.network_interfaces
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.networkacl.flow_logging_enabled
+  for_each: aws.vpc.networkacl_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.subnet_different_az.subnet_different_az_configured
+  for_each: aws.vpc.subnet_different_azs
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpnconnection.dns_hostnames_and_support_configured
+  for_each: aws.vpc.vpnconnections
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpcendpoint.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.vpcendpoints
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpn_connection_tunnels_up.vpn_connection_tunnels_up_configured
+  for_each: aws.vpc.vpn_connection_tunnels_ups
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpnconnection.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.vpnconnections
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.subnet.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.subnets
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.different_regions.different_regions_configured
+  for_each: aws.vpc.different_regionss
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.routetable.flow_logging_enabled
+  for_each: aws.vpc.routetable_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true
+- rule_id: aws.vpc.network.security_monitored
+  for_each: aws.vpc.networks
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpc.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.vpcs
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.internetgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.internetgateways
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true
+- rule_id: aws.vpc.vpc.dns_hostnames_and_support_configured
+  for_each: aws.vpc.vpcs
+  conditions:
+    var: item.in_vpc
+    op: equals
+    value: true

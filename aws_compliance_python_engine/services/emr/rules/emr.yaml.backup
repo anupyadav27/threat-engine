@@ -1,0 +1,51 @@
+version: '1.0'
+provider: aws
+service: emr
+discovery:
+- discovery_id: aws.emr.get_block_public_access_configuration
+  calls:
+  - action: get_block_public_access_configuration
+    save_as: get_block_public_access_configuration_response
+  emit:
+    items_for: '{{ get_block_public_access_configuration_response.BlockPublicAccessConfiguration
+      }}'
+    as: resource
+    item:
+      block_public_security_group_rules: '{{ resource.BlockPublicSecurityGroupRules
+        }}'
+      permitted_public_security_group_rule_ranges: '{{ resource.PermittedPublicSecurityGroupRuleRanges
+        }}'
+- discovery_id: aws.emr.list_instances
+  calls:
+  - action: list_instances
+    save_as: list_instances_response
+    params:
+      ClusterId: '{{ item.id }}'
+    on_error: continue
+  for_each: aws.emr.get_block_public_access_configuration
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ list_instances_response.Instances.Id }}'
+      ec2_instance_id: '{{ list_instances_response.Instances.Ec2InstanceId }}'
+      public_dns_name: '{{ list_instances_response.Instances.PublicDnsName }}'
+      public_ip_address: '{{ list_instances_response.Instances.PublicIpAddress }}'
+      private_dns_name: '{{ list_instances_response.Instances.PrivateDnsName }}'
+checks:
+- rule_id: aws.emr.cluster.account_public_block_enabled
+  for_each: aws.emr.get_block_public_access_configuration
+  conditions:
+    var: item.block_public_security_group_rules
+    op: equals
+    value: true
+- rule_id: aws.emr.cluster.master_nodes_no_public_ip_configured
+  for_each: aws.emr.list_instances
+  conditions:
+    var: item.public_ip_address
+    op: equals
+- rule_id: aws.emr.cluster.publicly_accesible_configured
+  for_each: aws.emr.get_block_public_access_configuration
+  conditions:
+    var: item.block_public_security_group_rules
+    op: equals
+    value: true

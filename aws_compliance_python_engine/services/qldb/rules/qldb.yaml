@@ -1,147 +1,102 @@
+# QLDB Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/qldb_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: qldb
 discovery:
 - discovery_id: aws.qldb.networks
   calls:
-  - client: qldb
-    action: list_journal_kinesis_streams_for_ledger
-    save_as: network_list
-    on_error: continue
+  - action: list_journal_kinesis_streams_for_ledger
     fields:
     - Qldbs
   emit:
-    items_for: network_list[]
-    as: network
+    items_for: list_journal_kinesis_streams_for_ledger_response[]
     item:
       id: '{{ network.Id }}'
       name: '{{ network.Name }}'
 - discovery_id: aws.qldb.network_encryption
   for_each: aws.qldb.networks
   calls:
-  - client: qldb
-    action: list_journal_kinesis_streams_for_ledger
+  - action: list_journal_kinesis_streams_for_ledger
     params:
       NetworkId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
+      encryption_enabled: '{{ list_journal_kinesis_streams_for_ledger_response.Encrypted
+        if list_journal_kinesis_streams_for_ledger_response.Encrypted is defined else
+        false }}'
 - discovery_id: aws.qldb.network_logging
   for_each: aws.qldb.networks
   calls:
-  - client: qldb
-    action: describe_journal_kinesis_stream
+  - action: describe_journal_kinesis_stream
     params:
       NetworkId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      logging_enabled: '{{ describe_journal_kinesis_stream_response.LoggingEnabled
+        is defined if describe_journal_kinesis_stream_response else false }}'
 - discovery_id: aws.qldb.resources
   for_each: aws.qldb.resource
   calls:
-  - client: qldb
-    action: describe_journal_kinesis_stream
-    save_as: resources
-    on_error: continue
+  - action: describe_journal_kinesis_stream
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.qldb.resource_encryption
   calls:
-  - client: qldb
-    action: list_journal_kinesis_streams_for_ledger
-    save_as: resource_encryption
-    on_error: continue
+  - action: list_journal_kinesis_streams_for_ledger
   emit:
-    items_for: resource_encryption[]
-    as: resource_encryption
+    items_for: list_journal_kinesis_streams_for_ledger_response[]
     item:
-      id: '{{ resource_encryption.Id }}'
+      id: '{{ list_journal_kinesis_streams_for_ledger_response.Id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.qldb.ledgers
   for_each: aws.qldb.ledger
   calls:
-  - client: qldb
-    action: describe_journal_kinesis_stream
-    save_as: ledgers
-    on_error: continue
+  - action: describe_journal_kinesis_stream
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.qldb.resource_logging
   calls:
-  - client: qldb
-    action: list_journal_kinesis_streams_for_ledger
-    save_as: resource_logging
-    on_error: continue
+  - action: list_journal_kinesis_streams_for_ledger
   emit:
-    items_for: resource_logging[]
-    as: resource_logging
+    items_for: list_journal_kinesis_streams_for_ledger_response[]
     item:
-      id: '{{ resource_logging.Id }}'
+      id: '{{ list_journal_kinesis_streams_for_ledger_response.Id }}'
       compliant: '{{ true }}'
 checks:
-- title: 'QLDB resource: Ledger Iam Access Control Enforced'
-  severity: high
-  rule_id: aws.qldb.resource.ledger_iam_access_control_enforced
-  for_each:
-    discovery: aws.qldb.resources
-    as: resource
-    item: resource
+- rule_id: aws.qldb.resource.ledger_iam_access_control_enforced
+  for_each: aws.qldb.resources
   conditions:
-    var: resource.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'QLDB network: Access Secure Configuration Configured'
-  severity: medium
-  rule_id: aws.qldb.network.access_secure_configuration_configured
-  for_each:
-    discovery: aws.qldb.networks
-    as: network
-    item: network
+- rule_id: aws.qldb.network.access_secure_configuration_configured
+  for_each: aws.qldb.networks
   conditions:
-    var: network.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'QLDB resource: Ledger Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.qldb.resource.ledger_encryption_at_rest_enabled
-  for_each:
-    discovery: aws.qldb.resource_encryption
-    as: resource
-    item: resource
+- rule_id: aws.qldb.resource.ledger_encryption_at_rest_enabled
+  for_each: aws.qldb.resource_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'QLDB ledger: Qldb Journal Export Configured'
-  severity: medium
-  rule_id: aws.qldb.ledger.qldb_journal_export_configured
-  for_each:
-    discovery: aws.qldb.ledgers
-    as: ledger
-    item: ledger
+- rule_id: aws.qldb.ledger.qldb_journal_export_configured
+  for_each: aws.qldb.ledgers
   conditions:
-    var: ledger.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'QLDB resource: Logging And Monitoring Compliance Configured'
-  severity: medium
-  rule_id: aws.qldb.resource.logging_and_monitoring_compliance_configured
-  for_each:
-    discovery: aws.qldb.resource_logging
-    as: resource
-    item: resource
+- rule_id: aws.qldb.resource.logging_and_monitoring_compliance_configured
+  for_each: aws.qldb.resource_logging
   conditions:
     var: logging.logging_enabled
     op: equals

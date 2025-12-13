@@ -1,0 +1,24 @@
+# EC2 Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/ec2_metadata.yaml
+
+version: '1.0'
+provider: aws
+service: ec2
+discovery:
+- discovery_id: aws.eip.addresss
+  calls:
+  - action: list_eips
+    fields:
+    - Eips
+  emit:
+    items_for: list_eips_response[]
+    item:
+      id: '{{ address.Id }}'
+      name: '{{ address.Name }}'
+checks:
+- rule_id: aws.eip.address.address_enabled
+  for_each: aws.eip.addresss
+  conditions:
+    var: item.compliant
+    op: equals
+    value: true

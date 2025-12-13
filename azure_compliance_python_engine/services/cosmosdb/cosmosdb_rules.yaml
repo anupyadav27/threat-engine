@@ -1,241 +1,40 @@
-# ============================================================================
-# 🤖 CURSOR AI: SERVICE VALIDATION INSTRUCTIONS
-# ============================================================================
-# 
-# SERVICE: cosmosdb
-# STATUS: ⏳ NOT_VALIDATED
-#
-# 🎯 YOUR TASK:
-# 1. Run engine: export AZURE_ENGINE_FILTER_SERVICES="cosmosdb" && python engine/azure_generic_engine.py > /tmp/test_cosmosdb.json 2>&1
-# 2. Analyze: tail -100 /tmp/test_cosmosdb.json
-# 3. Fix issues below in discovery/checks sections
-# 4. Re-run until: inventory has resources (if exist), checks = PASS/FAIL (not ERROR)
-# 5. Mark complete at bottom
-#
-# ❌ COMMON ISSUES & FIXES:
-#
-# "Failed to create client" → 
-#   Fix sdk_package: azure.mgmt.cosmosdb (use DOTS not dashes)
-#   Install: pip install azure-mgmt-cosmosdb
-#
-# "Action not found: X.list" →
-#   Test in Python:
-#     from azure.mgmt.cosmosdb import *
-#     client = <Client>(cred, sub_id)
-#     print(dir(client.<resource>))  # Find correct method
-#   Common: list_by_subscription, list_all, list_by_resource_group
-#
-# "ERROR" in checks →
-#   Check resource structure in output
-#   Fix field paths: properties.encryption.keySource
-#   Fix params: add resource_group_name, account_name, etc.
-#
-# Empty inventory →
-#   Create test resource: az <service> <resource> create ...
-#   OR verify action name is correct
-#
-# ✅ SUCCESS WHEN:
-# - No warnings
-# - Inventory populated (if resources exist)  
-# - Checks = PASS/FAIL (not ERROR)
-# - JSON is clean objects (not strings)
-#
-# 📝 AFTER FIXING:
-# Mark status below as VALIDATED and add notes at bottom
-#
-# ============================================================================
-
-cosmosdb:
-  version: '1.0'
-  provider: azure
-  service: cosmosdb
-  sdk_package: azure.mgmt.cosmosdb
-  client_class: CosmosDBManagementClient
-  api_type: management
-  scope: subscription
-  discovery:
-  - discovery_id: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.list
-      fields:
-      - path: __self__
-  checks:
-  - check_id: azure.cosmosdb.account.private.endpoint.approved
-    title: 'AZURE COSMOSDB Account: Private Endpoint Approved'
-    severity: low
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: database_accounts.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{name}}'
-      fields:
-      - path: private_endpoint_connections
-        operator: exists
-        expected: true
-  - check_id: azure.cosmos.database.encryption_enabled
-    title: 'AZURE COSMOS Database: Encryption Enabled'
-    severity: high
-    for_each: azure.cosmosdb.sql_databases
-    calls:
-    - action: sql_resources.get_sql_database
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{account_name}}'
-        database_name: '{{name}}'
-      fields:
-      - path: options.encryption_at_rest_policy.state
-        operator: equals
-        expected: Enabled
-  - check_id: azure.cosmos.table.pitr_enabled
-    title: 'AZURE COSMOS Table: PITR Enabled'
-    severity: low
-    for_each: azure.cosmosdb.table_resources
-    calls:
-    - action: table_resources.get
-      params:
-        resource_group_name: '{{resource_group}}'
-        account_name: '{{account_name}}'
-        table_name: '{{name}}'
-      fields:
-      - path: options.continuous_backup_restore_policy
-        operator: exists
-  - check_id: azure.cosmosdb.defender.status.check
-    title: 'AZURE COSMOSDB Defender: Status Check'
-    severity: low
-    for_each: azure.cosmosdb.defender
-    calls:
-    - action: self
-      fields:
-      - path: properties.defenderStatus
-        operator: equals
-        expected: Enabled
-  - check_id: azure.cosmos.database.pitr_enabled
-    title: 'AZURE COSMOSDB Resource: Pitr Enabled'
-    severity: low
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: backup_policy.type
-        operator: equals
-        expected: Continuous
-  - check_id: azure.cosmosdb.account.firewall_use_selected_networks
-    title: 'AZURE COSMOSDB Account: Firewall Use Selected Networks'
-    severity: medium
-    for_each: azure.cosmosdb.database_accounts
-    calls:
-    - action: self
-      fields:
-      - path: is_virtual_network_filter_enabled
-        operator: equals
-        expected: true
-      - path: public_network_access
-        operator: not_equals
-        expected: Enabled
-  - check_id: azure.cosmos.table.kms_cmk_encryption_enabled
-    title: 'AZURE COSMOS Resource: Db Tables KMS CMK Encryption Enabled'
-    severity: high
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: properties.keyVaultKeyUri
-        operator: not_null
-        expected: true
-      - path: kind
-        operator: equals
-        expected: GlobalDocumentDB
-      - path: properties.capabilities
-        operator: contains
-        expected:
-          name: EnableTable
-  - check_id: azure.cosmos.database.autoscale_enabled
-    title: 'AZURE COSMOSDB Resource: Autoscale Enabled'
-    severity: low
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: properties.options.autoscaleSettings
-        operator: exists
-        expected: true
-  - check_id: azure.cosmos.database.global_tables_enabled
-    title: 'AZURE COSMOSDB Resource: Global Tables Enabled'
-    severity: low
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: properties.locations
-        operator: greater_than
-        expected: 1
-  - check_id: azure.cosmos.database.backup_enabled
-    title: 'AZURE COSMOSDB Resource: Backup Enabled'
-    severity: medium
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: backup_policy.type
-        operator: not_equals
-        expected: null
-      - path: backup_policy.type
-        operator: in
-        expected:
-        - Periodic
-        - Continuous
-  - check_id: azure.cosmosdb.account.use_private_endpoints
-    title: 'AZURE COSMOSDB Account: Use Private Endpoints'
-    severity: low
-    for_each: azure.cosmosdb.account
-    calls:
-    - action: self
-      fields:
-      - path: properties.privateEndpointConnections
-        operator: not_empty
-  - check_id: azure.cosmos.database.geo_redundant
-    title: 'AZURE COSMOSDB Resource: Geo Redundant'
-    severity: low
-    for_each: azure.cosmosdb.resource
-    calls:
-    - action: self
-      fields:
-      - path: properties.enableMultipleWriteLocations
-        operator: equals
-        expected: true
-      - path: properties.locations
-        operator: count_greater_than
-        expected: 1
-  - check_id: azure.cosmosdb.network.restriction.enabled
-    title: 'AZURE COSMOSDB Network: Restriction Enabled'
-    severity: low
-    for_each: azure.cosmosdb.accounts
-    calls:
-    - action: self
-      fields:
-      - path: properties.isVirtualNetworkFilterEnabled
-        operator: equals
-        expected: true
-
-
-# ============================================================================
-# VALIDATION TRACKING
-# ============================================================================
-# STATUS: ⏳ NOT_VALIDATED
-# VALIDATED_BY: 
-# VALIDATED_DATE: 
-# 
-# FIXES APPLIED:
-# # - (Add fixes here after validation)
-#
-# TEST RESULTS:
-# - Resources Discovered: 0
-# - Checks Executed: 0
-# - PASS: 0
-# - FAIL: 0
-# - ERROR: 0
-#
-# NOTES:
-# # - (Add notes here)
-# ============================================================================
+version: '1.0'
+provider: azure
+service: cosmosdb
+discovery:
+- discovery_id: azure.cosmosdb.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+checks:
+- rule_id: azure.cosmosdb.account.private.endpoint.approved
+  for_each: azure.cosmosdb.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cosmosdb.defender.status.check
+  for_each: azure.cosmosdb.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cosmosdb.account.use_private_endpoints
+  for_each: azure.cosmosdb.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cosmos.database.geo_redundant
+  for_each: azure.cosmosdb.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

@@ -1,56 +1,47 @@
+# MACIE Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/macie_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: macie
 discovery:
 - discovery_id: aws.macie.custom_data_identifiers
   calls:
-  - client: macie
-    action: list_macies
-    save_as: custom_data_identifier_list
-    on_error: continue
+  - action: list_macies
     fields:
     - Macies
   emit:
-    items_for: custom_data_identifier_list[]
-    as: custom_data_identifier
+    items_for: list_macies_response[]
     item:
       id: '{{ custom_data_identifier.Id }}'
       name: '{{ custom_data_identifier.Name }}'
 - discovery_id: aws.macie.custom_data_identifier_encryption
   for_each: aws.macie.custom_data_identifiers
   calls:
-  - client: macie
-    action: list_macies
+  - action: list_macies
     params:
       Custom_data_identifierId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
+      encryption_enabled: '{{ list_macies_response.Encrypted if list_macies_response.Encrypted
+        is defined else false }}'
 - discovery_id: aws.macie.custom_data_identifier_logging
   for_each: aws.macie.custom_data_identifiers
   calls:
-  - client: macie
-    action: describe_custom_data_identifier_logging
+  - action: describe_custom_data_identifier_logging
     params:
       Custom_data_identifierId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
+      logging_enabled: '{{ describe_custom_data_identifier_logging_response.LoggingEnabled
+        is defined if describe_custom_data_identifier_logging_response else false
         }}'
 - discovery_id: aws.macie.findingss
   for_each: aws.macie.finding
   calls:
-  - client: macie
-    action: describe_findingss
-    save_as: findingss
-    on_error: continue
+  - action: describe_findingss
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -58,167 +49,95 @@ discovery:
 - discovery_id: aws.macie.classification_jobs
   for_each: aws.macie.classification_job
   calls:
-  - client: macie
-    action: describe_classification_jobs
-    save_as: classification_jobs
-    on_error: continue
+  - action: describe_classification_jobs
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.macie.findings_encryption
   calls:
-  - client: macie
-    action: list_findings_encryption
-    save_as: findings_encryption
-    on_error: continue
+  - action: list_findings_encryption
   emit:
-    items_for: findings_encryption[]
-    as: findings_encryption
+    items_for: list_findings_encryption_response[]
     item:
-      id: '{{ findings_encryption.Id }}'
+      id: '{{ list_findings_encryption_response.Id }}'
       compliant: '{{ true }}'
 checks:
-- title: 'MACIE findings: Retention Days Minimum'
-  severity: low
-  rule_id: aws.macie.findings.retention_days_minimum
-  for_each:
-    discovery: aws.macie.findingss
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.retention_days_minimum
+  for_each: aws.macie.findingss
   conditions:
-    var: findings.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE custom data identifier: Macie Auto Classification Enabled If Supported'
-  severity: medium
-  rule_id: aws.macie.custom_data_identifier.macie_auto_classification_enabled_if_supported
-  for_each:
-    discovery: aws.macie.custom_data_identifiers
-    as: custom_data_identifier
-    item: custom_data_identifier
+- rule_id: aws.macie.custom_data_identifier.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie.custom_data_identifiers
   conditions:
-    var: custom_data_identifier.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE custom data identifier: Policy Blocks Public For Sensitive Configured'
-  severity: high
-  rule_id: aws.macie.custom_data_identifier.policy_blocks_public_for_sensitive_configured
-  for_each:
-    discovery: aws.macie.custom_data_identifiers
-    as: custom_data_identifier
-    item: custom_data_identifier
+- rule_id: aws.macie.custom_data_identifier.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie.custom_data_identifiers
   conditions:
-    var: custom_data_identifier.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'MACIE findings: Macie Logs Centralized And Encrypted'
-  severity: high
-  rule_id: aws.macie.findings.macie_logs_centralized_and_encrypted
-  for_each:
-    discovery: aws.macie.findings_encryption
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.macie_logs_centralized_and_encrypted
+  for_each: aws.macie.findings_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'MACIE custom data identifier: Macie Required Sensitivity Tags Present'
-  severity: medium
-  rule_id: aws.macie.custom_data_identifier.macie_required_sensitivity_tags_present
-  for_each:
-    discovery: aws.macie.custom_data_identifiers
-    as: custom_data_identifier
-    item: custom_data_identifier
+- rule_id: aws.macie.custom_data_identifier.macie_required_sensitivity_tags_present
+  for_each: aws.macie.custom_data_identifiers
   conditions:
-    var: custom_data_identifier.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE findings: Macie Export Destinations Private Configured'
-  severity: high
-  rule_id: aws.macie.findings.macie_export_destinations_private_configured
-  for_each:
-    discovery: aws.macie.findingss
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.macie_export_destinations_private_configured
+  for_each: aws.macie.findingss
   conditions:
-    var: findings.in_vpc
+    var: item.in_vpc
     op: equals
     value: true
-- title: 'MACIE findings: Rbac Least Privilege'
-  severity: high
-  rule_id: aws.macie.findings.rbac_least_privilege
-  for_each:
-    discovery: aws.macie.findingss
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.rbac_least_privilege
+  for_each: aws.macie.findingss
   conditions:
-    var: findings.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'MACIE classification job: Macie Auto Classification Enabled If Supported'
-  severity: medium
-  rule_id: aws.macie.classification_job.macie_auto_classification_enabled_if_supported
-  for_each:
-    discovery: aws.macie.classification_jobs
-    as: classification_job
-    item: classification_job
+- rule_id: aws.macie.classification_job.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie.classification_jobs
   conditions:
-    var: classification_job.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE findings: Integrations Authenticated Configured'
-  severity: medium
-  rule_id: aws.macie.findings.integrations_authenticated_configured
-  for_each:
-    discovery: aws.macie.findingss
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.integrations_authenticated_configured
+  for_each: aws.macie.findingss
   conditions:
-    var: findings.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE classification job: Macie Required Sensitivity Tags Present'
-  severity: medium
-  rule_id: aws.macie.classification_job.macie_required_sensitivity_tags_present
-  for_each:
-    discovery: aws.macie.classification_jobs
-    as: classification_job
-    item: classification_job
+- rule_id: aws.macie.classification_job.macie_required_sensitivity_tags_present
+  for_each: aws.macie.classification_jobs
   conditions:
-    var: classification_job.compliant
+    var: item.compliant
     op: equals
     value: true
-- title: 'MACIE findings: Macie Reports Storage Encrypted'
-  severity: high
-  rule_id: aws.macie.findings.macie_reports_storage_encrypted
-  for_each:
-    discovery: aws.macie.findings_encryption
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.macie_reports_storage_encrypted
+  for_each: aws.macie.findings_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
     value: true
-- title: 'MACIE classification job: Policy Blocks Public For Sensitive Configured'
-  severity: high
-  rule_id: aws.macie.classification_job.policy_blocks_public_for_sensitive_configured
-  for_each:
-    discovery: aws.macie.classification_jobs
-    as: classification_job
-    item: classification_job
+- rule_id: aws.macie.classification_job.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie.classification_jobs
   conditions:
-    var: classification_job.is_public
+    var: item.is_public
     op: equals
     value: false
-- title: 'MACIE findings: Alert Destinations Configured'
-  severity: medium
-  rule_id: aws.macie.findings.alert_destinations_configured
-  for_each:
-    discovery: aws.macie.findingss
-    as: findings
-    item: findings
+- rule_id: aws.macie.findings.alert_destinations_configured
+  for_each: aws.macie.findingss
   conditions:
-    var: findings.monitoring_enabled
+    var: item.monitoring_enabled
     op: equals
     value: true

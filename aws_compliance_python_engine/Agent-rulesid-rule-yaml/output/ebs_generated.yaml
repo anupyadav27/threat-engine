@@ -1,0 +1,110 @@
+version: '1.0'
+provider: aws
+service: ebs
+discovery:
+- discovery_id: aws.ebs.list_snapshot_blocks
+  calls:
+  - action: list_snapshot_blocks
+    save_as: list_snapshot_blocks_response
+    params:
+      SnapshotId: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      block_index: '{{ list_snapshot_blocks_response.Blocks.BlockIndex }}'
+      block_token: '{{ list_snapshot_blocks_response.Blocks.BlockToken }}'
+- discovery_id: aws.ebs.start_snapshot
+  calls:
+  - action: start_snapshot
+    save_as: start_snapshot_response
+    params:
+      VolumeSize: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      key: '{{ start_snapshot_response.Tags.Key }}'
+      value: '{{ start_snapshot_response.Tags.Value }}'
+- discovery_id: aws.ebs.list_changed_blocks
+  calls:
+  - action: list_changed_blocks
+    save_as: list_changed_blocks_response
+    params:
+      SecondSnapshotId: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.ebs.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      block_index: '{{ list_changed_blocks_response.ChangedBlocks.BlockIndex }}'
+      first_block_token: '{{ list_changed_blocks_response.ChangedBlocks.FirstBlockToken
+        }}'
+      second_block_token: '{{ list_changed_blocks_response.ChangedBlocks.SecondBlockToken
+        }}'
+checks:
+- rule_id: aws.ebs.volume.snapshots_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
+  conditions:
+    var: item.block_token
+    op: exists
+- rule_id: aws.ebs.volume.backup_configured
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.volume.snapshots_encrypted
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.not_public_configured
+  for_each: aws.ebs.list_changed_blocks
+  conditions:
+    var: item.block_index
+    op: exists
+- rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists
+- rule_id: aws.ebs.snapshot.ebs_s_encrypted
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: equals
+    value: Encrypted
+- rule_id: aws.ebs.snapshot.s_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
+  conditions:
+    var: item.block_token
+    op: exists
+- rule_id: aws.ebs.snapshot.snapshots_not_public_configured
+  for_each: aws.ebs.list_snapshot_blocks
+  conditions:
+    var: item.block_token
+    op: equals
+    value: []
+- rule_id: aws.ebs.snapshot.snapshots_encrypted
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: equals
+    value: Encrypted
+- rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
+  for_each: aws.ebs.start_snapshot
+  conditions:
+    var: item.key
+    op: exists

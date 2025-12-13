@@ -1,96 +1,117 @@
+# ACCOUNT Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/account_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: account
 discovery:
-- discovery_id: aws.account.securitys
+- discovery_id: aws.account.alternate_contacts
   calls:
-  - client: account
-    action: list_regions
-    save_as: security_list
-    on_error: continue
-    fields:
-    - Accounts
-  emit:
-    items_for: security_list[]
-    as: security
-    item:
-      id: '{{ security.Id }}'
-      name: '{{ security.Name }}'
-- discovery_id: aws.account.contacts
-  for_each: aws.account.contact
-  calls:
-  - client: account
-    action: get_alternate_contact
-    save_as: contacts
-    on_error: continue
+  - action: get_alternate_contact
+    params:
+      AlternateContactType: SECURITY
+  - action: get_alternate_contact
+    params:
+      AlternateContactType: BILLING
+  - action: get_alternate_contact
+    params:
+      AlternateContactType: OPERATIONS
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.account.resources
-  for_each: aws.account.resource
+      security_contact:
+        name: '{{ security_contact.AlternateContact.Name if security_contact.AlternateContact
+          else "" }}'
+        email: '{{ security_contact.AlternateContact.EmailAddress if security_contact.AlternateContact
+          else "" }}'
+        phone: '{{ security_contact.AlternateContact.PhoneNumber if security_contact.AlternateContact
+          else "" }}'
+        exists: '{{ security_contact.AlternateContact is defined }}'
+      billing_contact:
+        name: '{{ billing_contact.AlternateContact.Name if billing_contact.AlternateContact
+          else "" }}'
+        email: '{{ billing_contact.AlternateContact.EmailAddress if billing_contact.AlternateContact
+          else "" }}'
+        phone: '{{ billing_contact.AlternateContact.PhoneNumber if billing_contact.AlternateContact
+          else "" }}'
+        exists: '{{ billing_contact.AlternateContact is defined }}'
+      operations_contact:
+        name: '{{ operations_contact.AlternateContact.Name if operations_contact.AlternateContact
+          else "" }}'
+        email: '{{ operations_contact.AlternateContact.EmailAddress if operations_contact.AlternateContact
+          else "" }}'
+        phone: '{{ operations_contact.AlternateContact.PhoneNumber if operations_contact.AlternateContact
+          else "" }}'
+        exists: '{{ operations_contact.AlternateContact is defined }}'
+- discovery_id: aws.account.contact_information
   calls:
-  - client: account
-    action: describe_resources
-    save_as: resources
-    on_error: continue
+  - action: get_contact_information
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
+      contact_information:
+        full_name: '{{ contact_info.ContactInformation.FullName if contact_info.ContactInformation
+          else "" }}'
+        company_name: '{{ contact_info.ContactInformation.CompanyName if contact_info.ContactInformation
+          else "" }}'
+        phone: '{{ contact_info.ContactInformation.PhoneNumber if contact_info.ContactInformation
+          else "" }}'
+        address_line_1: '{{ contact_info.ContactInformation.AddressLine1 if contact_info.ContactInformation
+          else "" }}'
+        city: '{{ contact_info.ContactInformation.City if contact_info.ContactInformation
+          else "" }}'
+        state: '{{ contact_info.ContactInformation.StateOrRegion if contact_info.ContactInformation
+          else "" }}'
+        postal_code: '{{ contact_info.ContactInformation.PostalCode if contact_info.ContactInformation
+          else "" }}'
+        country: '{{ contact_info.ContactInformation.CountryCode if contact_info.ContactInformation
+          else "" }}'
+        exists: '{{ contact_info.ContactInformation is defined }}'
 checks:
-- title: 'ACCOUNT contact: Details Separate Security Billing Operations Configured'
-  severity: medium
-  rule_id: aws.account.contact.details_separate_security_billing_operations_configured
-  for_each:
-    discovery: aws.account.contacts
-    as: contact
-    item: contact
+- rule_id: aws.account.contact.details_separate_security_billing_operations_configured
+  for_each: aws.account.alternate_contacts
   conditions:
-    var: contact.compliant
+    all:
+    - var: item.security_contact.exists
+      op: equals
+      value: true
+    - var: item.billing_contact.exists
+      op: equals
+      value: true
+    - var: item.operations_contact.exists
+      op: equals
+      value: true
+- rule_id: aws.account.security.contact_information_configured
+  for_each: aws.account.alternate_contacts
+  conditions:
+    var: item.security_contact.exists
     op: equals
     value: true
-- title: 'ACCOUNT security: Contact Information Configured'
-  severity: medium
-  rule_id: aws.account.security.contact_information_configured
-  for_each:
-    discovery: aws.account.securitys
-    as: security
-    item: security
+- rule_id: aws.account.contact.current_details_configured
+  for_each: aws.account.contact_information
   conditions:
-    var: security.compliant
-    op: equals
-    value: true
-- title: 'ACCOUNT contact: Current Details Configured'
-  severity: medium
-  rule_id: aws.account.contact.current_details_configured
-  for_each:
-    discovery: aws.account.contacts
-    as: contact
-    item: contact
+    all:
+    - var: item.contact_information.exists
+      op: equals
+      value: true
+    - var: item.contact_information.full_name
+      op: exists
+    - var: item.contact_information.phone
+      op: exists
+- rule_id: aws.account.resource.security_contact_complete
+  for_each: aws.account.alternate_contacts
   conditions:
-    var: contact.compliant
-    op: equals
-    value: true
-- title: 'ACCOUNT resource: Security Contact Complete'
-  severity: medium
-  rule_id: aws.account.resource.security_contact_complete
-  for_each:
-    discovery: aws.account.resources
-    as: resource
-    item: resource
+    all:
+    - var: item.security_contact.exists
+      op: equals
+      value: true
+    - var: item.security_contact.name
+      op: exists
+    - var: item.security_contact.email
+      op: exists
+    - var: item.security_contact.phone
+      op: exists
+- rule_id: aws.account.resource.security_contact_configured
+  for_each: aws.account.alternate_contacts
   conditions:
-    var: resource.compliant
-    op: equals
-    value: true
-- title: 'ACCOUNT resource: Security Contact Configured'
-  severity: medium
-  rule_id: aws.account.resource.security_contact_configured
-  for_each:
-    discovery: aws.account.resources
-    as: resource
-    item: resource
-  conditions:
-    var: resource.compliant
+    var: item.security_contact.exists
     op: equals
     value: true

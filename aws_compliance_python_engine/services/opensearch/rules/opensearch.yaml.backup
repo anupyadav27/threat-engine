@@ -1,0 +1,82 @@
+version: '1.0'
+provider: aws
+service: opensearch
+discovery:
+- discovery_id: aws.opensearch.create_domain
+  calls:
+  - action: create_domain
+    save_as: create_domain_response
+    params:
+      DomainName: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.opensearch.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      domain_id: '{{ create_domain_response.DomainStatus.DomainId }}'
+      domain_name: '{{ create_domain_response.DomainStatus.DomainName }}'
+      arn: '{{ create_domain_response.DomainStatus.ARN }}'
+      created: '{{ create_domain_response.DomainStatus.Created }}'
+      deleted: '{{ create_domain_response.DomainStatus.Deleted }}'
+checks:
+- rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.encryption_at_rest_options
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.domain_endpoint_options
+    op: equals
+    value:
+      EnforceHTTPS: true
+- rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.node_to_node_encryption_options
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
+  for_each: aws.opensearch.create_domain
+  conditions:
+    all:
+    - var: item.domain_endpoint_options
+      op: equals
+      value:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
+        CustomEndpointEnabled: false
+    - var: item.vpc_options
+      op: exists
+- rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.cluster_config
+    op: exists
+- rule_id: aws.opensearch.service.domains_audit_logging_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.log_publishing_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_access_control_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.access_policies
+    op: exists
+- rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.log_publishing_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_internal_user_database_enabled
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.advanced_security_options
+    op: exists
+- rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
+  for_each: aws.opensearch.create_domain
+  conditions:
+    var: item.cluster_config
+    op: exists

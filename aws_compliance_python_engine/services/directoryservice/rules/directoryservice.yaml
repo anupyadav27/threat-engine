@@ -1,54 +1,44 @@
+# DS Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/ds_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: ds
 discovery:
 - discovery_id: aws.directoryservice.resources
   calls:
-  - client: ds
-    action: describe_directories
-    save_as: resource_list
-    on_error: continue
+  - action: describe_directories
     fields:
     - Directoryservices
   emit:
-    items_for: resource_list[]
-    as: resource
+    items_for: describe_directories_response[]
     item:
       id: '{{ resource.Id }}'
       name: '{{ resource.Name }}'
 - discovery_id: aws.directoryservice.resource_logging
   for_each: aws.directoryservice.resources
   calls:
-  - client: ds
-    action: describe_directories
+  - action: describe_directories
     params:
       ResourceId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      logging_enabled: '{{ describe_directories_response.LoggingEnabled is defined
+        if describe_directories_response else false }}'
 checks:
 - title: 'DIRECTORYSERVICE resource: Supported Mfa Radius Enabled'
   severity: critical
   rule_id: aws.directoryservice.resource.supported_mfa_radius_enabled
-  for_each:
-    discovery: aws.directoryservice.resources
-    as: resource
-    item: resource
+  for_each: aws.directoryservice.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'DIRECTORYSERVICE resource: Directoryservice Directory Log Forwarding Enabled'
   severity: medium
   rule_id: aws.directoryservice.resource.directoryservice_directory_log_forwarding_enabled
-  for_each:
-    discovery: aws.directoryservice.resource_logging
-    as: resource
-    item: resource
+  for_each: aws.directoryservice.resource_logging
   conditions:
     var: logging.logging_enabled
     op: equals

@@ -1,68 +1,54 @@
+# TIMESTREAM-QUERY Service - Logic Only
+# Metadata (titles, severity, descriptions) in: metadata/checks/timestream-query_metadata.yaml
+
 version: '1.0'
 provider: aws
 service: timestream-query
 discovery:
 - discovery_id: aws.timestream.databases
   calls:
-  - client: timestream-query
-    action: list_timestreams
-    save_as: database_list
-    on_error: continue
+  - action: list_timestreams
     fields:
     - Timestreams
   emit:
-    items_for: database_list[]
-    as: database
+    items_for: list_timestreams_response[]
     item:
       id: '{{ database.Id }}'
       name: '{{ database.Name }}'
 - discovery_id: aws.timestream.database_encryption
   for_each: aws.timestream.databases
   calls:
-  - client: timestream-query
-    action: list_timestreams
+  - action: list_timestreams
     params:
       DatabaseId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
+      encryption_enabled: '{{ list_timestreams_response.Encrypted if list_timestreams_response.Encrypted
+        is defined else false }}'
 - discovery_id: aws.timestream.database_logging
   for_each: aws.timestream.databases
   calls:
-  - client: timestream-query
-    action: describe_database_logging
+  - action: describe_database_logging
     params:
       DatabaseId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
   emit:
     item:
       resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
+      logging_enabled: '{{ describe_database_logging_response.LoggingEnabled is defined
+        if describe_database_logging_response else false }}'
 - discovery_id: aws.timestream.resource_logging
   calls:
-  - client: timestream-query
-    action: describe_load_balancers
-    save_as: resource_logging
-    on_error: continue
+  - action: describe_load_balancers
   emit:
-    items_for: resource_logging[]
-    as: resource_logging
+    items_for: describe_load_balancers_response[]
     item:
-      id: '{{ resource_logging.Id }}'
+      id: '{{ describe_load_balancers_response.Id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.timestream.resources
   for_each: aws.timestream.resource
   calls:
-  - client: timestream-query
-    action: describe_resources
-    save_as: resources
-    on_error: continue
+  - action: describe_resources
   emit:
     item:
       resource_id: '{{ item.id }}'
@@ -70,45 +56,32 @@ discovery:
 - discovery_id: aws.timestream.tables
   for_each: aws.timestream.table
   calls:
-  - client: timestream-query
-    action: list_tables
-    save_as: tables
-    on_error: continue
+  - action: list_tables
   emit:
     item:
       resource_id: '{{ item.id }}'
       compliant: '{{ true }}'
 - discovery_id: aws.timestream.table_encryption
   calls:
-  - client: timestream-query
-    action: describe_table
-    save_as: table_encryption
-    on_error: continue
+  - action: describe_table
   emit:
-    items_for: table_encryption[]
-    as: table_encryption
+    items_for: describe_table_response[]
     item:
-      id: '{{ table_encryption.Id }}'
+      id: '{{ describe_table_response.Id }}'
       compliant: '{{ true }}'
 checks:
 - title: 'TIMESTREAM resource: Timestream Ingestion Secure Protocol Configured'
   severity: medium
   rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
-  for_each:
-    discovery: aws.timestream.resources
-    as: resource
-    item: resource
+  for_each: aws.timestream.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'TIMESTREAM database: Check Encryption At Rest Enabled'
   severity: high
   rule_id: aws.timestream.database.check_encryption_at_rest_enabled
-  for_each:
-    discovery: aws.timestream.database_encryption
-    as: database
-    item: database
+  for_each: aws.timestream.database_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
@@ -116,21 +89,15 @@ checks:
 - title: 'TIMESTREAM resource: Security Configuration Compliance Configured'
   severity: medium
   rule_id: aws.timestream.resource.security_configuration_compliance_configured
-  for_each:
-    discovery: aws.timestream.resources
-    as: resource
-    item: resource
+  for_each: aws.timestream.resources
   conditions:
-    var: resource.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'TIMESTREAM resource: Cloudwatch Monitoring And Alerting Enabled'
   severity: medium
   rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
-  for_each:
-    discovery: aws.timestream.resource_logging
-    as: resource
-    item: resource
+  for_each: aws.timestream.resource_logging
   conditions:
     var: logging.logging_enabled
     op: equals
@@ -138,10 +105,7 @@ checks:
 - title: 'TIMESTREAM database: Encryption At Rest Enabled'
   severity: high
   rule_id: aws.timestream.database.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.timestream.database_encryption
-    as: database
-    item: database
+  for_each: aws.timestream.database_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals
@@ -149,109 +113,79 @@ checks:
 - title: 'TIMESTREAM table: Require Tls In Transit Configured'
   severity: high
   rule_id: aws.timestream.table.require_tls_in_transit_configured
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.in_vpc
+    var: item.in_vpc
     op: equals
     value: true
 - title: 'TIMESTREAM database: Require Tls In Transit Configured'
   severity: high
   rule_id: aws.timestream.database.require_tls_in_transit_configured
-  for_each:
-    discovery: aws.timestream.databases
-    as: database
-    item: database
+  for_each: aws.timestream.databases
   conditions:
-    var: database.in_vpc
+    var: item.in_vpc
     op: equals
     value: true
 - title: 'TIMESTREAM table: Deletion Protection Enabled'
   severity: medium
   rule_id: aws.timestream.table.deletion_protection_enabled
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'TIMESTREAM database: Iam Or Managed Identity Auth Enabled If Supported'
   severity: high
   rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
-  for_each:
-    discovery: aws.timestream.databases
-    as: database
-    item: database
+  for_each: aws.timestream.databases
   conditions:
-    var: database.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM table: Private Network Only If Supported'
   severity: high
   rule_id: aws.timestream.table.private_network_only_if_supported
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM table: Iam Or Managed Identity Auth Enabled If Supported'
   severity: high
   rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM resource: Iam Fine Grained Access Control Enabled'
   severity: high
   rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
-  for_each:
-    discovery: aws.timestream.resources
-    as: resource
-    item: resource
+  for_each: aws.timestream.resources
   conditions:
-    var: resource.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM table: Public Access Disabled'
   severity: high
   rule_id: aws.timestream.table.public_access_disabled
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM database: Public Access Disabled'
   severity: high
   rule_id: aws.timestream.database.public_access_disabled
-  for_each:
-    discovery: aws.timestream.databases
-    as: database
-    item: database
+  for_each: aws.timestream.databases
   conditions:
-    var: database.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM resource: Cloudtrail Management And Data Logging Enabled'
   severity: medium
   rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
-  for_each:
-    discovery: aws.timestream.resource_logging
-    as: resource
-    item: resource
+  for_each: aws.timestream.resource_logging
   conditions:
     var: logging.logging_enabled
     op: equals
@@ -259,32 +193,23 @@ checks:
 - title: 'TIMESTREAM database: Deletion Protection Enabled'
   severity: medium
   rule_id: aws.timestream.database.deletion_protection_enabled
-  for_each:
-    discovery: aws.timestream.databases
-    as: database
-    item: database
+  for_each: aws.timestream.databases
   conditions:
-    var: database.compliant
+    var: item.compliant
     op: equals
     value: true
 - title: 'TIMESTREAM table: Rbac Least Privilege'
   severity: high
   rule_id: aws.timestream.table.rbac_least_privilege
-  for_each:
-    discovery: aws.timestream.tables
-    as: table
-    item: table
+  for_each: aws.timestream.tables
   conditions:
-    var: table.is_public
+    var: item.is_public
     op: equals
     value: false
 - title: 'TIMESTREAM table: Encryption At Rest Enabled'
   severity: high
   rule_id: aws.timestream.table.encryption_at_rest_enabled
-  for_each:
-    discovery: aws.timestream.table_encryption
-    as: table
-    item: table
+  for_each: aws.timestream.table_encryption
   conditions:
     var: encryption.encryption_enabled
     op: equals

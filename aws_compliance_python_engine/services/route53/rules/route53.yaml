@@ -2,304 +2,240 @@ version: '1.0'
 provider: aws
 service: route53
 discovery:
-- discovery_id: aws.route53.healthchecks
+- discovery_id: aws.route53.list_query_logging_configs
   calls:
-  - client: route53
-    action: list_hosted_zones
-    save_as: healthcheck_list
-    on_error: continue
-    fields:
-    - Route53s
+  - action: list_query_logging_configs
+    save_as: list_query_logging_configs_response
   emit:
-    items_for: healthcheck_list[]
-    as: healthcheck
-    item:
-      id: '{{ healthcheck.Id }}'
-      name: '{{ healthcheck.Name }}'
-- discovery_id: aws.route53.healthcheck_encryption
-  for_each: aws.route53.healthchecks
-  calls:
-  - client: route53
-    action: list_hosted_zones
-    params:
-      HealthcheckId: '{{ item.id }}'
-    save_as: encryption
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.route53.healthcheck_logging
-  for_each: aws.route53.healthchecks
-  calls:
-  - client: route53
-    action: list_health_checks
-    params:
-      HealthcheckId: '{{ item.id }}'
-    save_as: logging
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
-        }}'
-- discovery_id: aws.route53.trafficpolicys
-  for_each: aws.route53.trafficpolicy
-  calls:
-  - client: route53
-    action: list_traffic_policies
-    save_as: trafficpolicys
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.resource_logging
-  calls:
-  - client: route53
-    action: list_cidr_blocks
-    save_as: resource_logging
-    on_error: continue
-  emit:
-    items_for: resource_logging[]
-    as: resource_logging
-    item:
-      id: '{{ resource_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.trafficpolicy_encryption
-  calls:
-  - client: route53
-    action: list_cidr_blocks
-    save_as: trafficpolicy_encryption
-    on_error: continue
-  emit:
-    items_for: trafficpolicy_encryption[]
-    as: trafficpolicy_encryption
-    item:
-      id: '{{ trafficpolicy_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.hostedzones
-  for_each: aws.route53.hostedzone
-  calls:
-  - client: route53
-    action: list_hosted_zones
-    save_as: hostedzones
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.hostedzone_encryption
-  calls:
-  - client: route53
-    action: list_cidr_blocks
-    save_as: hostedzone_encryption
-    on_error: continue
-  emit:
-    items_for: hostedzone_encryption[]
-    as: hostedzone_encryption
-    item:
-      id: '{{ hostedzone_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.recordsets
-  for_each: aws.route53.recordset
-  calls:
-  - client: route53
-    action: list_resource_record_sets
-    save_as: recordsets
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.route53.hostedzone_logging
-  calls:
-  - client: route53
-    action: list_cidr_blocks
-    save_as: hostedzone_logging
-    on_error: continue
-  emit:
-    items_for: hostedzone_logging[]
-    as: hostedzone_logging
-    item:
-      id: '{{ hostedzone_logging.Id }}'
-      compliant: '{{ true }}'
-checks:
-- title: 'ROUTE53 recordset: No Rfc1918 In Public Zones Configured'
-  severity: high
-  rule_id: aws.route53.recordset.no_rfc1918_in_public_zones_configured
-  for_each:
-    discovery: aws.route53.recordsets
-    as: recordset
-    item: recordset
-  conditions:
-    var: recordset.is_public
-    op: equals
-    value: false
-- title: DNS monitoring and logging is enabled
-  severity: medium
-  rule_id: aws.route53.hostedzone.query_logging_enabled
-  for_each:
-    discovery: aws.route53.hostedzone_logging
-    as: hostedzone
-    item: hostedzone
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'ROUTE53 trafficpolicy: Security Check Health Checks Required For Failover
-    Configured'
-  severity: medium
-  rule_id: aws.route53.trafficpolicy.security_check_health_checks_required_for_failover_configured
-  for_each:
-    discovery: aws.route53.trafficpolicys
-    as: trafficpolicy
-    item: trafficpolicy
-  conditions:
-    var: trafficpolicy.is_public
-    op: equals
-    value: false
-- title: 'ROUTE53 healthcheck: Alerts Configured'
-  severity: medium
-  rule_id: aws.route53.healthcheck.alerts_configured
-  for_each:
-    discovery: aws.route53.healthchecks
-    as: healthcheck
-    item: healthcheck
-  conditions:
-    var: healthcheck.monitoring_enabled
-    op: equals
-    value: true
-- title: 'ROUTE53 recordset: Route53 Caa Records Present For Root And Wildcard Configured'
-  severity: medium
-  rule_id: aws.route53.recordset.route53_caa_records_present_for_root_and_wildcard_configured
-  for_each:
-    discovery: aws.route53.recordsets
-    as: recordset
-    item: recordset
-  conditions:
-    var: recordset.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 healthcheck: Route53 No Plaintext Credentials In Url Configured'
-  severity: medium
-  rule_id: aws.route53.healthcheck.route53_no_plaintext_credentials_in_url_configured
-  for_each:
-    discovery: aws.route53.healthchecks
-    as: healthcheck
-    item: healthcheck
-  conditions:
-    var: healthcheck.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 hostedzone: Route53 Zone Transfer Restricted Or Tsig Required'
-  severity: medium
-  rule_id: aws.route53.hostedzone.route53_zone_transfer_restricted_or_tsig_required
-  for_each:
-    discovery: aws.route53.hostedzones
-    as: hostedzone
-    item: hostedzone
-  conditions:
-    var: hostedzone.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 hostedzone: Route53 Cross Account Sharing Restricted'
-  severity: medium
-  rule_id: aws.route53.hostedzone.route53_cross_account_sharing_restricted
-  for_each:
-    discovery: aws.route53.hostedzones
-    as: hostedzone
-    item: hostedzone
-  conditions:
-    var: hostedzone.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 hostedzone: Route53 Dnssec Enabled If Supported'
-  severity: medium
-  rule_id: aws.route53.hostedzone.route53_dnssec_enabled_if_supported
-  for_each:
-    discovery: aws.route53.hostedzone_encryption
-    as: hostedzone
-    item: hostedzone
-  conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'ROUTE53 healthcheck: Https Or Tls Used Configured'
-  severity: high
-  rule_id: aws.route53.healthcheck.https_or_tls_used_configured
-  for_each:
-    discovery: aws.route53.healthchecks
-    as: healthcheck
-    item: healthcheck
-  conditions:
-    var: healthcheck.in_vpc
-    op: equals
-    value: true
-- title: 'ROUTE53 resource: Public Hosted Zones Cloudwatch Logging Enabled'
-  severity: medium
-  rule_id: aws.route53.resource.public_hosted_zones_cloudwatch_logging_enabled
-  for_each:
-    discovery: aws.route53.resource_logging
+    items_for: '{{ list_query_logging_configs_response.QueryLoggingConfigs }}'
     as: resource
-    item: resource
+    item:
+      id: '{{ resource.Id }}'
+      hosted_zone_id: '{{ resource.HostedZoneId }}'
+      cloud_watch_logs_log_group_arn: '{{ resource.CloudWatchLogsLogGroupArn }}'
+- discovery_id: aws.route53.list_health_checks
+  calls:
+  - action: list_health_checks
+    save_as: list_health_checks_response
+  emit:
+    items_for: '{{ list_health_checks_response.HealthChecks }}'
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      caller_reference: '{{ resource.CallerReference }}'
+      linked_service: '{{ resource.LinkedService }}'
+      health_check_config: '{{ resource.HealthCheckConfig }}'
+      health_check_version: '{{ resource.HealthCheckVersion }}'
+      cloud_watch_alarm_configuration: '{{ resource.CloudWatchAlarmConfiguration }}'
+- discovery_id: aws.route53.list_traffic_policies
+  calls:
+  - action: list_traffic_policies
+    save_as: list_traffic_policies_response
+  emit:
+    items_for: '{{ list_traffic_policies_response.TrafficPolicySummaries }}'
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
+      type: '{{ resource.Type }}'
+      latest_version: '{{ resource.LatestVersion }}'
+      traffic_policy_count: '{{ resource.TrafficPolicyCount }}'
+- discovery_id: aws.route53.list_hosted_zones
+  calls:
+  - action: list_hosted_zones
+    save_as: list_hosted_zones_response
+  emit:
+    items_for: '{{ list_hosted_zones_response.HostedZones }}'
+    as: resource
+    item:
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
+      caller_reference: '{{ resource.CallerReference }}'
+      config: '{{ resource.Config }}'
+      resource_record_set_count: '{{ resource.ResourceRecordSetCount }}'
+      linked_service: '{{ resource.LinkedService }}'
+      features: '{{ resource.Features }}'
+- discovery_id: aws.route53.list_cidr_collections
+  calls:
+  - action: list_cidr_collections
+    save_as: list_cidr_collections_response
+  emit:
+    items_for: '{{ list_cidr_collections_response.CidrCollections }}'
+    as: resource
+    item:
+      arn: '{{ resource.Arn }}'
+      id: '{{ resource.Id }}'
+      name: '{{ resource.Name }}'
+      version: '{{ resource.Version }}'
+- discovery_id: aws.route53.list_resource_record_sets
+  calls:
+  - action: list_resource_record_sets
+    save_as: list_resource_record_sets_response
+    params:
+      HostedZoneId: '{{ item.hosted_zone_id }}'
+    on_error: continue
+  for_each: aws.route53.list_query_logging_configs
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      name: '{{ list_resource_record_sets_response.ResourceRecordSets.Name }}'
+      type: '{{ list_resource_record_sets_response.ResourceRecordSets.Type }}'
+      set_identifier: '{{ list_resource_record_sets_response.ResourceRecordSets.SetIdentifier
+        }}'
+      weight: '{{ list_resource_record_sets_response.ResourceRecordSets.Weight }}'
+      region: '{{ list_resource_record_sets_response.ResourceRecordSets.Region }}'
+- discovery_id: aws.route53.activate_key_signing_key
+  calls:
+  - action: activate_key_signing_key
+    save_as: activate_key_signing_key_response
+    params:
+      HostedZoneId: '{{ item.hosted_zone_id }}'
+      Name: '{{ item.api_id }}'
+    on_error: continue
+  for_each: aws.route53.list_query_logging_configs
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ activate_key_signing_key_response.ChangeInfo.Id }}'
+      status: '{{ activate_key_signing_key_response.ChangeInfo.Status }}'
+      submitted_at: '{{ activate_key_signing_key_response.ChangeInfo.SubmittedAt }}'
+      comment: '{{ activate_key_signing_key_response.ChangeInfo.Comment }}'
+- discovery_id: aws.route53.create_traffic_policy
+  calls:
+  - action: create_traffic_policy
+    save_as: create_traffic_policy_response
+    params:
+      Name: '{{ item.Name }}'
+      Document: '{{ item.api_id }}'
+    on_error: continue
+  for_each: aws.route53.list_traffic_policies
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ create_traffic_policy_response.TrafficPolicy.Id }}'
+      version: '{{ create_traffic_policy_response.TrafficPolicy.Version }}'
+      name: '{{ create_traffic_policy_response.TrafficPolicy.Name }}'
+      type: '{{ create_traffic_policy_response.TrafficPolicy.Type }}'
+      document: '{{ create_traffic_policy_response.TrafficPolicy.Document }}'
+checks:
+- rule_id: aws.route53.recordset.no_rfc1918_in_public_zones_configured
+  for_each: aws.route53.list_resource_record_sets
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'ROUTE53 recordset: Route53 Alias Targets In Approved Services Configured'
-  severity: medium
-  rule_id: aws.route53.recordset.route53_alias_targets_in_approved_services_configured
-  for_each:
-    discovery: aws.route53.recordsets
-    as: recordset
-    item: recordset
+    var: item.resource_records
+    op: contains
+    value:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+- rule_id: aws.route53.hostedzone.query_logging_enabled
+  for_each: aws.route53.list_query_logging_configs
   conditions:
-    var: recordset.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 recordset: Route53 Dmarc Record Present When Mx Configured'
-  severity: medium
-  rule_id: aws.route53.recordset.route53_dmarc_record_present_when_mx_configured
-  for_each:
-    discovery: aws.route53.recordsets
-    as: recordset
-    item: recordset
+    var: item.cloud_watch_logs_log_group_arn
+    op: exists
+- rule_id: aws.route53.trafficpolicy.security_check_health_checks_required_for_failover_configured
+  for_each: aws.route53.list_resource_record_sets
   conditions:
-    var: recordset.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 trafficpolicy: Policy Documents Encrypted And Private'
-  severity: high
-  rule_id: aws.route53.trafficpolicy.policy_documents_encrypted_and_private
-  for_each:
-    discovery: aws.route53.trafficpolicy_encryption
-    as: trafficpolicy
-    item: trafficpolicy
+    var: item.health_check_id
+    op: exists
+- rule_id: aws.route53.healthcheck.alerts_configured
+  for_each: aws.route53.list_health_checks
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'ROUTE53 recordset: Route53 No Broad Wildcards Sensitive Zones Configured'
-  severity: medium
-  rule_id: aws.route53.recordset.route53_no_broad_wildcards_sensitive_zones_configured
-  for_each:
-    discovery: aws.route53.recordsets
-    as: recordset
-    item: recordset
+    var: item.cloud_watch_alarm_configuration
+    op: exists
+- rule_id: aws.route53.recordset.route53_caa_records_present_for_root_and_wildcard_configured
+  for_each: aws.route53.list_traffic_policies
   conditions:
-    var: recordset.compliant
-    op: equals
-    value: true
-- title: 'ROUTE53 trafficpolicy: Route53 Targets Approved Domains Only Configured'
-  severity: medium
-  rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
-  for_each:
-    discovery: aws.route53.trafficpolicys
-    as: trafficpolicy
-    item: trafficpolicy
+    all:
+    - var: item.type
+      op: equals
+      value: CAA
+    - var: item.name
+      op: contains
+      value:
+      - '@'
+      - '*'
+- rule_id: aws.route53.healthcheck.route53_no_plaintext_credentials_in_url_configured
+  for_each: aws.route53.list_health_checks
   conditions:
-    var: trafficpolicy.is_public
+    var: item.health_check_config
+    op: contains
+    value: NO_PLAINTEXT_CREDENTIALS
+- rule_id: aws.route53.hostedzone.route53_zone_transfer_restricted_or_tsig_required
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    any:
+    - var: item.config
+      op: contains
+      value:
+        PrivateZone: true
+    - var: item.config
+      op: contains
+      value:
+        TsigKey: true
+- rule_id: aws.route53.hostedzone.route53_cross_account_sharing_restricted
+  for_each: aws.route53.list_health_checks
+  conditions:
+    var: item.linked_service
     op: equals
-    value: false
+- rule_id: aws.route53.hostedzone.route53_dnssec_enabled_if_supported
+  for_each: aws.route53.activate_key_signing_key
+  conditions:
+    var: item.status
+    op: equals
+    value: ENABLED
+- rule_id: aws.route53.healthcheck.https_or_tls_used_configured
+  for_each: aws.route53.list_health_checks
+  conditions:
+    var: item.health_check_config
+    op: contains
+    value: HTTPS
+- rule_id: aws.route53.resource.public_hosted_zones_cloudwatch_logging_enabled
+  for_each: aws.route53.list_query_logging_configs
+  conditions:
+    var: item.cloud_watch_logs_log_group_arn
+    op: exists
+- rule_id: aws.route53.recordset.route53_alias_targets_in_approved_services_configured
+  for_each: aws.route53.list_resource_record_sets
+  conditions:
+    var: item.alias_target
+    op: contains
+    value:
+    - approved-service-1
+    - approved-service-2
+- rule_id: aws.route53.recordset.route53_dmarc_record_present_when_mx_configured
+  for_each: aws.route53.list_traffic_policies
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: DMARC
+    - var: item.type
+      op: equals
+      value: MX
+- rule_id: aws.route53.trafficpolicy.policy_documents_encrypted_and_private
+  for_each: aws.route53.create_traffic_policy
+  conditions:
+    all:
+    - var: item.document
+      op: exists
+    - var: item.comment
+      op: contains
+      value: private
+- rule_id: aws.route53.recordset.route53_no_broad_wildcards_sensitive_zones_configured
+  for_each: aws.route53.list_cidr_collections
+  conditions:
+    all:
+    - var: item.name
+      op: contains
+      value: '*'
+    - var: item.name
+      op: contains
+      value:
+      - sensitive-zone-1.com
+      - sensitive-zone-2.com
+- rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
+  for_each: aws.route53.list_cidr_collections
+  conditions:
+    var: item.name
+    op: contains
+    value: approved-domain.com

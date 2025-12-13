@@ -1,0 +1,98 @@
+version: '1.0'
+provider: aws
+service: apigatewayv2
+discovery:
+- discovery_id: aws.apigatewayv2.get_stages
+  calls:
+  - action: get_stages
+    save_as: get_stages_response
+    params:
+      ApiId: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.apigatewayv2.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      access_log_settings: '{{ get_stages_response.Items.AccessLogSettings }}'
+      api_gateway_managed: '{{ get_stages_response.Items.ApiGatewayManaged }}'
+      auto_deploy: '{{ get_stages_response.Items.AutoDeploy }}'
+      client_certificate_id: '{{ get_stages_response.Items.ClientCertificateId }}'
+      created_date: '{{ get_stages_response.Items.CreatedDate }}'
+- discovery_id: aws.apigatewayv2.get_routes
+  calls:
+  - action: get_routes
+    save_as: get_routes_response
+    params:
+      ApiId: '{{ item.FIELD_NAME }}'
+    on_error: continue
+  for_each: aws.apigatewayv2.PARENT_DISCOVERY
+  emit:
+    item:
+      resource_id: '{{ item.resource_id }}'
+      api_gateway_managed: '{{ get_routes_response.Items.ApiGatewayManaged }}'
+      api_key_required: '{{ get_routes_response.Items.ApiKeyRequired }}'
+      authorization_scopes: '{{ get_routes_response.Items.AuthorizationScopes }}'
+      authorization_type: '{{ get_routes_response.Items.AuthorizationType }}'
+      authorizer_id: '{{ get_routes_response.Items.AuthorizerId }}'
+checks:
+- rule_id: aws.apigatewayv2.stage.api_quota_limit_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.route_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_usage_plan_required_for_api_keys
+  for_each: aws.apigatewayv2.get_routes
+  conditions:
+    var: item.api_key_required
+    op: equals
+    value: true
+- rule_id: aws.apigatewayv2.stage.api_burst_limit_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.route_settings
+    op: exists
+- rule_id: aws.apigatewayv2.resource.api_access_logging_enabled
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_logs_retention_days_minimum
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_access_logging_enabled
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_access_log_sink_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_execution_logging_level_minimum_error_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.api.access_logging_enabled
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_rate_limit_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.route_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_throttle_overrides_bounded
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.route_settings
+    op: exists
+- rule_id: aws.apigatewayv2.stage.api_access_log_fields_identity_configured
+  for_each: aws.apigatewayv2.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists

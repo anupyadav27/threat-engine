@@ -2,732 +2,457 @@ version: '1.0'
 provider: aws
 service: apigateway
 discovery:
-- discovery_id: aws.apigateway.v2apis
+- discovery_id: aws.apigateway.get_usage_plans
   calls:
-  - client: apigateway
-    action: get_rest_apis
-    save_as: v2api_list
-    on_error: continue
-    fields:
-    - Apigateways
+  - action: get_usage_plans
+    save_as: get_usage_plans_response
   emit:
-    items_for: v2api_list[]
-    as: v2api
+    items_for: '{{ get_usage_plans_response.items }}'
+    as: resource
     item:
-      id: '{{ v2api.Id }}'
-      name: '{{ v2api.Name }}'
-- discovery_id: aws.apigateway.v2api_encryption
-  for_each: aws.apigateway.v2apis
+      id: '{{ resource.id }}'
+      name: '{{ resource.name }}'
+      description: '{{ resource.description }}'
+      api_stages: '{{ resource.apiStages }}'
+      throttle: '{{ resource.throttle }}'
+      quota: '{{ resource.quota }}'
+      product_code: '{{ resource.productCode }}'
+      tags: '{{ resource.tags }}'
+- discovery_id: aws.apigateway.get_api_keys
   calls:
-  - client: apigateway
-    action: get_rest_apis
+  - action: get_api_keys
+    save_as: get_api_keys_response
+  emit:
+    items_for: '{{ get_api_keys_response.items }}'
+    as: resource
+    item:
+      id: '{{ resource.id }}'
+      value: '{{ resource.value }}'
+      name: '{{ resource.name }}'
+      customer_id: '{{ resource.customerId }}'
+      description: '{{ resource.description }}'
+      enabled: '{{ resource.enabled }}'
+      created_date: '{{ resource.createdDate }}'
+      last_updated_date: '{{ resource.lastUpdatedDate }}'
+      stage_keys: '{{ resource.stageKeys }}'
+      tags: '{{ resource.tags }}'
+- discovery_id: aws.apigateway.get_domain_names
+  calls:
+  - action: get_domain_names
+    save_as: get_domain_names_response
+  emit:
+    items_for: '{{ get_domain_names_response.items }}'
+    as: resource
+    item:
+      domain_name: '{{ resource.domainName }}'
+      domain_name_id: '{{ resource.domainNameId }}'
+      domain_name_arn: '{{ resource.domainNameArn }}'
+      certificate_name: '{{ resource.certificateName }}'
+      certificate_arn: '{{ resource.certificateArn }}'
+      certificate_upload_date: '{{ resource.certificateUploadDate }}'
+      regional_domain_name: '{{ resource.regionalDomainName }}'
+      regional_hosted_zone_id: '{{ resource.regionalHostedZoneId }}'
+      regional_certificate_name: '{{ resource.regionalCertificateName }}'
+      regional_certificate_arn: '{{ resource.regionalCertificateArn }}'
+- discovery_id: aws.apigateway.get_client_certificates
+  calls:
+  - action: get_client_certificates
+    save_as: get_client_certificates_response
+  emit:
+    items_for: '{{ get_client_certificates_response.items }}'
+    as: resource
+    item:
+      client_certificate_id: '{{ resource.clientCertificateId }}'
+      description: '{{ resource.description }}'
+      pem_encoded_certificate: '{{ resource.pemEncodedCertificate }}'
+      created_date: '{{ resource.createdDate }}'
+      expiration_date: '{{ resource.expirationDate }}'
+      tags: '{{ resource.tags }}'
+- discovery_id: aws.apigateway.get_rest_apis
+  calls:
+  - action: get_rest_apis
+    save_as: get_rest_apis_response
+  emit:
+    items_for: '{{ get_rest_apis_response.items }}'
+    as: resource
+    item:
+      id: '{{ resource.id }}'
+      name: '{{ resource.name }}'
+      description: '{{ resource.description }}'
+      created_date: '{{ resource.createdDate }}'
+      version: '{{ resource.version }}'
+      warnings: '{{ resource.warnings }}'
+      binary_media_types: '{{ resource.binaryMediaTypes }}'
+      minimum_compression_size: '{{ resource.minimumCompressionSize }}'
+      api_key_source: '{{ resource.apiKeySource }}'
+      endpoint_configuration: '{{ resource.endpointConfiguration }}'
+- discovery_id: aws.apigateway.get_authorizers
+  calls:
+  - action: get_authorizers
+    save_as: get_authorizers_response
     params:
-      V2apiId: '{{ item.id }}'
-    save_as: encryption
+      restApiId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.apigateway.get_usage_plans
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ encryption.Encrypted if encryption.Encrypted is defined
-        else false }}'
-- discovery_id: aws.apigateway.v2api_logging
-  for_each: aws.apigateway.v2apis
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ get_authorizers_response.items.id }}'
+      name: '{{ get_authorizers_response.items.name }}'
+      type: '{{ get_authorizers_response.items.type }}'
+      provider_ar_ns: '{{ get_authorizers_response.items.providerARNs }}'
+      auth_type: '{{ get_authorizers_response.items.authType }}'
+- discovery_id: aws.apigateway.get_request_validators
   calls:
-  - client: apigateway
-    action: get_rest_apis
+  - action: get_request_validators
+    save_as: get_request_validators_response
     params:
-      V2apiId: '{{ item.id }}'
-    save_as: logging
+      restApiId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.apigateway.get_usage_plans
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ logging.LoggingEnabled is defined if logging else false
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ get_request_validators_response.items.id }}'
+      name: '{{ get_request_validators_response.items.name }}'
+      validate_request_body: '{{ get_request_validators_response.items.validateRequestBody
         }}'
-- discovery_id: aws.apigateway.stages
-  for_each: aws.apigateway.stage
+      validate_request_parameters: '{{ get_request_validators_response.items.validateRequestParameters
+        }}'
+- discovery_id: aws.apigateway.get_stages
   calls:
-  - client: apigateway
-    action: get_stages
-    save_as: stages
+  - action: get_stages
+    save_as: get_stages_response
+    params:
+      restApiId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.apigateway.get_usage_plans
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.resources
-  for_each: aws.apigateway.resource
+      resource_id: '{{ item.resource_id }}'
+      deployment_id: '{{ get_stages_response.item.deploymentId }}'
+      client_certificate_id: '{{ get_stages_response.item.clientCertificateId }}'
+      stage_name: '{{ get_stages_response.item.stageName }}'
+      description: '{{ get_stages_response.item.description }}'
+      cache_cluster_enabled: '{{ get_stages_response.item.cacheClusterEnabled }}'
+- discovery_id: aws.apigateway.get_resources
   calls:
-  - client: apigateway
-    action: describe_load_balancers
-    save_as: resources
+  - action: get_resources
+    save_as: get_resources_response
+    params:
+      restApiId: '{{ item.api_id }}'
     on_error: continue
+  for_each: aws.apigateway.get_usage_plans
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.authorizers
-  for_each: aws.apigateway.authorizer
-  calls:
-  - client: apigateway
-    action: get_authorizers
-    save_as: authorizers
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.usageplans
-  for_each: aws.apigateway.usageplan
-  calls:
-  - client: apigateway
-    action: get_usage_plans
-    save_as: usageplans
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.resource_encryption
-  calls:
-  - client: apigateway
-    action: describe_load_balancers
-    save_as: resource_encryption
-    on_error: continue
-  emit:
-    items_for: resource_encryption[]
-    as: resource_encryption
-    item:
-      id: '{{ resource_encryption.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.stage_logging
-  calls:
-  - client: apigateway
-    action: get_stages
-    save_as: stage_logging
-    on_error: continue
-  emit:
-    items_for: stage_logging[]
-    as: stage_logging
-    item:
-      id: '{{ stage_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.certificates
-  for_each: aws.apigateway.certificate
-  calls:
-  - client: apigateway
-    action: get_client_certificates
-    save_as: certificates
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.restapis
-  for_each: aws.apigateway.restapi
-  calls:
-  - client: apigateway
-    action: get_rest_apis
-    save_as: restapis
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.restapi_logging
-  calls:
-  - client: apigateway
-    action: get_rest_apis
-    save_as: restapi_logging
-    on_error: continue
-  emit:
-    items_for: restapi_logging[]
-    as: restapi_logging
-    item:
-      id: '{{ restapi_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.throttles
-  for_each: aws.apigateway.throttle
-  calls:
-  - client: apigateway
-    action: get_stages
-    save_as: throttles
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.resource_logging
-  calls:
-  - client: apigateway
-    action: describe_load_balancers
-    save_as: resource_logging
-    on_error: continue
-  emit:
-    items_for: resource_logging[]
-    as: resource_logging
-    item:
-      id: '{{ resource_logging.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.apikeys
-  for_each: aws.apigateway.apikey
-  calls:
-  - client: apigateway
-    action: get_api_keys
-    save_as: apikeys
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.apigateway.requestvalidators
-  for_each: aws.apigateway.requestvalidator
-  calls:
-  - client: apigateway
-    action: get_request_validators
-    save_as: requestvalidators
-    on_error: continue
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ get_resources_response.items.id }}'
+      parent_id: '{{ get_resources_response.items.parentId }}'
+      path_part: '{{ get_resources_response.items.pathPart }}'
+      path: '{{ get_resources_response.items.path }}'
+      resource_methods: '{{ get_resources_response.items.resourceMethods }}'
 checks:
-- title: 'APIGATEWAY usageplan: Api Stage Rate Limit Configured'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_stage_rate_limit_configured
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
+- rule_id: aws.apigateway.usageplan.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_usage_plans
   conditions:
-    var: usageplan.compliant
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.resource.authorization_enabled
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    var: item.auth_type
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.apigateway.apikey.key_rotation_policy_configured
+  for_each: aws.apigateway.get_api_keys
+  conditions:
+    all:
+    - var: item.enabled
+      op: equals
+      value: true
+    - var: item.last_updated_date
+      op: exists
+- rule_id: aws.apigateway.usageplan.api_quota_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.quota
+    op: exists
+- rule_id: aws.apigateway.authorizer.cache_ttl_configured
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    var: item.authorizer_result_ttl_in_seconds
+    op: gt
+    value: 0
+- rule_id: aws.apigateway.requestvalidator.api_required_security_headers_enforced
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    all:
+    - var: item.validate_request_body
+      op: equals
+      value: true
+    - var: item.validate_request_parameters
+      op: equals
+      value: true
+- rule_id: aws.apigateway.stage.logging_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigateway.requestvalidator.api_content_type_whitelist_enforced
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    all:
+    - var: item.validate_request_body
+      op: equals
+      value: true
+    - var: item.validate_request_parameters
+      op: equals
+      value: true
+- rule_id: aws.apigateway.throttle.api_stage_overrides_bounded
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.requestvalidator.api_request_schema_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    all:
+    - var: item.validate_request_body
+      op: equals
+      value: true
+    - var: item.validate_request_parameters
+      op: equals
+      value: true
+- rule_id: aws.apigateway.restapi.waf_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.web_acl_arn
+    op: exists
+- rule_id: aws.apigateway.resource.restapi_cache_encrypted
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.cache_cluster_enabled
     op: equals
     value: true
-- title: 'APIGATEWAY resource: Authorization Enabled'
-  severity: medium
-  rule_id: aws.apigateway.resource.authorization_enabled
-  for_each:
-    discovery: aws.apigateway.resources
-    as: resource
-    item: resource
+- rule_id: aws.apigateway.v2api.waf_enabled
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: resource.compliant
+    var: item.web_acl_arn
+    op: exists
+- rule_id: aws.apigateway.v2api.authz_policies_enforced
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    var: item.policy
+    op: exists
+- rule_id: aws.apigateway.authorizer.tls_min_1_2_enforced
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    var: item.security_policy
+    op: equals
+    value: TLS_1_2
+- rule_id: aws.apigateway.stage.api_logs_retention_days_minimum
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: gte
+    value: 90
+- rule_id: aws.apigateway.stage.api_access_log_sink_configured
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigateway.resource.api_gateway_https_required
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    var: item.security_policy
+    op: equals
+    value: TLS_1_2
+- rule_id: aws.apigateway.usageplan.api_rate_limits_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.usageplan.api_stage_throttle_overrides_bounded
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.apikey.scopes_least_privilege
+  for_each: aws.apigateway.get_api_keys
+  conditions:
+    var: item.stage_keys
+    op: equals
+    value: []
+- rule_id: aws.apigateway.usageplan.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.stage.api_access_log_fields_identity_configured
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigateway.requestvalidator.api_parameters_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    var: item.validate_request_parameters
     op: equals
     value: true
-- title: 'APIGATEWAY apikey: Key Rotation Policy Configured'
-  severity: high
-  rule_id: aws.apigateway.apikey.key_rotation_policy_configured
-  for_each:
-    discovery: aws.apigateway.apikeys
-    as: apikey
-    item: apikey
+- rule_id: aws.apigateway.stage.throttling_enabled
+  for_each: aws.apigateway.get_usage_plans
   conditions:
-    var: apikey.is_public
-    op: equals
-    value: false
-- title: 'APIGATEWAY usageplan: Api Quota Limit Configured'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_quota_limit_configured
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.authorizer.api_token_audience_restricted
+  for_each: aws.apigateway.get_authorizers
   conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY authorizer: Cache Ttl Configured'
-  severity: medium
-  rule_id: aws.apigateway.authorizer.cache_ttl_configured
-  for_each:
-    discovery: aws.apigateway.authorizers
-    as: authorizer
-    item: authorizer
+    all:
+    - var: item.type
+      op: equals
+      value: TOKEN
+    - var: item.identity_source
+      op: contains
+      value: method.request.header.Authorization
+- rule_id: aws.apigateway.restapi.tracing_enabled
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: authorizer.compliant
+    var: item.tracing_enabled
     op: equals
     value: true
-- title: 'APIGATEWAY requestvalidator: Api Required Security Headers Enforced'
-  severity: medium
-  rule_id: aws.apigateway.requestvalidator.api_required_security_headers_enforced
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
+- rule_id: aws.apigateway.v2api.private_networking_enforced
+  for_each: aws.apigateway.get_domain_names
   conditions:
-    var: requestvalidator.compliant
+    var: item.endpoint_configuration
+    op: equals
+    value: PRIVATE
+- rule_id: aws.apigateway.throttle.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.apikey.key_expiration_required
+  for_each: aws.apigateway.get_client_certificates
+  conditions:
+    var: item.expiration_date
+    op: exists
+- rule_id: aws.apigateway.usageplan.api_keys_required
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    var: item.api_key_source
+    op: equals
+    value: HEADER
+- rule_id: aws.apigateway.restapi.authz_policies_enforced
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    all:
+    - var: item.policy
+      op: exists
+    - var: item.security_policy
+      op: equals
+      value: TLS_1_2
+- rule_id: aws.apigateway.restapi.public_access_restricted
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    var: item.disable_execute_api_endpoint
     op: equals
     value: true
-- title: API logging and monitoring are enabled
-  severity: high
-  rule_id: aws.apigateway.stage.logging_enabled
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
+- rule_id: aws.apigateway.requestvalidator.api_request_body_size_limit_configured
+  for_each: aws.apigateway.get_rest_apis
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY requestvalidator: Api Content Type Whitelist Enforced'
-  severity: medium
-  rule_id: aws.apigateway.requestvalidator.api_content_type_whitelist_enforced
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
+    var: item.minimum_compression_size
+    op: gt
+    value: 0
+- rule_id: aws.apigateway.resource.restapi_logging_enabled
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: requestvalidator.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY throttle: Api Stage Overrides Bounded'
-  severity: medium
-  rule_id: aws.apigateway.throttle.api_stage_overrides_bounded
-  for_each:
-    discovery: aws.apigateway.throttles
-    as: throttle
-    item: throttle
+    all:
+    - var: item.access_log_settings
+      op: exists
+    - var: item.tracing_enabled
+      op: equals
+      value: true
+- rule_id: aws.apigateway.stage.api_execution_logging_level_minimum_error_configured
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: throttle.compliant
-    op: equals
-    value: true
-- title: API request validation is enabled
-  severity: high
-  rule_id: aws.apigateway.requestvalidator.api_request_schema_validation_enabled
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
+    all:
+    - var: item.method_settings
+      op: exists
+    - var: item.access_log_settings
+      op: exists
+- rule_id: aws.apigateway.stage.api_access_logging_enabled
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: requestvalidator.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Waf Enabled'
-  severity: medium
-  rule_id: aws.apigateway.restapi.waf_enabled
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
+    var: item.access_log_settings
+    op: exists
+- rule_id: aws.apigateway.throttle.api_quota_limit_configured
+  for_each: aws.apigateway.get_usage_plans
   conditions:
-    var: restapi.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY resource: Restapi Cache Encrypted'
-  severity: high
-  rule_id: aws.apigateway.resource.restapi_cache_encrypted
-  for_each:
-    discovery: aws.apigateway.resource_encryption
-    as: resource
-    item: resource
+    var: item.quota
+    op: exists
+- rule_id: aws.apigateway.restapi.authn_required
+  for_each: aws.apigateway.get_domain_names
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY v2api: Waf Enabled'
-  severity: medium
-  rule_id: aws.apigateway.v2api.waf_enabled
-  for_each:
-    discovery: aws.apigateway.v2apis
-    as: v2api
-    item: v2api
+    var: item.security_policy
+    op: exists
+- rule_id: aws.apigateway.v2api.authn_required
+  for_each: aws.apigateway.get_rest_apis
   conditions:
-    var: v2api.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY throttle: Api Usage Plan For Keys Required'
-  severity: medium
-  rule_id: aws.apigateway.throttle.api_usage_plan_for_keys_required
-  for_each:
-    discovery: aws.apigateway.throttles
-    as: throttle
-    item: throttle
+    all:
+    - var: item.api_key_source
+      op: equals
+      value: AUTHORIZER
+    - var: item.id
+      op: exists
+- rule_id: aws.apigateway.usageplan.api_quota_limits_configured
+  for_each: aws.apigateway.get_usage_plans
   conditions:
-    var: throttle.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY v2api: Authz Policies Enforced'
-  severity: medium
-  rule_id: aws.apigateway.v2api.authz_policies_enforced
-  for_each:
-    discovery: aws.apigateway.v2apis
-    as: v2api
-    item: v2api
+    var: item.quota
+    op: exists
+- rule_id: aws.apigateway.certificate.certificate_enabled
+  for_each: aws.apigateway.get_domain_names
   conditions:
-    var: v2api.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY authorizer: Tls Min 1 2 Enforced'
-  severity: high
-  rule_id: aws.apigateway.authorizer.tls_min_1_2_enforced
-  for_each:
-    discovery: aws.apigateway.authorizers
-    as: authorizer
-    item: authorizer
+    all:
+    - var: item.certificate_name
+      op: exists
+    - var: item.certificate_arn
+      op: exists
+- rule_id: aws.apigateway.restapi.private_networking_enforced
+  for_each: aws.apigateway.get_domain_names
   conditions:
-    var: authorizer.in_vpc
+    var: item.endpoint_configuration
     op: equals
-    value: true
-- title: 'APIGATEWAY stage: Api Logs Retention Days Minimum'
-  severity: medium
-  rule_id: aws.apigateway.stage.api_logs_retention_days_minimum
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
+    value:
+      types:
+      - PRIVATE
+- rule_id: aws.apigateway.requestvalidator.api_response_schema_validation_enabled
+  for_each: aws.apigateway.get_request_validators
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY stage: Api Access Log Sink Configured'
-  severity: medium
-  rule_id: aws.apigateway.stage.api_access_log_sink_configured
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
+    all:
+    - var: item.validate_request_body
+      op: equals
+      value: true
+    - var: item.validate_request_parameters
+      op: equals
+      value: true
+- rule_id: aws.apigateway.stage.usage_plan_for_api_keys_required
+  for_each: aws.apigateway.get_rest_apis
   conditions:
-    var: logging.logging_enabled
+    var: item.api_key_source
     op: equals
-    value: true
-- title: 'APIGATEWAY resource: Api Gateway Https Required'
-  severity: medium
-  rule_id: aws.apigateway.resource.api_gateway_https_required
-  for_each:
-    discovery: aws.apigateway.resources
-    as: resource
-    item: resource
+    value: HEADER
+- rule_id: aws.apigateway.throttle.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_usage_plans
   conditions:
-    var: resource.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY usageplan: Api Rate Limits Configured'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_rate_limits_configured
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
+    var: item.throttle
+    op: exists
+- rule_id: aws.apigateway.resource.api_resource_attached_enabled
+  for_each: aws.apigateway.get_resources
   conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY usageplan: Api Stage Throttle Overrides Bounded'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_stage_throttle_overrides_bounded
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
+    var: item.resource_methods
+    op: exists
+- rule_id: aws.apigateway.restapi.logging_enabled
+  for_each: aws.apigateway.get_stages
   conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY apikey: Scopes Least Privilege'
-  severity: high
-  rule_id: aws.apigateway.apikey.scopes_least_privilege
-  for_each:
-    discovery: aws.apigateway.apikeys
-    as: apikey
-    item: apikey
-  conditions:
-    var: apikey.is_public
-    op: equals
-    value: false
-- title: API throttling and rate limiting are enabled
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_stage_burst_limit_configured
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
-  conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY stage: Api Access Log Fields Identity Configured'
-  severity: medium
-  rule_id: aws.apigateway.stage.api_access_log_fields_identity_configured
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY requestvalidator: Api Parameters Validation Enabled'
-  severity: medium
-  rule_id: aws.apigateway.requestvalidator.api_parameters_validation_enabled
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
-  conditions:
-    var: requestvalidator.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY stage: Throttling Enabled'
-  severity: medium
-  rule_id: aws.apigateway.stage.throttling_enabled
-  for_each:
-    discovery: aws.apigateway.stages
-    as: stage
-    item: stage
-  conditions:
-    var: stage.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY authorizer: Api Token Audience Restricted'
-  severity: medium
-  rule_id: aws.apigateway.authorizer.api_token_audience_restricted
-  for_each:
-    discovery: aws.apigateway.authorizers
-    as: authorizer
-    item: authorizer
-  conditions:
-    var: authorizer.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Tracing Enabled'
-  severity: medium
-  rule_id: aws.apigateway.restapi.tracing_enabled
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
-  conditions:
-    var: restapi.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY v2api: Private Networking Enforced'
-  severity: high
-  rule_id: aws.apigateway.v2api.private_networking_enforced
-  for_each:
-    discovery: aws.apigateway.v2apis
-    as: v2api
-    item: v2api
-  conditions:
-    var: v2api.is_public
-    op: equals
-    value: false
-- title: 'APIGATEWAY throttle: Api Stage Rate Limit Configured'
-  severity: medium
-  rule_id: aws.apigateway.throttle.api_stage_rate_limit_configured
-  for_each:
-    discovery: aws.apigateway.throttles
-    as: throttle
-    item: throttle
-  conditions:
-    var: throttle.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY apikey: Key Expiration Required'
-  severity: medium
-  rule_id: aws.apigateway.apikey.key_expiration_required
-  for_each:
-    discovery: aws.apigateway.apikeys
-    as: apikey
-    item: apikey
-  conditions:
-    var: apikey.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY usageplan: Api Keys Required'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_keys_required
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
-  conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Authz Policies Enforced'
-  severity: medium
-  rule_id: aws.apigateway.restapi.authz_policies_enforced
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
-  conditions:
-    var: restapi.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Public Access Restricted'
-  severity: high
-  rule_id: aws.apigateway.restapi.public_access_restricted
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
-  conditions:
-    var: restapi.is_public
-    op: equals
-    value: false
-- title: 'APIGATEWAY requestvalidator: Api Request Body Size Limit Configured'
-  severity: medium
-  rule_id: aws.apigateway.requestvalidator.api_request_body_size_limit_configured
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
-  conditions:
-    var: requestvalidator.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY resource: Restapi Logging Enabled'
-  severity: medium
-  rule_id: aws.apigateway.resource.restapi_logging_enabled
-  for_each:
-    discovery: aws.apigateway.resource_logging
-    as: resource
-    item: resource
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY stage: Api Execution Logging Level Minimum Error Configured'
-  severity: medium
-  rule_id: aws.apigateway.stage.api_execution_logging_level_minimum_error_configured
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: API logging and monitoring are enabled
-  severity: high
-  rule_id: aws.apigateway.stage.api_access_logging_enabled
-  for_each:
-    discovery: aws.apigateway.stage_logging
-    as: stage
-    item: stage
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
-- title: 'APIGATEWAY throttle: Api Quota Limit Configured'
-  severity: medium
-  rule_id: aws.apigateway.throttle.api_quota_limit_configured
-  for_each:
-    discovery: aws.apigateway.throttles
-    as: throttle
-    item: throttle
-  conditions:
-    var: throttle.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Authn Required'
-  severity: medium
-  rule_id: aws.apigateway.restapi.authn_required
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
-  conditions:
-    var: restapi.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY v2api: Authn Required'
-  severity: medium
-  rule_id: aws.apigateway.v2api.authn_required
-  for_each:
-    discovery: aws.apigateway.v2apis
-    as: v2api
-    item: v2api
-  conditions:
-    var: v2api.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY usageplan: Api Quota Limits Configured'
-  severity: medium
-  rule_id: aws.apigateway.usageplan.api_quota_limits_configured
-  for_each:
-    discovery: aws.apigateway.usageplans
-    as: usageplan
-    item: usageplan
-  conditions:
-    var: usageplan.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY certificate: Certificate Enabled'
-  severity: medium
-  rule_id: aws.apigateway.certificate.certificate_enabled
-  for_each:
-    discovery: aws.apigateway.certificates
-    as: certificate
-    item: certificate
-  conditions:
-    var: certificate.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY restapi: Private Networking Enforced'
-  severity: high
-  rule_id: aws.apigateway.restapi.private_networking_enforced
-  for_each:
-    discovery: aws.apigateway.restapis
-    as: restapi
-    item: restapi
-  conditions:
-    var: restapi.is_public
-    op: equals
-    value: false
-- title: API request validation is enabled
-  severity: high
-  rule_id: aws.apigateway.requestvalidator.api_response_schema_validation_enabled
-  for_each:
-    discovery: aws.apigateway.requestvalidators
-    as: requestvalidator
-    item: requestvalidator
-  conditions:
-    var: requestvalidator.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY stage: Usage Plan For Api Keys Required'
-  severity: medium
-  rule_id: aws.apigateway.stage.usage_plan_for_api_keys_required
-  for_each:
-    discovery: aws.apigateway.stages
-    as: stage
-    item: stage
-  conditions:
-    var: stage.compliant
-    op: equals
-    value: true
-- title: API throttling and rate limiting are enabled
-  severity: medium
-  rule_id: aws.apigateway.throttle.api_stage_burst_limit_configured
-  for_each:
-    discovery: aws.apigateway.throttles
-    as: throttle
-    item: throttle
-  conditions:
-    var: throttle.compliant
-    op: equals
-    value: true
-- title: 'APIGATEWAY resource: Api Resource Attached Enabled'
-  severity: medium
-  rule_id: aws.apigateway.resource.api_resource_attached_enabled
-  for_each:
-    discovery: aws.apigateway.resources
-    as: resource
-    item: resource
-  conditions:
-    var: resource.compliant
-    op: equals
-    value: true
-- title: Deprecation notices are monitored
-  severity: low
-  rule_id: aws.apigateway.restapi.logging_enabled
-  for_each:
-    discovery: aws.apigateway.restapi_logging
-    as: restapi
-    item: restapi
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
+    var: item.access_log_settings
+    op: exists
