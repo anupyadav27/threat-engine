@@ -2,12 +2,12 @@ version: '1.0'
 provider: azure
 service: subscription
 discovery:
-- discovery_id: azure.subscription.list_subscriptions
+- discovery_id: azure.resource.list
   calls:
   - action: list
-    save_as: list_subscriptions_response
+    save_as: list_response
   emit:
-    items_for: '{{ list_subscriptions_response.value }}'
+    items_for: '{{ list_response.value }}'
     as: item
     item:
       id: '{{ item.id }}'
@@ -16,29 +16,52 @@ discovery:
       state: '{{ item.state }}'
       subscription_policies: '{{ item.subscription_policies }}'
       authorization_source: '{{ item.authorization_source }}'
-
-- discovery_id: azure.subscription.list_locations
+- discovery_id: azure.subscription.list
   calls:
-  - action: list_locations
-    params:
-      subscription_id: '{{ subscription_id }}'
-    save_as: list_locations_response
+  - action: list
+    save_as: list_response
   emit:
-    items_for: '{{ list_locations_response.value }}'
+    items_for: '{{ list_response.value }}'
     as: item
     item:
       id: '{{ item.id }}'
       subscription_id: '{{ item.subscription_id }}'
-      name: '{{ item.name }}'
       display_name: '{{ item.display_name }}'
-      latitude: '{{ item.latitude }}'
-      longitude: '{{ item.longitude }}'
-
+      state: '{{ item.state }}'
+      subscription_policies: '{{ item.subscription_policies }}'
+      authorization_source: '{{ item.authorization_source }}'
 checks:
-- rule_id: azure.subscription.subscription.subscription_state_enabled
-  for_each: azure.subscription.list_subscriptions
+- rule_id: azure.resource.sku.standard.enforcement
+  for_each: azure.resource.list
   conditions:
     var: item.state
     op: equals
     value: Enabled
-
+- rule_id: azure.resource.manager.resource.lock.verification
+  for_each: azure.resource.list
+  conditions:
+    var: item.state
+    op: equals
+    value: Enabled
+- rule_id: azure.resource.groups_group.governance_project_required_guardrail_policies_attached
+  for_each: azure.resource.list
+  conditions:
+    var: item.subscription_policies
+    op: not_empty
+- rule_id: azure.resource.groups_group.governance_project_security_services_mandatory_enabled
+  for_each: azure.resource.list
+  conditions:
+    var: item.state
+    op: equals
+    value: Enabled
+- rule_id: azure.resource.groups_group.governance_project_no_public_admin_roles
+  for_each: azure.resource.list
+  conditions:
+    var: item.authorization_source
+    op: not_equals
+    value: Public
+- rule_id: azure.subscription.owner.count.check
+  for_each: azure.subscription.list
+  conditions:
+    var: item.authorization_source
+    op: not_empty

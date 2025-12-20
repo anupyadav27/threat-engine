@@ -1,39 +1,42 @@
 version: '1.0'
 provider: aws
 service: mq
+services:
+  client: mq
+  module: boto3.client
 discovery:
 - discovery_id: aws.mq.list_brokers
   calls:
   - action: list_brokers
-    save_as: list_brokers_response
+    save_as: response
   emit:
-    items_for: '{{ list_brokers_response.BrokerSummaries }}'
+    items_for: '{{ response.BrokerSummaries }}'
     as: resource
     item:
-      broker_arn: '{{ resource.BrokerArn }}'
-      broker_id: '{{ resource.BrokerId }}'
-      broker_name: '{{ resource.BrokerName }}'
-      broker_state: '{{ resource.BrokerState }}'
-      created: '{{ resource.Created }}'
-      deployment_mode: '{{ resource.DeploymentMode }}'
-      engine_type: '{{ resource.EngineType }}'
-      host_instance_type: '{{ resource.HostInstanceType }}'
+      BrokerArn: '{{ resource.BrokerArn }}'
+      BrokerId: '{{ resource.BrokerId }}'
+      BrokerName: '{{ resource.BrokerName }}'
+      BrokerState: '{{ resource.BrokerState }}'
+      Created: '{{ resource.Created }}'
+      DeploymentMode: '{{ resource.DeploymentMode }}'
+      EngineType: '{{ resource.EngineType }}'
+      HostInstanceType: '{{ resource.HostInstanceType }}'
 checks:
 - rule_id: aws.mq.cluster.mq_deployment_mode_configured
   for_each: aws.mq.list_brokers
   conditions:
-    var: item.deployment_mode
+    var: item.DeploymentMode
     op: equals
     value: ACTIVE
 - rule_id: aws.mq.resource.broker_logging_enabled
   for_each: aws.mq.list_brokers
   conditions:
-    var: item.broker_state
+    var: item.BrokerState
     op: equals
     value: ENABLED
 - rule_id: aws.mq.broker.mq_active_deployment_mode_configured
   for_each: aws.mq.list_brokers
   conditions:
-    var: item.deployment_mode
+    var: item.DeploymentMode
     op: equals
     value: ACTIVE

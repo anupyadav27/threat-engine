@@ -1,0 +1,65 @@
+version: '1.0'
+provider: azure
+service: iam
+discovery:
+- discovery_id: azure.iam.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+checks:
+- rule_id: azure.iam.role.assignment.privileged.review
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.policy.cis_2_4_needs_development
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.role.has_permissions_to_administer_resource_locks
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.policy.cis_5_18_needs_development
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.policy.cis_5_25_needs_development
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.policy.cis_5_3_7_needs_development
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.iam.user.access.admin.check
+  for_each: azure.iam.list
+  conditions:
+    var: item.id
+    op: exists

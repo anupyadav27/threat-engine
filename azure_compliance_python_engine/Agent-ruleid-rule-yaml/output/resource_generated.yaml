@@ -1,0 +1,43 @@
+version: '1.0'
+provider: azure
+service: resource
+discovery:
+- discovery_id: azure.resource.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      system_data: '{{ item.system_data }}'
+checks:
+- rule_id: azure.resource.sku.standard.enforcement
+  for_each: azure.resource.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.resource.manager.resource.lock.verification
+  for_each: azure.resource.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.resource.groups_group.governance_project_required_guardrail_policies_attached
+  for_each: azure.resource.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.resource.groups_group.governance_project_security_services_mandatory_enabled
+  for_each: azure.resource.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.resource.groups_group.governance_project_no_public_admin_roles
+  for_each: azure.resource.list
+  conditions:
+    var: item.id
+    op: exists

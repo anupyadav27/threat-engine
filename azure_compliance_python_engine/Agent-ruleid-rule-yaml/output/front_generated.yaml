@@ -1,0 +1,58 @@
+version: '1.0'
+provider: azure
+service: front
+discovery:
+- discovery_id: azure.front.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      zones: '{{ item.zones }}'
+      identity: '{{ item.identity }}'
+      sku: '{{ item.sku }}'
+      ssl_policy: '{{ item.ssl_policy }}'
+      operational_state: '{{ item.operational_state }}'
+      gateway_ip_configurations: '{{ item.gateway_ip_configurations }}'
+      authentication_certificates: '{{ item.authentication_certificates }}'
+      trusted_root_certificates: '{{ item.trusted_root_certificates }}'
+      trusted_client_certificates: '{{ item.trusted_client_certificates }}'
+      ssl_certificates: '{{ item.ssl_certificates }}'
+      frontend_ip_configurations: '{{ item.frontend_ip_configurations }}'
+      frontend_ports: '{{ item.frontend_ports }}'
+      probes: '{{ item.probes }}'
+      backend_address_pools: '{{ item.backend_address_pools }}'
+checks:
+- rule_id: azure.front.door_waf_policy.edge_waf_ip_rate_limit_rules_configured_where_supported
+  for_each: azure.front.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.front.door_waf_policy.edge_waf_managed_rule_sets_enabled
+  for_each: azure.front.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.front.door_waf_policy.edge_waf_logging_enabled
+  for_each: azure.front.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.front.door_waf_policy.edge_waf_web_acl_attached_to_cdn
+  for_each: azure.front.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.front.door_waf_policy.edge_waf_block_actions_not_count_only
+  for_each: azure.front.list
+  conditions:
+    var: item.id
+    op: exists

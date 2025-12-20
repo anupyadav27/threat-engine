@@ -1,0 +1,211 @@
+You are helping me standardize and regenerate dependency artifacts for IBM Cloud services for my C7N-style operation dependency engine.
+
+PROVIDER: ibm
+
+INPUT (per service folder)
+- A service-specific JSON spec with operations containing:
+  - operation (string)
+  - python_method (string, optional)
+  - required_params (list)
+  - optional_params (list)
+  - output_fields (object)
+  - main_output_field (string|null)
+  - item_fields (object|list)  // when main_output_field is list-like
+
+OUTPUTS (per service folder) — FINAL ONLY
+1) operation_registry.json
+2) adjacency.json
+3) validation_report.json
+4) overrides.json (applied overrides + persisted decisions)
+5) manual_review.json (ONLY unresolved/conflicts after auto-fix)
+6) fixes_applied.json (audit log)
+
+Optional global output:
+7) manual_review_global_summary.json
+
+CORE MODELING RULES
+A) PRODUCERS:
+   - output_fields keys are produced values
+   - item_fields keys are produced values too (emitted per-item)
+
+B) CONSUMERS:
+   - required_params are consumed inputs for an operation
+
+C) Many-to-many supported:
+   - operation can produce multiple entities
+   - operation can consume multiple entities
+   - an entity can have multiple producers
+
+------------------------------------------------------------
+1) KIND AUTO-ASSIGN (single deterministic rule)
+------------------------------------------------------------
+Prefer python_method if present; else use operation.
+
+Let name = (python_method or operation). Case-insensitive.
+Assign kind by FIRST match:
+
+write_delete if startswith any:
+  delete|remove|terminate|destroy|purge|detach|disassociate|unbind|revoke|disable|untag
+write_update if startswith any:
+  update|modify|put|set|replace|patch|change|reset|attach|bind|associate|add|tag|enable
+write_create if startswith any:
+  create|start|run|launch|provision|register|generate|import|install|authorize|grant
+read_list if startswith any:
+  list|search|query|find|enumerate OR (startswith get and output is list-like)
+read_get if startswith any:
+  get|describe|read|fetch AND output is singular object
+else:
+  other
+
+Write kind into operation_registry for every operation.
+
+------------------------------------------------------------
+2) GLOBAL IDENTITY EXCEPTIONS (IBM Cloud specific)
+------------------------------------------------------------
+These MUST map to global canonical entities (never service-prefix):
+- account_id / accountId => ibm.account_id
+- region / region_id / regionId => ibm.region
+- crn / CRN => ibm.crn
+- resource_group_id / resourceGroupId => ibm.resource_group_id
+- instance_id / resource_instance_id / resourceInstanceId => ibm.resource_instance_id
+- iam_id / iamId => ibm.iam_id
+- pagination tokens: start|offset|page|pageToken|next|limit => ibm.pagination_token (NOT security identity)
+
+------------------------------------------------------------
+3) CANONICAL ENTITY NAMING (no generic leftovers)
+------------------------------------------------------------
+Canonical format:
+  ibm.<service>.<resource>.<field>
+
+CRITICAL:
+Never output generic entities like:
+  ibm.<service>.id
+  ibm.<service>.name
+  ibm.<service>.status
+
+3.1 Derive <resource> using best available signal (in this order):
+a) If main_output_field is list-like and item_fields exist:
+   use main_output_field name or plural parent key to infer resource
+   Example: "instances" -> instance, "buckets" -> bucket
+b) Else derive from operation name by stripping verbs:
+   list|get|describe|create|update|delete|modify|set|patch|attach|detach|enable|disable
+   Remaining noun tokens -> resource
+c) Else fallback resource = "resource"
+
+3.2 CONSUMES mapping (required_params -> consumed_entities)
+For each required param:
+- If it matches a GLOBAL exception in section 2 → use that canonical entity
+- Else if param is generic token (id|name|status):
+  map to ibm.<service>.<resource>.<resource>_<token>
+  Examples:
+    CreateInstance.name -> ibm.vpc.instance.instance_name
+    UpdateBucket.id -> ibm.object_storage.bucket.bucket_id
+- Else if param endswith Id / Name:
+  extract base noun and map:
+    instanceId -> ibm.<service>.instance.instance_id
+    bucketName -> ibm.<service>.bucket.name
+  (unless overridden by section 2)
+
+3.3 PRODUCES mapping (output_fields + item_fields -> produced_entities)
+For each produced key path:
+- If it matches global exceptions (crn, account_id, resource_group_id, etc.) → use section 2 entity
+- If key is generic (id|name|status):
+  scope using nearest parent path:
+    instances[].id => ibm.<service>.instance.instance_id
+    buckets[].status => ibm.<service>.bucket.status
+- Always include both output_fields and item_fields in produces.
+
+------------------------------------------------------------
+4) OVERRIDES + ALIASES (two layers)
+------------------------------------------------------------
+Use stable “evidence keys”:
+
+Params:
+  "<operation>:param:<param_name>"
+Outputs:
+  "<operation>:out:<output_path>"
+
+overrides.json must support:
+- param_aliases: { evidence_key -> canonical_entity }
+- entity_aliases: { alias_entity -> canonical_entity }
+- consumes_overrides: { "<operation>.<param>" -> canonical_entity }
+- produces_overrides: { "<operation>.<output_path>" -> canonical_entity }
+
+Resolution priority:
+1) consumes_overrides / produces_overrides (exact)
+2) param_aliases (evidence_key)
+3) inferred mapping rules (section 2 + 3)
+4) finally canonicalize via entity_aliases
+
+------------------------------------------------------------
+5) TWO-PASS GENERATION + AUTO-APPLY suggested_overrides
+------------------------------------------------------------
+PASS 1:
+- Generate:
+  operation_registry.json, adjacency.json, validation_report.json, manual_review.json
+
+manual_review.json should include:
+- unresolved required params (no producers)
+- ambiguous evidence keys (same evidence maps to multiple entities)
+- remaining generic_token_hits
+- suggested_overrides candidates:
+  { operation, type: consumes|produces, key, suggested_entity, confidence, reason }
+
+AUTO-APPLY:
+- Accept HIGH confidence suggestions automatically into overrides.json
+- Accept MEDIUM only if it reduces:
+    generic_token_hits OR ambiguous_count OR unresolved_consumers_count
+  and does NOT increase unsatisfiable_ops_count
+- LOW never auto-apply
+Write all decisions to fixes_applied.json
+
+PASS 2:
+- Regenerate all artifacts using overrides.json
+- manual_review.json MUST shrink:
+  remove any unresolved_items whose evidence_key is now resolved
+  keep only true conflicts/unresolved
+
+IMPORTANT BUG FIX:
+If fixes_applied.json records an accepted suggestion, it must be removed from manual_review unresolved list.
+
+------------------------------------------------------------
+6) ADJACENCY GRAPH OUTPUT (adjacency.json)
+------------------------------------------------------------
+Edges exist where:
+producer operation produces an entity that satisfies consumer required param.
+
+Each edge includes:
+- from_operation_id
+- to_operation_id
+- entity
+- from_key (produced path)
+- to_param (required param)
+- confidence + reason
+
+Also include:
+- independent_ops (required_params empty)
+- root_seeds (best starting list/get operations)
+
+------------------------------------------------------------
+7) VALIDATION REPORT (validation_report.json)
+------------------------------------------------------------
+Include:
+- totals: ops, edges
+- satisfiable_ops_percent
+- unsatisfiable_ops_count
+- generic_token_hits_count + examples
+- unresolved_consumers list
+- ambiguous evidence keys list
+- overrides_applied_count
+- aliases_applied_count
+- cycles (if any)
+
+------------------------------------------------------------
+8) FINAL OUTPUT HYGIENE
+------------------------------------------------------------
+Keep ONLY final files listed in OUTPUTS.
+Write .bak backups before overwriting.
+Stable sorted pretty JSON.
+
+Now implement/refactor generator to run all IBM services under ibm/** in one run with the two-pass auto-fix pipeline.
+Prefer deterministic logic; log reasons for any heuristic.

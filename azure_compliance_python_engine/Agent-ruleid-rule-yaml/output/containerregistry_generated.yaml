@@ -1,0 +1,68 @@
+version: '1.0'
+provider: azure
+service: containerregistry
+discovery:
+- discovery_id: azure.containerregistry.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      e_tag: '{{ item.e_tag }}'
+      sku: '{{ item.sku }}'
+      extended_location: '{{ item.extended_location }}'
+      identity: '{{ item.identity }}'
+      kind: '{{ item.kind }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      power_state: '{{ item.power_state }}'
+      max_agent_pools: '{{ item.max_agent_pools }}'
+      kubernetes_version: '{{ item.kubernetes_version }}'
+      current_kubernetes_version: '{{ item.current_kubernetes_version }}'
+      dns_prefix: '{{ item.dns_prefix }}'
+      fqdn_subdomain: '{{ item.fqdn_subdomain }}'
+      fqdn: '{{ item.fqdn }}'
+      private_fqdn: '{{ item.private_fqdn }}'
+checks:
+- rule_id: azure.containerregistry.replication.supply_chain_registry_replication_cross_region_encrypted
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.container.registry.not_publicly_accessible
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.container.registry.private_link_enabled
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.containerregistry.repository.supply_chain_registry_immutable_tags_or_signing_enforced
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.containerregistry.repository.supply_chain_private_or_access_restricted
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.containerregistry.repository.supply_chain_registry_image_scanning_enabled
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.containerregistry.replication.supply_chain_registry_replication_destinations_least_privilege
+  for_each: azure.containerregistry.list
+  conditions:
+    var: item.id
+    op: exists

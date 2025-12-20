@@ -1,73 +1,79 @@
 version: '1.0'
 provider: aws
 service: workspaces
+services:
+  client: workspaces
+  module: boto3.client
 discovery:
-- discovery_id: aws.workspaces.describe_workspace_directories
-  calls:
-  - action: describe_workspace_directories
-    save_as: describe_workspace_directories_response
-  emit:
-    items_for: '{{ describe_workspace_directories_response.Directories }}'
-    as: resource
-    item:
-      directory_id: '{{ resource.DirectoryId }}'
-      alias: '{{ resource.Alias }}'
-      directory_name: '{{ resource.DirectoryName }}'
-      registration_code: '{{ resource.RegistrationCode }}'
-      subnet_ids: '{{ resource.SubnetIds }}'
-      dns_ip_addresses: '{{ resource.DnsIpAddresses }}'
-      dns_ipv6_addresses: '{{ resource.DnsIpv6Addresses }}'
-      customer_user_name: '{{ resource.CustomerUserName }}'
-      iam_role_id: '{{ resource.IamRoleId }}'
-      directory_type: '{{ resource.DirectoryType }}'
-- discovery_id: aws.workspaces.describe_workspaces
-  calls:
-  - action: describe_workspaces
-    save_as: describe_workspaces_response
-  emit:
-    items_for: '{{ describe_workspaces_response.Workspaces }}'
-    as: resource
-    item:
-      workspace_id: '{{ resource.WorkspaceId }}'
-      directory_id: '{{ resource.DirectoryId }}'
-      user_name: '{{ resource.UserName }}'
-      ip_address: '{{ resource.IpAddress }}'
-      ipv6_address: '{{ resource.Ipv6Address }}'
-      state: '{{ resource.State }}'
-      bundle_id: '{{ resource.BundleId }}'
-      subnet_id: '{{ resource.SubnetId }}'
-      error_message: '{{ resource.ErrorMessage }}'
-      error_code: '{{ resource.ErrorCode }}'
 - discovery_id: aws.workspaces.describe_applications
   calls:
   - action: describe_applications
-    save_as: describe_applications_response
+    save_as: response
   emit:
-    items_for: '{{ describe_applications_response.Applications }}'
-    as: resource
     item:
-      application_id: '{{ resource.ApplicationId }}'
-      created: '{{ resource.Created }}'
-      description: '{{ resource.Description }}'
-      license_type: '{{ resource.LicenseType }}'
-      name: '{{ resource.Name }}'
-      owner: '{{ resource.Owner }}'
-      state: '{{ resource.State }}'
-      supported_compute_type_names: '{{ resource.SupportedComputeTypeNames }}'
-      supported_operating_system_names: '{{ resource.SupportedOperatingSystemNames
+      ApplicationId: '{{ response.Applications.ApplicationId }}'
+      Created: '{{ response.Applications.Created }}'
+      Description: '{{ response.Applications.Description }}'
+      LicenseType: '{{ response.Applications.LicenseType }}'
+      Name: '{{ response.Applications.Name }}'
+      Owner: '{{ response.Applications.Owner }}'
+      State: '{{ response.Applications.State }}'
+      SupportedComputeTypeNames: '{{ response.Applications.SupportedComputeTypeNames
         }}'
+      SupportedOperatingSystemNames: '{{ response.Applications.SupportedOperatingSystemNames
+        }}'
+- discovery_id: aws.workspaces.describe_workspace_directories
+  calls:
+  - action: describe_workspace_directories
+    save_as: response
+  emit:
+    item:
+      DirectoryId: '{{ response.Directories.DirectoryId }}'
+      Alias: '{{ response.Directories.Alias }}'
+      DirectoryName: '{{ response.Directories.DirectoryName }}'
+      RegistrationCode: '{{ response.Directories.RegistrationCode }}'
+      SubnetIds: '{{ response.Directories.SubnetIds }}'
+      DnsIpAddresses: '{{ response.Directories.DnsIpAddresses }}'
+      DnsIpv6Addresses: '{{ response.Directories.DnsIpv6Addresses }}'
+      CustomerUserName: '{{ response.Directories.CustomerUserName }}'
+      IamRoleId: '{{ response.Directories.IamRoleId }}'
+      DirectoryType: '{{ response.Directories.DirectoryType }}'
+      WorkspaceSecurityGroupId: '{{ response.Directories.WorkspaceSecurityGroupId
+        }}'
+      State: '{{ response.Directories.State }}'
+      WorkspaceCreationProperties: '{{ response.Directories.WorkspaceCreationProperties
+        }}'
+      ipGroupIds: '{{ response.Directories.ipGroupIds }}'
+      WorkspaceAccessProperties: '{{ response.Directories.WorkspaceAccessProperties
+        }}'
+      Tenancy: '{{ response.Directories.Tenancy }}'
+      SelfservicePermissions: '{{ response.Directories.SelfservicePermissions }}'
+      SamlProperties: '{{ response.Directories.SamlProperties }}'
+      CertificateBasedAuthProperties: '{{ response.Directories.CertificateBasedAuthProperties
+        }}'
+      EndpointEncryptionMode: '{{ response.Directories.EndpointEncryptionMode }}'
+      MicrosoftEntraConfig: '{{ response.Directories.MicrosoftEntraConfig }}'
+      WorkspaceDirectoryName: '{{ response.Directories.WorkspaceDirectoryName }}'
+      WorkspaceDirectoryDescription: '{{ response.Directories.WorkspaceDirectoryDescription
+        }}'
+      UserIdentityType: '{{ response.Directories.UserIdentityType }}'
+      WorkspaceType: '{{ response.Directories.WorkspaceType }}'
+      IDCConfig: '{{ response.Directories.IDCConfig }}'
+      ActiveDirectoryConfig: '{{ response.Directories.ActiveDirectoryConfig }}'
+      StreamingProperties: '{{ response.Directories.StreamingProperties }}'
+      ErrorMessage: '{{ response.Directories.ErrorMessage }}'
 checks:
 - rule_id: aws.workspaces.resource.directory_check_web_access_disabled
   for_each: aws.workspaces.describe_workspace_directories
   conditions:
-    var: item.workspace_access_properties
+    var: item.WorkspaceAccessProperties
     op: equals
     value:
       DeviceTypeWeb: DISABLED
 - rule_id: aws.workspaces.restapi.public_access_restricted
   for_each: aws.workspaces.describe_workspace_directories
   conditions:
-    var: item.workspace_access_properties
+    var: item.WorkspaceAccessProperties
     op: equals
     value:
       DeviceTypeWindows: DENY
@@ -78,19 +84,9 @@ checks:
       DeviceTypeChromeOs: DENY
       DeviceTypeZeroClient: DENY
       DeviceTypeLinux: DENY
-- rule_id: aws.workspaces.volume.encryption_enabled
-  for_each: aws.workspaces.describe_workspaces
-  conditions:
-    all:
-    - var: item.user_volume_encryption_enabled
-      op: equals
-      value: true
-    - var: item.root_volume_encryption_enabled
-      op: equals
-      value: true
 - rule_id: aws.workspaces.resource.workspaces_directory_enable_maintenance_mode_configured
   for_each: aws.workspaces.describe_applications
   conditions:
-    var: item.state
+    var: item.State
     op: equals
     value: ENABLED

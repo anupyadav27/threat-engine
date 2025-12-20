@@ -1,70 +1,64 @@
 version: '1.0'
 provider: aws
 service: xray
+services:
+  client: xray
+  module: boto3.client
 discovery:
-- discovery_id: aws.xray.get_encryption_config
-  calls:
-  - action: get_encryption_config
-    save_as: get_encryption_config_response
-  emit:
-    items_for: '{{ get_encryption_config_response.EncryptionConfig }}'
-    as: resource
-    item:
-      key_id: '{{ resource.KeyId }}'
-      status: '{{ resource.Status }}'
-      type: '{{ resource.Type }}'
 - discovery_id: aws.xray.delete_sampling_rule
   calls:
   - action: delete_sampling_rule
-    save_as: delete_sampling_rule_response
+    save_as: response
   emit:
-    items_for: '{{ delete_sampling_rule_response.SamplingRuleRecord }}'
-    as: resource
     item:
-      sampling_rule: '{{ resource.SamplingRule }}'
-      created_at: '{{ resource.CreatedAt }}'
-      modified_at: '{{ resource.ModifiedAt }}'
+      SamplingRule: '{{ response.SamplingRuleRecord.SamplingRule }}'
+      CreatedAt: '{{ response.SamplingRuleRecord.CreatedAt }}'
+      ModifiedAt: '{{ response.SamplingRuleRecord.ModifiedAt }}'
+- discovery_id: aws.xray.get_encryption_config
+  calls:
+  - action: get_encryption_config
+    save_as: response
+  emit:
+    item:
+      KeyId: '{{ response.EncryptionConfig.KeyId }}'
+      Status: '{{ response.EncryptionConfig.Status }}'
+      Type: '{{ response.EncryptionConfig.Type }}'
 - discovery_id: aws.xray.batch_get_traces
   calls:
   - action: batch_get_traces
-    save_as: batch_get_traces_response
-    params:
-      TraceIds: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.xray.get_encryption_config
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ batch_get_traces_response.Traces.Id }}'
-      duration: '{{ batch_get_traces_response.Traces.Duration }}'
-      limit_exceeded: '{{ batch_get_traces_response.Traces.LimitExceeded }}'
-      segments: '{{ batch_get_traces_response.Traces.Segments }}'
+      Id: '{{ response.Traces.Id }}'
+      Duration: '{{ response.Traces.Duration }}'
+      LimitExceeded: '{{ response.Traces.LimitExceeded }}'
+      Segments: '{{ response.Traces.Segments }}'
 checks:
 - rule_id: aws.xray.trace.xray_store_encrypted
   for_each: aws.xray.get_encryption_config
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.xray.samplingrule.xray_rules_present
   for_each: aws.xray.delete_sampling_rule
   conditions:
-    var: item.sampling_rule
+    var: item.SamplingRule
     op: exists
 - rule_id: aws.xray.samplingrule.xray_storage_encrypted
   for_each: aws.xray.get_encryption_config
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.xray.trace.retention_days_minimum
   for_each: aws.xray.batch_get_traces
   conditions:
-    var: item.duration
+    var: item.Duration
     op: gte
     value: 30
 - rule_id: aws.xray.samplingrule.rbac_least_privilege
   for_each: aws.xray.delete_sampling_rule
   conditions:
-    var: item.sampling_rule
+    var: item.SamplingRule
     op: exists

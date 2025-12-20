@@ -1,0 +1,391 @@
+version: '1.0'
+provider: azure
+service: aad
+discovery:
+- discovery_id: azure.aad.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+checks:
+- rule_id: azure.aad.identity_service_principal.access_service_account_no_user_long_lived_keys
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.graph.api.365.group.creation.restriction.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.access_user_console_password_present_only_if_required
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_password_policy_max_age_90_days_or_less
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.app_registration.access_oidc_allowed_client_ids_audiences_restricted
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_password_policy_lockout_threshold_defined
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_attached
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.user.app.registration.disabled
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_break_glass_accounts_mfa_enforced
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.user.consent.disabled.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.enterprise_application.access_saml_idp_metadata_signed
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.access_user_access_keys_rotated_90_days_or_less_when_present
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_password_policy_compliant
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.enterprise_application.access_saml_audience_restriction
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.user.no_guest_accounts_with_permissions
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.group.creation.restriction.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_api_access_keys_root_or_owner_disallowed
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.authentication.passwordless.policy.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entrad.group.membership.management.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_group_membership_review_enabled_where_supported
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.app_registration.access_oidc_issuer_https_and_matches_discovery
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.user.with_vm_access_has_mfa:az.active_directory_user.identity_access_security_user_mfa_required
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_sso_federation_where_supported
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_rbac_group_no_inline_policies
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.authentication.reconfirmation.period.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.conditionalaccess.token.protection.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.privacy_consent.access_rbac_least_privilege
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.user.group_membership:az.active_directory_group.identity_access_security_group_membership_review_enabled_where_supported
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.policy.restrict.non.admin.tenant.creation
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_service_principal.access_service_account_scopes_or_roles_least_privilege
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.diagnostic.microsoft.graph.logs.destination.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.access_user_mfa_required
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.policy.user_consent_for_verified_apps storage_blob_public_access_level_is_disabled
+    storage_ensure_azure_services_are_trusted_to_access_is_enabled:az.active_directory_user.identity_access_security_user_inactive_90_days_disabled
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.authentication.methods.policy.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.diagnostic.setting.activity.logs.configured
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.password.reset.notification.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_group_no_inline_policies
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.security.lockout.duration.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_rbac_group_external_sharing_restricted_where_supported
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_rbac_group_attached_policies_not_admin_star
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.enterprise_application.access_saml_assertion_lifetime_reasonable
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_policies_least_privilege
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_password_policy_prevent_reuse_last_24
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_service_principal.access_service_account_keys_not_used_or_rotated_90_days_or_less
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.policy.trusted_named_locations_exists
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.user.role.check.disabled
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.user.consent.settings.verified.publishers
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.role.least_privilege
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.access_user_in90_days_disabled
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entrad.global.admin.role.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.custom.role.admin.privileges.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.mfa.enabled.for.privileged.vm.access
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.enterprise_application.access_saml_certificates_not_expired
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_console_mfa_required_org_wide
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.policy.require_mfa_for_management_api:az.active_directory_tenant.identity_access_security_password_policy_require_upper_lower_number_special
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.authentication.lockout.threshold.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entra.id.guest.invite.restrictions.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.app_registration.access_oidc_token_lifetime_reasonable
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_password_policy_require_upper_lower_number_special
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory.password_policy_reuse_24,_azure_devops_project_no_secrets_in_variables_c87043e4
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_no_instance_profile_with_admin_star
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entrad.device.mfa.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_tenant_inuser_disable_threshold
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.serverless_event_source.permissions_least_privilege
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.identity_service_principal.access_service_account_workload_identity_federation_used_where_supported
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.group.access_group_attached_policies_not_admin_star
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.entrad.password.policy.custom.banned.list.enforced
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.guest.user.access.restriction.check
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.directory_tenant.access_password_policy_min_length_14
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.ad.tenant.creator.role.review
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.user.access_user_no_inline_policies_attached
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.aad.app_registration.access_oidc_thumbprints_or_jwks_pinning
+  for_each: azure.aad.list
+  conditions:
+    var: item.id
+    op: exists

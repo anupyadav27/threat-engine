@@ -1,0 +1,55 @@
+You are given AWS service metadata JSON files (one per service folder). Each service JSON has operations with:
+- operation name
+- python_method
+- required_params / optional_params
+- output_fields
+- main_output_field
+- item_fields
+
+TASK:
+For EACH service folder under <ROOT_DIR>/services/*:
+1) Generate operation_registry.json with this schema:
+{
+  "service": "<service>",
+  "version": "1.0",
+  "kind_rules": { ...prefix rules... },
+  "entity_aliases": { "<canonical_entity>": ["alias1","alias2", ...] },
+  "overrides": { ...only when needed... },
+  "operations": {
+    "<OperationName>": {
+      "kind": "<read_list|read_get|write_create|write_update|write_delete|write_apply|other>",
+      "side_effect": <true/false>,
+      "sdk": { "client": "<service>", "method": "<python_method>" },
+      "consumes": [ { "entity": "<svc.entity>", "param": "<ParamName>", "required": true, "source": "internal" } ],
+      "produces": [ { "entity": "<svc.entity>", "source": "<output|item>", "path": "<jsonpath-like>" } ],
+      "notes": ""
+    }
+  }
+}
+
+2) Normalize entity names to snake_case and prefix with "<service>.".
+3) IMPORTANT disambiguation rules:
+   - If param is "id" and operation name contains "Finding" => entity = "<service>.finding_id"
+   - If param is "id" and operation name contains "AccessPreview" => entity = "<service>.access_preview_id"
+   - If param is "status" and operation name contains "Finding" => entity = "<service>.finding_status"
+   - If output field is "arn" in CreateAnalyzer => entity = "<service>.analyzer_arn" (contextual mapping)
+4) Output path rule:
+   - For List* outputs, item paths use "main_output_field[].field"
+   - For Get* outputs where main_output_field is an OBJECT, item paths use "main_output_field.field" (NOT []).
+
+5) Generate adjacency.json from operation_registry.json:
+{
+  "service": "<service>",
+  "op_consumes": { "<op>": ["<entity>", ...] },
+  "op_produces": { "<op>": ["<entity>", ...] },
+  "entity_producers": { "<entity>": ["<op>", ...] },
+  "entity_consumers": { "<entity>": ["<op>", ...] },
+  "external_entities": ["<entity consumed but never produced>", ...]
+}
+
+6) Add a validation report at the end (printed or logged):
+- count of ops
+- count of entities
+- list of ambiguous tokens detected (id/status/arn) and how they were resolved
+- list of overrides applied
+- ensure there is no case where an entity is only produced by an op that also requires it (self-cycle), except when it’s the same identifier echoed back in output.

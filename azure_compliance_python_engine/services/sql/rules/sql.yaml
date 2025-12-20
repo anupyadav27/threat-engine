@@ -1,0 +1,559 @@
+version: '1.0'
+provider: azure
+service: sql
+discovery:
+- discovery_id: azure.sql.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      value: '{{ item.value }}'
+      next_link: '{{ item.next_link }}'
+- discovery_id: azure.synapse.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      value: '{{ item.value }}'
+      next_link: '{{ item.next_link }}'
+checks:
+- rule_id: azure.sql.server.db_subnet_group_private_subnets_only
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.backup_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_cluster_encryption_at_rest_cmek
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.tde_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.user.db_password_auth_hardened_or_iam_auth_preferred_where_supported
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_sg_egress_restricted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_instance_deletion_protection_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.db_snapshot_cross_region_copy_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.db_cluster_snapshot_not_publicly_shared
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.check.public.network.access.disabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: equals
+    value: Disabled
+- rule_id: azure.sql.paas_lightsail_database.paas_db_require_tls_in_transit
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.database.multi_az
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.cluster.default.admin,.azure.sql.instance.default.admin
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.tde_cmk_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.diagnostic_settings_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_parameter_group_require_ssl
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.database.deletion_protection
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.autoscale_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_instance_public_access_disabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: equals
+    value: Disabled
+- rule_id: azure.sql.database.encryption_at_rest_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_cluster_private_networking_enforced
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.db_snapshot_cross_account_sharing_restricted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.snapshots_public_access
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.db_cluster_snapshot_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.db_snapshot_not_publicly_shared
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_cluster_minor_version_auto_upgrade_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.auditing_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server_configuration.db_option_group_only_approved_extensions_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.database.db_snapshot_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_sg_only_required_ports_open
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.dynamodb_encryption_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.server.db_cluster_deletion_protection_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.ad.admin.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.minimal_tls_version
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.user.db_no_unused_or_default_superusers
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.paas_lightsail_database.paas_db_encryption_at_rest_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.server.tde.protector.customer.key.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.storage.encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.defender_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.database.db_cluster_snapshot_cross_account_sharing_restricted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.backup_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_instance_iam_or_managed_identity_auth_enabled_where_supported
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.no_public_access
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.user.db_approved_list_of_superusers_only
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_instance_require_tls_in_transit
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.server.db_instance_encryption_at_rest_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.firewall.no.open.access.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.auto_minor_version_upgrade
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.aurora_backup_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_parameter_group_audit_logging_enabled_where_supported
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.long_term_retention_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.geo_redundant_backup
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.ad_authentication_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.tde.status.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.multi_az_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.sql.server_configuration.db_option_group_insecure_extensions_not_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_cluster_audit_logging_enabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_sg_no_0_0_0_0_ingress_on_db_ports
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.database.defender.pricing.tier.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.auditing_retention_90_days
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: contains
+    value: 90
+- rule_id: azure.sql.database.db_cluster_snapshot_cross_region_copy_encrypted
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.paas_lightsail_database.paas_db_public_access_disabled
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: equals
+    value: Disabled
+- rule_id: azure.sql.server.audit.retention.check
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.unrestricted_inbound_access
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.sql.server.db_parameter_group_insecure_features_disabled_where_applicable
+  for_each: azure.sql.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.cluster.public_access
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.cluster.audit_logging
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.cluster.encrypted
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_query_result_encryption_enabled
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.sql_pool.data_warehouse_parameter_group_require_ssl
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_role_least_privilege
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_rbac_least_privilege
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_analytics_catalog_cross_account_sharing_restricted
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_warehouse_subnet_group_private_subnets_only
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_private_networking_enforced
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_encrypted
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_cross_region_copy_encrypted
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_no_anonymous_access
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_audit_logging_enabled
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_encrypted_at_rest_cmek
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_only_approved_hsm_endpoints
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_analytics_parameter_group_tls_required
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_tls_min_1_2_enforced
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.cluster.automated_snapshot
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_not_publicly_shared
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_tls_required
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.workspace.data_analytics_catalog_rbac_least_privilege
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_trusted_issuer
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_parameter_group_logging_enabled_where_supported
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.cluster.maintenance_settings
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_analytics_catalog_metadata_encryption_enabled
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_allowed_data_sources_allowlist
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_keys_in_hsm_only
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_private_only
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_no_public_access
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_key_length_minimum
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_analytics_parameter_group_logging_enabled_where_supported
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_analytics_subnet_group_private_subnets_only
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_allowed_cidrs_minimized
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_network_access_private
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.workspace.encryption_enabled
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.cluster.automatic_upgrades
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_configuration_present
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_not_expired
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_admin_access_least_privilege
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_encryption_at_rest_cmek
+  for_each: azure.synapse.list
+  conditions:
+    var: item.value
+    op: not_empty

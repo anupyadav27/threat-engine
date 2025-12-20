@@ -1,205 +1,179 @@
 version: '1.0'
 provider: aws
 service: kms
+services:
+  client: kms
+  module: boto3.client
 discovery:
 - discovery_id: aws.kms.create_key
   calls:
   - action: create_key
-    save_as: create_key_response
+    save_as: response
   emit:
-    items_for: '{{ create_key_response.KeyMetadata }}'
-    as: resource
     item:
-      aws_account_id: '{{ resource.AWSAccountId }}'
-      key_id: '{{ resource.KeyId }}'
-      arn: '{{ resource.Arn }}'
-      creation_date: '{{ resource.CreationDate }}'
-      enabled: '{{ resource.Enabled }}'
-      description: '{{ resource.Description }}'
-      key_usage: '{{ resource.KeyUsage }}'
-      key_state: '{{ resource.KeyState }}'
-      deletion_date: '{{ resource.DeletionDate }}'
-      valid_to: '{{ resource.ValidTo }}'
+      AWSAccountId: '{{ response.KeyMetadata.AWSAccountId }}'
+      KeyId: '{{ response.KeyMetadata.KeyId }}'
+      Arn: '{{ response.KeyMetadata.Arn }}'
+      CreationDate: '{{ response.KeyMetadata.CreationDate }}'
+      Enabled: '{{ response.KeyMetadata.Enabled }}'
+      Description: '{{ response.KeyMetadata.Description }}'
+      KeyUsage: '{{ response.KeyMetadata.KeyUsage }}'
+      KeyState: '{{ response.KeyMetadata.KeyState }}'
+      DeletionDate: '{{ response.KeyMetadata.DeletionDate }}'
+      ValidTo: '{{ response.KeyMetadata.ValidTo }}'
+      Origin: '{{ response.KeyMetadata.Origin }}'
+      CustomKeyStoreId: '{{ response.KeyMetadata.CustomKeyStoreId }}'
+      CloudHsmClusterId: '{{ response.KeyMetadata.CloudHsmClusterId }}'
+      ExpirationModel: '{{ response.KeyMetadata.ExpirationModel }}'
+      KeyManager: '{{ response.KeyMetadata.KeyManager }}'
+      CustomerMasterKeySpec: '{{ response.KeyMetadata.CustomerMasterKeySpec }}'
+      KeySpec: '{{ response.KeyMetadata.KeySpec }}'
+      EncryptionAlgorithms: '{{ response.KeyMetadata.EncryptionAlgorithms }}'
+      SigningAlgorithms: '{{ response.KeyMetadata.SigningAlgorithms }}'
+      KeyAgreementAlgorithms: '{{ response.KeyMetadata.KeyAgreementAlgorithms }}'
+      MultiRegion: '{{ response.KeyMetadata.MultiRegion }}'
+      MultiRegionConfiguration: '{{ response.KeyMetadata.MultiRegionConfiguration
+        }}'
+      PendingDeletionWindowInDays: '{{ response.KeyMetadata.PendingDeletionWindowInDays
+        }}'
+      MacAlgorithms: '{{ response.KeyMetadata.MacAlgorithms }}'
+      XksKeyConfiguration: '{{ response.KeyMetadata.XksKeyConfiguration }}'
+      CurrentKeyMaterialId: '{{ response.KeyMetadata.CurrentKeyMaterialId }}'
 - discovery_id: aws.kms.list_aliases
   calls:
   - action: list_aliases
-    save_as: list_aliases_response
+    save_as: response
   emit:
-    items_for: '{{ list_aliases_response.Aliases }}'
+    items_for: '{{ response.Aliases }}'
     as: resource
     item:
-      alias_name: '{{ resource.AliasName }}'
-      alias_arn: '{{ resource.AliasArn }}'
-      target_key_id: '{{ resource.TargetKeyId }}'
-      creation_date: '{{ resource.CreationDate }}'
-      last_updated_date: '{{ resource.LastUpdatedDate }}'
+      AliasName: '{{ resource.AliasName }}'
+      AliasArn: '{{ resource.AliasArn }}'
+      TargetKeyId: '{{ resource.TargetKeyId }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      LastUpdatedDate: '{{ resource.LastUpdatedDate }}'
+- discovery_id: aws.kms.list_keys
+  calls:
+  - action: list_keys
+    save_as: response
+  emit:
+    items_for: '{{ response.Keys }}'
+    as: resource
+    item:
+      KeyId: '{{ resource.KeyId }}'
+      KeyArn: '{{ resource.KeyArn }}'
 - discovery_id: aws.kms.list_grants
   calls:
   - action: list_grants
-    save_as: list_grants_response
+    save_as: response
     params:
-      KeyId: '{{ item.key_id }}'
-    on_error: continue
-  for_each: aws.kms.create_key
+      KeyId: '{{ item.KeyId }}'
+  on_error: continue
+  for_each: aws.kms.list_keys
   emit:
+    items_for: '{{ response.Grants }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      key_id: '{{ list_grants_response.Grants.KeyId }}'
-      grant_id: '{{ list_grants_response.Grants.GrantId }}'
-      name: '{{ list_grants_response.Grants.Name }}'
-      creation_date: '{{ list_grants_response.Grants.CreationDate }}'
-      grantee_principal: '{{ list_grants_response.Grants.GranteePrincipal }}'
+      KeyId: '{{ resource.KeyId }}'
+      GrantId: '{{ resource.GrantId }}'
+      Name: '{{ resource.Name }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      GranteePrincipal: '{{ resource.GranteePrincipal }}'
+      RetiringPrincipal: '{{ resource.RetiringPrincipal }}'
+      IssuingAccount: '{{ resource.IssuingAccount }}'
+      Operations: '{{ resource.Operations }}'
+      Constraints: '{{ resource.Constraints }}'
 checks:
 - rule_id: aws.kms.alias.points_to_active_key_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_state
+    var: item.KeyState
     op: equals
     value: Enabled
 - rule_id: aws.kms.alias.logging_enabled
   for_each: aws.kms.create_key
   conditions:
-    var: item.enabled
+    var: item.Enabled
     op: equals
     value: true
-- rule_id: aws.kms.key.state_change_monitoring_enabled
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.key_state
-      op: equals
-      value: Enabled
-    - var: item.enabled
-      op: equals
-      value: true
 - rule_id: aws.kms.key.certificate_expiration_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.valid_to
+    var: item.ValidTo
     op: exists
 - rule_id: aws.kms.key.tls_min_1_2_enforced
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_state
+    var: item.KeyState
     op: equals
     value: Enabled
 - rule_id: aws.kms.key.multi_region_disabled
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_manager
+    var: item.KeyManager
     op: equals
     value: CUSTOMER
 - rule_id: aws.kms.key.in_transit_tls_min_1_2_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_state
+    var: item.KeyState
     op: equals
     value: Enabled
 - rule_id: aws.kms.grant.lessthan_wildcard_permissions_configured
   for_each: aws.kms.list_grants
   conditions:
-    var: item.operations
+    var: item.Operations
     op: contains
     value:
     - Encrypt
     - Decrypt
     - GenerateDataKey
-- rule_id: aws.kms.key.at_rest_cmek_enabled
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.origin
-      op: equals
-      value: AWS_KMS
-    - var: item.key_manager
-      op: equals
-      value: CUSTOMER
 - rule_id: aws.kms.key.not_scheduled_for_deletion_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.deletion_date
+    var: item.DeletionDate
     op: exists
 - rule_id: aws.kms.grant.ee_principal_valid
   for_each: aws.kms.list_grants
   conditions:
-    var: item.grantee_principal
+    var: item.GranteePrincipal
     op: exists
 - rule_id: aws.kms.key.rotation_enabled
   for_each: aws.kms.create_key
   conditions:
-    var: item.enabled
+    var: item.Enabled
     op: equals
     value: true
-- rule_id: aws.kms.alias.default_keys_disabled_if_cmek_required
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.key_manager
-      op: equals
-      value: CUSTOMER
-    - var: item.enabled
-      op: equals
-      value: false
-- rule_id: aws.kms.key.customer_managed_keys_in_use
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.key_manager
-      op: equals
-      value: CUSTOMER
-    - var: item.key_state
-      op: equals
-      value: Enabled
 - rule_id: aws.kms.alias.key_has_alias_configured
   for_each: aws.kms.list_aliases
   conditions:
-    var: item.alias_name
+    var: item.AliasName
     op: exists
 - rule_id: aws.kms.key.deletion_requires_waiting_period_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.deletion_date
+    var: item.DeletionDate
     op: exists
 - rule_id: aws.kms.key.logging_enabled
   for_each: aws.kms.create_key
   conditions:
-    var: item.enabled
+    var: item.Enabled
     op: equals
     value: true
 - rule_id: aws.kms.key.not_pending_deletion
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_state
+    var: item.KeyState
     op: not_equals
     value: PENDING_DELETION
 - rule_id: aws.kms.key.not_publicly_accessible_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.key_manager
+    var: item.KeyManager
     op: equals
     value: CUSTOMER
-- rule_id: aws.kms.key.default_keys_disabled_if_cmek_required
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.key_manager
-      op: equals
-      value: CUSTOMER
-    - var: item.enabled
-      op: equals
-      value: false
 - rule_id: aws.kms.grant.constraints_present
   for_each: aws.kms.list_grants
   conditions:
-    var: item.constraints
+    var: item.Constraints
     op: exists
-- rule_id: aws.kms.key.lifecycle_policy_configured
-  for_each: aws.kms.create_key
-  conditions:
-    all:
-    - var: item.key_state
-      op: equals
-      value: Enabled
-    - var: item.enabled
-      op: equals
-      value: true

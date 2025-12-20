@@ -1,0 +1,101 @@
+version: '1.0'
+provider: azure
+service: cost
+discovery:
+- discovery_id: azure.cost.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      group_short_name: '{{ item.group_short_name }}'
+      enabled: '{{ item.enabled }}'
+      email_receivers: '{{ item.email_receivers }}'
+      sms_receivers: '{{ item.sms_receivers }}'
+      webhook_receivers: '{{ item.webhook_receivers }}'
+      itsm_receivers: '{{ item.itsm_receivers }}'
+      azure_app_push_receivers: '{{ item.azure_app_push_receivers }}'
+      automation_runbook_receivers: '{{ item.automation_runbook_receivers }}'
+      voice_receivers: '{{ item.voice_receivers }}'
+      logic_app_receivers: '{{ item.logic_app_receivers }}'
+      azure_function_receivers: '{{ item.azure_function_receivers }}'
+      arm_role_receivers: '{{ item.arm_role_receivers }}'
+      event_hub_receivers: '{{ item.event_hub_receivers }}'
+checks:
+- rule_id: azure.cost.management_category.access_billing_console_rbac_least_privilege
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_budget.budget_alert_destinations_configured
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_allocation_rule.allocation_cost_tag_policy_enforced
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_allocation_rule.allocation_required_cost_tags_present
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_budget.budget_budgets_defined_for_accounts_or_projects
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_category.access_cost_data_exports_private_and_encrypted
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_category.access_billing_admins_mfa_required
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_anomaly.anomaly_severity_thresholds_configured
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_budget.budget_modify_permissions_restricted
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_allocation_rule.allocation_untagged_resource_alerts_enabled
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_category.access_cost_export_destinations_least_privilege
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_anomaly.anomaly_detectors_enabled
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_budget.budget_alert_thresholds_configured
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cost.management_anomaly.anomaly_alert_destinations_configured
+  for_each: azure.cost.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

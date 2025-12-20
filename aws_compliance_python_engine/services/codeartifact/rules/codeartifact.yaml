@@ -1,32 +1,68 @@
 version: '1.0'
 provider: aws
 service: codeartifact
+services:
+  client: codeartifact
+  module: boto3.client
 discovery:
 - discovery_id: aws.codeartifact.associate_external_connection
   calls:
   - action: associate_external_connection
-    save_as: associate_external_connection_response
+    save_as: response
     params:
-      domain: '{{ item.FIELD_NAME }}'
-      repository: '{{ item.FIELD_NAME }}'
-      externalConnection: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.codeartifact.PARENT_DISCOVERY
+      domain: '{{ item.domain }}'
+      repository: '{{ item.repository }}'
+  on_error: continue
+  for_each: aws.codeartifact.describe_domain
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      name: '{{ associate_external_connection_response.repository.name }}'
-      administrator_account: '{{ associate_external_connection_response.repository.administratorAccount
-        }}'
-      domain_name: '{{ associate_external_connection_response.repository.domainName
-        }}'
-      domain_owner: '{{ associate_external_connection_response.repository.domainOwner
-        }}'
-      arn: '{{ associate_external_connection_response.repository.arn }}'
+      name: '{{ response.repository.name }}'
+      administratorAccount: '{{ response.repository.administratorAccount }}'
+      domainName: '{{ response.repository.domainName }}'
+      domainOwner: '{{ response.repository.domainOwner }}'
+      arn: '{{ response.repository.arn }}'
+      description: '{{ response.repository.description }}'
+      upstreams: '{{ response.repository.upstreams }}'
+      externalConnections: '{{ response.repository.externalConnections }}'
+      createdTime: '{{ response.repository.createdTime }}'
+- discovery_id: aws.codeartifact.describe_domain
+  calls:
+  - action: describe_domain
+    save_as: response
+  emit:
+    item:
+      name: '{{ response.domain.name }}'
+      owner: '{{ response.domain.owner }}'
+      arn: '{{ response.domain.arn }}'
+      status: '{{ response.domain.status }}'
+      createdTime: '{{ response.domain.createdTime }}'
+      encryptionKey: '{{ response.domain.encryptionKey }}'
+      repositoryCount: '{{ response.domain.repositoryCount }}'
+      assetSizeBytes: '{{ response.domain.assetSizeBytes }}'
+      s3BucketArn: '{{ response.domain.s3BucketArn }}'
+- discovery_id: aws.codeartifact.update_repository
+  calls:
+  - action: update_repository
+    save_as: response
+    params:
+      domain: '{{ item.domain }}'
+  on_error: continue
+  for_each: aws.codeartifact.describe_domain
+  emit:
+    item:
+      name: '{{ response.repository.name }}'
+      administratorAccount: '{{ response.repository.administratorAccount }}'
+      domainName: '{{ response.repository.domainName }}'
+      domainOwner: '{{ response.repository.domainOwner }}'
+      arn: '{{ response.repository.arn }}'
+      description: '{{ response.repository.description }}'
+      upstreams: '{{ response.repository.upstreams }}'
+      externalConnections: '{{ response.repository.externalConnections }}'
+      createdTime: '{{ response.repository.createdTime }}'
 checks:
 - rule_id: aws.codeartifact.resource.packages_external_public_publishing_disabled
   for_each: aws.codeartifact.associate_external_connection
   conditions:
-    var: item.external_connections
+    var: item.externalConnections
     op: equals
     value: []

@@ -1,46 +1,57 @@
 version: '1.0'
 provider: aws
 service: detective
+services:
+  client: detective
+  module: boto3.client
 discovery:
 - discovery_id: aws.detective.list_invitations
   calls:
   - action: list_invitations
-    save_as: list_invitations_response
+    save_as: response
   emit:
-    items_for: '{{ list_invitations_response.Invitations }}'
+    items_for: '{{ response.Invitations }}'
     as: resource
     item:
-      account_id: '{{ resource.AccountId }}'
-      email_address: '{{ resource.EmailAddress }}'
-      graph_arn: '{{ resource.GraphArn }}'
-      master_id: '{{ resource.MasterId }}'
-      administrator_id: '{{ resource.AdministratorId }}'
-      status: '{{ resource.Status }}'
-      disabled_reason: '{{ resource.DisabledReason }}'
-      invited_time: '{{ resource.InvitedTime }}'
-      updated_time: '{{ resource.UpdatedTime }}'
-      volume_usage_in_bytes: '{{ resource.VolumeUsageInBytes }}'
+      AccountId: '{{ resource.AccountId }}'
+      EmailAddress: '{{ resource.EmailAddress }}'
+      GraphArn: '{{ resource.GraphArn }}'
+      MasterId: '{{ resource.MasterId }}'
+      AdministratorId: '{{ resource.AdministratorId }}'
+      Status: '{{ resource.Status }}'
+      DisabledReason: '{{ resource.DisabledReason }}'
+      InvitedTime: '{{ resource.InvitedTime }}'
+      UpdatedTime: '{{ resource.UpdatedTime }}'
+      VolumeUsageInBytes: '{{ resource.VolumeUsageInBytes }}'
+      VolumeUsageUpdatedTime: '{{ resource.VolumeUsageUpdatedTime }}'
+      PercentOfGraphUtilization: '{{ resource.PercentOfGraphUtilization }}'
+      PercentOfGraphUtilizationUpdatedTime: '{{ resource.PercentOfGraphUtilizationUpdatedTime
+        }}'
+      InvitationType: '{{ resource.InvitationType }}'
+      VolumeUsageByDatasourcePackage: '{{ resource.VolumeUsageByDatasourcePackage
+        }}'
+      DatasourcePackageIngestStates: '{{ resource.DatasourcePackageIngestStates }}'
 checks:
 - rule_id: aws.detective.member.detective_enabled_in_all_regions
   for_each: aws.detective.list_invitations
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.detective.graph.detective_finding_export_encrypted_destination
   for_each: aws.detective.list_invitations
   conditions:
-    var: item.graph_arn
+    var: item.GraphArn
     op: exists
 - rule_id: aws.detective.graph.detective_enabled_in_all_regions
   for_each: aws.detective.list_invitations
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.detective.member.detective_finding_export_encrypted_destination
   for_each: aws.detective.list_invitations
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED

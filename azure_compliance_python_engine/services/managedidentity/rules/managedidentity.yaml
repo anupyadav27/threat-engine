@@ -1,0 +1,21 @@
+version: '1.0'
+provider: azure
+service: managedidentity
+discovery:
+- discovery_id: azure.managedidentity.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+checks:
+- rule_id: azure.managedidentity.basic.compliance.check
+  for_each: azure.managedidentity.list
+  conditions:
+    var: item.id
+    op: exists

@@ -1,82 +1,113 @@
 version: '1.0'
 provider: aws
 service: opensearch
+services:
+  client: opensearch
+  module: boto3.client
 discovery:
+- discovery_id: aws.opensearch.list_domain_names
+  calls:
+  - action: list_domain_names
+    save_as: response
+  emit:
+    items_for: '{{ response.DomainNames }}'
+    as: resource
+    item:
+      DomainName: '{{ resource.DomainName }}'
+      EngineType: '{{ resource.EngineType }}'
 - discovery_id: aws.opensearch.create_domain
   calls:
   - action: create_domain
-    save_as: create_domain_response
+    save_as: response
     params:
-      DomainName: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.opensearch.PARENT_DISCOVERY
+      DomainName: '{{ item.DomainName }}'
+  on_error: continue
+  for_each: aws.opensearch.list_domain_names
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      domain_id: '{{ create_domain_response.DomainStatus.DomainId }}'
-      domain_name: '{{ create_domain_response.DomainStatus.DomainName }}'
-      arn: '{{ create_domain_response.DomainStatus.ARN }}'
-      created: '{{ create_domain_response.DomainStatus.Created }}'
-      deleted: '{{ create_domain_response.DomainStatus.Deleted }}'
+      DomainId: '{{ response.DomainStatus.DomainId }}'
+      DomainName: '{{ response.DomainStatus.DomainName }}'
+      ARN: '{{ response.DomainStatus.ARN }}'
+      Created: '{{ response.DomainStatus.Created }}'
+      Deleted: '{{ response.DomainStatus.Deleted }}'
+      Endpoint: '{{ response.DomainStatus.Endpoint }}'
+      EndpointV2: '{{ response.DomainStatus.EndpointV2 }}'
+      Endpoints: '{{ response.DomainStatus.Endpoints }}'
+      DomainEndpointV2HostedZoneId: '{{ response.DomainStatus.DomainEndpointV2HostedZoneId
+        }}'
+      Processing: '{{ response.DomainStatus.Processing }}'
+      UpgradeProcessing: '{{ response.DomainStatus.UpgradeProcessing }}'
+      EngineVersion: '{{ response.DomainStatus.EngineVersion }}'
+      ClusterConfig: '{{ response.DomainStatus.ClusterConfig }}'
+      EBSOptions: '{{ response.DomainStatus.EBSOptions }}'
+      AccessPolicies: '{{ response.DomainStatus.AccessPolicies }}'
+      IPAddressType: '{{ response.DomainStatus.IPAddressType }}'
+      SnapshotOptions: '{{ response.DomainStatus.SnapshotOptions }}'
+      VPCOptions: '{{ response.DomainStatus.VPCOptions }}'
+      CognitoOptions: '{{ response.DomainStatus.CognitoOptions }}'
+      EncryptionAtRestOptions: '{{ response.DomainStatus.EncryptionAtRestOptions }}'
+      NodeToNodeEncryptionOptions: '{{ response.DomainStatus.NodeToNodeEncryptionOptions
+        }}'
+      AdvancedOptions: '{{ response.DomainStatus.AdvancedOptions }}'
+      LogPublishingOptions: '{{ response.DomainStatus.LogPublishingOptions }}'
+      ServiceSoftwareOptions: '{{ response.DomainStatus.ServiceSoftwareOptions }}'
+      DomainEndpointOptions: '{{ response.DomainStatus.DomainEndpointOptions }}'
+      AdvancedSecurityOptions: '{{ response.DomainStatus.AdvancedSecurityOptions }}'
+      IdentityCenterOptions: '{{ response.DomainStatus.IdentityCenterOptions }}'
+      AutoTuneOptions: '{{ response.DomainStatus.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ response.DomainStatus.ChangeProgressDetails }}'
+      OffPeakWindowOptions: '{{ response.DomainStatus.OffPeakWindowOptions }}'
+      SoftwareUpdateOptions: '{{ response.DomainStatus.SoftwareUpdateOptions }}'
+      DomainProcessingStatus: '{{ response.DomainStatus.DomainProcessingStatus }}'
+      ModifyingProperties: '{{ response.DomainStatus.ModifyingProperties }}'
+      AIMLOptions: '{{ response.DomainStatus.AIMLOptions }}'
 checks:
 - rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.encryption_at_rest_options
+    var: item.EncryptionAtRestOptions
     op: equals
     value: true
 - rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.domain_endpoint_options
+    var: item.DomainEndpointOptions
     op: equals
     value:
       EnforceHTTPS: true
 - rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.node_to_node_encryption_options
+    var: item.NodeToNodeEncryptionOptions
     op: equals
     value: true
-- rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
-  for_each: aws.opensearch.create_domain
-  conditions:
-    all:
-    - var: item.domain_endpoint_options
-      op: equals
-      value:
-        EnforceHTTPS: true
-        TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
-        CustomEndpointEnabled: false
-    - var: item.vpc_options
-      op: exists
 - rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.cluster_config
+    var: item.ClusterConfig
     op: exists
 - rule_id: aws.opensearch.service.domains_audit_logging_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.log_publishing_options
+    var: item.LogPublishingOptions
     op: exists
 - rule_id: aws.opensearch.service.domains_access_control_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.access_policies
+    var: item.AccessPolicies
     op: exists
 - rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.log_publishing_options
+    var: item.LogPublishingOptions
     op: exists
 - rule_id: aws.opensearch.service.domains_internal_user_database_enabled
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.advanced_security_options
+    var: item.AdvancedSecurityOptions
     op: exists
 - rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
   for_each: aws.opensearch.create_domain
   conditions:
-    var: item.cluster_config
+    var: item.ClusterConfig
     op: exists

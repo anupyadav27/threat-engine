@@ -2,13 +2,12 @@ version: '1.0'
 provider: aws
 service: drs
 discovery:
-- discovery_id: aws.drs.create_launch_configuration_template
+- discovery_id: aws.drs.describe_launch_configuration_templates
   calls:
-  - action: create_launch_configuration_template
-    save_as: create_launch_configuration_template_response
+  - action: describe_launch_configuration_templates
+    save_as: describe_launch_configuration_templates_response
   emit:
-    items_for: '{{ create_launch_configuration_template_response.launchConfigurationTemplate
-      }}'
+    items_for: '{{ describe_launch_configuration_templates_response.items }}'
     as: resource
     item:
       arn: '{{ resource.arn }}'
@@ -24,7 +23,7 @@ discovery:
       tags: '{{ resource.tags }}'
 checks:
 - rule_id: aws.drs.resource.drs_failover_execution_configured
-  for_each: aws.drs.create_launch_configuration_template
+  for_each: aws.drs.describe_launch_configuration_templates
   conditions:
     all:
     - var: item.post_launch_enabled

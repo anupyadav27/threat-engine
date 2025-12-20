@@ -1,287 +1,289 @@
 version: '1.0'
 provider: aws
 service: dynamodb
+services:
+  client: dynamodb
+  module: boto3.client
 discovery:
 - discovery_id: aws.dynamodb.list_backups
   calls:
   - action: list_backups
-    save_as: list_backups_response
+    save_as: response
   emit:
-    items_for: '{{ list_backups_response.BackupSummaries }}'
+    items_for: '{{ response.BackupSummaries }}'
     as: resource
     item:
-      table_name: '{{ resource.TableName }}'
-      table_id: '{{ resource.TableId }}'
-      table_arn: '{{ resource.TableArn }}'
-      backup_arn: '{{ resource.BackupArn }}'
-      backup_name: '{{ resource.BackupName }}'
-      backup_creation_date_time: '{{ resource.BackupCreationDateTime }}'
-      backup_expiry_date_time: '{{ resource.BackupExpiryDateTime }}'
-      backup_status: '{{ resource.BackupStatus }}'
-      backup_type: '{{ resource.BackupType }}'
-      backup_size_bytes: '{{ resource.BackupSizeBytes }}'
+      TableName: '{{ resource.TableName }}'
+      TableId: '{{ resource.TableId }}'
+      TableArn: '{{ resource.TableArn }}'
+      BackupArn: '{{ resource.BackupArn }}'
+      BackupName: '{{ resource.BackupName }}'
+      BackupCreationDateTime: '{{ resource.BackupCreationDateTime }}'
+      BackupExpiryDateTime: '{{ resource.BackupExpiryDateTime }}'
+      BackupStatus: '{{ resource.BackupStatus }}'
+      BackupType: '{{ resource.BackupType }}'
+      BackupSizeBytes: '{{ resource.BackupSizeBytes }}'
+- discovery_id: aws.dynamodb.list_contributor_insights
+  calls:
+  - action: list_contributor_insights
+    save_as: response
+  emit:
+    items_for: '{{ response.ContributorInsightsSummaries }}'
+    as: resource
+    item:
+      TableName: '{{ resource.TableName }}'
+      IndexName: '{{ resource.IndexName }}'
+      ContributorInsightsStatus: '{{ resource.ContributorInsightsStatus }}'
+      ContributorInsightsMode: '{{ resource.ContributorInsightsMode }}'
+- discovery_id: aws.dynamodb.list_exports
+  calls:
+  - action: list_exports
+    save_as: response
+  emit:
+    items_for: '{{ response.ExportSummaries }}'
+    as: resource
+    item:
+      ExportArn: '{{ resource.ExportArn }}'
+      ExportStatus: '{{ resource.ExportStatus }}'
+      ExportType: '{{ resource.ExportType }}'
 - discovery_id: aws.dynamodb.list_global_tables
   calls:
   - action: list_global_tables
-    save_as: list_global_tables_response
+    save_as: response
   emit:
-    items_for: '{{ list_global_tables_response.GlobalTables }}'
+    items_for: '{{ response.GlobalTables }}'
     as: resource
     item:
-      global_table_name: '{{ resource.GlobalTableName }}'
-      replication_group: '{{ resource.ReplicationGroup }}'
-- discovery_id: aws.dynamodb.describe_continuous_backups
-  calls:
-  - action: describe_continuous_backups
-    save_as: describe_continuous_backups_response
-    params:
-      TableName: '{{ item.table_name }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      continuous_backups_status: '{{ describe_continuous_backups_response.ContinuousBackupsDescription.ContinuousBackupsStatus
-        }}'
-      point_in_time_recovery_description: '{{ describe_continuous_backups_response.ContinuousBackupsDescription.PointInTimeRecoveryDescription
-        }}'
+      GlobalTableName: '{{ resource.GlobalTableName }}'
+      ReplicationGroup: '{{ resource.ReplicationGroup }}'
 - discovery_id: aws.dynamodb.create_global_table
   calls:
   - action: create_global_table
-    save_as: create_global_table_response
+    save_as: response
     params:
-      GlobalTableName: '{{ item.table_name }}'
-      ReplicationGroup: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
+      GlobalTableName: '{{ item.GlobalTableName }}'
+      ReplicationGroup: '{{ item.ReplicationGroup }}'
+  on_error: continue
+  for_each: aws.dynamodb.list_global_tables
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      replication_group: '{{ create_global_table_response.GlobalTableDescription.ReplicationGroup
-        }}'
-      global_table_arn: '{{ create_global_table_response.GlobalTableDescription.GlobalTableArn
-        }}'
-      creation_date_time: '{{ create_global_table_response.GlobalTableDescription.CreationDateTime
-        }}'
-      global_table_status: '{{ create_global_table_response.GlobalTableDescription.GlobalTableStatus
-        }}'
-      global_table_name: '{{ create_global_table_response.GlobalTableDescription.GlobalTableName
-        }}'
+      ReplicationGroup: '{{ response.GlobalTableDescription.ReplicationGroup }}'
+      GlobalTableArn: '{{ response.GlobalTableDescription.GlobalTableArn }}'
+      CreationDateTime: '{{ response.GlobalTableDescription.CreationDateTime }}'
+      GlobalTableStatus: '{{ response.GlobalTableDescription.GlobalTableStatus }}'
+      GlobalTableName: '{{ response.GlobalTableDescription.GlobalTableName }}'
 - discovery_id: aws.dynamodb.create_table
   calls:
   - action: create_table
-    save_as: create_table_response
+    save_as: response
     params:
-      AttributeDefinitions: '{{ item.api_id }}'
-      TableName: '{{ item.table_name }}'
-      KeySchema: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
+      AttributeDefinitions: '{{ item.AttributeDefinitions }}'
+      TableName: '{{ item.TableName }}'
+      KeySchema: '{{ item.KeySchema }}'
+  on_error: continue
+  for_each: aws.dynamodb.update_table
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      attribute_definitions: '{{ create_table_response.TableDescription.AttributeDefinitions
+      AttributeDefinitions: '{{ response.TableDescription.AttributeDefinitions }}'
+      TableName: '{{ response.TableDescription.TableName }}'
+      KeySchema: '{{ response.TableDescription.KeySchema }}'
+      TableStatus: '{{ response.TableDescription.TableStatus }}'
+      CreationDateTime: '{{ response.TableDescription.CreationDateTime }}'
+      ProvisionedThroughput: '{{ response.TableDescription.ProvisionedThroughput }}'
+      TableSizeBytes: '{{ response.TableDescription.TableSizeBytes }}'
+      ItemCount: '{{ response.TableDescription.ItemCount }}'
+      TableArn: '{{ response.TableDescription.TableArn }}'
+      TableId: '{{ response.TableDescription.TableId }}'
+      BillingModeSummary: '{{ response.TableDescription.BillingModeSummary }}'
+      LocalSecondaryIndexes: '{{ response.TableDescription.LocalSecondaryIndexes }}'
+      GlobalSecondaryIndexes: '{{ response.TableDescription.GlobalSecondaryIndexes
         }}'
-      table_name: '{{ create_table_response.TableDescription.TableName }}'
-      key_schema: '{{ create_table_response.TableDescription.KeySchema }}'
-      table_status: '{{ create_table_response.TableDescription.TableStatus }}'
-      creation_date_time: '{{ create_table_response.TableDescription.CreationDateTime
+      StreamSpecification: '{{ response.TableDescription.StreamSpecification }}'
+      LatestStreamLabel: '{{ response.TableDescription.LatestStreamLabel }}'
+      LatestStreamArn: '{{ response.TableDescription.LatestStreamArn }}'
+      GlobalTableVersion: '{{ response.TableDescription.GlobalTableVersion }}'
+      Replicas: '{{ response.TableDescription.Replicas }}'
+      GlobalTableWitnesses: '{{ response.TableDescription.GlobalTableWitnesses }}'
+      RestoreSummary: '{{ response.TableDescription.RestoreSummary }}'
+      SSEDescription: '{{ response.TableDescription.SSEDescription }}'
+      ArchivalSummary: '{{ response.TableDescription.ArchivalSummary }}'
+      TableClassSummary: '{{ response.TableDescription.TableClassSummary }}'
+      DeletionProtectionEnabled: '{{ response.TableDescription.DeletionProtectionEnabled
         }}'
-- discovery_id: aws.dynamodb.batch_get_item
+      OnDemandThroughput: '{{ response.TableDescription.OnDemandThroughput }}'
+      WarmThroughput: '{{ response.TableDescription.WarmThroughput }}'
+      MultiRegionConsistency: '{{ response.TableDescription.MultiRegionConsistency
+        }}'
+- discovery_id: aws.dynamodb.describe_continuous_backups
   calls:
-  - action: batch_get_item
-    save_as: batch_get_item_response
+  - action: describe_continuous_backups
+    save_as: response
     params:
-      RequestItems: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
+      TableName: '{{ item.TableName }}'
+  on_error: continue
+  for_each: aws.dynamodb.list_contributor_insights
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      table_name: '{{ batch_get_item_response.ConsumedCapacity.TableName }}'
-      capacity_units: '{{ batch_get_item_response.ConsumedCapacity.CapacityUnits }}'
-      read_capacity_units: '{{ batch_get_item_response.ConsumedCapacity.ReadCapacityUnits
+      ContinuousBackupsStatus: '{{ response.ContinuousBackupsDescription.ContinuousBackupsStatus
         }}'
-      write_capacity_units: '{{ batch_get_item_response.ConsumedCapacity.WriteCapacityUnits
+      PointInTimeRecoveryDescription: '{{ response.ContinuousBackupsDescription.PointInTimeRecoveryDescription
         }}'
-      table: '{{ batch_get_item_response.ConsumedCapacity.Table }}'
 - discovery_id: aws.dynamodb.describe_export
   calls:
   - action: describe_export
-    save_as: describe_export_response
+    save_as: response
     params:
-      ExportArn: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
+      ExportArn: '{{ item.ExportArn }}'
+  on_error: continue
+  for_each: aws.dynamodb.list_exports
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      export_arn: '{{ describe_export_response.ExportDescription.ExportArn }}'
-      export_status: '{{ describe_export_response.ExportDescription.ExportStatus }}'
-      start_time: '{{ describe_export_response.ExportDescription.StartTime }}'
-      end_time: '{{ describe_export_response.ExportDescription.EndTime }}'
-      export_manifest: '{{ describe_export_response.ExportDescription.ExportManifest
+      ExportArn: '{{ response.ExportDescription.ExportArn }}'
+      ExportStatus: '{{ response.ExportDescription.ExportStatus }}'
+      StartTime: '{{ response.ExportDescription.StartTime }}'
+      EndTime: '{{ response.ExportDescription.EndTime }}'
+      ExportManifest: '{{ response.ExportDescription.ExportManifest }}'
+      TableArn: '{{ response.ExportDescription.TableArn }}'
+      TableId: '{{ response.ExportDescription.TableId }}'
+      ExportTime: '{{ response.ExportDescription.ExportTime }}'
+      ClientToken: '{{ response.ExportDescription.ClientToken }}'
+      S3Bucket: '{{ response.ExportDescription.S3Bucket }}'
+      S3BucketOwner: '{{ response.ExportDescription.S3BucketOwner }}'
+      S3Prefix: '{{ response.ExportDescription.S3Prefix }}'
+      S3SseAlgorithm: '{{ response.ExportDescription.S3SseAlgorithm }}'
+      S3SseKmsKeyId: '{{ response.ExportDescription.S3SseKmsKeyId }}'
+      FailureCode: '{{ response.ExportDescription.FailureCode }}'
+      FailureMessage: '{{ response.ExportDescription.FailureMessage }}'
+      ExportFormat: '{{ response.ExportDescription.ExportFormat }}'
+      BilledSizeBytes: '{{ response.ExportDescription.BilledSizeBytes }}'
+      ItemCount: '{{ response.ExportDescription.ItemCount }}'
+      ExportType: '{{ response.ExportDescription.ExportType }}'
+      IncrementalExportSpecification: '{{ response.ExportDescription.IncrementalExportSpecification
         }}'
-- discovery_id: aws.dynamodb.describe_global_table_settings
+- discovery_id: aws.dynamodb.update_table
   calls:
-  - action: describe_global_table_settings
-    save_as: describe_global_table_settings_response
+  - action: update_table
+    save_as: response
     params:
-      GlobalTableName: '{{ item.table_name }}'
-    on_error: continue
-  for_each: aws.dynamodb.list_backups
+      TableName: '{{ item.TableName }}'
+  on_error: continue
+  for_each: aws.dynamodb.list_contributor_insights
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      region_name: '{{ describe_global_table_settings_response.ReplicaSettings.RegionName
+      AttributeDefinitions: '{{ response.TableDescription.AttributeDefinitions }}'
+      TableName: '{{ response.TableDescription.TableName }}'
+      KeySchema: '{{ response.TableDescription.KeySchema }}'
+      TableStatus: '{{ response.TableDescription.TableStatus }}'
+      CreationDateTime: '{{ response.TableDescription.CreationDateTime }}'
+      ProvisionedThroughput: '{{ response.TableDescription.ProvisionedThroughput }}'
+      TableSizeBytes: '{{ response.TableDescription.TableSizeBytes }}'
+      ItemCount: '{{ response.TableDescription.ItemCount }}'
+      TableArn: '{{ response.TableDescription.TableArn }}'
+      TableId: '{{ response.TableDescription.TableId }}'
+      BillingModeSummary: '{{ response.TableDescription.BillingModeSummary }}'
+      LocalSecondaryIndexes: '{{ response.TableDescription.LocalSecondaryIndexes }}'
+      GlobalSecondaryIndexes: '{{ response.TableDescription.GlobalSecondaryIndexes
         }}'
-      replica_status: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaStatus
+      StreamSpecification: '{{ response.TableDescription.StreamSpecification }}'
+      LatestStreamLabel: '{{ response.TableDescription.LatestStreamLabel }}'
+      LatestStreamArn: '{{ response.TableDescription.LatestStreamArn }}'
+      GlobalTableVersion: '{{ response.TableDescription.GlobalTableVersion }}'
+      Replicas: '{{ response.TableDescription.Replicas }}'
+      GlobalTableWitnesses: '{{ response.TableDescription.GlobalTableWitnesses }}'
+      RestoreSummary: '{{ response.TableDescription.RestoreSummary }}'
+      SSEDescription: '{{ response.TableDescription.SSEDescription }}'
+      ArchivalSummary: '{{ response.TableDescription.ArchivalSummary }}'
+      TableClassSummary: '{{ response.TableDescription.TableClassSummary }}'
+      DeletionProtectionEnabled: '{{ response.TableDescription.DeletionProtectionEnabled
         }}'
-      replica_billing_mode_summary: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaBillingModeSummary
-        }}'
-      replica_provisioned_read_capacity_units: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaProvisionedReadCapacityUnits
-        }}'
-      replica_provisioned_read_capacity_auto_scaling_settings: '{{ describe_global_table_settings_response.ReplicaSettings.ReplicaProvisionedReadCapacityAutoScalingSettings
+      OnDemandThroughput: '{{ response.TableDescription.OnDemandThroughput }}'
+      WarmThroughput: '{{ response.TableDescription.WarmThroughput }}'
+      MultiRegionConsistency: '{{ response.TableDescription.MultiRegionConsistency
         }}'
 checks:
 - rule_id: aws.dynamodb.tables.table_pitr_enabled
   for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: item.continuous_backups_status
+    var: item.ContinuousBackupsStatus
     op: equals
     value: ENABLED
 - rule_id: aws.dynamodb.globaltable.encryption_at_rest_all_regions_configured
   for_each: aws.dynamodb.create_global_table
   conditions:
-    var: item.global_table_status
+    var: item.GlobalTableStatus
     op: equals
     value: ACTIVE
 - rule_id: aws.dynamodb.cluster.in_transit_encryption_enabled
   for_each: aws.dynamodb.create_table
   conditions:
-    var: item.table_status
+    var: item.TableStatus
     op: equals
     value: ACTIVE
 - rule_id: aws.dynamodb.table.private_network_only_if_supported
   for_each: aws.dynamodb.list_backups
   conditions:
-    var: item.table_arn
+    var: item.TableArn
     op: exists
-- rule_id: aws.dynamodb.table.rbac_least_privilege
-  for_each: aws.dynamodb.batch_get_item
-  conditions:
-    all:
-    - var: item.read_capacity_units
-      op: gte
-      value: 1
-    - var: item.write_capacity_units
-      op: gte
-      value: 1
-- rule_id: aws.dynamodb.stream.private_network_only_if_supported
-  for_each: aws.dynamodb.create_table
-  conditions:
-    all:
-    - var: item.stream_specification
-      op: exists
-    - var: item.table_status
-      op: equals
-      value: ACTIVE
 - rule_id: aws.dynamodb.resource.dynamodb_pitr_enabled
   for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: item.continuous_backups_status
+    var: item.ContinuousBackupsStatus
     op: equals
     value: ENABLED
 - rule_id: aws.dynamodb.cluster.encryption_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_algorithm
+    var: item.S3SseAlgorithm
     op: exists
 - rule_id: aws.dynamodb.table.encryption_at_rest_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_algorithm
+    var: item.S3SseAlgorithm
     op: exists
 - rule_id: aws.dynamodb.globaltable.table_pitr_enabled_if_supported
   for_each: aws.dynamodb.describe_continuous_backups
   conditions:
-    var: item.continuous_backups_status
+    var: item.ContinuousBackupsStatus
     op: equals
     value: ENABLED
 - rule_id: aws.dynamodb.cluster.dynamodb_multi_az_configured
   for_each: aws.dynamodb.list_global_tables
   conditions:
-    var: item.replication_group
+    var: item.ReplicationGroup
     op: exists
 - rule_id: aws.dynamodb.resource.tables_kms_cmk_encryption_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_kms_key_id
+    var: item.S3SseKmsKeyId
     op: exists
-- rule_id: aws.dynamodb.stream.consumer_auth_required
-  for_each: aws.dynamodb.create_table
-  conditions:
-    all:
-    - var: item.stream_specification
-      op: exists
-    - var: item.stream_specification
-      op: equals
-      value:
-        StreamEnabled: true
-- rule_id: aws.dynamodb.table_protected_by_backup_plan.table_protected_by_backup_plan_configured
-  for_each: aws.dynamodb.describe_continuous_backups
-  conditions:
-    all:
-    - var: item.continuous_backups_status
-      op: equals
-      value: ENABLED
-    - var: item.point_in_time_recovery_description
-      op: exists
 - rule_id: aws.dynamodb.resource.encryption_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_algorithm
+    var: item.S3SseAlgorithm
     op: exists
-- rule_id: aws.dynamodb.resource.dynamodb_autoscaling_enabled
-  for_each: aws.dynamodb.describe_global_table_settings
-  conditions:
-    all:
-    - var: item.replica_provisioned_read_capacity_auto_scaling_settings
-      op: exists
-    - var: item.replica_provisioned_write_capacity_auto_scaling_settings
-      op: exists
 - rule_id: aws.dynamodb.tables.kms_cmk_encryption_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_kms_key_id
+    var: item.S3SseKmsKeyId
     op: exists
 - rule_id: aws.dynamodb.stream.encryption_at_rest_enabled
   for_each: aws.dynamodb.create_table
   conditions:
-    var: item.stream_specification
+    var: item.StreamSpecification
     op: exists
 - rule_id: aws.dynamodb.resource.global_tables_enabled
   for_each: aws.dynamodb.list_global_tables
   conditions:
-    var: item.replication_group
+    var: item.ReplicationGroup
     op: exists
 - rule_id: aws.dynamodb.accelerator.cluster_encryption_enabled
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_algorithm
+    var: item.S3SseAlgorithm
     op: exists
 - rule_id: aws.dynamodb.globaltable.cross_region_replication_encrypted
   for_each: aws.dynamodb.describe_export
   conditions:
-    var: item.s3_sse_algorithm
+    var: item.S3SseAlgorithm
     op: equals
     value: aws:kms
-- rule_id: aws.dynamodb.resource.backup_enabled
-  for_each: aws.dynamodb.describe_continuous_backups
-  conditions:
-    all:
-    - var: item.continuous_backups_status
-      op: equals
-      value: ENABLED
-    - var: item.point_in_time_recovery_description
-      op: exists

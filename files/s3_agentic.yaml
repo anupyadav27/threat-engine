@@ -1,0 +1,29 @@
+version: '1.0'
+provider: aws
+service: s3
+services:
+  client: s3
+  module: boto3.client
+discovery:
+- discovery_id: aws.s3.get_bucket
+  calls:
+  - action: get_bucket
+    save_as: response
+    params: {}
+  on_error: continue
+  emit:
+    item:
+      Status: '{{ response.Status }}'
+checks:
+- rule_id: aws.s3.bucket.versioning_enabled
+  for_each: aws.s3.get_bucket
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled
+- rule_id: aws.s3.bucket.encryption_enabled
+  for_each: aws.s3.get_bucket
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled

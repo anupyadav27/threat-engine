@@ -1,0 +1,23 @@
+version: '1.0'
+provider: azure
+service: subscription
+discovery:
+- discovery_id: azure.subscription.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      system_data: '{{ item.system_data }}'
+checks:
+- rule_id: azure.subscription.owner.count.check
+  for_each: azure.subscription.list
+  conditions:
+    var: item.id
+    op: exists

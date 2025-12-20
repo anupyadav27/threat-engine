@@ -1,29 +1,35 @@
 version: '1.0'
 provider: aws
 service: appstream
+services:
+  client: appstream
+  module: boto3.client
 discovery:
 - discovery_id: aws.appstream.describe_app_block_builders
   calls:
   - action: describe_app_block_builders
-    save_as: describe_app_block_builders_response
+    save_as: response
   emit:
-    items_for: '{{ describe_app_block_builders_response.AppBlockBuilders }}'
-    as: resource
     item:
-      arn: '{{ resource.Arn }}'
-      name: '{{ resource.Name }}'
-      display_name: '{{ resource.DisplayName }}'
-      description: '{{ resource.Description }}'
-      platform: '{{ resource.Platform }}'
-      instance_type: '{{ resource.InstanceType }}'
-      enable_default_internet_access: '{{ resource.EnableDefaultInternetAccess }}'
-      iam_role_arn: '{{ resource.IamRoleArn }}'
-      vpc_config: '{{ resource.VpcConfig }}'
-      state: '{{ resource.State }}'
+      Arn: '{{ response.AppBlockBuilders.Arn }}'
+      Name: '{{ response.AppBlockBuilders.Name }}'
+      DisplayName: '{{ response.AppBlockBuilders.DisplayName }}'
+      Description: '{{ response.AppBlockBuilders.Description }}'
+      Platform: '{{ response.AppBlockBuilders.Platform }}'
+      InstanceType: '{{ response.AppBlockBuilders.InstanceType }}'
+      EnableDefaultInternetAccess: '{{ response.AppBlockBuilders.EnableDefaultInternetAccess
+        }}'
+      IamRoleArn: '{{ response.AppBlockBuilders.IamRoleArn }}'
+      VpcConfig: '{{ response.AppBlockBuilders.VpcConfig }}'
+      State: '{{ response.AppBlockBuilders.State }}'
+      CreatedTime: '{{ response.AppBlockBuilders.CreatedTime }}'
+      AppBlockBuilderErrors: '{{ response.AppBlockBuilders.AppBlockBuilderErrors }}'
+      StateChangeReason: '{{ response.AppBlockBuilders.StateChangeReason }}'
+      AccessEndpoints: '{{ response.AppBlockBuilders.AccessEndpoints }}'
 checks:
 - rule_id: aws.appstream.resource.fleet_default_internet_access_disabled
   for_each: aws.appstream.describe_app_block_builders
   conditions:
-    var: item.enable_default_internet_access
+    var: item.EnableDefaultInternetAccess
     op: equals
     value: false

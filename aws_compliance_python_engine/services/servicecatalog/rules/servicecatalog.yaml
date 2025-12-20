@@ -1,29 +1,37 @@
 version: '1.0'
 provider: aws
 service: servicecatalog
+services:
+  client: servicecatalog
+  module: boto3.client
 discovery:
 - discovery_id: aws.servicecatalog.scan_provisioned_products
   calls:
   - action: scan_provisioned_products
-    save_as: scan_provisioned_products_response
+    save_as: response
   emit:
-    items_for: '{{ scan_provisioned_products_response.ProvisionedProducts }}'
-    as: resource
     item:
-      name: '{{ resource.Name }}'
-      arn: '{{ resource.Arn }}'
-      type: '{{ resource.Type }}'
-      id: '{{ resource.Id }}'
-      status: '{{ resource.Status }}'
-      status_message: '{{ resource.StatusMessage }}'
-      created_time: '{{ resource.CreatedTime }}'
-      idempotency_token: '{{ resource.IdempotencyToken }}'
-      last_record_id: '{{ resource.LastRecordId }}'
-      last_provisioning_record_id: '{{ resource.LastProvisioningRecordId }}'
+      Name: '{{ response.ProvisionedProducts.Name }}'
+      Arn: '{{ response.ProvisionedProducts.Arn }}'
+      Type: '{{ response.ProvisionedProducts.Type }}'
+      Id: '{{ response.ProvisionedProducts.Id }}'
+      Status: '{{ response.ProvisionedProducts.Status }}'
+      StatusMessage: '{{ response.ProvisionedProducts.StatusMessage }}'
+      CreatedTime: '{{ response.ProvisionedProducts.CreatedTime }}'
+      IdempotencyToken: '{{ response.ProvisionedProducts.IdempotencyToken }}'
+      LastRecordId: '{{ response.ProvisionedProducts.LastRecordId }}'
+      LastProvisioningRecordId: '{{ response.ProvisionedProducts.LastProvisioningRecordId
+        }}'
+      LastSuccessfulProvisioningRecordId: '{{ response.ProvisionedProducts.LastSuccessfulProvisioningRecordId
+        }}'
+      ProductId: '{{ response.ProvisionedProducts.ProductId }}'
+      ProvisioningArtifactId: '{{ response.ProvisionedProducts.ProvisioningArtifactId
+        }}'
+      LaunchRoleArn: '{{ response.ProvisionedProducts.LaunchRoleArn }}'
 checks:
 - rule_id: aws.servicecatalog.portfolio.servicecatalog_shared_within_organization_only_configured
   for_each: aws.servicecatalog.scan_provisioned_products
   conditions:
-    var: item.type
+    var: item.Type
     op: equals
     value: ORGANIZATION

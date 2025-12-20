@@ -1,34 +1,37 @@
 version: '1.0'
 provider: aws
 service: drs
+services:
+  client: drs
+  module: boto3.client
 discovery:
-- discovery_id: aws.drs.create_launch_configuration_template
+- discovery_id: aws.drs.describe_recovery_instances
   calls:
-  - action: create_launch_configuration_template
-    save_as: create_launch_configuration_template_response
+  - action: describe_recovery_instances
+    save_as: response
   emit:
-    items_for: '{{ create_launch_configuration_template_response.launchConfigurationTemplate
-      }}'
-    as: resource
     item:
-      arn: '{{ resource.arn }}'
-      copy_private_ip: '{{ resource.copyPrivateIp }}'
-      copy_tags: '{{ resource.copyTags }}'
-      export_bucket_arn: '{{ resource.exportBucketArn }}'
-      launch_configuration_template_id: '{{ resource.launchConfigurationTemplateID
+      agentVersion: '{{ response.items.agentVersion }}'
+      arn: '{{ response.items.arn }}'
+      dataReplicationInfo: '{{ response.items.dataReplicationInfo }}'
+      ec2InstanceID: '{{ response.items.ec2InstanceID }}'
+      ec2InstanceState: '{{ response.items.ec2InstanceState }}'
+      failback: '{{ response.items.failback }}'
+      isDrill: '{{ response.items.isDrill }}'
+      jobID: '{{ response.items.jobID }}'
+      originAvailabilityZone: '{{ response.items.originAvailabilityZone }}'
+      originEnvironment: '{{ response.items.originEnvironment }}'
+      pointInTimeSnapshotDateTime: '{{ response.items.pointInTimeSnapshotDateTime
         }}'
-      launch_disposition: '{{ resource.launchDisposition }}'
-      launch_into_source_instance: '{{ resource.launchIntoSourceInstance }}'
-      licensing: '{{ resource.licensing }}'
-      post_launch_enabled: '{{ resource.postLaunchEnabled }}'
-      tags: '{{ resource.tags }}'
+      recoveryInstanceID: '{{ response.items.recoveryInstanceID }}'
+      recoveryInstanceProperties: '{{ response.items.recoveryInstanceProperties }}'
+      sourceOutpostArn: '{{ response.items.sourceOutpostArn }}'
+      sourceServerID: '{{ response.items.sourceServerID }}'
+      tags: '{{ response.items.tags }}'
 checks:
 - rule_id: aws.drs.resource.drs_failover_execution_configured
-  for_each: aws.drs.create_launch_configuration_template
+  for_each: aws.drs.describe_recovery_instances
   conditions:
-    all:
-    - var: item.post_launch_enabled
-      op: equals
-      value: true
-    - var: item.tags
-      op: exists
+    var: item.failback
+    op: exists
+    value: null

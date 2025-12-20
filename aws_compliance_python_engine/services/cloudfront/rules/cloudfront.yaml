@@ -1,148 +1,140 @@
 version: '1.0'
 provider: aws
 service: cloudfront
+services:
+  client: cloudfront
+  module: boto3.client
 discovery:
 - discovery_id: aws.cloudfront.list_connection_groups
   calls:
   - action: list_connection_groups
-    save_as: list_connection_groups_response
+    save_as: response
   emit:
-    items_for: '{{ list_connection_groups_response.ConnectionGroups }}'
+    items_for: '{{ response.ConnectionGroups }}'
     as: resource
     item:
-      id: '{{ resource.Id }}'
-      name: '{{ resource.Name }}'
-      arn: '{{ resource.Arn }}'
-      routing_endpoint: '{{ resource.RoutingEndpoint }}'
-      created_time: '{{ resource.CreatedTime }}'
-      last_modified_time: '{{ resource.LastModifiedTime }}'
-      e_tag: '{{ resource.ETag }}'
-      anycast_ip_list_id: '{{ resource.AnycastIpListId }}'
-      enabled: '{{ resource.Enabled }}'
-      status: '{{ resource.Status }}'
-- discovery_id: aws.cloudfront.get_distribution_config
-  calls:
-  - action: get_distribution_config
-    save_as: get_distribution_config_response
-    params:
-      Id: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cloudfront.list_connection_groups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      caller_reference: '{{ get_distribution_config_response.DistributionConfig.CallerReference
-        }}'
-      aliases: '{{ get_distribution_config_response.DistributionConfig.Aliases }}'
-      default_root_object: '{{ get_distribution_config_response.DistributionConfig.DefaultRootObject
-        }}'
-      origins: '{{ get_distribution_config_response.DistributionConfig.Origins }}'
-      origin_groups: '{{ get_distribution_config_response.DistributionConfig.OriginGroups
-        }}'
-- discovery_id: aws.cloudfront.get_origin_request_policy_config
-  calls:
-  - action: get_origin_request_policy_config
-    save_as: get_origin_request_policy_config_response
-    params:
-      Id: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cloudfront.list_connection_groups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      comment: '{{ get_origin_request_policy_config_response.OriginRequestPolicyConfig.Comment
-        }}'
-      name: '{{ get_origin_request_policy_config_response.OriginRequestPolicyConfig.Name
-        }}'
-      headers_config: '{{ get_origin_request_policy_config_response.OriginRequestPolicyConfig.HeadersConfig
-        }}'
-      cookies_config: '{{ get_origin_request_policy_config_response.OriginRequestPolicyConfig.CookiesConfig
-        }}'
-      query_strings_config: '{{ get_origin_request_policy_config_response.OriginRequestPolicyConfig.QueryStringsConfig
-        }}'
-- discovery_id: aws.cloudfront.get_cache_policy_config
-  calls:
-  - action: get_cache_policy_config
-    save_as: get_cache_policy_config_response
-    params:
-      Id: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cloudfront.list_connection_groups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      comment: '{{ get_cache_policy_config_response.CachePolicyConfig.Comment }}'
-      name: '{{ get_cache_policy_config_response.CachePolicyConfig.Name }}'
-      default_ttl: '{{ get_cache_policy_config_response.CachePolicyConfig.DefaultTTL
-        }}'
-      max_ttl: '{{ get_cache_policy_config_response.CachePolicyConfig.MaxTTL }}'
-      min_ttl: '{{ get_cache_policy_config_response.CachePolicyConfig.MinTTL }}'
-- discovery_id: aws.cloudfront.get_response_headers_policy_config
-  calls:
-  - action: get_response_headers_policy_config
-    save_as: get_response_headers_policy_config_response
-    params:
-      Id: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cloudfront.list_connection_groups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      comment: '{{ get_response_headers_policy_config_response.ResponseHeadersPolicyConfig.Comment
-        }}'
-      name: '{{ get_response_headers_policy_config_response.ResponseHeadersPolicyConfig.Name
-        }}'
-      cors_config: '{{ get_response_headers_policy_config_response.ResponseHeadersPolicyConfig.CorsConfig
-        }}'
-      security_headers_config: '{{ get_response_headers_policy_config_response.ResponseHeadersPolicyConfig.SecurityHeadersConfig
-        }}'
-      server_timing_headers_config: '{{ get_response_headers_policy_config_response.ResponseHeadersPolicyConfig.ServerTimingHeadersConfig
-        }}'
+      Id: '{{ resource.Id }}'
+      Name: '{{ resource.Name }}'
+      Arn: '{{ resource.Arn }}'
+      RoutingEndpoint: '{{ resource.RoutingEndpoint }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
+      ETag: '{{ resource.ETag }}'
+      AnycastIpListId: '{{ resource.AnycastIpListId }}'
+      Enabled: '{{ resource.Enabled }}'
+      Status: '{{ resource.Status }}'
+      IsDefault: '{{ resource.IsDefault }}'
 - discovery_id: aws.cloudfront.copy_distribution
   calls:
   - action: copy_distribution
-    save_as: copy_distribution_response
+    save_as: response
     params:
-      PrimaryDistributionId: '{{ item.id }}'
-      CallerReference: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cloudfront.list_connection_groups
+      CallerReference: '{{ item.CallerReference }}'
+  on_error: continue
+  for_each: aws.cloudfront.get_public_key_config
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ copy_distribution_response.Distribution.Id }}'
-      arn: '{{ copy_distribution_response.Distribution.ARN }}'
-      status: '{{ copy_distribution_response.Distribution.Status }}'
-      last_modified_time: '{{ copy_distribution_response.Distribution.LastModifiedTime
+      Id: '{{ response.Distribution.Id }}'
+      ARN: '{{ response.Distribution.ARN }}'
+      Status: '{{ response.Distribution.Status }}'
+      LastModifiedTime: '{{ response.Distribution.LastModifiedTime }}'
+      InProgressInvalidationBatches: '{{ response.Distribution.InProgressInvalidationBatches
         }}'
-      in_progress_invalidation_batches: '{{ copy_distribution_response.Distribution.InProgressInvalidationBatches
-        }}'
+      DomainName: '{{ response.Distribution.DomainName }}'
+      ActiveTrustedSigners: '{{ response.Distribution.ActiveTrustedSigners }}'
+      ActiveTrustedKeyGroups: '{{ response.Distribution.ActiveTrustedKeyGroups }}'
+      DistributionConfig: '{{ response.Distribution.DistributionConfig }}'
+      AliasICPRecordals: '{{ response.Distribution.AliasICPRecordals }}'
 - discovery_id: aws.cloudfront.create_cache_policy
   calls:
   - action: create_cache_policy
-    save_as: create_cache_policy_response
+    save_as: response
     params:
-      CachePolicyConfig: '{{ item.id }}'
-    on_error: continue
+      CachePolicyConfig: '{{ item.CachePolicyConfig }}'
+  on_error: continue
+  for_each: aws.cloudfront.get_cache_policy
+  emit:
+    item:
+      Id: '{{ response.CachePolicy.Id }}'
+      LastModifiedTime: '{{ response.CachePolicy.LastModifiedTime }}'
+      CachePolicyConfig: '{{ response.CachePolicy.CachePolicyConfig }}'
+- discovery_id: aws.cloudfront.get_cache_policy
+  calls:
+  - action: get_cache_policy
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  on_error: continue
   for_each: aws.cloudfront.list_connection_groups
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ create_cache_policy_response.CachePolicy.Id }}'
-      last_modified_time: '{{ create_cache_policy_response.CachePolicy.LastModifiedTime
+      Id: '{{ response.CachePolicy.Id }}'
+      LastModifiedTime: '{{ response.CachePolicy.LastModifiedTime }}'
+      CachePolicyConfig: '{{ response.CachePolicy.CachePolicyConfig }}'
+- discovery_id: aws.cloudfront.get_distribution
+  calls:
+  - action: get_distribution
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  on_error: continue
+  for_each: aws.cloudfront.list_connection_groups
+  emit:
+    item:
+      Id: '{{ response.Distribution.Id }}'
+      ARN: '{{ response.Distribution.ARN }}'
+      Status: '{{ response.Distribution.Status }}'
+      LastModifiedTime: '{{ response.Distribution.LastModifiedTime }}'
+      InProgressInvalidationBatches: '{{ response.Distribution.InProgressInvalidationBatches
         }}'
-      cache_policy_config: '{{ create_cache_policy_response.CachePolicy.CachePolicyConfig
+      DomainName: '{{ response.Distribution.DomainName }}'
+      ActiveTrustedSigners: '{{ response.Distribution.ActiveTrustedSigners }}'
+      ActiveTrustedKeyGroups: '{{ response.Distribution.ActiveTrustedKeyGroups }}'
+      DistributionConfig: '{{ response.Distribution.DistributionConfig }}'
+      AliasICPRecordals: '{{ response.Distribution.AliasICPRecordals }}'
+- discovery_id: aws.cloudfront.get_origin_request_policy
+  calls:
+  - action: get_origin_request_policy
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  on_error: continue
+  for_each: aws.cloudfront.list_connection_groups
+  emit:
+    item:
+      Id: '{{ response.OriginRequestPolicy.Id }}'
+      LastModifiedTime: '{{ response.OriginRequestPolicy.LastModifiedTime }}'
+      OriginRequestPolicyConfig: '{{ response.OriginRequestPolicy.OriginRequestPolicyConfig
+        }}'
+- discovery_id: aws.cloudfront.get_public_key_config
+  calls:
+  - action: get_public_key_config
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  on_error: continue
+  for_each: aws.cloudfront.list_connection_groups
+  emit:
+    item:
+      CallerReference: '{{ response.PublicKeyConfig.CallerReference }}'
+      Name: '{{ response.PublicKeyConfig.Name }}'
+      EncodedKey: '{{ response.PublicKeyConfig.EncodedKey }}'
+      Comment: '{{ response.PublicKeyConfig.Comment }}'
+- discovery_id: aws.cloudfront.get_response_headers_policy
+  calls:
+  - action: get_response_headers_policy
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  on_error: continue
+  for_each: aws.cloudfront.list_connection_groups
+  emit:
+    item:
+      Id: '{{ response.ResponseHeadersPolicy.Id }}'
+      LastModifiedTime: '{{ response.ResponseHeadersPolicy.LastModifiedTime }}'
+      ResponseHeadersPolicyConfig: '{{ response.ResponseHeadersPolicy.ResponseHeadersPolicyConfig
         }}'
 checks:
-- rule_id: aws.cloudfront.resource.distributions_logging_enabled
-  for_each: aws.cloudfront.get_distribution_config
-  conditions:
-    all:
-    - var: item.logging
-      op: exists
-    - var: item.logging
-      op: equals
-      value: true
 - rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_querystrings_minimal_configured
   for_each: aws.cloudfront.get_origin_request_policy_config
   conditions:
@@ -177,15 +169,6 @@ checks:
     op: equals
     value:
       CookieBehavior: none
-- rule_id: aws.cloudfront.distributions.logging_enabled
-  for_each: aws.cloudfront.get_distribution_config
-  conditions:
-    all:
-    - var: item.logging
-      op: exists
-    - var: item.enabled
-      op: equals
-      value: true
 - rule_id: aws.cloudfront.resource.distributions_origin_traffic_encrypted
   for_each: aws.cloudfront.get_distribution_config
   conditions:
@@ -194,7 +177,7 @@ checks:
 - rule_id: aws.cloudfront.distribution.origin_access_restricted
   for_each: aws.cloudfront.list_connection_groups
   conditions:
-    var: item.enabled
+    var: item.Enabled
     op: equals
     value: true
 - rule_id: aws.cloudfront.distribution.hsts_enabled
@@ -236,15 +219,6 @@ checks:
     var: item.parameters_in_cache_key_and_forwarded_to_origin
     op: equals
     value: []
-- rule_id: aws.cloudfront.distribution.valid_trusted_certificate_enabled
-  for_each: aws.cloudfront.get_distribution_config
-  conditions:
-    all:
-    - var: item.viewer_certificate
-      op: exists
-    - var: item.viewer_certificate
-      op: contains
-      value: ISSUED
 - rule_id: aws.cloudfront.distribution.cache_key_minimal_query_and_cookie_variants_configured
   for_each: aws.cloudfront.get_cache_policy_config
   conditions:
@@ -253,13 +227,13 @@ checks:
 - rule_id: aws.cloudfront.resource.distributions_field_level_encryption_enabled
   for_each: aws.cloudfront.list_connection_groups
   conditions:
-    var: item.enabled
+    var: item.Enabled
     op: equals
     value: true
 - rule_id: aws.cloudfront.distribution.waf_web_acl_enabled
-  for_each: aws.cloudfront.get_distribution_config
+  for_each: aws.cloudfront.list_connection_groups
   conditions:
-    var: item.web_acl_id
+    var: item.resource_id
     op: exists
 - rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_headers_minimal_configured
   for_each: aws.cloudfront.get_origin_request_policy_config
@@ -275,11 +249,11 @@ checks:
 - rule_id: aws.cloudfront.distributions.using_deprecated_ssl_protocols_configured
   for_each: aws.cloudfront.copy_distribution
   conditions:
-    var: item.distribution_config
+    var: item.DistributionConfig
     op: contains
     value: SSLv3
 - rule_id: aws.cloudfront.cachepolicy.respects_cache_control_no_store_private_configured
   for_each: aws.cloudfront.create_cache_policy
   conditions:
-    var: item.cache_policy_config
+    var: item.CachePolicyConfig
     op: exists

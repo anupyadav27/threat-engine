@@ -1,0 +1,32 @@
+version: '1.0'
+provider: azure
+service: certificates
+discovery:
+- discovery_id: azure.certificates.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+      identity: '{{ item.identity }}'
+      properties: '{{ item.properties }}'
+checks:
+- rule_id: azure.certificates.certificates.expiration.check,.azure.load.balancer.ssl.listeners,.azure.load.balancer.ssl.listeners,.azure.cdn.distributions.using.deprecated.ssl.protocols
+  for_each: azure.certificates.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.keyvault.certificate.expiration_check
+  for_each: azure.certificates.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

@@ -1,0 +1,169 @@
+You are helping me standardize and regenerate Operation Registry + Adjacency graphs for ALL GCP services in my SDK/database, for a C7N-style dependency engine.
+
+INPUT
+- Each GCP service has a service-specific JSON spec in its own folder.
+- Each operation entry includes: operation (name), python_method (or api method), required_params, optional_params, output schema/paths.
+- GCP APIs commonly use verbs: list, aggregatedList, get, insert, delete, patch, update, set*, enable/disable, and IAM methods like getIamPolicy/setIamPolicy/testIamPermissions.
+
+OUTPUTS (per service folder)
+- overrides.json (persistent config; merged + canonical)
+- operation_registry.json (FINAL)
+- adjacency.json (FINAL)
+- validation_report.json (FINAL)
+- manual_review.json (ONLY remaining unresolved/conflicts after auto-apply)
+
+GLOBAL OUTPUT
+- manual_review_global_summary.json (aggregate stats + services needing review)
+
+GOAL
+1) Avoid generic entities like "<service>.id", "<service>.name", "<service>.status".
+2) Resolve alias cases at scale using overrides + entity_aliases + param_aliases (evidence-key based).
+3) Produce stable canonical entity names across services.
+4) Two-pass generation: auto-apply safe fixes so manual_review shrinks to true conflicts only.
+
+--------------------------------------------------------------------
+TASKS (implement in generator/refactor)
+--------------------------------------------------------------------
+
+1) KIND AUTO-ASSIGN (GCP-aware; prioritize python_method)
+Normalize method = python_method lowercased. If startswith "begin_" remove it.
+Assign kind:
+- write_delete if method startswith delete OR endswith ".delete" OR contains ":delete"
+- write_update if method startswith patch OR update OR contains ".patch" ".update" OR startswith set
+- write_create if method startswith create OR insert OR run OR start OR enable OR register OR import
+- write_apply if method contains attach/associate/add/remove/grant/revoke/tag/authorize/unauthorize
+- read_list if method startswith list OR contains "aggregatedlist" OR contains ".list"
+- read_get if method startswith get OR contains ".get"
+- else other
+Write kind into operation_registry for every operation.
+
+2) GLOBAL IDENTITY EXCEPTIONS (never service-prefix these)
+Always map these params/fields to global entities:
+- project / projectId / project_id => gcp.project_id
+- organization / organizationId / organization_id => gcp.organization_id
+- folder / folderId / folder_id => gcp.folder_id
+- location => gcp.location
+- region => gcp.region
+- zone => gcp.zone
+Also treat common parent fields:
+- parent => gcp.parent_resource_name (unless we can parse a specific type)
+- pageToken/nextPageToken => gcp.page_token (do not treat as security entity)
+
+3) ENTITY NAMING (avoid generic tokens with deterministic rules)
+
+3.1 Evidence-key format (stable)
+For params: "<operation>:param:<param_name>"
+For outputs: "<operation>:out:<output_path>"
+Store these in overrides.param_aliases.
+
+3.2 Detect “resource name” strings (critical for GCP)
+If param or output field is "name" AND schema/value pattern indicates a fully-qualified resource name
+(e.g., contains "/" or matches "projects/*/"):
+- Parse the resource type from the last collection segment:
+  Example "projects/p/locations/l/instances/i" -> resource_type = "instances"
+- Canonical entity becomes:
+  <service>.<singular(resource_type)>_name
+If parsing fails, use:
+  gcp.resource_name
+
+3.3 CONSUMES (input params)
+- If param is a global identity (project/region/zone/etc), map using section 2.
+- If param is generic token: id/name/status:
+  * First try section 3.2 parsing rule (for name).
+  * Else derive resource noun from operation name/method:
+      - strip verbs: list/get/insert/create/update/patch/delete/set
+      - use remaining noun tokens to form resource type
+  * Map to: <service>.<resource>_<token>
+- If param endswith "Id": <service>.<noun>_id (unless projectId/orgId/folderId)
+- If param endswith "Name": <service>.<noun>_name (unless resource name parsing says otherwise)
+
+3.4 PRODUCES (output fields/paths)
+- Never produce: <service>.id / <service>.name / <service>.status
+- For output "id"/"status"/"name", scope using nearest parent path:
+  Example: "instances[].id" -> <service>.instance_id
+           "instances[].status" -> <service>.instance_status
+           "buckets[].name" -> storage.bucket_name (or parsed resource name rule)
+- If output "selfLink" or "resourceName", map to:
+  gcp.resource_name (unless parseable to specific type)
+- Canonicalize all entities via entity_aliases after mapping.
+
+4) OPERATION REGISTRY SCHEMA (required)
+operation_registry.json must include:
+{
+  "service": "<service>",
+  "version": "1.0",
+  "kind_rules": {...},
+  "entity_aliases": { "alias_entity": "canonical_entity" },
+  "overrides": {
+    "param_aliases": { "<evidence_key>": "<canonical_entity>" },
+    "consumes": { "<operation>.<param>": "<entity>" },
+    "produces": { "<operation>.<output_path>": "<entity>" }
+  },
+  "operations": {
+    "<operation>": {
+      "python_method": "...",
+      "kind": "...",
+      "required_params": [...],
+      "optional_params": [...],
+      "consumes": { "<param>": "<entity>" },
+      "produces": { "<output_path>": "<entity>" }
+    }
+  }
+}
+
+5) ALIAS SUPPORT (must implement BOTH layers)
+- entity_aliases: alias_entity -> canonical_entity
+- overrides.param_aliases: evidence_key -> canonical_entity
+Resolution priority:
+i) if evidence_key exists in overrides.param_aliases, use it
+ii) else inferred entity rules
+iii) then canonicalize via entity_aliases
+
+6) TWO-PASS GENERATION (auto-apply safe fixes)
+Pass 1:
+- generate operation_registry + adjacency + validation_report + manual_review
+- manual_review includes only: remaining generic entities, ambiguous evidence keys, alias candidates, conflicts
+
+Auto-apply rules (promote into overrides.json):
+- Accept HIGH confidence suggestions automatically.
+- Accept MEDIUM only if it reduces (generic_entities_count OR ambiguous_evidence_keys OR suspicious_paths_count)
+  and does not increase unsatisfiable_ops_count.
+- Record conflicts if same evidence_key maps to multiple entities.
+
+Pass 2:
+- rerun generator using overrides.json + entity_aliases everywhere
+- manual_review.json must shrink (remove resolved items)
+
+7) ADJACENCY
+Generate adjacency.json after applying:
+- overrides.param_aliases
+- overrides.consumes/produces
+- entity_aliases canonicalization
+Adjacency must include:
+- op_consumes, op_produces
+- entity_producers, entity_consumers
+- external_entities (global gcp.* and any missing producers)
+
+8) VALIDATION REPORT
+validation_report.json must include:
+- total_ops, satisfiable_ops_percent, unsatisfiable_ops_count
+- generic_entities_count
+- ambiguous_evidence_keys (count + list)
+- aliases_applied_count
+- overrides_applied_count
+- suspicious_paths_count
+
+9) FIX APPLICATION BUG (must fix)
+If fixes are recorded, remove corresponding items from manual_review.unresolved_items by evidence_key match.
+If conflict exists, keep it under manual_review.conflicts[].
+
+10) PROCESS ALL SERVICES MODE
+Create CLI/tool to iterate all service folders under a root and run two-pass generation.
+Write manual_review_global_summary.json with:
+- services_with_conflicts
+- services_with_remaining_unresolved
+- top ambiguous evidence keys
+
+SAFETY
+- Before overwriting outputs, write a .bak copy.
+- Output JSON must be stable sorted + pretty-printed.

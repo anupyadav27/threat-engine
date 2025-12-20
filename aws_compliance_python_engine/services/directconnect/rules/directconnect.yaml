@@ -1,70 +1,101 @@
 version: '1.0'
 provider: aws
 service: directconnect
+services:
+  client: directconnect
+  module: boto3.client
 discovery:
-- discovery_id: aws.directconnect.describe_connections
-  calls:
-  - action: describe_connections
-    save_as: describe_connections_response
-  emit:
-    items_for: '{{ describe_connections_response.connections }}'
-    as: resource
-    item:
-      owner_account: '{{ resource.ownerAccount }}'
-      connection_id: '{{ resource.connectionId }}'
-      connection_name: '{{ resource.connectionName }}'
-      connection_state: '{{ resource.connectionState }}'
-      region: '{{ resource.region }}'
-      location: '{{ resource.location }}'
-      bandwidth: '{{ resource.bandwidth }}'
-      vlan: '{{ resource.vlan }}'
-      partner_name: '{{ resource.partnerName }}'
-      loa_issue_time: '{{ resource.loaIssueTime }}'
 - discovery_id: aws.directconnect.create_bgp_peer
   calls:
   - action: create_bgp_peer
-    save_as: create_bgp_peer_response
+    save_as: response
   emit:
-    items_for: '{{ create_bgp_peer_response.virtualInterface }}'
-    as: resource
     item:
-      owner_account: '{{ resource.ownerAccount }}'
-      virtual_interface_id: '{{ resource.virtualInterfaceId }}'
-      location: '{{ resource.location }}'
-      connection_id: '{{ resource.connectionId }}'
-      virtual_interface_type: '{{ resource.virtualInterfaceType }}'
-      virtual_interface_name: '{{ resource.virtualInterfaceName }}'
-      vlan: '{{ resource.vlan }}'
-      asn: '{{ resource.asn }}'
-      asn_long: '{{ resource.asnLong }}'
-      amazon_side_asn: '{{ resource.amazonSideAsn }}'
+      ownerAccount: '{{ response.virtualInterface.ownerAccount }}'
+      virtualInterfaceId: '{{ response.virtualInterface.virtualInterfaceId }}'
+      location: '{{ response.virtualInterface.location }}'
+      connectionId: '{{ response.virtualInterface.connectionId }}'
+      virtualInterfaceType: '{{ response.virtualInterface.virtualInterfaceType }}'
+      virtualInterfaceName: '{{ response.virtualInterface.virtualInterfaceName }}'
+      vlan: '{{ response.virtualInterface.vlan }}'
+      asn: '{{ response.virtualInterface.asn }}'
+      asnLong: '{{ response.virtualInterface.asnLong }}'
+      amazonSideAsn: '{{ response.virtualInterface.amazonSideAsn }}'
+      authKey: '{{ response.virtualInterface.authKey }}'
+      amazonAddress: '{{ response.virtualInterface.amazonAddress }}'
+      customerAddress: '{{ response.virtualInterface.customerAddress }}'
+      addressFamily: '{{ response.virtualInterface.addressFamily }}'
+      virtualInterfaceState: '{{ response.virtualInterface.virtualInterfaceState }}'
+      customerRouterConfig: '{{ response.virtualInterface.customerRouterConfig }}'
+      mtu: '{{ response.virtualInterface.mtu }}'
+      jumboFrameCapable: '{{ response.virtualInterface.jumboFrameCapable }}'
+      virtualGatewayId: '{{ response.virtualInterface.virtualGatewayId }}'
+      directConnectGatewayId: '{{ response.virtualInterface.directConnectGatewayId
+        }}'
+      routeFilterPrefixes: '{{ response.virtualInterface.routeFilterPrefixes }}'
+      bgpPeers: '{{ response.virtualInterface.bgpPeers }}'
+      region: '{{ response.virtualInterface.region }}'
+      awsDeviceV2: '{{ response.virtualInterface.awsDeviceV2 }}'
+      awsLogicalDeviceId: '{{ response.virtualInterface.awsLogicalDeviceId }}'
+      tags: '{{ response.virtualInterface.tags }}'
+      siteLinkEnabled: '{{ response.virtualInterface.siteLinkEnabled }}'
+- discovery_id: aws.directconnect.describe_connections
+  calls:
+  - action: describe_connections
+    save_as: response
+  emit:
+    item:
+      ownerAccount: '{{ response.connections.ownerAccount }}'
+      connectionId: '{{ response.connections.connectionId }}'
+      connectionName: '{{ response.connections.connectionName }}'
+      connectionState: '{{ response.connections.connectionState }}'
+      region: '{{ response.connections.region }}'
+      location: '{{ response.connections.location }}'
+      bandwidth: '{{ response.connections.bandwidth }}'
+      vlan: '{{ response.connections.vlan }}'
+      partnerName: '{{ response.connections.partnerName }}'
+      loaIssueTime: '{{ response.connections.loaIssueTime }}'
+      lagId: '{{ response.connections.lagId }}'
+      awsDevice: '{{ response.connections.awsDevice }}'
+      jumboFrameCapable: '{{ response.connections.jumboFrameCapable }}'
+      awsDeviceV2: '{{ response.connections.awsDeviceV2 }}'
+      awsLogicalDeviceId: '{{ response.connections.awsLogicalDeviceId }}'
+      hasLogicalRedundancy: '{{ response.connections.hasLogicalRedundancy }}'
+      tags: '{{ response.connections.tags }}'
+      providerName: '{{ response.connections.providerName }}'
+      macSecCapable: '{{ response.connections.macSecCapable }}'
+      portEncryptionStatus: '{{ response.connections.portEncryptionStatus }}'
+      encryptionMode: '{{ response.connections.encryptionMode }}'
+      macSecKeys: '{{ response.connections.macSecKeys }}'
+      partnerInterconnectMacSecCapable: '{{ response.connections.partnerInterconnectMacSecCapable
+        }}'
 checks:
 - rule_id: aws.directconnect.connection_redundancy.directconnect_connection_redundancy_configured
   for_each: aws.directconnect.describe_connections
   conditions:
-    var: item.has_logical_redundancy
+    var: item.hasLogicalRedundancy
     op: equals
     value: ENABLED
 - rule_id: aws.directconnect.connection.tunnel_health_monitoring_enabled
   for_each: aws.directconnect.create_bgp_peer
   conditions:
-    var: item.virtual_interface_state
+    var: item.virtualInterfaceState
     op: equals
     value: AVAILABLE
 - rule_id: aws.directconnect.virtual_interface_redundancy.directconnect_virtual_interface_redundancy_configured
   for_each: aws.directconnect.describe_connections
   conditions:
-    var: item.has_logical_redundancy
+    var: item.hasLogicalRedundancy
     op: equals
     value: ENABLED
 - rule_id: aws.directconnect.connection.pre_shared_keys_key_rotation_policy_configured
   for_each: aws.directconnect.create_bgp_peer
   conditions:
-    var: item.auth_key
+    var: item.authKey
     op: exists
 - rule_id: aws.directconnect.connection.ike_phase_encryption_strong_configured
   for_each: aws.directconnect.create_bgp_peer
   conditions:
-    var: item.virtual_interface_state
+    var: item.virtualInterfaceState
     op: equals
     value: ENABLED

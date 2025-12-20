@@ -1,154 +1,104 @@
 version: '1.0'
 provider: aws
 service: bedrock
+services:
+  client: bedrock
+  module: boto3.client
 discovery:
 - discovery_id: aws.bedrock.get_model_invocation_logging_configuration
   calls:
   - action: get_model_invocation_logging_configuration
-    save_as: get_model_invocation_logging_configuration_response
+    save_as: response
   emit:
-    items_for: '{{ get_model_invocation_logging_configuration_response.loggingConfig
-      }}'
-    as: resource
     item:
-      cloud_watch_config: '{{ resource.cloudWatchConfig }}'
-      s3_config: '{{ resource.s3Config }}'
-      text_data_delivery_enabled: '{{ resource.textDataDeliveryEnabled }}'
-      image_data_delivery_enabled: '{{ resource.imageDataDeliveryEnabled }}'
-      embedding_data_delivery_enabled: '{{ resource.embeddingDataDeliveryEnabled }}'
-      video_data_delivery_enabled: '{{ resource.videoDataDeliveryEnabled }}'
+      cloudWatchConfig: '{{ response.loggingConfig.cloudWatchConfig }}'
+      s3Config: '{{ response.loggingConfig.s3Config }}'
+      textDataDeliveryEnabled: '{{ response.loggingConfig.textDataDeliveryEnabled
+        }}'
+      imageDataDeliveryEnabled: '{{ response.loggingConfig.imageDataDeliveryEnabled
+        }}'
+      embeddingDataDeliveryEnabled: '{{ response.loggingConfig.embeddingDataDeliveryEnabled
+        }}'
+      videoDataDeliveryEnabled: '{{ response.loggingConfig.videoDataDeliveryEnabled
+        }}'
 - discovery_id: aws.bedrock.list_custom_model_deployments
   calls:
   - action: list_custom_model_deployments
-    save_as: list_custom_model_deployments_response
+    save_as: response
   emit:
-    items_for: '{{ list_custom_model_deployments_response.modelDeploymentSummaries
-      }}'
+    items_for: '{{ response.modelDeploymentSummaries }}'
     as: resource
     item:
-      custom_model_deployment_arn: '{{ resource.customModelDeploymentArn }}'
-      custom_model_deployment_name: '{{ resource.customModelDeploymentName }}'
-      model_arn: '{{ resource.modelArn }}'
-      created_at: '{{ resource.createdAt }}'
+      customModelDeploymentArn: '{{ resource.customModelDeploymentArn }}'
+      customModelDeploymentName: '{{ resource.customModelDeploymentName }}'
+      modelArn: '{{ resource.modelArn }}'
+      createdAt: '{{ resource.createdAt }}'
       status: '{{ resource.status }}'
-      last_updated_at: '{{ resource.lastUpdatedAt }}'
-      failure_message: '{{ resource.failureMessage }}'
+      lastUpdatedAt: '{{ resource.lastUpdatedAt }}'
+      failureMessage: '{{ resource.failureMessage }}'
 - discovery_id: aws.bedrock.list_model_copy_jobs
   calls:
   - action: list_model_copy_jobs
-    save_as: list_model_copy_jobs_response
+    save_as: response
   emit:
-    items_for: '{{ list_model_copy_jobs_response.modelCopyJobSummaries }}'
+    items_for: '{{ response.modelCopyJobSummaries }}'
     as: resource
     item:
-      job_arn: '{{ resource.jobArn }}'
+      jobArn: '{{ resource.jobArn }}'
       status: '{{ resource.status }}'
-      creation_time: '{{ resource.creationTime }}'
-      target_model_arn: '{{ resource.targetModelArn }}'
-      target_model_name: '{{ resource.targetModelName }}'
-      source_account_id: '{{ resource.sourceAccountId }}'
-      source_model_arn: '{{ resource.sourceModelArn }}'
-      target_model_kms_key_arn: '{{ resource.targetModelKmsKeyArn }}'
-      target_model_tags: '{{ resource.targetModelTags }}'
-      failure_message: '{{ resource.failureMessage }}'
-- discovery_id: aws.bedrock.list_automated_reasoning_policy_build_workflows
+      creationTime: '{{ resource.creationTime }}'
+      targetModelArn: '{{ resource.targetModelArn }}'
+      targetModelName: '{{ resource.targetModelName }}'
+      sourceAccountId: '{{ resource.sourceAccountId }}'
+      sourceModelArn: '{{ resource.sourceModelArn }}'
+      targetModelKmsKeyArn: '{{ resource.targetModelKmsKeyArn }}'
+      targetModelTags: '{{ resource.targetModelTags }}'
+      failureMessage: '{{ resource.failureMessage }}'
+      sourceModelName: '{{ resource.sourceModelName }}'
+- discovery_id: aws.bedrock.batch_delete_evaluation_job
   calls:
-  - action: list_automated_reasoning_policy_build_workflows
-    save_as: list_automated_reasoning_policy_build_workflows_response
-    params:
-      policyArn: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.bedrock.get_model_invocation_logging_configuration
+  - action: batch_delete_evaluation_job
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      policy_arn: '{{ list_automated_reasoning_policy_build_workflows_response.automatedReasoningPolicyBuildWorkflowSummaries.policyArn
-        }}'
-      build_workflow_id: '{{ list_automated_reasoning_policy_build_workflows_response.automatedReasoningPolicyBuildWorkflowSummaries.buildWorkflowId
-        }}'
-      status: '{{ list_automated_reasoning_policy_build_workflows_response.automatedReasoningPolicyBuildWorkflowSummaries.status
-        }}'
-      build_workflow_type: '{{ list_automated_reasoning_policy_build_workflows_response.automatedReasoningPolicyBuildWorkflowSummaries.buildWorkflowType
-        }}'
-      created_at: '{{ list_automated_reasoning_policy_build_workflows_response.automatedReasoningPolicyBuildWorkflowSummaries.createdAt
-        }}'
+      jobIdentifier: '{{ response.errors.jobIdentifier }}'
+      code: '{{ response.errors.code }}'
+      message: '{{ response.errors.message }}'
+- discovery_id: aws.bedrock.get_guardrail
+  calls:
+  - action: get_guardrail
+    save_as: response
+- discovery_id: aws.bedrock.get_model_customization_job
+  calls:
+  - action: get_model_customization_job
+    save_as: response
+    params:
+      jobIdentifier: '{{ item.jobIdentifier }}'
+  on_error: continue
+  for_each: aws.bedrock.batch_delete_evaluation_job
+  emit:
+    item:
+      validationLoss: '{{ response.validationMetrics.validationLoss }}'
 checks:
-- rule_id: aws.bedrock.resource.model_invocation_logging_enabled
-  for_each: aws.bedrock.get_model_invocation_logging_configuration
-  conditions:
-    all:
-    - var: item.cloud_watch_config
-      op: exists
-    - var: item.s3_config
-      op: exists
-    - var: item.text_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.image_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.embedding_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.video_data_delivery_enabled
-      op: equals
-      value: true
 - rule_id: aws.bedrock.model.bedrock_artifact_encrypted_at_rest
   for_each: aws.bedrock.list_custom_model_deployments
   conditions:
     var: item.status
     op: equals
     value: ENABLED
-- rule_id: aws.bedrock.model.bedrock_package_approved_configured
-  for_each: aws.bedrock.get_model_invocation_logging_configuration
-  conditions:
-    all:
-    - var: item.cloud_watch_config
-      op: exists
-    - var: item.s3_config
-      op: exists
-    - var: item.text_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.image_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.embedding_data_delivery_enabled
-      op: equals
-      value: true
-    - var: item.video_data_delivery_enabled
-      op: equals
-      value: true
-- rule_id: aws.bedrock.model.execution_role_least_privilege
-  for_each: aws.bedrock.list_automated_reasoning_policy_build_workflows
-  conditions:
-    all:
-    - var: item.status
-      op: equals
-      value: ACTIVE
-    - var: item.policy_arn
-      op: exists
 - rule_id: aws.bedrock.model.bedrock_kms_cmk_used_configured
   for_each: aws.bedrock.list_model_copy_jobs
   conditions:
-    var: item.target_model_kms_key_arn
+    var: item.targetModelKmsKeyArn
     op: exists
 - rule_id: aws.bedrock.model.bedrock_image_scan_passed_configured
   for_each: aws.bedrock.get_model_invocation_logging_configuration
   conditions:
-    var: item.image_data_delivery_enabled
+    var: item.imageDataDeliveryEnabled
     op: equals
     value: true
-- rule_id: aws.bedrock.resource.model_invocation_logs_encryption_enabled
-  for_each: aws.bedrock.get_model_invocation_logging_configuration
-  conditions:
-    all:
-    - var: item.cloud_watch_config
-      op: exists
-    - var: item.s3_config
-      op: exists
 - rule_id: aws.bedrock.model.kms_encryption_enabled
   for_each: aws.bedrock.list_model_copy_jobs
   conditions:
-    var: item.target_model_kms_key_arn
+    var: item.targetModelKmsKeyArn
     op: exists

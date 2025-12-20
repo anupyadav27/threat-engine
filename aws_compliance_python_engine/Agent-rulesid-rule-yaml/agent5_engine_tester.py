@@ -60,7 +60,8 @@ def run_engine_for_service(service: str, account: str = '588989875114', region: 
     Returns:
         (success, checks_count, errors)
     """
-    cmd = f'PYTHONPATH=/Users/apple/Desktop/threat-engine python3 engine/main_scanner.py --service {service} --region {region} --account {account}'
+    # Run from threat-engine root to fix import paths
+    cmd = f'cd /Users/apple/Desktop/threat-engine && PYTHONPATH=/Users/apple/Desktop/threat-engine python3 -m aws_compliance_python_engine.engine.main_scanner --service {service} --region {region} --account {account}'
     
     try:
         result = subprocess.run(
@@ -69,7 +70,7 @@ def run_engine_for_service(service: str, account: str = '588989875114', region: 
             capture_output=True,
             text=True,
             timeout=300,  # Increased from 120 to 300 seconds for large services
-            cwd='/Users/apple/Desktop/threat-engine/aws_compliance_python_engine'
+            cwd='/Users/apple/Desktop/threat-engine'
         )
         
         output = result.stdout + result.stderr
@@ -77,17 +78,34 @@ def run_engine_for_service(service: str, account: str = '588989875114', region: 
         # Parse output for results
         checks_count = 0
         errors = []
+        capturing_traceback = False
+        traceback_lines = []
         
         # Look for "Total checks:"
-        for line in output.split('\n'):
+        for i, line in enumerate(output.split('\n')):
             if 'Total checks:' in line:
                 try:
                     checks_count = int(line.split(':')[1].strip())
                 except:
                     pass
             
-            # Capture errors
-            if 'ERROR' in line or 'Failed' in line or 'Traceback' in line:
+            # Capture full traceback, not just first line
+            if 'Traceback' in line:
+                capturing_traceback = True
+                traceback_lines = [line]
+            elif capturing_traceback:
+                traceback_lines.append(line)
+                # Stop capturing after we get the actual error (Error: or Exception: line)
+                if (line.strip() and 
+                    not line.startswith(' ') and 
+                    not line.startswith('File') and
+                    not line.startswith('  File') and
+                    ('Error' in line or 'Exception' in line or i == len(lines) - 1)):
+                    if len(traceback_lines) > 3:  # Only add if we have more than just "Traceback"
+                        errors.append('\n'.join(traceback_lines))
+                    capturing_traceback = False
+                    traceback_lines = []
+            elif not capturing_traceback and ('ERROR' in line or 'Failed' in line):
                 errors.append(line)
         
         return {

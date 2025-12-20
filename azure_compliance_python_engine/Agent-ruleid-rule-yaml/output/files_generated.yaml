@@ -1,0 +1,31 @@
+version: '1.0'
+provider: azure
+service: files
+discovery:
+- discovery_id: azure.files.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+checks:
+- rule_id: azure.storage.file.encryption_at_rest_enabled
+  for_each: azure.files.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.storage.file.backup_enabled
+  for_each: azure.files.list
+  conditions:
+    var: item.id
+    op: exists

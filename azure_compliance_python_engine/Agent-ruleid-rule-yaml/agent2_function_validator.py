@@ -61,27 +61,30 @@ SERVICE_NAME_MAPPING = {
     'machine': 'compute',
     
     # Services without direct SDK mapping (use monitor as fallback)
+    # Note: These services are mapped in Agent 1 but not in SDK catalog, so use monitor fallback
     'billing': 'monitor',
-    'cdn': 'monitor',
-    'config': 'monitor',
-    'containerregistry': 'monitor',
     'cost': 'monitor',
     'data': 'monitor',
-    'databricks': 'monitor',
-    'devops': 'monitor',
-    'elastic': 'monitor',
-    'hdinsight': 'monitor',
-    'intune': 'monitor',
     'iot': 'monitor',
-    'logic': 'monitor',
-    'netappfiles': 'monitor',
-    'notification': 'monitor',
-    'power': 'monitor',
     'purview': 'monitor',
     'redis': 'monitor',
     'search': 'monitor',
-    'security': 'monitor',
-    'synapse': 'monitor',
+    'cdn': 'network',  # CDN is network-related
+    'config': 'authorization',  # Azure Policy/Config uses authorization
+    'containerregistry': 'containerservice',  # ACR relates to containers
+    'databricks': 'compute',  # Databricks is compute workloads
+    'elastic': 'storage',  # Elastic SAN is storage
+    'hdinsight': 'compute',  # HDInsight is compute clusters
+    'logic': 'web',  # Logic Apps is part of Azure Web/App Services
+    'netappfiles': 'storage',  # NetApp Files is storage
+    'notification': 'eventhub',  # Notification Hubs uses event patterns
+    'security': 'authorization',  # Security/Defender uses authorization patterns
+    'synapse': 'sql',  # Synapse Analytics is SQL-based
+    
+    # Services without standard Azure Resource Manager SDK (use monitor as fallback)
+    'devops': 'monitor',  # Uses azure-devops SDK (not ARM pattern)
+    'intune': 'monitor',  # Part of Microsoft Graph API
+    'power': 'monitor',  # Power BI uses separate API
 }
 
 

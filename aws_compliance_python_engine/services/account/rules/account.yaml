@@ -1,114 +1,28 @@
-# ACCOUNT Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/account_metadata.yaml
-
 version: '1.0'
 provider: aws
 service: account
+services:
+  client: account
+  module: boto3.client
 discovery:
 - discovery_id: aws.account.alternate_contacts
   calls:
   - action: get_alternate_contact
-    params:
-      AlternateContactType: SECURITY
-  - action: get_alternate_contact
-    params:
-      AlternateContactType: BILLING
-  - action: get_alternate_contact
-    params:
-      AlternateContactType: OPERATIONS
+    save_as: response
   emit:
     item:
-      security_contact:
-        name: '{{ security_contact.AlternateContact.Name if security_contact.AlternateContact
-          else "" }}'
-        email: '{{ security_contact.AlternateContact.EmailAddress if security_contact.AlternateContact
-          else "" }}'
-        phone: '{{ security_contact.AlternateContact.PhoneNumber if security_contact.AlternateContact
-          else "" }}'
-        exists: '{{ security_contact.AlternateContact is defined }}'
-      billing_contact:
-        name: '{{ billing_contact.AlternateContact.Name if billing_contact.AlternateContact
-          else "" }}'
-        email: '{{ billing_contact.AlternateContact.EmailAddress if billing_contact.AlternateContact
-          else "" }}'
-        phone: '{{ billing_contact.AlternateContact.PhoneNumber if billing_contact.AlternateContact
-          else "" }}'
-        exists: '{{ billing_contact.AlternateContact is defined }}'
-      operations_contact:
-        name: '{{ operations_contact.AlternateContact.Name if operations_contact.AlternateContact
-          else "" }}'
-        email: '{{ operations_contact.AlternateContact.EmailAddress if operations_contact.AlternateContact
-          else "" }}'
-        phone: '{{ operations_contact.AlternateContact.PhoneNumber if operations_contact.AlternateContact
-          else "" }}'
-        exists: '{{ operations_contact.AlternateContact is defined }}'
-- discovery_id: aws.account.contact_information
-  calls:
-  - action: get_contact_information
-  emit:
-    item:
-      contact_information:
-        full_name: '{{ contact_info.ContactInformation.FullName if contact_info.ContactInformation
-          else "" }}'
-        company_name: '{{ contact_info.ContactInformation.CompanyName if contact_info.ContactInformation
-          else "" }}'
-        phone: '{{ contact_info.ContactInformation.PhoneNumber if contact_info.ContactInformation
-          else "" }}'
-        address_line_1: '{{ contact_info.ContactInformation.AddressLine1 if contact_info.ContactInformation
-          else "" }}'
-        city: '{{ contact_info.ContactInformation.City if contact_info.ContactInformation
-          else "" }}'
-        state: '{{ contact_info.ContactInformation.StateOrRegion if contact_info.ContactInformation
-          else "" }}'
-        postal_code: '{{ contact_info.ContactInformation.PostalCode if contact_info.ContactInformation
-          else "" }}'
-        country: '{{ contact_info.ContactInformation.CountryCode if contact_info.ContactInformation
-          else "" }}'
-        exists: '{{ contact_info.ContactInformation is defined }}'
+      AlternateContactType: '{{ response.AlternateContact.AlternateContactType }}'
+      EmailAddress: '{{ response.AlternateContact.EmailAddress }}'
+      Name: '{{ response.AlternateContact.Name }}'
+      PhoneNumber: '{{ response.AlternateContact.PhoneNumber }}'
+      Title: '{{ response.AlternateContact.Title }}'
 checks:
-- rule_id: aws.account.contact.details_separate_security_billing_operations_configured
-  for_each: aws.account.alternate_contacts
-  conditions:
-    all:
-    - var: item.security_contact.exists
-      op: equals
-      value: true
-    - var: item.billing_contact.exists
-      op: equals
-      value: true
-    - var: item.operations_contact.exists
-      op: equals
-      value: true
 - rule_id: aws.account.security.contact_information_configured
   for_each: aws.account.alternate_contacts
   conditions:
     var: item.security_contact.exists
     op: equals
     value: true
-- rule_id: aws.account.contact.current_details_configured
-  for_each: aws.account.contact_information
-  conditions:
-    all:
-    - var: item.contact_information.exists
-      op: equals
-      value: true
-    - var: item.contact_information.full_name
-      op: exists
-    - var: item.contact_information.phone
-      op: exists
-- rule_id: aws.account.resource.security_contact_complete
-  for_each: aws.account.alternate_contacts
-  conditions:
-    all:
-    - var: item.security_contact.exists
-      op: equals
-      value: true
-    - var: item.security_contact.name
-      op: exists
-    - var: item.security_contact.email
-      op: exists
-    - var: item.security_contact.phone
-      op: exists
 - rule_id: aws.account.resource.security_contact_configured
   for_each: aws.account.alternate_contacts
   conditions:

@@ -1,32 +1,30 @@
 version: '1.0'
 provider: aws
 service: transfer
+services:
+  client: transfer
+  module: boto3.client
 discovery:
-- discovery_id: aws.transfer.describe_security_policy
+- discovery_id: aws.transfer.list_servers
   calls:
-  - action: describe_security_policy
-    save_as: describe_security_policy_response
-    params:
-      SecurityPolicyName: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.transfer.PARENT_DISCOVERY
+  - action: list_servers
+    save_as: response
   emit:
+    items_for: '{{ response.Servers }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      fips: '{{ describe_security_policy_response.SecurityPolicy.Fips }}'
-      security_policy_name: '{{ describe_security_policy_response.SecurityPolicy.SecurityPolicyName
-        }}'
-      ssh_ciphers: '{{ describe_security_policy_response.SecurityPolicy.SshCiphers
-        }}'
-      ssh_kexs: '{{ describe_security_policy_response.SecurityPolicy.SshKexs }}'
-      ssh_macs: '{{ describe_security_policy_response.SecurityPolicy.SshMacs }}'
+      Arn: '{{ resource.Arn }}'
+      Domain: '{{ resource.Domain }}'
+      IdentityProviderType: '{{ resource.IdentityProviderType }}'
+      EndpointType: '{{ resource.EndpointType }}'
+      LoggingRole: '{{ resource.LoggingRole }}'
+      ServerId: '{{ resource.ServerId }}'
+      State: '{{ resource.State }}'
+      UserCount: '{{ resource.UserCount }}'
 checks:
 - rule_id: aws.transfer.resource.server_in_transit_encryption_enabled
-  for_each: aws.transfer.describe_security_policy
+  for_each: aws.transfer.list_servers
   conditions:
-    all:
-    - var: item.protocols
-      op: contains
-      value: TLS
-    - var: item.security_policy_name
-      op: exists
+    var: item.ProtocolDetails
+    op: exists
+    value: null

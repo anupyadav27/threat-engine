@@ -1,0 +1,51 @@
+version: '1.0'
+provider: azure
+service: management
+discovery:
+- discovery_id: azure.management.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      value: '{{ item.value }}'
+      count: '{{ item.count }}'
+      next_link: '{{ item.next_link }}'
+checks:
+- rule_id: azure.management.groups_group.governance_ou_required_scps_attached
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_ou_auto_tag_policies_enabled_where_supported
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_org_all_accounts_enrolled_in_org
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_ou_no_overly_permissive_exceptions
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_org_block_leave_org_by_policy
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_org_restrict_region_usage_by_policy_where_required
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty
+- rule_id: azure.management.groups_group.governance_org_scps_enabled
+  for_each: azure.management.list
+  conditions:
+    var: item.value
+    op: not_empty

@@ -101,6 +101,8 @@ def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
         if isinstance(value, (list, str)):
             return expected in value
         return False
+    elif operator == 'not_empty':
+        return value is not None and value != '' and value != [] and value != {}
     elif operator == 'not_contains':
         if isinstance(value, (list, str)):
             return expected not in value
@@ -131,11 +133,27 @@ def load_enabled_services_with_scope():
 
 
 def load_service_rules(service_name):
-    """Load service rules from YAML"""
-    rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, f"{service_name}_rules.yaml")
-    with open(rules_path) as f:
-        rules = yaml.safe_load(f)
-    return rules
+    """Load service rules from YAML
+    
+    New structure: services/{sdk_client}/rules/{sdk_client}.yaml
+    Old structure (fallback): services/{service_name}/{service_name}_rules.yaml
+    """
+    # Try new structure first (rules/ folder)
+    rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, "rules", f"{service_name}.yaml")
+    if os.path.exists(rules_path):
+        with open(rules_path) as f:
+            rules = yaml.safe_load(f)
+        return rules
+    
+    # Fallback to old structure for backward compatibility
+    old_rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, f"{service_name}_rules.yaml")
+    if os.path.exists(old_rules_path):
+        with open(old_rules_path) as f:
+            rules = yaml.safe_load(f)
+        return rules
+    
+    # If neither exists, raise error
+    raise FileNotFoundError(f"Rules file not found for {service_name}. Tried: {rules_path} and {old_rules_path}")
 
 
 def _retry_call(func, *args, **kwargs):
@@ -176,30 +194,232 @@ def run_service_scan(
             from auth.azure_auth import get_default_credential
             credential = get_default_credential()
         
-        # Discovery and checks would be implemented here
-        # For now, returning structure similar to AWS
+        # Import Azure client factory
+        from auth.azure_client_factory import AzureClientFactory
+        
+        # Create client factory
+        client_factory = AzureClientFactory(subscription_id=subscription_id, credential=credential)
+        
+        # Get Azure client for this service
+        try:
+            azure_client = client_factory.get_client(service_name)
+        except Exception as e:
+            logger.warning(f"Could not create client for {service_name}: {e}")
+            azure_client = None
         
         discovery_results = {}
         checks_output = []
+        saved_data = {}  # Store responses from discovery calls
         
-        # Process discovery (simplified - full implementation would follow AWS pattern)
+        # Process discovery
+        logger.info(f"Processing {len(service_rules.get('discovery', []))} discovery operations for {service_name}")
         for discovery in service_rules.get('discovery', []):
             discovery_id = discovery['discovery_id']
-            # Discovery logic here...
-            discovery_results[discovery_id] = []
+            logger.info(f"  Discovery: {discovery_id}")
+            
+            if not azure_client:
+                logger.warning(f"  No Azure client available for {service_name}, skipping discovery")
+                discovery_results[discovery_id] = []
+                continue
+            
+            try:
+                # Process calls in discovery
+                for call in discovery.get('calls', []):
+                    action = call.get('action')
+                    params = call.get('params', {})
+                    save_as = call.get('save_as', f'{action}_response')
+                    
+                    if not action:
+                        continue
+                    
+                    # Execute Azure SDK call using DiscoveryHelper
+                    try:
+                        from engine.discovery_helper import DiscoveryHelper
+                        
+                        # Find the correct method using DiscoveryHelper
+                        method = DiscoveryHelper.find_discovery_method(azure_client, service_name, action)
+                        
+                        if method:
+                            # Execute using DiscoveryHelper's execution logic
+                            try:
+                                response = DiscoveryHelper.execute_discovery(
+                                    method, action, params, subscription_id, credential
+                                )
+                                
+                                # Azure SDK returns iterable, convert to list
+                                # Store both the raw response and the list for flexibility
+                                if hasattr(response, '__iter__') and not isinstance(response, (str, dict, bytes)):
+                                    try:
+                                        response_list = list(response)
+                                        # Store as both the list and in a 'value' key (for YAML compatibility)
+                                        saved_data[save_as] = {
+                                            'value': response_list,  # For YAML items_for: {{ response.value }}
+                                            '_items': response_list  # Direct access
+                                        }
+                                        response = response_list
+                                    except:
+                                        # If it's a paged response, get value
+                                        if hasattr(response, 'value'):
+                                            response_list = list(response.value) if hasattr(response.value, '__iter__') else [response.value]
+                                            saved_data[save_as] = {
+                                                'value': response_list,
+                                                '_items': response_list
+                                            }
+                                            response = response_list
+                                        else:
+                                            saved_data[save_as] = {'value': [], '_items': []}
+                                            response = []
+                                else:
+                                    # Single item or dict
+                                    saved_data[save_as] = {
+                                        'value': [response] if response is not None else [],
+                                        '_items': [response] if response is not None else []
+                                    }
+                                    response = [response] if response is not None else []
+                                
+                                count = len(response) if isinstance(response, list) else 1
+                                logger.info(f"    Discovery call {action} succeeded: {count} items found")
+                                
+                            except Exception as e:
+                                logger.warning(f"Discovery execution failed: {e}")
+                                saved_data[save_as] = []
+                                continue
+                        else:
+                            logger.warning(f"Could not find discovery method for {service_name}.{action}")
+                            saved_data[save_as] = []
+                            continue
+                    except Exception as e:
+                        logger.warning(f"Discovery call {action} failed: {e}")
+                        saved_data[save_as] = []
+                
+                # Process emit to extract items
+                emit_config = discovery.get('emit', {})
+                if 'items_for' in emit_config:
+                    items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
+                    # Try to extract items
+                    items = extract_value(saved_data, items_path)
+                    
+                    # If not found, try alternative paths
+                    if not items or (isinstance(items, list) and len(items) == 0):
+                        # Try direct access to save_as
+                        for call in discovery.get('calls', []):
+                            save_as = call.get('save_as', '')
+                            if save_as and save_as in saved_data:
+                                saved_response = saved_data[save_as]
+                                # If it's a dict with 'value', get that
+                                if isinstance(saved_response, dict) and 'value' in saved_response:
+                                    items = saved_response['value']
+                                elif isinstance(saved_response, list):
+                                    items = saved_response
+                                break
+                    
+                    if items and isinstance(items, list):
+                        # Extract item fields
+                        item_template = emit_config.get('item', {})
+                        discovered_items = []
+                        
+                        for item in items:
+                            # Convert Azure SDK model to dict if needed
+                            if hasattr(item, 'as_dict'):
+                                try:
+                                    item_dict = item.as_dict()
+                                except:
+                                    # Fallback: use direct attributes
+                                    item_dict = {attr: getattr(item, attr, None) 
+                                               for attr in dir(item) 
+                                               if not attr.startswith('_') and not callable(getattr(item, attr, None))}
+                            elif hasattr(item, '__dict__'):
+                                item_dict = item.__dict__
+                            elif isinstance(item, dict):
+                                item_dict = item
+                            else:
+                                # Try to access as object
+                                item_dict = {}
+                                for field_name in item_template.keys():
+                                    if hasattr(item, field_name):
+                                        item_dict[field_name] = getattr(item, field_name)
+                            
+                            discovered_item = {}
+                            for field_name, field_template in item_template.items():
+                                if isinstance(field_template, str) and '{{' in field_template:
+                                    # Resolve template
+                                    field_path = field_template.replace('{{ ', '').replace(' }}', '').replace('item.', '')
+                                    value = extract_value(item_dict, field_path)
+                                    discovered_item[field_name] = value
+                                else:
+                                    discovered_item[field_name] = field_template
+                            
+                            discovered_items.append(discovered_item)
+                        
+                        discovery_results[discovery_id] = discovered_items
+                        logger.info(f"  Discovery {discovery_id} completed: {len(discovered_items)} items discovered")
+                    else:
+                        discovery_results[discovery_id] = []
+                else:
+                    discovery_results[discovery_id] = []
+                    
+            except Exception as e:
+                logger.error(f"Discovery {discovery_id} failed: {e}")
+                discovery_results[discovery_id] = []
         
-        # Process checks (simplified)
+        # Process checks
         for check in service_rules.get('checks', []):
             check_id = check['rule_id']
-            # Check logic here...
-            checks_output.append({
-                'rule_id': check_id,
-                'title': check.get('title', ''),
-                'severity': check.get('severity', 'medium'),
-                'result': 'PASS',  # Placeholder
-                'subscription': subscription_id,
-                'location': location or 'global'
-            })
+            for_each = check.get('for_each')
+            conditions = check.get('conditions', {})
+            
+            # Get items for this check
+            items = []
+            if for_each and for_each in discovery_results:
+                items = discovery_results[for_each]
+            
+            # Evaluate check for each item (or once if no for_each)
+            if not items:
+                items = [None]  # Run check once if no items
+            
+            for item_idx, item in enumerate(items):
+                result = 'PASS'
+                resource_id = extract_value(item, 'id') if item else None
+                
+                # Evaluate conditions
+                if conditions:
+                    var_path = conditions.get('var', '').replace('item.', '')
+                    operator = conditions.get('op', 'exists')
+                    expected = conditions.get('value')
+                    
+                    if item:
+                        value = extract_value(item, var_path)
+                    else:
+                        value = None
+                    
+                    # Evaluate condition
+                    if not evaluate_condition(value, operator, expected):
+                        result = 'FAIL'
+                    
+                    # Log check evaluation details
+                    if len(items) > 1:
+                        logger.info(f"    Item {item_idx + 1}/{len(items)}: {result} (resource: {resource_id.split('/')[-1] if resource_id else 'global'})")
+                    else:
+                        logger.info(f"    Result: {result} (resource: {resource_id.split('/')[-1] if resource_id else 'global'})")
+                
+                checks_output.append({
+                    'rule_id': check_id,
+                    'title': check.get('title', ''),
+                    'severity': check.get('severity', 'medium'),
+                    'result': result,
+                    'subscription': subscription_id,
+                    'location': location or 'global',
+                    'resource_id': resource_id
+                })
+        
+        # Summary logging
+        total_discovered = sum(len(v) if isinstance(v, list) else 0 for v in discovery_results.values())
+        passed_checks = sum(1 for c in checks_output if c.get('result') == 'PASS')
+        failed_checks = sum(1 for c in checks_output if c.get('result') == 'FAIL')
+        
+        logger.info(f"Service {service_name} scan complete:")
+        logger.info(f"  Discovered: {total_discovered} resources")
+        logger.info(f"  Checks: {len(checks_output)} total (PASS={passed_checks}, FAIL={failed_checks})")
         
         return {
             'inventory': discovery_results,

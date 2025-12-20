@@ -1,0 +1,46 @@
+version: '1.0'
+provider: azure
+service: log
+discovery:
+- discovery_id: azure.log.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      group_short_name: '{{ item.group_short_name }}'
+      enabled: '{{ item.enabled }}'
+      email_receivers: '{{ item.email_receivers }}'
+      sms_receivers: '{{ item.sms_receivers }}'
+      webhook_receivers: '{{ item.webhook_receivers }}'
+      itsm_receivers: '{{ item.itsm_receivers }}'
+      azure_app_push_receivers: '{{ item.azure_app_push_receivers }}'
+      automation_runbook_receivers: '{{ item.automation_runbook_receivers }}'
+      voice_receivers: '{{ item.voice_receivers }}'
+      logic_app_receivers: '{{ item.logic_app_receivers }}'
+      azure_function_receivers: '{{ item.azure_function_receivers }}'
+      arm_role_receivers: '{{ item.arm_role_receivers }}'
+      event_hub_receivers: '{{ item.event_hub_receivers }}'
+checks:
+- rule_id: azure.monitor.log.multi_region_enabled
+  for_each: azure.log.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.monitor.log.enabled
+  for_each: azure.log.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.monitor.log.file_validation_enabled
+  for_each: azure.log.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

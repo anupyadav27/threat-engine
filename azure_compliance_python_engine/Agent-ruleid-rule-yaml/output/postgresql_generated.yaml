@@ -1,0 +1,68 @@
+version: '1.0'
+provider: azure
+service: postgresql
+discovery:
+- discovery_id: azure.postgresql.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      identity: '{{ item.identity }}'
+      sku: '{{ item.sku }}'
+      administrator_login: '{{ item.administrator_login }}'
+      version: '{{ item.version }}'
+      ssl_enforcement: '{{ item.ssl_enforcement }}'
+      minimal_tls_version: '{{ item.minimal_tls_version }}'
+      byok_enforcement: '{{ item.byok_enforcement }}'
+      infrastructure_encryption: '{{ item.infrastructure_encryption }}'
+      user_visible_state: '{{ item.user_visible_state }}'
+      fully_qualified_domain_name: '{{ item.fully_qualified_domain_name }}'
+      earliest_restore_date: '{{ item.earliest_restore_date }}'
+      storage_profile: '{{ item.storage_profile }}'
+      replication_role: '{{ item.replication_role }}'
+      master_server_id: '{{ item.master_server_id }}'
+      replica_capacity: '{{ item.replica_capacity }}'
+checks:
+- rule_id: azure.postgresql.flexibleserver.log_connections_enabled
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.server.geo_redundant_backup
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.flexibleserver.access_services_disabled
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.flexibleserver.log_checkpoints_enabled
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.flexibleserver.ssl_enabled
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.flexibleserver.log_retention_days_greater_3
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.postgresql.flexibleserver.log_disconnections_enabled
+  for_each: azure.postgresql.list
+  conditions:
+    var: item.id
+    op: exists

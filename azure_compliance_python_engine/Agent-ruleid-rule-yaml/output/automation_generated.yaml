@@ -1,0 +1,60 @@
+version: '1.0'
+provider: azure
+service: automation
+discovery:
+- discovery_id: azure.automation.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      value: '{{ item.value }}'
+      next_link: '{{ item.next_link }}'
+checks:
+- rule_id: azure.automation.runbook.incident_execution_roles_least_privilege
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.runbook.dr_storage_encrypted_and_private
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.runbook.dr_access_rbac_least_privilege
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.account.compliant_patching_enabled
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.patch.compliance
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.runbook.incident_change_audit_logging_enabled
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.runbook.dr_change_audit_logging_enabled
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.managed.compliant.patching,.azure.aks.cluster.uses.a.supported.version,.azure.sql.cluster.minor.version.upgrade.enabled
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists
+- rule_id: azure.automation.runbook.incident_artifacts_encrypted_and_private
+  for_each: azure.automation.list
+  conditions:
+    var: item.value
+    op: exists

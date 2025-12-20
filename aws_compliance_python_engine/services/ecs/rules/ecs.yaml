@@ -1,60 +1,122 @@
 version: '1.0'
 provider: aws
 service: ecs
+services:
+  client: ecs
+  module: boto3.client
 discovery:
-- discovery_id: aws.ecs.register_container_instance
-  calls:
-  - action: register_container_instance
-    save_as: register_container_instance_response
-  emit:
-    items_for: '{{ register_container_instance_response.containerInstance }}'
-    as: resource
-    item:
-      container_instance_arn: '{{ resource.containerInstanceArn }}'
-      ec2_instance_id: '{{ resource.ec2InstanceId }}'
-      capacity_provider_name: '{{ resource.capacityProviderName }}'
-      version: '{{ resource.version }}'
-      version_info: '{{ resource.versionInfo }}'
-      remaining_resources: '{{ resource.remainingResources }}'
-      registered_resources: '{{ resource.registeredResources }}'
-      status: '{{ resource.status }}'
-      status_reason: '{{ resource.statusReason }}'
-      agent_connected: '{{ resource.agentConnected }}'
 - discovery_id: aws.ecs.create_cluster
   calls:
   - action: create_cluster
-    save_as: create_cluster_response
+    save_as: response
   emit:
-    items_for: '{{ create_cluster_response.cluster }}'
-    as: resource
     item:
-      cluster_arn: '{{ resource.clusterArn }}'
-      cluster_name: '{{ resource.clusterName }}'
-      configuration: '{{ resource.configuration }}'
-      status: '{{ resource.status }}'
-      registered_container_instances_count: '{{ resource.registeredContainerInstancesCount
+      clusterArn: '{{ response.cluster.clusterArn }}'
+      clusterName: '{{ response.cluster.clusterName }}'
+      configuration: '{{ response.cluster.configuration }}'
+      status: '{{ response.cluster.status }}'
+      registeredContainerInstancesCount: '{{ response.cluster.registeredContainerInstancesCount
         }}'
-      running_tasks_count: '{{ resource.runningTasksCount }}'
-      pending_tasks_count: '{{ resource.pendingTasksCount }}'
-      active_services_count: '{{ resource.activeServicesCount }}'
-      statistics: '{{ resource.statistics }}'
-      tags: '{{ resource.tags }}'
+      runningTasksCount: '{{ response.cluster.runningTasksCount }}'
+      pendingTasksCount: '{{ response.cluster.pendingTasksCount }}'
+      activeServicesCount: '{{ response.cluster.activeServicesCount }}'
+      statistics: '{{ response.cluster.statistics }}'
+      tags: '{{ response.cluster.tags }}'
+      settings: '{{ response.cluster.settings }}'
+      capacityProviders: '{{ response.cluster.capacityProviders }}'
+      defaultCapacityProviderStrategy: '{{ response.cluster.defaultCapacityProviderStrategy
+        }}'
+      attachments: '{{ response.cluster.attachments }}'
+      attachmentsStatus: '{{ response.cluster.attachmentsStatus }}'
+      serviceConnectDefaults: '{{ response.cluster.serviceConnectDefaults }}'
+- discovery_id: aws.ecs.register_container_instance
+  calls:
+  - action: register_container_instance
+    save_as: response
+  emit:
+    item:
+      containerInstanceArn: '{{ response.containerInstance.containerInstanceArn }}'
+      ec2InstanceId: '{{ response.containerInstance.ec2InstanceId }}'
+      capacityProviderName: '{{ response.containerInstance.capacityProviderName }}'
+      version: '{{ response.containerInstance.version }}'
+      versionInfo: '{{ response.containerInstance.versionInfo }}'
+      remainingResources: '{{ response.containerInstance.remainingResources }}'
+      registeredResources: '{{ response.containerInstance.registeredResources }}'
+      status: '{{ response.containerInstance.status }}'
+      statusReason: '{{ response.containerInstance.statusReason }}'
+      agentConnected: '{{ response.containerInstance.agentConnected }}'
+      runningTasksCount: '{{ response.containerInstance.runningTasksCount }}'
+      pendingTasksCount: '{{ response.containerInstance.pendingTasksCount }}'
+      agentUpdateStatus: '{{ response.containerInstance.agentUpdateStatus }}'
+      attributes: '{{ response.containerInstance.attributes }}'
+      registeredAt: '{{ response.containerInstance.registeredAt }}'
+      attachments: '{{ response.containerInstance.attachments }}'
+      tags: '{{ response.containerInstance.tags }}'
+      healthStatus: '{{ response.containerInstance.healthStatus }}'
 - discovery_id: aws.ecs.create_service
   calls:
   - action: create_service
-    save_as: create_service_response
+    save_as: response
     params:
-      serviceName: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.ecs.register_container_instance
+      serviceName: '{{ item.serviceName }}'
+  on_error: continue
+  for_each: aws.ecs.update_express_gateway_service
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      service_arn: '{{ create_service_response.service.serviceArn }}'
-      service_name: '{{ create_service_response.service.serviceName }}'
-      cluster_arn: '{{ create_service_response.service.clusterArn }}'
-      load_balancers: '{{ create_service_response.service.loadBalancers }}'
-      service_registries: '{{ create_service_response.service.serviceRegistries }}'
+      serviceArn: '{{ response.service.serviceArn }}'
+      serviceName: '{{ response.service.serviceName }}'
+      clusterArn: '{{ response.service.clusterArn }}'
+      loadBalancers: '{{ response.service.loadBalancers }}'
+      serviceRegistries: '{{ response.service.serviceRegistries }}'
+      status: '{{ response.service.status }}'
+      desiredCount: '{{ response.service.desiredCount }}'
+      runningCount: '{{ response.service.runningCount }}'
+      pendingCount: '{{ response.service.pendingCount }}'
+      launchType: '{{ response.service.launchType }}'
+      capacityProviderStrategy: '{{ response.service.capacityProviderStrategy }}'
+      platformVersion: '{{ response.service.platformVersion }}'
+      platformFamily: '{{ response.service.platformFamily }}'
+      taskDefinition: '{{ response.service.taskDefinition }}'
+      deploymentConfiguration: '{{ response.service.deploymentConfiguration }}'
+      taskSets: '{{ response.service.taskSets }}'
+      deployments: '{{ response.service.deployments }}'
+      roleArn: '{{ response.service.roleArn }}'
+      events: '{{ response.service.events }}'
+      createdAt: '{{ response.service.createdAt }}'
+      currentServiceDeployment: '{{ response.service.currentServiceDeployment }}'
+      currentServiceRevisions: '{{ response.service.currentServiceRevisions }}'
+      placementConstraints: '{{ response.service.placementConstraints }}'
+      placementStrategy: '{{ response.service.placementStrategy }}'
+      networkConfiguration: '{{ response.service.networkConfiguration }}'
+      healthCheckGracePeriodSeconds: '{{ response.service.healthCheckGracePeriodSeconds
+        }}'
+      schedulingStrategy: '{{ response.service.schedulingStrategy }}'
+      deploymentController: '{{ response.service.deploymentController }}'
+      tags: '{{ response.service.tags }}'
+      createdBy: '{{ response.service.createdBy }}'
+      enableECSManagedTags: '{{ response.service.enableECSManagedTags }}'
+      propagateTags: '{{ response.service.propagateTags }}'
+      enableExecuteCommand: '{{ response.service.enableExecuteCommand }}'
+      availabilityZoneRebalancing: '{{ response.service.availabilityZoneRebalancing
+        }}'
+      resourceManagementType: '{{ response.service.resourceManagementType }}'
+- discovery_id: aws.ecs.update_express_gateway_service
+  calls:
+  - action: update_express_gateway_service
+    save_as: response
+    params:
+      serviceArn: '{{ item.serviceArn }}'
+  on_error: continue
+  for_each: aws.ecs.list_service_deployments
+  emit:
+    item:
+      serviceArn: '{{ response.service.serviceArn }}'
+      cluster: '{{ response.service.cluster }}'
+      serviceName: '{{ response.service.serviceName }}'
+      status: '{{ response.service.status }}'
+      targetConfiguration: '{{ response.service.targetConfiguration }}'
+      createdAt: '{{ response.service.createdAt }}'
+      updatedAt: '{{ response.service.updatedAt }}'
 checks:
 - rule_id: aws.ecs.container_instance.container_read_only_root_filesystem_configured
   for_each: aws.ecs.register_container_instance
@@ -81,13 +143,13 @@ checks:
 - rule_id: aws.ecs.resource.task_sets_assign_public_ip_disabled
   for_each: aws.ecs.create_service
   conditions:
-    var: item.launch_type
+    var: item.launchType
     op: equals
     value: FARGATE
 - rule_id: aws.ecs.resource.task_definition_logging_enabled
   for_each: aws.ecs.create_service
   conditions:
-    var: item.enable_execute_command
+    var: item.enableExecuteCommand
     op: equals
     value: true
 - rule_id: aws.ecs.container_instance.container_env_no_plaintext_secrets_configured
@@ -104,6 +166,6 @@ checks:
 - rule_id: aws.ecs.resource.task_definitions_logging_enabled
   for_each: aws.ecs.create_service
   conditions:
-    var: item.enable_execute_command
+    var: item.enableExecuteCommand
     op: equals
     value: true

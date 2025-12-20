@@ -1,61 +1,25 @@
 version: '1.0'
 provider: aws
 service: kinesisanalytics
+services:
+  client: kinesisanalytics
+  module: boto3.client
 discovery:
 - discovery_id: aws.kinesisanalytics.list_applications
   calls:
   - action: list_applications
-    save_as: list_applications_response
+    save_as: response
   emit:
-    items_for: '{{ list_applications_response.ApplicationSummaries }}'
+    items_for: '{{ response.ApplicationSummaries }}'
     as: resource
     item:
-      application_name: '{{ resource.ApplicationName }}'
-      application_arn: '{{ resource.ApplicationARN }}'
-      application_status: '{{ resource.ApplicationStatus }}'
-- discovery_id: aws.kinesisanalytics.describe_application
-  calls:
-  - action: describe_application
-    save_as: describe_application_response
-    params:
-      ApplicationName: '{{ item.application_name }}'
-    on_error: continue
-  for_each: aws.kinesisanalytics.list_applications
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      application_name: '{{ describe_application_response.ApplicationDetail.ApplicationName
-        }}'
-      application_description: '{{ describe_application_response.ApplicationDetail.ApplicationDescription
-        }}'
-      application_arn: '{{ describe_application_response.ApplicationDetail.ApplicationARN
-        }}'
-      application_status: '{{ describe_application_response.ApplicationDetail.ApplicationStatus
-        }}'
-      create_timestamp: '{{ describe_application_response.ApplicationDetail.CreateTimestamp
-        }}'
+      ApplicationName: '{{ resource.ApplicationName }}'
+      ApplicationARN: '{{ resource.ApplicationARN }}'
+      ApplicationStatus: '{{ resource.ApplicationStatus }}'
 checks:
-- rule_id: aws.kinesisanalytics.application.role_least_privilege
-  for_each: aws.kinesisanalytics.describe_application
-  conditions:
-    all:
-    - var: item.application_status
-      op: equals
-      value: ACTIVE
-    - var: item.cloud_watch_logging_option_descriptions
-      op: exists
-- rule_id: aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured
-  for_each: aws.kinesisanalytics.describe_application
-  conditions:
-    all:
-    - var: item.application_status
-      op: equals
-      value: ACTIVE
-    - var: item.output_descriptions
-      op: exists
 - rule_id: aws.kinesisanalytics.application.network_private_only_configured
   for_each: aws.kinesisanalytics.list_applications
   conditions:
-    var: item.application_status
+    var: item.ApplicationStatus
     op: equals
     value: ACTIVE

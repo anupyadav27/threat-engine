@@ -1,0 +1,24 @@
+version: '1.0'
+provider: azure
+service: subscription
+discovery:
+- discovery_id: azure.subscription.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      subscription_id: '{{ item.subscription_id }}'
+      display_name: '{{ item.display_name }}'
+      state: '{{ item.state }}'
+      subscription_policies: '{{ item.subscription_policies }}'
+      authorization_source: '{{ item.authorization_source }}'
+checks:
+- rule_id: azure.subscription.owner.count.check
+  for_each: azure.subscription.list
+  conditions:
+    var: item.authorization_source
+    op: not_empty

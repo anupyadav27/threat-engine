@@ -1,38 +1,52 @@
 version: '1.0'
 provider: aws
 service: kafka
+services:
+  client: kafka
+  module: boto3.client
 discovery:
 - discovery_id: aws.kafka.list_clusters
   calls:
   - action: list_clusters
-    save_as: list_clusters_response
+    save_as: response
   emit:
-    items_for: '{{ list_clusters_response.ClusterInfoList }}'
+    items_for: '{{ response.ClusterInfoList }}'
     as: resource
     item:
-      active_operation_arn: '{{ resource.ActiveOperationArn }}'
-      broker_node_group_info: '{{ resource.BrokerNodeGroupInfo }}'
-      rebalancing: '{{ resource.Rebalancing }}'
-      client_authentication: '{{ resource.ClientAuthentication }}'
-      cluster_arn: '{{ resource.ClusterArn }}'
-      cluster_name: '{{ resource.ClusterName }}'
-      creation_time: '{{ resource.CreationTime }}'
-      current_broker_software_info: '{{ resource.CurrentBrokerSoftwareInfo }}'
-      current_version: '{{ resource.CurrentVersion }}'
-      encryption_info: '{{ resource.EncryptionInfo }}'
+      ActiveOperationArn: '{{ resource.ActiveOperationArn }}'
+      BrokerNodeGroupInfo: '{{ resource.BrokerNodeGroupInfo }}'
+      Rebalancing: '{{ resource.Rebalancing }}'
+      ClientAuthentication: '{{ resource.ClientAuthentication }}'
+      ClusterArn: '{{ resource.ClusterArn }}'
+      ClusterName: '{{ resource.ClusterName }}'
+      CreationTime: '{{ resource.CreationTime }}'
+      CurrentBrokerSoftwareInfo: '{{ resource.CurrentBrokerSoftwareInfo }}'
+      CurrentVersion: '{{ resource.CurrentVersion }}'
+      EncryptionInfo: '{{ resource.EncryptionInfo }}'
+      EnhancedMonitoring: '{{ resource.EnhancedMonitoring }}'
+      OpenMonitoring: '{{ resource.OpenMonitoring }}'
+      LoggingInfo: '{{ resource.LoggingInfo }}'
+      NumberOfBrokerNodes: '{{ resource.NumberOfBrokerNodes }}'
+      State: '{{ resource.State }}'
+      StateInfo: '{{ resource.StateInfo }}'
+      Tags: '{{ resource.Tags }}'
+      ZookeeperConnectString: '{{ resource.ZookeeperConnectString }}'
+      ZookeeperConnectStringTls: '{{ resource.ZookeeperConnectStringTls }}'
+      StorageMode: '{{ resource.StorageMode }}'
+      CustomerActionStatus: '{{ resource.CustomerActionStatus }}'
 checks:
 - rule_id: aws.kafka.resource.connector_in_transit_encryption_enabled
   for_each: aws.kafka.list_clusters
   conditions:
-    var: item.encryption_info
+    var: item.EncryptionInfo
     op: exists
 - rule_id: aws.kafka.cluster.in_transit_encryption_enabled
   for_each: aws.kafka.list_clusters
   conditions:
-    var: item.encryption_info
+    var: item.EncryptionInfo
     op: exists
 - rule_id: aws.kafka.cluster.encryption_at_rest_uses_cmk_configured
   for_each: aws.kafka.list_clusters
   conditions:
-    var: item.encryption_info
+    var: item.EncryptionInfo
     op: exists

@@ -1,0 +1,48 @@
+version: '1.0'
+provider: azure
+service: logic
+discovery:
+- discovery_id: azure.logic.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      kind: '{{ item.kind }}'
+      location: '{{ item.location }}'
+      type: '{{ item.type }}'
+      tags: '{{ item.tags }}'
+      certificates: '{{ item.certificates }}'
+      distinguished_name: '{{ item.distinguished_name }}'
+      domain_verification_token: '{{ item.domain_verification_token }}'
+      validity_in_years: '{{ item.validity_in_years }}'
+      key_size: '{{ item.key_size }}'
+      product_type: '{{ item.product_type }}'
+      auto_renew: '{{ item.auto_renew }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      signed_certificate: '{{ item.signed_certificate }}'
+      csr: '{{ item.csr }}'
+      intermediate: '{{ item.intermediate }}'
+      root: '{{ item.root }}'
+      serial_number: '{{ item.serial_number }}'
+checks:
+- rule_id: azure.logic.apps_workflow.incident_workflow_kms_encryption_enabled
+  for_each: azure.logic.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.logic.apps_workflow.incident_workflow_integrations_least_privilege
+  for_each: azure.logic.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.logic.apps_workflow.incident_workflow_approval_steps_required_for_destructive_actions
+  for_each: azure.logic.list
+  conditions:
+    var: item.id
+    op: exists

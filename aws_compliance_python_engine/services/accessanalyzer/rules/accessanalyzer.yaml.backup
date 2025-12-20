@@ -1,57 +1,75 @@
 version: '1.0'
 provider: aws
 service: accessanalyzer
+services:
+  client: accessanalyzer
+  module: boto3.client
 discovery:
 - discovery_id: aws.accessanalyzer.list_analyzers
   calls:
   - action: list_analyzers
-    save_as: list_analyzers_response
+    save_as: response
   emit:
-    items_for: '{{ list_analyzers_response.analyzers }}'
+    items_for: '{{ response.analyzers }}'
     as: resource
     item:
       arn: '{{ resource.arn }}'
       name: '{{ resource.name }}'
       type: '{{ resource.type }}'
-      created_at: '{{ resource.createdAt }}'
-      last_resource_analyzed: '{{ resource.lastResourceAnalyzed }}'
-      last_resource_analyzed_at: '{{ resource.lastResourceAnalyzedAt }}'
+      createdAt: '{{ resource.createdAt }}'
+      lastResourceAnalyzed: '{{ resource.lastResourceAnalyzed }}'
+      lastResourceAnalyzedAt: '{{ resource.lastResourceAnalyzedAt }}'
       tags: '{{ resource.tags }}'
       status: '{{ resource.status }}'
-      status_reason: '{{ resource.statusReason }}'
+      statusReason: '{{ resource.statusReason }}'
       configuration: '{{ resource.configuration }}'
-- discovery_id: aws.accessanalyzer.get_access_preview
+- discovery_id: aws.accessanalyzer.get_analyzer
   calls:
-  - action: get_access_preview
-    save_as: get_access_preview_response
+  - action: get_analyzer
+    save_as: response
     params:
-      accessPreviewId: '{{ item.id }}'
-      analyzerArn: '{{ item.arn }}'
-    on_error: continue
+      analyzerName: '{{ item.name }}'
+  on_error: continue
   for_each: aws.accessanalyzer.list_analyzers
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ get_access_preview_response.accessPreview.id }}'
-      analyzer_arn: '{{ get_access_preview_response.accessPreview.analyzerArn }}'
-      configurations: '{{ get_access_preview_response.accessPreview.configurations
-        }}'
-      created_at: '{{ get_access_preview_response.accessPreview.createdAt }}'
-      status: '{{ get_access_preview_response.accessPreview.status }}'
+      arn: '{{ response.arn }}'
+      name: '{{ response.name }}'
+      type: '{{ response.type }}'
+      createdAt: '{{ response.createdAt }}'
+      lastResourceAnalyzed: '{{ response.lastResourceAnalyzed }}'
+      lastResourceAnalyzedAt: '{{ response.lastResourceAnalyzedAt }}'
+      tags: '{{ response.tags }}'
+      status: '{{ response.status }}'
+      statusReason: '{{ response.statusReason }}'
+      configuration: '{{ response.configuration }}'
+- discovery_id: aws.accessanalyzer.get_access_preview
+  calls:
+  - action: get_access_preview
+    save_as: response
+    params:
+      accessPreviewId: '{{ item.id }}'
+      analyzerArn: '{{ item.analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      id: '{{ response.accessPreview.id }}'
+      analyzerArn: '{{ response.accessPreview.analyzerArn }}'
+      configurations: '{{ response.accessPreview.configurations }}'
+      createdAt: '{{ response.accessPreview.createdAt }}'
+      status: '{{ response.accessPreview.status }}'
+      statusReason: '{{ response.accessPreview.statusReason }}'
 checks:
-- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled
+- rule_id: aws.accessanalyzer.resource.analyzer_active
   for_each: aws.accessanalyzer.list_analyzers
   conditions:
     var: item.status
     op: equals
     value: ACTIVE
-- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled_without_findings
+- rule_id: aws.accessanalyzer.resource.analyzer_with_findings
   for_each: aws.accessanalyzer.get_access_preview
   conditions:
-    all:
-    - var: item.status
-      op: equals
-      value: ACTIVE
-    - var: item.id
-      op: equals
-      value: []
+    var: item.id
+    op: exists
+    value: null

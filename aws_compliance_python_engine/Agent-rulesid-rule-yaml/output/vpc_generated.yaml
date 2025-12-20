@@ -2,12 +2,12 @@ version: '1.0'
 provider: aws
 service: vpc
 discovery:
-- discovery_id: aws.vpc.create_default_subnet
+- discovery_id: aws.vpc.describe_subnets
   calls:
-  - action: create_default_subnet
-    save_as: create_default_subnet_response
+  - action: describe_subnets
+    save_as: describe_subnets_response
   emit:
-    items_for: '{{ create_default_subnet_response.Subnet }}'
+    items_for: '{{ describe_subnets_response.Subnets }}'
     as: resource
     item:
       availability_zone_id: '{{ resource.AvailabilityZoneId }}'
@@ -105,12 +105,12 @@ discovery:
       tags: '{{ resource.Tags }}'
       vpc_id: '{{ resource.VpcId }}'
       owner_id: '{{ resource.OwnerId }}'
-- discovery_id: aws.vpc.authorize_security_group_ingress
+- discovery_id: aws.vpc.describe_security_group_rules
   calls:
-  - action: authorize_security_group_ingress
-    save_as: authorize_security_group_ingress_response
+  - action: describe_security_group_rules
+    save_as: describe_security_group_rules_response
   emit:
-    items_for: '{{ authorize_security_group_ingress_response.SecurityGroupRules }}'
+    items_for: '{{ describe_security_group_rules_response.SecurityGroupRules }}'
     as: resource
     item:
       security_group_rule_id: '{{ resource.SecurityGroupRuleId }}'
@@ -123,12 +123,12 @@ discovery:
       cidr_ipv4: '{{ resource.CidrIpv4 }}'
       cidr_ipv6: '{{ resource.CidrIpv6 }}'
       prefix_list_id: '{{ resource.PrefixListId }}'
-- discovery_id: aws.vpc.create_vpc_endpoint_service_configuration
+- discovery_id: aws.vpc.describe_vpc_endpoint_service_configurations
   calls:
-  - action: create_vpc_endpoint_service_configuration
-    save_as: create_vpc_endpoint_service_configuration_response
+  - action: describe_vpc_endpoint_service_configurations
+    save_as: describe_vpc_endpoint_service_configurations_response
   emit:
-    items_for: '{{ create_vpc_endpoint_service_configuration_response.ServiceConfiguration
+    items_for: '{{ describe_vpc_endpoint_service_configurations_response.ServiceConfigurations
       }}'
     as: resource
     item:
@@ -142,24 +142,43 @@ discovery:
       manages_vpc_endpoints: '{{ resource.ManagesVpcEndpoints }}'
       network_load_balancer_arns: '{{ resource.NetworkLoadBalancerArns }}'
       gateway_load_balancer_arns: '{{ resource.GatewayLoadBalancerArns }}'
-- discovery_id: aws.vpc.create_default_vpc
+- discovery_id: aws.vpc.describe_availability_zones
   calls:
-  - action: create_default_vpc
-    save_as: create_default_vpc_response
+  - action: describe_availability_zones
+    save_as: describe_availability_zones_response
   emit:
-    items_for: '{{ create_default_vpc_response.Vpc }}'
+    items_for: '{{ describe_availability_zones_response.AvailabilityZones }}'
+    as: resource
+    item:
+      opt_in_status: '{{ resource.OptInStatus }}'
+      messages: '{{ resource.Messages }}'
+      region_name: '{{ resource.RegionName }}'
+      zone_name: '{{ resource.ZoneName }}'
+      zone_id: '{{ resource.ZoneId }}'
+      group_name: '{{ resource.GroupName }}'
+      network_border_group: '{{ resource.NetworkBorderGroup }}'
+      zone_type: '{{ resource.ZoneType }}'
+      parent_zone_name: '{{ resource.ParentZoneName }}'
+      parent_zone_id: '{{ resource.ParentZoneId }}'
+- discovery_id: aws.vpc.describe_ipam_resource_discoveries
+  calls:
+  - action: describe_ipam_resource_discoveries
+    save_as: describe_ipam_resource_discoveries_response
+  emit:
+    items_for: '{{ describe_ipam_resource_discoveries_response.IpamResourceDiscoveries
+      }}'
     as: resource
     item:
       owner_id: '{{ resource.OwnerId }}'
-      instance_tenancy: '{{ resource.InstanceTenancy }}'
-      ipv6_cidr_block_association_set: '{{ resource.Ipv6CidrBlockAssociationSet }}'
-      cidr_block_association_set: '{{ resource.CidrBlockAssociationSet }}'
+      ipam_resource_discovery_id: '{{ resource.IpamResourceDiscoveryId }}'
+      ipam_resource_discovery_arn: '{{ resource.IpamResourceDiscoveryArn }}'
+      ipam_resource_discovery_region: '{{ resource.IpamResourceDiscoveryRegion }}'
+      description: '{{ resource.Description }}'
+      operating_regions: '{{ resource.OperatingRegions }}'
       is_default: '{{ resource.IsDefault }}'
-      encryption_control: '{{ resource.EncryptionControl }}'
-      tags: '{{ resource.Tags }}'
-      block_public_access_states: '{{ resource.BlockPublicAccessStates }}'
-      vpc_id: '{{ resource.VpcId }}'
       state: '{{ resource.State }}'
+      tags: '{{ resource.Tags }}'
+      organizational_unit_exclusions: '{{ resource.OrganizationalUnitExclusions }}'
 - discovery_id: aws.vpc.describe_client_vpn_endpoints
   calls:
   - action: describe_client_vpn_endpoints
@@ -178,12 +197,12 @@ discovery:
       dns_servers: '{{ resource.DnsServers }}'
       split_tunnel: '{{ resource.SplitTunnel }}'
       vpn_protocol: '{{ resource.VpnProtocol }}'
-- discovery_id: aws.vpc.create_nat_gateway
+- discovery_id: aws.vpc.describe_nat_gateways
   calls:
-  - action: create_nat_gateway
-    save_as: create_nat_gateway_response
+  - action: describe_nat_gateways
+    save_as: describe_nat_gateways_response
   emit:
-    items_for: '{{ create_nat_gateway_response.NatGateway }}'
+    items_for: '{{ describe_nat_gateways_response.NatGateways }}'
     as: resource
     item:
       create_time: '{{ resource.CreateTime }}'
@@ -211,19 +230,43 @@ discovery:
       tags: '{{ resource.Tags }}'
       vpc_id: '{{ resource.VpcId }}'
       owner_id: '{{ resource.OwnerId }}'
-- discovery_id: aws.vpc.create_transit_gateway
+- discovery_id: aws.vpc.describe_capacity_block_extension_history
   calls:
-  - action: create_transit_gateway
-    save_as: create_transit_gateway_response
+  - action: describe_capacity_block_extension_history
+    save_as: describe_capacity_block_extension_history_response
   emit:
-    items_for: '{{ create_transit_gateway_response.TransitGateway }}'
+    items_for: '{{ describe_capacity_block_extension_history_response.CapacityBlockExtensions
+      }}'
     as: resource
     item:
+      capacity_reservation_id: '{{ resource.CapacityReservationId }}'
+      instance_type: '{{ resource.InstanceType }}'
+      instance_count: '{{ resource.InstanceCount }}'
+      availability_zone: '{{ resource.AvailabilityZone }}'
+      availability_zone_id: '{{ resource.AvailabilityZoneId }}'
+      capacity_block_extension_offering_id: '{{ resource.CapacityBlockExtensionOfferingId
+        }}'
+      capacity_block_extension_duration_hours: '{{ resource.CapacityBlockExtensionDurationHours
+        }}'
+      capacity_block_extension_status: '{{ resource.CapacityBlockExtensionStatus }}'
+      capacity_block_extension_purchase_date: '{{ resource.CapacityBlockExtensionPurchaseDate
+        }}'
+      capacity_block_extension_start_date: '{{ resource.CapacityBlockExtensionStartDate
+        }}'
+- discovery_id: aws.vpc.describe_transit_gateway_connects
+  calls:
+  - action: describe_transit_gateway_connects
+    save_as: describe_transit_gateway_connects_response
+  emit:
+    items_for: '{{ describe_transit_gateway_connects_response.TransitGatewayConnects
+      }}'
+    as: resource
+    item:
+      transit_gateway_attachment_id: '{{ resource.TransitGatewayAttachmentId }}'
+      transport_transit_gateway_attachment_id: '{{ resource.TransportTransitGatewayAttachmentId
+        }}'
       transit_gateway_id: '{{ resource.TransitGatewayId }}'
-      transit_gateway_arn: '{{ resource.TransitGatewayArn }}'
       state: '{{ resource.State }}'
-      owner_id: '{{ resource.OwnerId }}'
-      description: '{{ resource.Description }}'
       creation_time: '{{ resource.CreationTime }}'
       options: '{{ resource.Options }}'
       tags: '{{ resource.Tags }}'
@@ -245,27 +288,30 @@ discovery:
       routes: '{{ resource.Routes }}'
       tags: '{{ resource.Tags }}'
       vgw_telemetry: '{{ resource.VgwTelemetry }}'
-- discovery_id: aws.vpc.create_ipam
+- discovery_id: aws.vpc.describe_ipam_external_resource_verification_tokens
   calls:
-  - action: create_ipam
-    save_as: create_ipam_response
+  - action: describe_ipam_external_resource_verification_tokens
+    save_as: describe_ipam_external_resource_verification_tokens_response
   emit:
-    items_for: '{{ create_ipam_response.Ipam }}'
+    items_for: '{{ describe_ipam_external_resource_verification_tokens_response.IpamExternalResourceVerificationTokens
+      }}'
     as: resource
     item:
-      owner_id: '{{ resource.OwnerId }}'
+      ipam_external_resource_verification_token_id: '{{ resource.IpamExternalResourceVerificationTokenId
+        }}'
+      ipam_external_resource_verification_token_arn: '{{ resource.IpamExternalResourceVerificationTokenArn
+        }}'
       ipam_id: '{{ resource.IpamId }}'
       ipam_arn: '{{ resource.IpamArn }}'
       ipam_region: '{{ resource.IpamRegion }}'
-      public_default_scope_id: '{{ resource.PublicDefaultScopeId }}'
-      private_default_scope_id: '{{ resource.PrivateDefaultScopeId }}'
-      scope_count: '{{ resource.ScopeCount }}'
-      description: '{{ resource.Description }}'
-      operating_regions: '{{ resource.OperatingRegions }}'
-      state: '{{ resource.State }}'
+      token_value: '{{ resource.TokenValue }}'
+      token_name: '{{ resource.TokenName }}'
+      not_after: '{{ resource.NotAfter }}'
+      status: '{{ resource.Status }}'
+      tags: '{{ resource.Tags }}'
 checks:
 - rule_id: aws.vpc.subnet.dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -311,7 +357,7 @@ checks:
     op: equals
     value: []
 - rule_id: aws.vpc.networkacl.network_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -358,7 +404,7 @@ checks:
       op: equals
       value: []
 - rule_id: aws.vpc.nacl_ingress_restricted_ports_22_3389.nacl_ingress_restricted_ports_22_3389_configured
-  for_each: aws.vpc.authorize_security_group_ingress
+  for_each: aws.vpc.describe_security_group_rules
   conditions:
     all:
     - var: item.from_port
@@ -371,7 +417,7 @@ checks:
       op: equals
       value: 0.0.0.0/0
 - rule_id: aws.vpc.resource.endpoint_multi_az_enabled
-  for_each: aws.vpc.create_vpc_endpoint_service_configuration
+  for_each: aws.vpc.describe_vpc_endpoint_service_configurations
   conditions:
     var: item.availability_zones
     op: gt
@@ -383,7 +429,7 @@ checks:
     op: equals
     value: ACTIVE
 - rule_id: aws.vpc.internetgateway.api_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -402,13 +448,13 @@ checks:
       op: equals
       value: []
 - rule_id: aws.vpc.resource.endpoint_for_ec2_enabled
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_availability_zones
   conditions:
     var: item.state
     op: equals
     value: Available
 - rule_id: aws.vpc.network_interface.network_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -417,7 +463,7 @@ checks:
     - var: item.private_dns_name_options_on_launch
       op: exists
 - rule_id: aws.vpc.routetable.dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_vpc
+  for_each: aws.vpc.describe_ipam_resource_discoveries
   conditions:
     all:
     - var: item.state
@@ -433,7 +479,7 @@ checks:
     op: equals
     value: ACTIVE
 - rule_id: aws.vpc.subnet_separate_private_public.subnet_separate_private_public_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_customer_gateways
   conditions:
     any:
     - var: item.type
@@ -443,7 +489,7 @@ checks:
       op: equals
       value: public
 - rule_id: aws.vpc.vpngateway.api_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -468,7 +514,7 @@ checks:
       op: equals
       value: []
 - rule_id: aws.vpc.securitygroup.security_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     all:
     - var: item.enable_dns64
@@ -477,7 +523,7 @@ checks:
     - var: item.private_dns_name_options_on_launch
       op: exists
 - rule_id: aws.vpc.endpoint_services_allowed_principals_trust_boundaries.endpoint_principals_trust_boundaries_configured
-  for_each: aws.vpc.create_vpc_endpoint_service_configuration
+  for_each: aws.vpc.describe_vpc_endpoint_service_configurations
   conditions:
     var: item.acceptance_required
     op: equals
@@ -492,7 +538,7 @@ checks:
     - var: item.tags
       op: exists
 - rule_id: aws.vpc.natgateway.api_dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_nat_gateway
+  for_each: aws.vpc.describe_nat_gateways
   conditions:
     all:
     - var: item.state
@@ -502,7 +548,7 @@ checks:
       op: equals
       value: public
 - rule_id: aws.vpc.subnet_no_public_ip_by_default.subnet_no_public_ip_by_default_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_subnets
   conditions:
     var: item.map_customer_owned_ip_on_launch
     op: equals
@@ -580,12 +626,12 @@ checks:
     op: equals
     value: ACTIVE
 - rule_id: aws.vpc.subnet_different_az.subnet_different_az_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_capacity_block_extension_history
   conditions:
     var: item.availability_zone_id
     op: exists
 - rule_id: aws.vpc.vpnconnection.dns_hostnames_and_support_configured
-  for_each: aws.vpc.create_transit_gateway
+  for_each: aws.vpc.describe_transit_gateway_connects
   conditions:
     all:
     - var: item.state
@@ -608,7 +654,7 @@ checks:
       op: equals
       value: []
 - rule_id: aws.vpc.vpn_connection_tunnels_up.vpn_connection_tunnels_up_configured
-  for_each: aws.vpc.create_default_subnet
+  for_each: aws.vpc.describe_availability_zones
   conditions:
     var: item.state
     op: equals
@@ -635,7 +681,7 @@ checks:
       value:
         GatewayId: igw-
 - rule_id: aws.vpc.different_regions.different_regions_configured
-  for_each: aws.vpc.create_ipam
+  for_each: aws.vpc.describe_ipam_external_resource_verification_tokens
   conditions:
     all:
     - var: item.state

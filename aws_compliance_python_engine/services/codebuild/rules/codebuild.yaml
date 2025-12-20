@@ -1,55 +1,91 @@
 version: '1.0'
 provider: aws
 service: codebuild
+services:
+  client: codebuild
+  module: boto3.client
 discovery:
+- discovery_id: aws.codebuild.list_source_credentials
+  calls:
+  - action: list_source_credentials
+    save_as: response
+  emit:
+    items_for: '{{ response.sourceCredentialsInfos }}'
+    as: resource
+    item:
+      arn: '{{ resource.arn }}'
+      serverType: '{{ resource.serverType }}'
+      authType: '{{ resource.authType }}'
+      resource: '{{ resource.resource }}'
 - discovery_id: aws.codebuild.retry_build
   calls:
   - action: retry_build
-    save_as: retry_build_response
+    save_as: response
   emit:
-    items_for: '{{ retry_build_response.build }}'
-    as: resource
     item:
-      id: '{{ resource.id }}'
-      arn: '{{ resource.arn }}'
-      build_number: '{{ resource.buildNumber }}'
-      start_time: '{{ resource.startTime }}'
-      end_time: '{{ resource.endTime }}'
-      current_phase: '{{ resource.currentPhase }}'
-      build_status: '{{ resource.buildStatus }}'
-      source_version: '{{ resource.sourceVersion }}'
-      resolved_source_version: '{{ resource.resolvedSourceVersion }}'
-      project_name: '{{ resource.projectName }}'
+      id: '{{ response.build.id }}'
+      arn: '{{ response.build.arn }}'
+      buildNumber: '{{ response.build.buildNumber }}'
+      startTime: '{{ response.build.startTime }}'
+      endTime: '{{ response.build.endTime }}'
+      currentPhase: '{{ response.build.currentPhase }}'
+      buildStatus: '{{ response.build.buildStatus }}'
+      sourceVersion: '{{ response.build.sourceVersion }}'
+      resolvedSourceVersion: '{{ response.build.resolvedSourceVersion }}'
+      projectName: '{{ response.build.projectName }}'
+      phases: '{{ response.build.phases }}'
+      source: '{{ response.build.source }}'
+      secondarySources: '{{ response.build.secondarySources }}'
+      secondarySourceVersions: '{{ response.build.secondarySourceVersions }}'
+      artifacts: '{{ response.build.artifacts }}'
+      secondaryArtifacts: '{{ response.build.secondaryArtifacts }}'
+      cache: '{{ response.build.cache }}'
+      environment: '{{ response.build.environment }}'
+      serviceRole: '{{ response.build.serviceRole }}'
+      logs: '{{ response.build.logs }}'
+      timeoutInMinutes: '{{ response.build.timeoutInMinutes }}'
+      queuedTimeoutInMinutes: '{{ response.build.queuedTimeoutInMinutes }}'
+      buildComplete: '{{ response.build.buildComplete }}'
+      initiator: '{{ response.build.initiator }}'
+      vpcConfig: '{{ response.build.vpcConfig }}'
+      networkInterface: '{{ response.build.networkInterface }}'
+      encryptionKey: '{{ response.build.encryptionKey }}'
+      exportedEnvironmentVariables: '{{ response.build.exportedEnvironmentVariables
+        }}'
+      reportArns: '{{ response.build.reportArns }}'
+      fileSystemLocations: '{{ response.build.fileSystemLocations }}'
+      debugSession: '{{ response.build.debugSession }}'
+      buildBatchArn: '{{ response.build.buildBatchArn }}'
+      autoRetryConfig: '{{ response.build.autoRetryConfig }}'
 - discovery_id: aws.codebuild.batch_get_fleets
   calls:
   - action: batch_get_fleets
-    save_as: batch_get_fleets_response
-    params:
-      names: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.codebuild.retry_build
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ batch_get_fleets_response.fleets.arn }}'
-      name: '{{ batch_get_fleets_response.fleets.name }}'
-      id: '{{ batch_get_fleets_response.fleets.id }}'
-      created: '{{ batch_get_fleets_response.fleets.created }}'
-      last_modified: '{{ batch_get_fleets_response.fleets.lastModified }}'
+      arn: '{{ response.fleets.arn }}'
+      name: '{{ response.fleets.name }}'
+      id: '{{ response.fleets.id }}'
+      created: '{{ response.fleets.created }}'
+      lastModified: '{{ response.fleets.lastModified }}'
+      status: '{{ response.fleets.status }}'
+      baseCapacity: '{{ response.fleets.baseCapacity }}'
+      environmentType: '{{ response.fleets.environmentType }}'
+      computeType: '{{ response.fleets.computeType }}'
+      computeConfiguration: '{{ response.fleets.computeConfiguration }}'
+      scalingConfiguration: '{{ response.fleets.scalingConfiguration }}'
+      overflowBehavior: '{{ response.fleets.overflowBehavior }}'
+      vpcConfig: '{{ response.fleets.vpcConfig }}'
+      proxyConfiguration: '{{ response.fleets.proxyConfiguration }}'
+      imageId: '{{ response.fleets.imageId }}'
+      fleetServiceRole: '{{ response.fleets.fleetServiceRole }}'
+      tags: '{{ response.fleets.tags }}'
 checks:
 - rule_id: aws.codebuild.resource.codebuild_project_envvar_awscred_configured
   for_each: aws.codebuild.retry_build
   conditions:
     var: item.environment
     op: exists
-- rule_id: aws.codebuild.user.codebuild_controlled_buildspec_configured
-  for_each: aws.codebuild.retry_build
-  conditions:
-    all:
-    - var: item.source
-      op: exists
-    - var: item.secondary_sources
-      op: exists
 - rule_id: aws.codebuild.resource.project_logging_enabled
   for_each: aws.codebuild.retry_build
   conditions:
@@ -58,26 +94,26 @@ checks:
 - rule_id: aws.codebuild.group.codebuild_export_encrypted
   for_each: aws.codebuild.retry_build
   conditions:
-    var: item.encryption_key
+    var: item.encryptionKey
     op: exists
 - rule_id: aws.codebuild.resource.codebuild_project_s3_logs_encrypted
   for_each: aws.codebuild.retry_build
   conditions:
-    var: item.encryption_key
+    var: item.encryptionKey
     op: exists
 - rule_id: aws.codebuild.project.codebuild_older_90_days_configured
   for_each: aws.codebuild.batch_get_fleets
   conditions:
-    var: item.last_modified
+    var: item.lastModified
     op: lte
     value: '2023-07-01T00:00:00Z'
 - rule_id: aws.codebuild.resource.codebuild_project_source_repo_url_configured
   for_each: aws.codebuild.retry_build
   conditions:
-    var: item.source
+    var: item.resolvedSourceVersion
     op: exists
 - rule_id: aws.codebuild.projectartifact.encryption_enabled
   for_each: aws.codebuild.retry_build
   conditions:
-    var: item.encryption_key
+    var: item.encryptionKey
     op: exists

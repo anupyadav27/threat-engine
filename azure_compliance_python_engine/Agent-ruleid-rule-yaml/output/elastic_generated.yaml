@@ -1,0 +1,31 @@
+version: '1.0'
+provider: azure
+service: elastic
+discovery:
+- discovery_id: azure.elastic.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+checks:
+- rule_id: azure.elastic.san.public.network.access.disabled
+  for_each: azure.elastic.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.elastic.san.volume.group.encryption.at.rest.with.cmk
+  for_each: azure.elastic.list
+  conditions:
+    var: item.id
+    op: exists

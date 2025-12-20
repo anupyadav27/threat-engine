@@ -1,0 +1,68 @@
+version: '1.0'
+provider: azure
+service: databricks
+discovery:
+- discovery_id: azure.databricks.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      platform_update_domain_count: '{{ item.platform_update_domain_count }}'
+      platform_fault_domain_count: '{{ item.platform_fault_domain_count }}'
+      virtual_machines: '{{ item.virtual_machines }}'
+      proximity_placement_group: '{{ item.proximity_placement_group }}'
+      statuses: '{{ item.statuses }}'
+      scheduled_events_policy: '{{ item.scheduled_events_policy }}'
+      virtual_machine_scale_set_migration_info: '{{ item.virtual_machine_scale_set_migration_info
+        }}'
+checks:
+- rule_id: azure.databricks.workspace.public.network.access.check
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.workspace.diagnostic.logging.configured
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.workspace.vnet.configuration.check
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.workspace.encryption.cmk.enabled
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.scim.sync.verification
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.workspace.check.no.public.ip.enabled
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.workspace.private.endpoint.status.check
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.databricks.pat.compliance.check
+  for_each: azure.databricks.list
+  conditions:
+    var: item.id
+    op: exists

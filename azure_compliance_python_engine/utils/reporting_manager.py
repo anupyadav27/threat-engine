@@ -226,6 +226,11 @@ def setup_scan_logging(scan_folder: str, scan_id: str):
     logger.setLevel(logging.INFO)
     logger.handlers.clear()  # Remove any existing handlers
     
+    # Also configure service scanner logger to use same handlers
+    service_logger = logging.getLogger('azure-service-scanner')
+    service_logger.setLevel(logging.INFO)
+    service_logger.handlers.clear()
+    
     # File handler - all logs
     fh = logging.FileHandler(log_file)
     fh.setLevel(logging.INFO)
@@ -252,6 +257,11 @@ def setup_scan_logging(scan_folder: str, scan_id: str):
         datefmt='%Y-%m-%d %H:%M:%S'
     ))
     logger.addHandler(ch)
+    
+    # Add same handlers to service scanner logger
+    service_logger.addHandler(fh)
+    service_logger.addHandler(eh)
+    service_logger.addHandler(ch)
     
     logger.info(f"[SCAN-START] {scan_id}")
     logger.info(f"Scan folder: {scan_folder}")

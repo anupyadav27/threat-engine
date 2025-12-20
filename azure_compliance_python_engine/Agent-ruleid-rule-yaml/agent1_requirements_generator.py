@@ -88,25 +88,29 @@ SERVICE_NAME_MAPPING = {
     'devops': None,  # Uses azure-devops SDK (not ARM pattern)
     'intune': None,  # Part of Microsoft Graph API
     'power': None,  # Power BI uses separate API
+    
+    # Missing services that need mappings
+    'kusto': 'kusto',  # Azure Data Explorer (Kusto)
+    'loganalytics': 'loganalytics',  # Log Analytics
+    'managedidentity': 'managedidentity',  # Managed Identity
+    'servicebus': 'servicebus',  # Service Bus
+    'signalr': 'signalr',  # SignalR
+    'storageaccount': 'storage',  # Storage Account (same as storage)
+    'streamanalytics': 'streamanalytics',  # Stream Analytics
 }
 
 # ALL Azure services with metadata (52 services, excluding 6 completed)
-SERVICES_COMPLETED = ['compute', 'network', 'storage', 'keyvault', 'automation', 'batch']
+SERVICES_COMPLETED = []  # No services pre-completed - process all
 
-# Process all services
+# Process missing services that need rule files
 SERVICES_TO_PROCESS = [
-    # Large services (50+ rules)
-    'machine', 'purview', 'monitor', 'aks', 'data', 'security',
-    'aad', 'sql', 'webapp', 'policy', 'backup', 'synapse', 'function',
-    # Medium services (10-50 rules)
-    'cdn', 'api', 'event', 'cost', 'power', 'cosmosdb', 'dns', 'rbac',
-    # Small services (1-10 rules)
-    'key', 'mysql', 'databricks', 'postgresql', 'management', 'iam',
-    'containerregistry', 'container', 'hdinsight', 'billing', 'search',
-    'resource', 'redis', 'front', 'dataprotection', 'traffic', 'logic',
-    'log', 'files', 'elastic', 'certificates', 'blob', 'subscription',
-    'notification', 'netappfiles', 'mariadb', 'managementgroup',
-    'iot', 'intune', 'devops', 'config'
+    'kusto',
+    'loganalytics',
+    'managedidentity',
+    'servicebus',
+    'signalr',
+    'storageaccount',
+    'streamanalytics'
 ]
 
 
@@ -245,6 +249,23 @@ Respond with ONLY valid JSON, no markdown:
   "condition_logic": "single"
 }}"""
 
+    # Get available fields for validation (before retry loop)
+    service_data = azure_data.get(sdk_service, {})
+    all_available_fields_set = set()
+    operation_names = set()
+    
+    for op in service_data.get('independent', [])[:5]:
+        fields = op.get('item_fields', {})
+        if isinstance(fields, dict):
+            all_available_fields_set.update(fields.keys())
+        elif isinstance(fields, list):
+            all_available_fields_set.update(fields)
+        
+        # Collect operation names to filter out
+        operation_names.add(op.get('operation', '').lower())
+        operation_names.add(op.get('python_method', '').lower())
+        operation_names.add(op.get('yaml_action', '').lower())
+    
     # Retry logic for API rate limits
     max_retries = 3
     retry_delay = 5  # Increased initial retry delay
@@ -269,7 +290,108 @@ Respond with ONLY valid JSON, no markdown:
             # Parse JSON
             requirements = json.loads(response_text)
             
-            logger.info(f"AI generated {len(requirements.get('fields', []))} fields for {rule_id}")
+            # Clean and validate fields
+            cleaned_fields = []
+            fields = requirements.get('fields', [])
+            
+            for field_spec in fields:
+                field_name = field_spec.get('azure_sdk_python_field', '')
+                
+                # Filter out operation names
+                if field_name.lower() in operation_names:
+                    logger.warning(f"Filtered out operation name '{field_name}' from fields for {rule_id}")
+                    continue
+                
+                # Validate field exists in available fields (if we have them)
+                if all_available_fields_set and field_name:
+                    if field_name not in all_available_fields_set:
+                        # Try fuzzy match
+                        from difflib import get_close_matches
+                        matches = get_close_matches(field_name, list(all_available_fields_set), n=1, cutoff=0.8)
+                        if matches:
+                            logger.info(f"Corrected field '{field_name}' to '{matches[0]}' for {rule_id}")
+                            field_spec['azure_sdk_python_field'] = matches[0]
+                            field_spec['original_field'] = field_name
+                        else:
+                            logger.warning(f"Field '{field_name}' not found in available fields for {rule_id}, keeping it anyway")
+                
+                cleaned_fields.append(field_spec)
+            
+            # If no valid fields after cleaning, add intelligent fallback based on requirement
+            if not cleaned_fields:
+                logger.warning(f"No valid fields after cleaning for {rule_id}, adding intelligent fallback")
+                
+                # Use requirement/description to intelligently select fields
+                requirement_lower = requirement.lower()
+                description_lower = description.lower()
+                combined_text = f"{requirement_lower} {description_lower}"
+                
+                # Field selection based on requirement semantics
+                field_keywords = {
+                    'enabled': ['enabled', 'enable', 'status', 'state'],
+                    'encryption': ['encryption', 'encrypted', 'encrypt', 'cmk', 'key'],
+                    'access': ['access', 'public', 'private', 'network', 'endpoint'],
+                    'rbac': ['rbac', 'role', 'permission', 'policy', 'authorization'],
+                    'logging': ['logging', 'log', 'audit', 'monitor', 'diagnostic'],
+                    'backup': ['backup', 'retention', 'recovery', 'restore'],
+                    'tags': ['tag', 'label', 'metadata'],
+                    'location': ['location', 'region', 'zone'],
+                    'name': ['name', 'identifier'],
+                    'type': ['type', 'kind', 'category']
+                }
+                
+                selected_field = None
+                if all_available_fields_set:
+                    # Try to match requirement keywords to available fields
+                    for keyword, field_candidates in field_keywords.items():
+                        if any(kw in combined_text for kw in field_candidates):
+                            # Look for matching fields
+                            for candidate in field_candidates:
+                                # Exact match
+                                if candidate in all_available_fields_set:
+                                    selected_field = candidate
+                                    break
+                                # Partial match (field contains keyword)
+                                for field in all_available_fields_set:
+                                    if candidate in field.lower() or field.lower() in candidate:
+                                        selected_field = field
+                                        break
+                                if selected_field:
+                                    break
+                        if selected_field:
+                            break
+                    
+                    # If no semantic match, use common meaningful fields
+                    if not selected_field:
+                        preferred_fields = ['enabled', 'status', 'properties', 'id', 'name', 'type', 'location']
+                        for pref_field in preferred_fields:
+                            if pref_field in all_available_fields_set:
+                                selected_field = pref_field
+                                break
+                    
+                    # Last resort: use first available field
+                    if not selected_field and all_available_fields_set:
+                        selected_field = list(all_available_fields_set)[0]
+                
+                # Add the selected field
+                if selected_field:
+                    cleaned_fields.append({
+                        "conceptual_name": f"{selected_field}_check",
+                        "azure_sdk_python_field": selected_field,
+                        "operator": "exists",
+                        "azure_sdk_python_field_expected_values": None
+                    })
+                else:
+                    # Absolute last resort: generic 'id'
+                    cleaned_fields.append({
+                        "conceptual_name": "resource_exists",
+                        "azure_sdk_python_field": "id",
+                        "operator": "exists",
+                        "azure_sdk_python_field_expected_values": None
+                    })
+            
+            requirements['fields'] = cleaned_fields
+            logger.info(f"AI generated {len(cleaned_fields)} fields for {rule_id} (after cleaning)")
             
             # Delay to avoid rate limits (increased to reduce connection errors)
             time.sleep(1.5)
@@ -283,11 +405,23 @@ Respond with ONLY valid JSON, no markdown:
                 retry_delay *= 2.5  # Exponential backoff (increased multiplier)
             else:
                 logger.error(f"AI generation error for {rule_id} after {max_retries} attempts: {e}")
-                # Return a basic fallback
+                # Return a basic fallback with proper field
+                # Try to get available fields for better fallback
+                service_data = azure_data.get(sdk_service, {})
+                fallback_field = "id"  # Default
+                for op in service_data.get('independent', [])[:1]:
+                    fields = op.get('item_fields', {})
+                    if isinstance(fields, dict) and fields:
+                        fallback_field = list(fields.keys())[0]
+                        break
+                    elif isinstance(fields, list) and fields:
+                        fallback_field = fields[0]
+                        break
+                
                 return {
                     "fields": [{
                         "conceptual_name": "basic_check",
-                        "azure_sdk_python_field": "id",
+                        "azure_sdk_python_field": fallback_field,
                         "operator": "exists",
                         "azure_sdk_python_field_expected_values": None
                     }],

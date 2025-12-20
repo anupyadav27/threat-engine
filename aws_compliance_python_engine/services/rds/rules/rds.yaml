@@ -1,497 +1,680 @@
 version: '1.0'
 provider: aws
 service: rds
+services:
+  client: rds
+  module: boto3.client
 discovery:
-- discovery_id: aws.rds.describe_db_security_groups
-  calls:
-  - action: describe_db_security_groups
-    save_as: describe_db_security_groups_response
-  emit:
-    items_for: '{{ describe_db_security_groups_response.DBSecurityGroups }}'
-    as: resource
-    item:
-      owner_id: '{{ resource.OwnerId }}'
-      db_security_group_name: '{{ resource.DBSecurityGroupName }}'
-      db_security_group_description: '{{ resource.DBSecurityGroupDescription }}'
-      vpc_id: '{{ resource.VpcId }}'
-      ec2_security_groups: '{{ resource.EC2SecurityGroups }}'
-      ip_ranges: '{{ resource.IPRanges }}'
-      db_security_group_arn: '{{ resource.DBSecurityGroupArn }}'
-- discovery_id: aws.rds.describe_db_cluster_automated_backups
-  calls:
-  - action: describe_db_cluster_automated_backups
-    save_as: describe_db_cluster_automated_backups_response
-  emit:
-    items_for: '{{ describe_db_cluster_automated_backups_response.DBClusterAutomatedBackups
-      }}'
-    as: resource
-    item:
-      engine: '{{ resource.Engine }}'
-      vpc_id: '{{ resource.VpcId }}'
-      db_cluster_automated_backups_arn: '{{ resource.DBClusterAutomatedBackupsArn
-        }}'
-      db_cluster_identifier: '{{ resource.DBClusterIdentifier }}'
-      restore_window: '{{ resource.RestoreWindow }}'
-      master_username: '{{ resource.MasterUsername }}'
-      db_cluster_resource_id: '{{ resource.DbClusterResourceId }}'
-      region: '{{ resource.Region }}'
-      license_model: '{{ resource.LicenseModel }}'
-      status: '{{ resource.Status }}'
-- discovery_id: aws.rds.describe_db_clusters
-  calls:
-  - action: describe_db_clusters
-    save_as: describe_db_clusters_response
-  emit:
-    items_for: '{{ describe_db_clusters_response.DBClusters }}'
-    as: resource
-    item:
-      allocated_storage: '{{ resource.AllocatedStorage }}'
-      availability_zones: '{{ resource.AvailabilityZones }}'
-      backup_retention_period: '{{ resource.BackupRetentionPeriod }}'
-      character_set_name: '{{ resource.CharacterSetName }}'
-      database_name: '{{ resource.DatabaseName }}'
-      db_cluster_identifier: '{{ resource.DBClusterIdentifier }}'
-      db_cluster_parameter_group: '{{ resource.DBClusterParameterGroup }}'
-      db_subnet_group: '{{ resource.DBSubnetGroup }}'
-      status: '{{ resource.Status }}'
-      percent_progress: '{{ resource.PercentProgress }}'
-- discovery_id: aws.rds.describe_option_groups
-  calls:
-  - action: describe_option_groups
-    save_as: describe_option_groups_response
-  emit:
-    items_for: '{{ describe_option_groups_response.OptionGroupsList }}'
-    as: resource
-    item:
-      option_group_name: '{{ resource.OptionGroupName }}'
-      option_group_description: '{{ resource.OptionGroupDescription }}'
-      engine_name: '{{ resource.EngineName }}'
-      major_engine_version: '{{ resource.MajorEngineVersion }}'
-      options: '{{ resource.Options }}'
-      allows_vpc_and_non_vpc_instance_memberships: '{{ resource.AllowsVpcAndNonVpcInstanceMemberships
-        }}'
-      vpc_id: '{{ resource.VpcId }}'
-      option_group_arn: '{{ resource.OptionGroupArn }}'
-      source_option_group: '{{ resource.SourceOptionGroup }}'
-      source_account_id: '{{ resource.SourceAccountId }}'
 - discovery_id: aws.rds.delete_db_instance_automated_backup
   calls:
   - action: delete_db_instance_automated_backup
-    save_as: delete_db_instance_automated_backup_response
+    save_as: response
   emit:
-    items_for: '{{ delete_db_instance_automated_backup_response.DBInstanceAutomatedBackup
-      }}'
-    as: resource
     item:
-      db_instance_arn: '{{ resource.DBInstanceArn }}'
-      dbi_resource_id: '{{ resource.DbiResourceId }}'
-      region: '{{ resource.Region }}'
-      db_instance_identifier: '{{ resource.DBInstanceIdentifier }}'
-      restore_window: '{{ resource.RestoreWindow }}'
-      allocated_storage: '{{ resource.AllocatedStorage }}'
-      status: '{{ resource.Status }}'
-      port: '{{ resource.Port }}'
-      availability_zone: '{{ resource.AvailabilityZone }}'
-      vpc_id: '{{ resource.VpcId }}'
-- discovery_id: aws.rds.describe_db_instances
-  calls:
-  - action: describe_db_instances
-    save_as: describe_db_instances_response
-  emit:
-    items_for: '{{ describe_db_instances_response.DBInstances }}'
-    as: resource
-    item:
-      db_instance_identifier: '{{ resource.DBInstanceIdentifier }}'
-      db_instance_class: '{{ resource.DBInstanceClass }}'
-      engine: '{{ resource.Engine }}'
-      db_instance_status: '{{ resource.DBInstanceStatus }}'
-      master_username: '{{ resource.MasterUsername }}'
-      db_name: '{{ resource.DBName }}'
-      endpoint: '{{ resource.Endpoint }}'
-      allocated_storage: '{{ resource.AllocatedStorage }}'
-      instance_create_time: '{{ resource.InstanceCreateTime }}'
-      preferred_backup_window: '{{ resource.PreferredBackupWindow }}'
-- discovery_id: aws.rds.describe_reserved_db_instances
-  calls:
-  - action: describe_reserved_db_instances
-    save_as: describe_reserved_db_instances_response
-  emit:
-    items_for: '{{ describe_reserved_db_instances_response.ReservedDBInstances }}'
-    as: resource
-    item:
-      reserved_db_instance_id: '{{ resource.ReservedDBInstanceId }}'
-      reserved_db_instances_offering_id: '{{ resource.ReservedDBInstancesOfferingId
+      DBInstanceArn: '{{ response.DBInstanceAutomatedBackup.DBInstanceArn }}'
+      DbiResourceId: '{{ response.DBInstanceAutomatedBackup.DbiResourceId }}'
+      Region: '{{ response.DBInstanceAutomatedBackup.Region }}'
+      DBInstanceIdentifier: '{{ response.DBInstanceAutomatedBackup.DBInstanceIdentifier
         }}'
-      db_instance_class: '{{ resource.DBInstanceClass }}'
-      start_time: '{{ resource.StartTime }}'
-      duration: '{{ resource.Duration }}'
-      fixed_price: '{{ resource.FixedPrice }}'
-      usage_price: '{{ resource.UsagePrice }}'
-      currency_code: '{{ resource.CurrencyCode }}'
-      db_instance_count: '{{ resource.DBInstanceCount }}'
-      product_description: '{{ resource.ProductDescription }}'
-- discovery_id: aws.rds.describe_db_proxies
-  calls:
-  - action: describe_db_proxies
-    save_as: describe_db_proxies_response
-  emit:
-    items_for: '{{ describe_db_proxies_response.DBProxies }}'
-    as: resource
-    item:
-      db_proxy_name: '{{ resource.DBProxyName }}'
-      db_proxy_arn: '{{ resource.DBProxyArn }}'
-      status: '{{ resource.Status }}'
-      engine_family: '{{ resource.EngineFamily }}'
-      vpc_id: '{{ resource.VpcId }}'
-      vpc_security_group_ids: '{{ resource.VpcSecurityGroupIds }}'
-      vpc_subnet_ids: '{{ resource.VpcSubnetIds }}'
-      default_auth_scheme: '{{ resource.DefaultAuthScheme }}'
-      auth: '{{ resource.Auth }}'
-      role_arn: '{{ resource.RoleArn }}'
-- discovery_id: aws.rds.describe_db_subnet_groups
-  calls:
-  - action: describe_db_subnet_groups
-    save_as: describe_db_subnet_groups_response
-  emit:
-    items_for: '{{ describe_db_subnet_groups_response.DBSubnetGroups }}'
-    as: resource
-    item:
-      db_subnet_group_name: '{{ resource.DBSubnetGroupName }}'
-      db_subnet_group_description: '{{ resource.DBSubnetGroupDescription }}'
-      vpc_id: '{{ resource.VpcId }}'
-      subnet_group_status: '{{ resource.SubnetGroupStatus }}'
-      subnets: '{{ resource.Subnets }}'
-      db_subnet_group_arn: '{{ resource.DBSubnetGroupArn }}'
-      supported_network_types: '{{ resource.SupportedNetworkTypes }}'
+      RestoreWindow: '{{ response.DBInstanceAutomatedBackup.RestoreWindow }}'
+      AllocatedStorage: '{{ response.DBInstanceAutomatedBackup.AllocatedStorage }}'
+      Status: '{{ response.DBInstanceAutomatedBackup.Status }}'
+      Port: '{{ response.DBInstanceAutomatedBackup.Port }}'
+      AvailabilityZone: '{{ response.DBInstanceAutomatedBackup.AvailabilityZone }}'
+      VpcId: '{{ response.DBInstanceAutomatedBackup.VpcId }}'
+      InstanceCreateTime: '{{ response.DBInstanceAutomatedBackup.InstanceCreateTime
+        }}'
+      MasterUsername: '{{ response.DBInstanceAutomatedBackup.MasterUsername }}'
+      Engine: '{{ response.DBInstanceAutomatedBackup.Engine }}'
+      EngineVersion: '{{ response.DBInstanceAutomatedBackup.EngineVersion }}'
+      LicenseModel: '{{ response.DBInstanceAutomatedBackup.LicenseModel }}'
+      Iops: '{{ response.DBInstanceAutomatedBackup.Iops }}'
+      StorageThroughput: '{{ response.DBInstanceAutomatedBackup.StorageThroughput
+        }}'
+      OptionGroupName: '{{ response.DBInstanceAutomatedBackup.OptionGroupName }}'
+      TdeCredentialArn: '{{ response.DBInstanceAutomatedBackup.TdeCredentialArn }}'
+      Encrypted: '{{ response.DBInstanceAutomatedBackup.Encrypted }}'
+      StorageType: '{{ response.DBInstanceAutomatedBackup.StorageType }}'
+      KmsKeyId: '{{ response.DBInstanceAutomatedBackup.KmsKeyId }}'
+      Timezone: '{{ response.DBInstanceAutomatedBackup.Timezone }}'
+      IAMDatabaseAuthenticationEnabled: '{{ response.DBInstanceAutomatedBackup.IAMDatabaseAuthenticationEnabled
+        }}'
+      BackupRetentionPeriod: '{{ response.DBInstanceAutomatedBackup.BackupRetentionPeriod
+        }}'
+      DBInstanceAutomatedBackupsArn: '{{ response.DBInstanceAutomatedBackup.DBInstanceAutomatedBackupsArn
+        }}'
+      DBInstanceAutomatedBackupsReplications: '{{ response.DBInstanceAutomatedBackup.DBInstanceAutomatedBackupsReplications
+        }}'
+      BackupTarget: '{{ response.DBInstanceAutomatedBackup.BackupTarget }}'
+      MultiTenant: '{{ response.DBInstanceAutomatedBackup.MultiTenant }}'
+      AwsBackupRecoveryPointArn: '{{ response.DBInstanceAutomatedBackup.AwsBackupRecoveryPointArn
+        }}'
+      DedicatedLogVolume: '{{ response.DBInstanceAutomatedBackup.DedicatedLogVolume
+        }}'
 - discovery_id: aws.rds.describe_blue_green_deployments
   calls:
   - action: describe_blue_green_deployments
-    save_as: describe_blue_green_deployments_response
+    save_as: response
   emit:
-    items_for: '{{ describe_blue_green_deployments_response.BlueGreenDeployments }}'
-    as: resource
     item:
-      blue_green_deployment_identifier: '{{ resource.BlueGreenDeploymentIdentifier
+      BlueGreenDeploymentIdentifier: '{{ response.BlueGreenDeployments.BlueGreenDeploymentIdentifier
         }}'
-      blue_green_deployment_name: '{{ resource.BlueGreenDeploymentName }}'
-      source: '{{ resource.Source }}'
-      target: '{{ resource.Target }}'
-      switchover_details: '{{ resource.SwitchoverDetails }}'
-      tasks: '{{ resource.Tasks }}'
-      status: '{{ resource.Status }}'
-      status_details: '{{ resource.StatusDetails }}'
-      create_time: '{{ resource.CreateTime }}'
-      delete_time: '{{ resource.DeleteTime }}'
+      BlueGreenDeploymentName: '{{ response.BlueGreenDeployments.BlueGreenDeploymentName
+        }}'
+      Source: '{{ response.BlueGreenDeployments.Source }}'
+      Target: '{{ response.BlueGreenDeployments.Target }}'
+      SwitchoverDetails: '{{ response.BlueGreenDeployments.SwitchoverDetails }}'
+      Tasks: '{{ response.BlueGreenDeployments.Tasks }}'
+      Status: '{{ response.BlueGreenDeployments.Status }}'
+      StatusDetails: '{{ response.BlueGreenDeployments.StatusDetails }}'
+      CreateTime: '{{ response.BlueGreenDeployments.CreateTime }}'
+      DeleteTime: '{{ response.BlueGreenDeployments.DeleteTime }}'
+      TagList: '{{ response.BlueGreenDeployments.TagList }}'
+- discovery_id: aws.rds.describe_db_cluster_automated_backups
+  calls:
+  - action: describe_db_cluster_automated_backups
+    save_as: response
+  emit:
+    item:
+      Engine: '{{ response.DBClusterAutomatedBackups.Engine }}'
+      VpcId: '{{ response.DBClusterAutomatedBackups.VpcId }}'
+      DBClusterAutomatedBackupsArn: '{{ response.DBClusterAutomatedBackups.DBClusterAutomatedBackupsArn
+        }}'
+      DBClusterIdentifier: '{{ response.DBClusterAutomatedBackups.DBClusterIdentifier
+        }}'
+      RestoreWindow: '{{ response.DBClusterAutomatedBackups.RestoreWindow }}'
+      MasterUsername: '{{ response.DBClusterAutomatedBackups.MasterUsername }}'
+      DbClusterResourceId: '{{ response.DBClusterAutomatedBackups.DbClusterResourceId
+        }}'
+      Region: '{{ response.DBClusterAutomatedBackups.Region }}'
+      LicenseModel: '{{ response.DBClusterAutomatedBackups.LicenseModel }}'
+      Status: '{{ response.DBClusterAutomatedBackups.Status }}'
+      IAMDatabaseAuthenticationEnabled: '{{ response.DBClusterAutomatedBackups.IAMDatabaseAuthenticationEnabled
+        }}'
+      ClusterCreateTime: '{{ response.DBClusterAutomatedBackups.ClusterCreateTime
+        }}'
+      StorageEncrypted: '{{ response.DBClusterAutomatedBackups.StorageEncrypted }}'
+      AllocatedStorage: '{{ response.DBClusterAutomatedBackups.AllocatedStorage }}'
+      EngineVersion: '{{ response.DBClusterAutomatedBackups.EngineVersion }}'
+      DBClusterArn: '{{ response.DBClusterAutomatedBackups.DBClusterArn }}'
+      BackupRetentionPeriod: '{{ response.DBClusterAutomatedBackups.BackupRetentionPeriod
+        }}'
+      EngineMode: '{{ response.DBClusterAutomatedBackups.EngineMode }}'
+      AvailabilityZones: '{{ response.DBClusterAutomatedBackups.AvailabilityZones
+        }}'
+      Port: '{{ response.DBClusterAutomatedBackups.Port }}'
+      KmsKeyId: '{{ response.DBClusterAutomatedBackups.KmsKeyId }}'
+      StorageType: '{{ response.DBClusterAutomatedBackups.StorageType }}'
+      Iops: '{{ response.DBClusterAutomatedBackups.Iops }}'
+      StorageThroughput: '{{ response.DBClusterAutomatedBackups.StorageThroughput
+        }}'
+      AwsBackupRecoveryPointArn: '{{ response.DBClusterAutomatedBackups.AwsBackupRecoveryPointArn
+        }}'
+- discovery_id: aws.rds.describe_db_cluster_snapshots
+  calls:
+  - action: describe_db_cluster_snapshots
+    save_as: response
+  emit:
+    item:
+      AvailabilityZones: '{{ response.DBClusterSnapshots.AvailabilityZones }}'
+      DBClusterSnapshotIdentifier: '{{ response.DBClusterSnapshots.DBClusterSnapshotIdentifier
+        }}'
+      DBClusterIdentifier: '{{ response.DBClusterSnapshots.DBClusterIdentifier }}'
+      SnapshotCreateTime: '{{ response.DBClusterSnapshots.SnapshotCreateTime }}'
+      Engine: '{{ response.DBClusterSnapshots.Engine }}'
+      EngineMode: '{{ response.DBClusterSnapshots.EngineMode }}'
+      AllocatedStorage: '{{ response.DBClusterSnapshots.AllocatedStorage }}'
+      Status: '{{ response.DBClusterSnapshots.Status }}'
+      Port: '{{ response.DBClusterSnapshots.Port }}'
+      VpcId: '{{ response.DBClusterSnapshots.VpcId }}'
+      ClusterCreateTime: '{{ response.DBClusterSnapshots.ClusterCreateTime }}'
+      MasterUsername: '{{ response.DBClusterSnapshots.MasterUsername }}'
+      EngineVersion: '{{ response.DBClusterSnapshots.EngineVersion }}'
+      LicenseModel: '{{ response.DBClusterSnapshots.LicenseModel }}'
+      SnapshotType: '{{ response.DBClusterSnapshots.SnapshotType }}'
+      PercentProgress: '{{ response.DBClusterSnapshots.PercentProgress }}'
+      StorageEncrypted: '{{ response.DBClusterSnapshots.StorageEncrypted }}'
+      KmsKeyId: '{{ response.DBClusterSnapshots.KmsKeyId }}'
+      DBClusterSnapshotArn: '{{ response.DBClusterSnapshots.DBClusterSnapshotArn }}'
+      SourceDBClusterSnapshotArn: '{{ response.DBClusterSnapshots.SourceDBClusterSnapshotArn
+        }}'
+      IAMDatabaseAuthenticationEnabled: '{{ response.DBClusterSnapshots.IAMDatabaseAuthenticationEnabled
+        }}'
+      TagList: '{{ response.DBClusterSnapshots.TagList }}'
+      StorageType: '{{ response.DBClusterSnapshots.StorageType }}'
+      StorageThroughput: '{{ response.DBClusterSnapshots.StorageThroughput }}'
+      DbClusterResourceId: '{{ response.DBClusterSnapshots.DbClusterResourceId }}'
+      DBSystemId: '{{ response.DBClusterSnapshots.DBSystemId }}'
+- discovery_id: aws.rds.describe_db_clusters
+  calls:
+  - action: describe_db_clusters
+    save_as: response
+  emit:
+    item:
+      AllocatedStorage: '{{ response.DBClusters.AllocatedStorage }}'
+      AvailabilityZones: '{{ response.DBClusters.AvailabilityZones }}'
+      BackupRetentionPeriod: '{{ response.DBClusters.BackupRetentionPeriod }}'
+      CharacterSetName: '{{ response.DBClusters.CharacterSetName }}'
+      DatabaseName: '{{ response.DBClusters.DatabaseName }}'
+      DBClusterIdentifier: '{{ response.DBClusters.DBClusterIdentifier }}'
+      DBClusterParameterGroup: '{{ response.DBClusters.DBClusterParameterGroup }}'
+      DBSubnetGroup: '{{ response.DBClusters.DBSubnetGroup }}'
+      Status: '{{ response.DBClusters.Status }}'
+      PercentProgress: '{{ response.DBClusters.PercentProgress }}'
+      EarliestRestorableTime: '{{ response.DBClusters.EarliestRestorableTime }}'
+      Endpoint: '{{ response.DBClusters.Endpoint }}'
+      ReaderEndpoint: '{{ response.DBClusters.ReaderEndpoint }}'
+      CustomEndpoints: '{{ response.DBClusters.CustomEndpoints }}'
+      MultiAZ: '{{ response.DBClusters.MultiAZ }}'
+      Engine: '{{ response.DBClusters.Engine }}'
+      EngineVersion: '{{ response.DBClusters.EngineVersion }}'
+      LatestRestorableTime: '{{ response.DBClusters.LatestRestorableTime }}'
+      Port: '{{ response.DBClusters.Port }}'
+      MasterUsername: '{{ response.DBClusters.MasterUsername }}'
+      DBClusterOptionGroupMemberships: '{{ response.DBClusters.DBClusterOptionGroupMemberships
+        }}'
+      PreferredBackupWindow: '{{ response.DBClusters.PreferredBackupWindow }}'
+      PreferredMaintenanceWindow: '{{ response.DBClusters.PreferredMaintenanceWindow
+        }}'
+      UpgradeRolloutOrder: '{{ response.DBClusters.UpgradeRolloutOrder }}'
+      ReplicationSourceIdentifier: '{{ response.DBClusters.ReplicationSourceIdentifier
+        }}'
+      ReadReplicaIdentifiers: '{{ response.DBClusters.ReadReplicaIdentifiers }}'
+      StatusInfos: '{{ response.DBClusters.StatusInfos }}'
+      DBClusterMembers: '{{ response.DBClusters.DBClusterMembers }}'
+      VpcSecurityGroups: '{{ response.DBClusters.VpcSecurityGroups }}'
+      HostedZoneId: '{{ response.DBClusters.HostedZoneId }}'
+      StorageEncrypted: '{{ response.DBClusters.StorageEncrypted }}'
+      KmsKeyId: '{{ response.DBClusters.KmsKeyId }}'
+      DbClusterResourceId: '{{ response.DBClusters.DbClusterResourceId }}'
+      DBClusterArn: '{{ response.DBClusters.DBClusterArn }}'
+      AssociatedRoles: '{{ response.DBClusters.AssociatedRoles }}'
+      IAMDatabaseAuthenticationEnabled: '{{ response.DBClusters.IAMDatabaseAuthenticationEnabled
+        }}'
+      CloneGroupId: '{{ response.DBClusters.CloneGroupId }}'
+      ClusterCreateTime: '{{ response.DBClusters.ClusterCreateTime }}'
+      EarliestBacktrackTime: '{{ response.DBClusters.EarliestBacktrackTime }}'
+      BacktrackWindow: '{{ response.DBClusters.BacktrackWindow }}'
+      BacktrackConsumedChangeRecords: '{{ response.DBClusters.BacktrackConsumedChangeRecords
+        }}'
+      EnabledCloudwatchLogsExports: '{{ response.DBClusters.EnabledCloudwatchLogsExports
+        }}'
+      Capacity: '{{ response.DBClusters.Capacity }}'
+      PendingModifiedValues: '{{ response.DBClusters.PendingModifiedValues }}'
+      EngineMode: '{{ response.DBClusters.EngineMode }}'
+      ScalingConfigurationInfo: '{{ response.DBClusters.ScalingConfigurationInfo }}'
+      RdsCustomClusterConfiguration: '{{ response.DBClusters.RdsCustomClusterConfiguration
+        }}'
+      DBClusterInstanceClass: '{{ response.DBClusters.DBClusterInstanceClass }}'
+      StorageType: '{{ response.DBClusters.StorageType }}'
+      Iops: '{{ response.DBClusters.Iops }}'
+      StorageThroughput: '{{ response.DBClusters.StorageThroughput }}'
+      IOOptimizedNextAllowedModificationTime: '{{ response.DBClusters.IOOptimizedNextAllowedModificationTime
+        }}'
+      PubliclyAccessible: '{{ response.DBClusters.PubliclyAccessible }}'
+      AutoMinorVersionUpgrade: '{{ response.DBClusters.AutoMinorVersionUpgrade }}'
+      DeletionProtection: '{{ response.DBClusters.DeletionProtection }}'
+      HttpEndpointEnabled: '{{ response.DBClusters.HttpEndpointEnabled }}'
+      ActivityStreamMode: '{{ response.DBClusters.ActivityStreamMode }}'
+      ActivityStreamStatus: '{{ response.DBClusters.ActivityStreamStatus }}'
+      ActivityStreamKmsKeyId: '{{ response.DBClusters.ActivityStreamKmsKeyId }}'
+      ActivityStreamKinesisStreamName: '{{ response.DBClusters.ActivityStreamKinesisStreamName
+        }}'
+      CopyTagsToSnapshot: '{{ response.DBClusters.CopyTagsToSnapshot }}'
+      CrossAccountClone: '{{ response.DBClusters.CrossAccountClone }}'
+      DomainMemberships: '{{ response.DBClusters.DomainMemberships }}'
+      TagList: '{{ response.DBClusters.TagList }}'
+      GlobalClusterIdentifier: '{{ response.DBClusters.GlobalClusterIdentifier }}'
+      GlobalWriteForwardingStatus: '{{ response.DBClusters.GlobalWriteForwardingStatus
+        }}'
+      GlobalWriteForwardingRequested: '{{ response.DBClusters.GlobalWriteForwardingRequested
+        }}'
+      NetworkType: '{{ response.DBClusters.NetworkType }}'
+      AutomaticRestartTime: '{{ response.DBClusters.AutomaticRestartTime }}'
+      ServerlessV2ScalingConfiguration: '{{ response.DBClusters.ServerlessV2ScalingConfiguration
+        }}'
+      ServerlessV2PlatformVersion: '{{ response.DBClusters.ServerlessV2PlatformVersion
+        }}'
+      MonitoringInterval: '{{ response.DBClusters.MonitoringInterval }}'
+      MonitoringRoleArn: '{{ response.DBClusters.MonitoringRoleArn }}'
+      DatabaseInsightsMode: '{{ response.DBClusters.DatabaseInsightsMode }}'
+      PerformanceInsightsEnabled: '{{ response.DBClusters.PerformanceInsightsEnabled
+        }}'
+      PerformanceInsightsKMSKeyId: '{{ response.DBClusters.PerformanceInsightsKMSKeyId
+        }}'
+      PerformanceInsightsRetentionPeriod: '{{ response.DBClusters.PerformanceInsightsRetentionPeriod
+        }}'
+      DBSystemId: '{{ response.DBClusters.DBSystemId }}'
+      MasterUserSecret: '{{ response.DBClusters.MasterUserSecret }}'
+      LocalWriteForwardingStatus: '{{ response.DBClusters.LocalWriteForwardingStatus
+        }}'
+      AwsBackupRecoveryPointArn: '{{ response.DBClusters.AwsBackupRecoveryPointArn
+        }}'
+      LimitlessDatabase: '{{ response.DBClusters.LimitlessDatabase }}'
+      ClusterScalabilityType: '{{ response.DBClusters.ClusterScalabilityType }}'
+      CertificateDetails: '{{ response.DBClusters.CertificateDetails }}'
+      EngineLifecycleSupport: '{{ response.DBClusters.EngineLifecycleSupport }}'
+- discovery_id: aws.rds.describe_db_proxies
+  calls:
+  - action: describe_db_proxies
+    save_as: response
+  emit:
+    item:
+      DBProxyName: '{{ response.DBProxies.DBProxyName }}'
+      DBProxyArn: '{{ response.DBProxies.DBProxyArn }}'
+      Status: '{{ response.DBProxies.Status }}'
+      EngineFamily: '{{ response.DBProxies.EngineFamily }}'
+      VpcId: '{{ response.DBProxies.VpcId }}'
+      VpcSecurityGroupIds: '{{ response.DBProxies.VpcSecurityGroupIds }}'
+      VpcSubnetIds: '{{ response.DBProxies.VpcSubnetIds }}'
+      DefaultAuthScheme: '{{ response.DBProxies.DefaultAuthScheme }}'
+      Auth: '{{ response.DBProxies.Auth }}'
+      RoleArn: '{{ response.DBProxies.RoleArn }}'
+      Endpoint: '{{ response.DBProxies.Endpoint }}'
+      RequireTLS: '{{ response.DBProxies.RequireTLS }}'
+      IdleClientTimeout: '{{ response.DBProxies.IdleClientTimeout }}'
+      DebugLogging: '{{ response.DBProxies.DebugLogging }}'
+      CreatedDate: '{{ response.DBProxies.CreatedDate }}'
+      UpdatedDate: '{{ response.DBProxies.UpdatedDate }}'
+      EndpointNetworkType: '{{ response.DBProxies.EndpointNetworkType }}'
+      TargetConnectionNetworkType: '{{ response.DBProxies.TargetConnectionNetworkType
+        }}'
+- discovery_id: aws.rds.describe_db_security_groups
+  calls:
+  - action: describe_db_security_groups
+    save_as: response
+  emit:
+    item:
+      OwnerId: '{{ response.DBSecurityGroups.OwnerId }}'
+      DBSecurityGroupName: '{{ response.DBSecurityGroups.DBSecurityGroupName }}'
+      DBSecurityGroupDescription: '{{ response.DBSecurityGroups.DBSecurityGroupDescription
+        }}'
+      VpcId: '{{ response.DBSecurityGroups.VpcId }}'
+      EC2SecurityGroups: '{{ response.DBSecurityGroups.EC2SecurityGroups }}'
+      IPRanges: '{{ response.DBSecurityGroups.IPRanges }}'
+      DBSecurityGroupArn: '{{ response.DBSecurityGroups.DBSecurityGroupArn }}'
+- discovery_id: aws.rds.describe_db_snapshot_tenant_databases
+  calls:
+  - action: describe_db_snapshot_tenant_databases
+    save_as: response
+  emit:
+    item:
+      DBSnapshotIdentifier: '{{ response.DBSnapshotTenantDatabases.DBSnapshotIdentifier
+        }}'
+      DBInstanceIdentifier: '{{ response.DBSnapshotTenantDatabases.DBInstanceIdentifier
+        }}'
+      DbiResourceId: '{{ response.DBSnapshotTenantDatabases.DbiResourceId }}'
+      EngineName: '{{ response.DBSnapshotTenantDatabases.EngineName }}'
+      SnapshotType: '{{ response.DBSnapshotTenantDatabases.SnapshotType }}'
+      TenantDatabaseCreateTime: '{{ response.DBSnapshotTenantDatabases.TenantDatabaseCreateTime
+        }}'
+      TenantDBName: '{{ response.DBSnapshotTenantDatabases.TenantDBName }}'
+      MasterUsername: '{{ response.DBSnapshotTenantDatabases.MasterUsername }}'
+      TenantDatabaseResourceId: '{{ response.DBSnapshotTenantDatabases.TenantDatabaseResourceId
+        }}'
+      CharacterSetName: '{{ response.DBSnapshotTenantDatabases.CharacterSetName }}'
+      DBSnapshotTenantDatabaseARN: '{{ response.DBSnapshotTenantDatabases.DBSnapshotTenantDatabaseARN
+        }}'
+      NcharCharacterSetName: '{{ response.DBSnapshotTenantDatabases.NcharCharacterSetName
+        }}'
+      TagList: '{{ response.DBSnapshotTenantDatabases.TagList }}'
+- discovery_id: aws.rds.describe_option_groups
+  calls:
+  - action: describe_option_groups
+    save_as: response
+  emit:
+    item:
+      OptionGroupName: '{{ response.OptionGroupsList.OptionGroupName }}'
+      OptionGroupDescription: '{{ response.OptionGroupsList.OptionGroupDescription
+        }}'
+      EngineName: '{{ response.OptionGroupsList.EngineName }}'
+      MajorEngineVersion: '{{ response.OptionGroupsList.MajorEngineVersion }}'
+      Options: '{{ response.OptionGroupsList.Options }}'
+      AllowsVpcAndNonVpcInstanceMemberships: '{{ response.OptionGroupsList.AllowsVpcAndNonVpcInstanceMemberships
+        }}'
+      VpcId: '{{ response.OptionGroupsList.VpcId }}'
+      OptionGroupArn: '{{ response.OptionGroupsList.OptionGroupArn }}'
+      SourceOptionGroup: '{{ response.OptionGroupsList.SourceOptionGroup }}'
+      SourceAccountId: '{{ response.OptionGroupsList.SourceAccountId }}'
+      CopyTimestamp: '{{ response.OptionGroupsList.CopyTimestamp }}'
+- discovery_id: aws.rds.describe_reserved_db_instances
+  calls:
+  - action: describe_reserved_db_instances
+    save_as: response
+  emit:
+    item:
+      ReservedDBInstanceId: '{{ response.ReservedDBInstances.ReservedDBInstanceId
+        }}'
+      ReservedDBInstancesOfferingId: '{{ response.ReservedDBInstances.ReservedDBInstancesOfferingId
+        }}'
+      DBInstanceClass: '{{ response.ReservedDBInstances.DBInstanceClass }}'
+      StartTime: '{{ response.ReservedDBInstances.StartTime }}'
+      Duration: '{{ response.ReservedDBInstances.Duration }}'
+      FixedPrice: '{{ response.ReservedDBInstances.FixedPrice }}'
+      UsagePrice: '{{ response.ReservedDBInstances.UsagePrice }}'
+      CurrencyCode: '{{ response.ReservedDBInstances.CurrencyCode }}'
+      DBInstanceCount: '{{ response.ReservedDBInstances.DBInstanceCount }}'
+      ProductDescription: '{{ response.ReservedDBInstances.ProductDescription }}'
+      OfferingType: '{{ response.ReservedDBInstances.OfferingType }}'
+      MultiAZ: '{{ response.ReservedDBInstances.MultiAZ }}'
+      State: '{{ response.ReservedDBInstances.State }}'
+      RecurringCharges: '{{ response.ReservedDBInstances.RecurringCharges }}'
+      ReservedDBInstanceArn: '{{ response.ReservedDBInstances.ReservedDBInstanceArn
+        }}'
+      LeaseId: '{{ response.ReservedDBInstances.LeaseId }}'
+- discovery_id: aws.rds.describe_db_cluster_snapshot_attributes
+  calls:
+  - action: describe_db_cluster_snapshot_attributes
+    save_as: response
+    params:
+      DBClusterSnapshotIdentifier: '{{ item.DBClusterSnapshotIdentifier }}'
+  on_error: continue
+  for_each: aws.rds.describe_db_cluster_snapshots
+  emit:
+    item:
+      DBClusterSnapshotIdentifier: '{{ response.DBClusterSnapshotAttributesResult.DBClusterSnapshotIdentifier
+        }}'
+      DBClusterSnapshotAttributes: '{{ response.DBClusterSnapshotAttributesResult.DBClusterSnapshotAttributes
+        }}'
 - discovery_id: aws.rds.describe_db_snapshot_attributes
   calls:
   - action: describe_db_snapshot_attributes
-    save_as: describe_db_snapshot_attributes_response
+    save_as: response
     params:
-      DBSnapshotIdentifier: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.rds.describe_db_security_groups
+      DBSnapshotIdentifier: '{{ item.DBSnapshotIdentifier }}'
+  on_error: continue
+  for_each: aws.rds.describe_db_snapshot_tenant_databases
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      db_snapshot_identifier: '{{ describe_db_snapshot_attributes_response.DBSnapshotAttributesResult.DBSnapshotIdentifier
+      DBSnapshotIdentifier: '{{ response.DBSnapshotAttributesResult.DBSnapshotIdentifier
         }}'
-      db_snapshot_attributes: '{{ describe_db_snapshot_attributes_response.DBSnapshotAttributesResult.DBSnapshotAttributes
+      DBSnapshotAttributes: '{{ response.DBSnapshotAttributesResult.DBSnapshotAttributes
         }}'
 - discovery_id: aws.rds.describe_orderable_db_instance_options
   calls:
   - action: describe_orderable_db_instance_options
-    save_as: describe_orderable_db_instance_options_response
+    save_as: response
     params:
-      Engine: '{{ item.engine }}'
-    on_error: continue
-  for_each: aws.rds.describe_db_cluster_automated_backups
+      Engine: '{{ item.Engine }}'
+  on_error: continue
+  for_each: aws.rds.describe_db_clusters
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      engine: '{{ describe_orderable_db_instance_options_response.OrderableDBInstanceOptions.Engine
+      Engine: '{{ response.OrderableDBInstanceOptions.Engine }}'
+      EngineVersion: '{{ response.OrderableDBInstanceOptions.EngineVersion }}'
+      DBInstanceClass: '{{ response.OrderableDBInstanceOptions.DBInstanceClass }}'
+      LicenseModel: '{{ response.OrderableDBInstanceOptions.LicenseModel }}'
+      AvailabilityZoneGroup: '{{ response.OrderableDBInstanceOptions.AvailabilityZoneGroup
         }}'
-      engine_version: '{{ describe_orderable_db_instance_options_response.OrderableDBInstanceOptions.EngineVersion
+      AvailabilityZones: '{{ response.OrderableDBInstanceOptions.AvailabilityZones
         }}'
-      db_instance_class: '{{ describe_orderable_db_instance_options_response.OrderableDBInstanceOptions.DBInstanceClass
+      MultiAZCapable: '{{ response.OrderableDBInstanceOptions.MultiAZCapable }}'
+      ReadReplicaCapable: '{{ response.OrderableDBInstanceOptions.ReadReplicaCapable
         }}'
-      license_model: '{{ describe_orderable_db_instance_options_response.OrderableDBInstanceOptions.LicenseModel
+      Vpc: '{{ response.OrderableDBInstanceOptions.Vpc }}'
+      SupportsStorageEncryption: '{{ response.OrderableDBInstanceOptions.SupportsStorageEncryption
         }}'
-      availability_zone_group: '{{ describe_orderable_db_instance_options_response.OrderableDBInstanceOptions.AvailabilityZoneGroup
+      StorageType: '{{ response.OrderableDBInstanceOptions.StorageType }}'
+      SupportsIops: '{{ response.OrderableDBInstanceOptions.SupportsIops }}'
+      SupportsStorageThroughput: '{{ response.OrderableDBInstanceOptions.SupportsStorageThroughput
         }}'
-- discovery_id: aws.rds.describe_db_cluster_snapshot_attributes
-  calls:
-  - action: describe_db_cluster_snapshot_attributes
-    save_as: describe_db_cluster_snapshot_attributes_response
-    params:
-      DBClusterSnapshotIdentifier: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.rds.describe_db_security_groups
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      db_cluster_snapshot_identifier: '{{ describe_db_cluster_snapshot_attributes_response.DBClusterSnapshotAttributesResult.DBClusterSnapshotIdentifier
+      SupportsEnhancedMonitoring: '{{ response.OrderableDBInstanceOptions.SupportsEnhancedMonitoring
         }}'
-      db_cluster_snapshot_attributes: '{{ describe_db_cluster_snapshot_attributes_response.DBClusterSnapshotAttributesResult.DBClusterSnapshotAttributes
+      SupportsIAMDatabaseAuthentication: '{{ response.OrderableDBInstanceOptions.SupportsIAMDatabaseAuthentication
+        }}'
+      SupportsPerformanceInsights: '{{ response.OrderableDBInstanceOptions.SupportsPerformanceInsights
+        }}'
+      MinStorageSize: '{{ response.OrderableDBInstanceOptions.MinStorageSize }}'
+      MaxStorageSize: '{{ response.OrderableDBInstanceOptions.MaxStorageSize }}'
+      MinIopsPerDbInstance: '{{ response.OrderableDBInstanceOptions.MinIopsPerDbInstance
+        }}'
+      MaxIopsPerDbInstance: '{{ response.OrderableDBInstanceOptions.MaxIopsPerDbInstance
+        }}'
+      MinIopsPerGib: '{{ response.OrderableDBInstanceOptions.MinIopsPerGib }}'
+      MaxIopsPerGib: '{{ response.OrderableDBInstanceOptions.MaxIopsPerGib }}'
+      MinStorageThroughputPerDbInstance: '{{ response.OrderableDBInstanceOptions.MinStorageThroughputPerDbInstance
+        }}'
+      MaxStorageThroughputPerDbInstance: '{{ response.OrderableDBInstanceOptions.MaxStorageThroughputPerDbInstance
+        }}'
+      MinStorageThroughputPerIops: '{{ response.OrderableDBInstanceOptions.MinStorageThroughputPerIops
+        }}'
+      MaxStorageThroughputPerIops: '{{ response.OrderableDBInstanceOptions.MaxStorageThroughputPerIops
+        }}'
+      AvailableProcessorFeatures: '{{ response.OrderableDBInstanceOptions.AvailableProcessorFeatures
+        }}'
+      SupportedEngineModes: '{{ response.OrderableDBInstanceOptions.SupportedEngineModes
+        }}'
+      SupportsStorageAutoscaling: '{{ response.OrderableDBInstanceOptions.SupportsStorageAutoscaling
+        }}'
+      SupportsKerberosAuthentication: '{{ response.OrderableDBInstanceOptions.SupportsKerberosAuthentication
+        }}'
+      OutpostCapable: '{{ response.OrderableDBInstanceOptions.OutpostCapable }}'
+      SupportedActivityStreamModes: '{{ response.OrderableDBInstanceOptions.SupportedActivityStreamModes
+        }}'
+      SupportsGlobalDatabases: '{{ response.OrderableDBInstanceOptions.SupportsGlobalDatabases
+        }}'
+      SupportedNetworkTypes: '{{ response.OrderableDBInstanceOptions.SupportedNetworkTypes
+        }}'
+      SupportsClusters: '{{ response.OrderableDBInstanceOptions.SupportsClusters }}'
+      SupportsDedicatedLogVolume: '{{ response.OrderableDBInstanceOptions.SupportsDedicatedLogVolume
+        }}'
+      SupportsHttpEndpoint: '{{ response.OrderableDBInstanceOptions.SupportsHttpEndpoint
         }}'
 checks:
 - rule_id: aws.rds.securitygroup.security_egress_restricted
   for_each: aws.rds.describe_db_security_groups
   conditions:
-    var: item.ip_ranges
+    var: item.IPRanges
     op: equals
     value: []
 - rule_id: aws.rds.instance.storage_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.instance.public_access_disabled
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.publicly_accessible
+    var: item.PubliclyAccessible
     op: equals
     value: false
 - rule_id: aws.rds.securitygroup.security_only_required_ports_open_restricted
   for_each: aws.rds.describe_db_security_groups
   conditions:
-    var: item.ip_ranges
+    var: item.IPRanges
     op: equals
     value: []
 - rule_id: aws.rds.snapshot.not_publicly_shared_configured
   for_each: aws.rds.describe_db_snapshot_attributes
   conditions:
-    var: item.db_snapshot_attributes
+    var: item.DBSnapshotAttributes
     op: equals
     value: []
 - rule_id: aws.rds.cluster.public_access_disabled
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.publicly_accessible
+    var: item.PubliclyAccessible
     op: equals
     value: false
 - rule_id: aws.rds.optiongroup.insecure_extensions_not_enabled
   for_each: aws.rds.describe_option_groups
   conditions:
-    var: item.options
+    var: item.Options
     op: equals
     value: []
 - rule_id: aws.rds.resource.dynamodb_table_encryption_enabled
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.instance.iam_authentication_enabled
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.iam_database_authentication_enabled
+    var: item.IAMDatabaseAuthenticationEnabled
     op: equals
     value: true
 - rule_id: aws.rds.instance.auto_minor_version_upgrade_configured
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.auto_minor_version_upgrade
+    var: item.AutoMinorVersionUpgrade
     op: equals
     value: true
-- rule_id: aws.rds.instance.backup_encrypted
-  for_each: aws.rds.describe_db_cluster_automated_backups
-  conditions:
-    all:
-    - var: item.backup_retention_period
-      op: gt
-      value: 0
-    - var: item.storage_encrypted
-      op: equals
-      value: true
 - rule_id: aws.rds.instance.enhanced_monitoring_enabled
   for_each: aws.rds.describe_orderable_db_instance_options
   conditions:
-    var: item.supports_enhanced_monitoring
+    var: item.SupportsEnhancedMonitoring
     op: equals
     value: true
 - rule_id: aws.rds.instance.encryption_at_rest_enabled
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.instance.integration_cloudwatch_logs_configured
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
-- rule_id: aws.rds.dbuser.approved_list_of_superusers_only_configured
-  for_each: aws.rds.delete_db_instance_automated_backup
-  conditions:
-    any:
-    - var: item.master_username
-      op: equals
-      value:
-      - admin
-      - superuser
 - rule_id: aws.rds.instance.performance_insights_enabled
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
-- rule_id: aws.rds.dbuser.no_unused_or_default_superusers_configured
-  for_each: aws.rds.describe_db_instances
-  conditions:
-    all:
-    - var: item.master_username
-      op: not_equals
-      value: admin
-    - var: item.db_instance_status
-      op: equals
-      value: available
-- rule_id: aws.rds.instance.security_configuration_review_configured
-  for_each: aws.rds.describe_db_instances
-  conditions:
-    all:
-    - var: item.db_instance_status
-      op: equals
-      value: available
-    - var: item.backup_retention_period
-      op: gte
-      value: 7
-    - var: item.vpc_security_groups
-      op: exists
-    - var: item.storage_encrypted
-      op: equals
-      value: true
 - rule_id: aws.rds.instance.deletion_protection_enabled
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.deletion_protection
+    var: item.DeletionProtection
     op: equals
     value: true
 - rule_id: aws.rds.snapshots.public_access_configured
   for_each: aws.rds.describe_db_snapshot_attributes
   conditions:
-    var: item.db_snapshot_attributes
+    var: item.DBSnapshotAttributes
     op: equals
     value: []
 - rule_id: aws.rds.cluster.encryption_at_rest_cmek_configured
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.backup_retention_period.backup_retention_period_configured
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.backup_retention_period
+    var: item.BackupRetentionPeriod
     op: gt
     value: 0
 - rule_id: aws.rds.instance.backup_enabled
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.backup_retention_period
+    var: item.BackupRetentionPeriod
     op: gt
     value: 0
 - rule_id: aws.rds.cluster.multi_az_configured
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.multi_az
+    var: item.MultiAZ
     op: equals
     value: true
 - rule_id: aws.rds.reserved_instance.billing_admins_mfa_required
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.rds.snapshot.encryption_at_rest_enabled
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.snapshot.cross_account_sharing_restricted
   for_each: aws.rds.describe_db_snapshot_attributes
   conditions:
-    var: item.db_snapshot_attributes
+    var: item.DBSnapshotAttributes
     op: equals
     value: []
 - rule_id: aws.rds.reserved_instance.purchase_permissions_restricted
   for_each: aws.rds.describe_reserved_db_instances
   conditions:
-    var: item.state
+    var: item.State
     op: equals
     value: ACTIVE
 - rule_id: aws.rds.clustersnapshot.not_publicly_shared_configured
   for_each: aws.rds.describe_db_cluster_snapshot_attributes
   conditions:
-    var: item.db_cluster_snapshot_attributes
+    var: item.DBClusterSnapshotAttributes
     op: equals
     value: []
 - rule_id: aws.rds.snapshot.storage_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.reserved_instance.instance_approval_workflow_required
   for_each: aws.rds.describe_reserved_db_instances
   conditions:
-    var: item.state
+    var: item.State
     op: equals
     value: active
 - rule_id: aws.rds.resource.snapshots_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.cluster.audit_logging_enabled
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.debug_logging
+    var: item.DebugLogging
     op: equals
     value: true
 - rule_id: aws.rds.cluster.iam_or_managed_identity_auth_enabled_if_supported
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.iam_database_authentication_enabled
+    var: item.IAMDatabaseAuthenticationEnabled
     op: equals
     value: true
 - rule_id: aws.rds.cluster.storage_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.securitygroup.security_no_0_ingress_on_db_ports_configured
   for_each: aws.rds.describe_db_security_groups
   conditions:
-    var: item.ip_ranges
+    var: item.IPRanges
     op: equals
     value: []
 - rule_id: aws.rds.cluster.deletion_protection_enabled
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.deletion_protection
+    var: item.DeletionProtection
     op: equals
     value: true
 - rule_id: aws.rds.instance.no_public_access_configured
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.publicly_accessible
+    var: item.PubliclyAccessible
     op: equals
     value: false
 - rule_id: aws.rds.parametergroup.audit_logging_enabled
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.debug_logging
+    var: item.DebugLogging
     op: equals
     value: true
 - rule_id: aws.rds.optiongroup.only_approved_extensions_enabled
   for_each: aws.rds.describe_option_groups
   conditions:
-    var: item.options
+    var: item.Options
     op: equals
     value:
     - approved_extension_1
@@ -499,120 +682,111 @@ checks:
 - rule_id: aws.rds.snapshot.cross_region_copy_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.cluster.encryption_at_rest_enabled
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
-- rule_id: aws.rds.subnetgroup.private_subnets_only_configured
-  for_each: aws.rds.describe_db_subnet_groups
-  conditions:
-    all:
-    - var: item.subnet_group_status
-      op: equals
-      value: Complete
-    - var: item.vpc_id
-      op: exists
 - rule_id: aws.rds.clustersnapshot.snapshot_cross_account_sharing_restricted
   for_each: aws.rds.describe_db_cluster_snapshot_attributes
   conditions:
-    var: item.db_cluster_snapshot_attributes
+    var: item.DBClusterSnapshotAttributes
     op: equals
     value: []
 - rule_id: aws.rds.dbuser.iam_auth_preferred_configured
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.iam_database_authentication_enabled
+    var: item.IAMDatabaseAuthenticationEnabled
     op: equals
     value: true
 - rule_id: aws.rds.parametergroup.require_ssl_configured
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.require_tls
+    var: item.RequireTLS
     op: equals
     value: true
 - rule_id: aws.rds.cluster.require_tls_in_transit_configured
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.require_tls
+    var: item.RequireTLS
     op: equals
     value: true
 - rule_id: aws.rds.instance.multi_az_configured
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.multi_az
+    var: item.MultiAZ
     op: equals
     value: true
 - rule_id: aws.rds.cluster.copy_tags_to_snapshots_configured
   for_each: aws.rds.describe_blue_green_deployments
   conditions:
-    var: item.tag_list
+    var: item.TagList
     op: exists
 - rule_id: aws.rds.clustersnapshot.snapshot_cross_region_copy_encrypted
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.instance.iam_or_managed_identity_auth_enabled_if_supported
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.iam_database_authentication_enabled
+    var: item.IAMDatabaseAuthenticationEnabled
     op: equals
     value: true
 - rule_id: aws.rds.instance.inside_vpc_configured
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.vpc_id
+    var: item.VpcId
     op: exists
 - rule_id: aws.rds.instance.deletion_protection_configured
   for_each: aws.rds.describe_db_clusters
   conditions:
-    var: item.deletion_protection
+    var: item.DeletionProtection
     op: equals
     value: true
 - rule_id: aws.rds.instance.require_tls_in_transit_configured
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.require_tls
+    var: item.RequireTLS
     op: equals
     value: true
 - rule_id: aws.rds.clustersnapshot.encryption_at_rest_enabled
   for_each: aws.rds.describe_db_cluster_automated_backups
   conditions:
-    var: item.storage_encrypted
+    var: item.StorageEncrypted
     op: equals
     value: true
 - rule_id: aws.rds.snapshot.not_public_configured
   for_each: aws.rds.describe_db_snapshot_attributes
   conditions:
-    var: item.db_snapshot_attributes
+    var: item.DBSnapshotAttributes
     op: contains
     value: restore
 - rule_id: aws.rds.instance.transport_encrypted
   for_each: aws.rds.describe_db_proxies
   conditions:
-    var: item.require_tls
+    var: item.RequireTLS
     op: equals
     value: true
 - rule_id: aws.rds.cluster.integration_cloudwatch_logs_configured
   for_each: aws.rds.delete_db_instance_automated_backup
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
 - rule_id: aws.rds.instance.copy_tags_to_snapshots_configured
   for_each: aws.rds.describe_blue_green_deployments
   conditions:
-    var: item.tag_list
+    var: item.TagList
     op: exists
 - rule_id: aws.rds.snapshots_public_access.snapshots_public_access_configured
   for_each: aws.rds.describe_db_snapshot_attributes
   conditions:
-    var: item.db_snapshot_attributes
+    var: item.DBSnapshotAttributes
     op: contains
     value: all

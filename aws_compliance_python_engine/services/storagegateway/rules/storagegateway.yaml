@@ -1,168 +1,149 @@
 version: '1.0'
 provider: aws
 service: storagegateway
+services:
+  client: storagegateway
+  module: boto3.client
 discovery:
 - discovery_id: aws.storagegateway.describe_tape_archives
   calls:
   - action: describe_tape_archives
-    save_as: describe_tape_archives_response
+    save_as: response
   emit:
-    items_for: '{{ describe_tape_archives_response.TapeArchives }}'
+    item:
+      TapeARN: '{{ response.TapeArchives.TapeARN }}'
+      TapeBarcode: '{{ response.TapeArchives.TapeBarcode }}'
+      TapeCreatedDate: '{{ response.TapeArchives.TapeCreatedDate }}'
+      TapeSizeInBytes: '{{ response.TapeArchives.TapeSizeInBytes }}'
+      CompletionTime: '{{ response.TapeArchives.CompletionTime }}'
+      RetrievedTo: '{{ response.TapeArchives.RetrievedTo }}'
+      TapeStatus: '{{ response.TapeArchives.TapeStatus }}'
+      TapeUsedInBytes: '{{ response.TapeArchives.TapeUsedInBytes }}'
+      KMSKey: '{{ response.TapeArchives.KMSKey }}'
+      PoolId: '{{ response.TapeArchives.PoolId }}'
+      Worm: '{{ response.TapeArchives.Worm }}'
+      RetentionStartDate: '{{ response.TapeArchives.RetentionStartDate }}'
+      PoolEntryDate: '{{ response.TapeArchives.PoolEntryDate }}'
+- discovery_id: aws.storagegateway.list_gateways
+  calls:
+  - action: list_gateways
+    save_as: response
+  emit:
+    items_for: '{{ response.Gateways }}'
     as: resource
     item:
-      tape_arn: '{{ resource.TapeARN }}'
-      tape_barcode: '{{ resource.TapeBarcode }}'
-      tape_created_date: '{{ resource.TapeCreatedDate }}'
-      tape_size_in_bytes: '{{ resource.TapeSizeInBytes }}'
-      completion_time: '{{ resource.CompletionTime }}'
-      retrieved_to: '{{ resource.RetrievedTo }}'
-      tape_status: '{{ resource.TapeStatus }}'
-      tape_used_in_bytes: '{{ resource.TapeUsedInBytes }}'
-      kms_key: '{{ resource.KMSKey }}'
-      pool_id: '{{ resource.PoolId }}'
-- discovery_id: aws.storagegateway.describe_cachedi_scsi_volumes
+      GatewayId: '{{ resource.GatewayId }}'
+      GatewayARN: '{{ resource.GatewayARN }}'
+      GatewayType: '{{ resource.GatewayType }}'
+      GatewayOperationalState: '{{ resource.GatewayOperationalState }}'
+      GatewayName: '{{ resource.GatewayName }}'
+      Ec2InstanceId: '{{ resource.Ec2InstanceId }}'
+      Ec2InstanceRegion: '{{ resource.Ec2InstanceRegion }}'
+      HostEnvironment: '{{ resource.HostEnvironment }}'
+      HostEnvironmentId: '{{ resource.HostEnvironmentId }}'
+      DeprecationDate: '{{ resource.DeprecationDate }}'
+      SoftwareVersion: '{{ resource.SoftwareVersion }}'
+- discovery_id: aws.storagegateway.describe_cache
   calls:
-  - action: describe_cachedi_scsi_volumes
-    save_as: describe_cachedi_scsi_volumes_response
+  - action: describe_cache
+    save_as: response
     params:
-      VolumeARNs: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.storagegateway.describe_tape_archives
+      GatewayARN: '{{ item.GatewayARN }}'
+  on_error: continue
+  for_each: aws.storagegateway.list_gateways
+- discovery_id: aws.storagegateway.describe_file_system_associations
+  calls:
+  - action: describe_file_system_associations
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      volume_arn: '{{ describe_cachedi_scsi_volumes_response.CachediSCSIVolumes.VolumeARN
+      FileSystemAssociationARN: '{{ response.FileSystemAssociationInfoList.FileSystemAssociationARN
         }}'
-      volume_id: '{{ describe_cachedi_scsi_volumes_response.CachediSCSIVolumes.VolumeId
+      LocationARN: '{{ response.FileSystemAssociationInfoList.LocationARN }}'
+      FileSystemAssociationStatus: '{{ response.FileSystemAssociationInfoList.FileSystemAssociationStatus
         }}'
-      volume_type: '{{ describe_cachedi_scsi_volumes_response.CachediSCSIVolumes.VolumeType
+      AuditDestinationARN: '{{ response.FileSystemAssociationInfoList.AuditDestinationARN
         }}'
-      volume_status: '{{ describe_cachedi_scsi_volumes_response.CachediSCSIVolumes.VolumeStatus
+      GatewayARN: '{{ response.FileSystemAssociationInfoList.GatewayARN }}'
+      Tags: '{{ response.FileSystemAssociationInfoList.Tags }}'
+      CacheAttributes: '{{ response.FileSystemAssociationInfoList.CacheAttributes
         }}'
-      volume_attachment_status: '{{ describe_cachedi_scsi_volumes_response.CachediSCSIVolumes.VolumeAttachmentStatus
+      EndpointNetworkConfiguration: '{{ response.FileSystemAssociationInfoList.EndpointNetworkConfiguration
         }}'
-- discovery_id: aws.storagegateway.describe_gateway_information
-  calls:
-  - action: describe_gateway_information
-    save_as: describe_gateway_information_response
-    params:
-      GatewayARN: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.storagegateway.describe_tape_archives
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      ipv4_address: '{{ describe_gateway_information_response.GatewayNetworkInterfaces.Ipv4Address
-        }}'
-      mac_address: '{{ describe_gateway_information_response.GatewayNetworkInterfaces.MacAddress
-        }}'
-      ipv6_address: '{{ describe_gateway_information_response.GatewayNetworkInterfaces.Ipv6Address
+      FileSystemAssociationStatusDetails: '{{ response.FileSystemAssociationInfoList.FileSystemAssociationStatusDetails
         }}'
 - discovery_id: aws.storagegateway.describe_nfs_file_shares
   calls:
   - action: describe_nfs_file_shares
-    save_as: describe_nfs_file_shares_response
-    params:
-      FileShareARNList: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.storagegateway.describe_tape_archives
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      nfs_file_share_defaults: '{{ describe_nfs_file_shares_response.NFSFileShareInfoList.NFSFileShareDefaults
+      NFSFileShareDefaults: '{{ response.NFSFileShareInfoList.NFSFileShareDefaults
         }}'
-      file_share_arn: '{{ describe_nfs_file_shares_response.NFSFileShareInfoList.FileShareARN
+      FileShareARN: '{{ response.NFSFileShareInfoList.FileShareARN }}'
+      FileShareId: '{{ response.NFSFileShareInfoList.FileShareId }}'
+      FileShareStatus: '{{ response.NFSFileShareInfoList.FileShareStatus }}'
+      GatewayARN: '{{ response.NFSFileShareInfoList.GatewayARN }}'
+      EncryptionType: '{{ response.NFSFileShareInfoList.EncryptionType }}'
+      KMSEncrypted: '{{ response.NFSFileShareInfoList.KMSEncrypted }}'
+      KMSKey: '{{ response.NFSFileShareInfoList.KMSKey }}'
+      Path: '{{ response.NFSFileShareInfoList.Path }}'
+      Role: '{{ response.NFSFileShareInfoList.Role }}'
+      LocationARN: '{{ response.NFSFileShareInfoList.LocationARN }}'
+      DefaultStorageClass: '{{ response.NFSFileShareInfoList.DefaultStorageClass }}'
+      ObjectACL: '{{ response.NFSFileShareInfoList.ObjectACL }}'
+      ClientList: '{{ response.NFSFileShareInfoList.ClientList }}'
+      Squash: '{{ response.NFSFileShareInfoList.Squash }}'
+      ReadOnly: '{{ response.NFSFileShareInfoList.ReadOnly }}'
+      GuessMIMETypeEnabled: '{{ response.NFSFileShareInfoList.GuessMIMETypeEnabled
         }}'
-      file_share_id: '{{ describe_nfs_file_shares_response.NFSFileShareInfoList.FileShareId
-        }}'
-      file_share_status: '{{ describe_nfs_file_shares_response.NFSFileShareInfoList.FileShareStatus
-        }}'
-      gateway_arn: '{{ describe_nfs_file_shares_response.NFSFileShareInfoList.GatewayARN
-        }}'
-- discovery_id: aws.storagegateway.describe_file_system_associations
-  calls:
-  - action: describe_file_system_associations
-    save_as: describe_file_system_associations_response
-    params:
-      FileSystemAssociationARNList: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.storagegateway.describe_tape_archives
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      file_system_association_arn: '{{ describe_file_system_associations_response.FileSystemAssociationInfoList.FileSystemAssociationARN
-        }}'
-      location_arn: '{{ describe_file_system_associations_response.FileSystemAssociationInfoList.LocationARN
-        }}'
-      file_system_association_status: '{{ describe_file_system_associations_response.FileSystemAssociationInfoList.FileSystemAssociationStatus
-        }}'
-      audit_destination_arn: '{{ describe_file_system_associations_response.FileSystemAssociationInfoList.AuditDestinationARN
-        }}'
-      gateway_arn: '{{ describe_file_system_associations_response.FileSystemAssociationInfoList.GatewayARN
-        }}'
+      RequesterPays: '{{ response.NFSFileShareInfoList.RequesterPays }}'
+      Tags: '{{ response.NFSFileShareInfoList.Tags }}'
+      FileShareName: '{{ response.NFSFileShareInfoList.FileShareName }}'
+      CacheAttributes: '{{ response.NFSFileShareInfoList.CacheAttributes }}'
+      NotificationPolicy: '{{ response.NFSFileShareInfoList.NotificationPolicy }}'
+      VPCEndpointDNSName: '{{ response.NFSFileShareInfoList.VPCEndpointDNSName }}'
+      BucketRegion: '{{ response.NFSFileShareInfoList.BucketRegion }}'
+      AuditDestinationARN: '{{ response.NFSFileShareInfoList.AuditDestinationARN }}'
 checks:
 - rule_id: aws.storagegateway.volume.snapshots_encrypted
   for_each: aws.storagegateway.describe_tape_archives
   conditions:
-    var: item.kms_key
+    var: item.KMSKey
     op: exists
 - rule_id: aws.storagegateway.volume.kms_key_policy_least_privilege
   for_each: aws.storagegateway.describe_tape_archives
   conditions:
-    var: item.kms_key
+    var: item.KMSKey
     op: exists
 - rule_id: aws.storagegateway.volume.encryption_at_rest_enabled
   for_each: aws.storagegateway.describe_tape_archives
   conditions:
-    var: item.kms_key
+    var: item.KMSKey
     op: exists
 - rule_id: aws.storagegateway.volume.snapshots_enabled
   for_each: aws.storagegateway.describe_cachedi_scsi_volumes
   conditions:
     var: item.source_snapshot_id
     op: exists
-- rule_id: aws.storagegateway.gateway.private_network_only_configured
-  for_each: aws.storagegateway.describe_gateway_information
-  conditions:
-    any:
-    - var: item.ipv4_address
-      op: exists
-    - var: item.ipv6_address
-      op: exists
 - rule_id: aws.storagegateway.gateway.kms_key_policy_least_privilege
   for_each: aws.storagegateway.describe_tape_archives
   conditions:
-    var: item.kms_key
+    var: item.KMSKey
     op: exists
 - rule_id: aws.storagegateway.volume.storagegateway_cmk_cmek_configured
   for_each: aws.storagegateway.describe_tape_archives
   conditions:
-    var: item.kms_key
+    var: item.KMSKey
     op: exists
 - rule_id: aws.storagegateway.resource.fileshare_encryption_enabled
   for_each: aws.storagegateway.describe_nfs_file_shares
   conditions:
-    var: item.kms_encrypted
+    var: item.KMSEncrypted
     op: equals
     value: true
-- rule_id: aws.storagegateway.gateway.encryption_at_rest_enabled
-  for_each: aws.storagegateway.describe_nfs_file_shares
-  conditions:
-    all:
-    - var: item.kms_key
-      op: exists
-    - var: item.kms_key
-      op: exists
-    - var: item.kms_key
-      op: exists
-    - var: item.kms_encrypted
-      op: equals
-      value: true
-    - var: item.kms_encrypted
-      op: equals
-      value: true
 - rule_id: aws.storagegateway.volume.private_network_only_configured
   for_each: aws.storagegateway.describe_file_system_associations
   conditions:
-    var: item.endpoint_network_configuration
+    var: item.EndpointNetworkConfiguration
     op: exists

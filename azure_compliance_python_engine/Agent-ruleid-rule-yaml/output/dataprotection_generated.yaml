@@ -1,0 +1,42 @@
+version: '1.0'
+provider: azure
+service: dataprotection
+discovery:
+- discovery_id: azure.dataprotection.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      name: '{{ item.name }}'
+      display: '{{ item.display }}'
+      origin: '{{ item.origin }}'
+      properties: '{{ item.properties }}'
+checks:
+- rule_id: azure.dataprotection.backup.vault.immutability.check
+  for_each: azure.dataprotection.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.dataprotection.backup.vault.cross.region.restore.enabled
+  for_each: azure.dataprotection.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.dataprotection.backupvault.infrastructure.encryption.enabled
+  for_each: azure.dataprotection.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.dataprotection.backup.vault.encryption.cmk.enabled
+  for_each: azure.dataprotection.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.dataprotection.backup.vault.soft.delete.compliance.check
+  for_each: azure.dataprotection.list
+  conditions:
+    var: item.id
+    op: exists

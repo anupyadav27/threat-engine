@@ -1,0 +1,31 @@
+version: '1.0'
+provider: azure
+service: notification
+discovery:
+- discovery_id: azure.notification.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      sku: '{{ item.sku }}'
+      system_data: '{{ item.system_data }}'
+      created_at: '{{ item.created_at }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      updated_at: '{{ item.updated_at }}'
+      metric_id: '{{ item.metric_id }}'
+      status: '{{ item.status }}'
+      supports_scaling: '{{ item.supports_scaling }}'
+checks:
+- rule_id: azure.notification.hub.topic_subscription_configured
+  for_each: azure.notification.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

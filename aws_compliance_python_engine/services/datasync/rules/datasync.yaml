@@ -1,23 +1,26 @@
 version: '1.0'
 provider: aws
 service: datasync
+services:
+  client: datasync
+  module: boto3.client
 discovery:
 - discovery_id: aws.datasync.list_agents
   calls:
   - action: list_agents
-    save_as: list_agents_response
+    save_as: response
   emit:
-    items_for: '{{ list_agents_response.Agents }}'
+    items_for: '{{ response.Agents }}'
     as: resource
     item:
-      agent_arn: '{{ resource.AgentArn }}'
-      name: '{{ resource.Name }}'
-      status: '{{ resource.Status }}'
-      platform: '{{ resource.Platform }}'
+      AgentArn: '{{ resource.AgentArn }}'
+      Name: '{{ resource.Name }}'
+      Status: '{{ resource.Status }}'
+      Platform: '{{ resource.Platform }}'
 checks:
 - rule_id: aws.datasync.resource.task_logging_enabled
   for_each: aws.datasync.list_agents
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED

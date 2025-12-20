@@ -1,34 +1,50 @@
 version: '1.0'
 provider: aws
 service: appsync
+services:
+  client: appsync
+  module: boto3.client
 discovery:
 - discovery_id: aws.appsync.list_graphql_apis
   calls:
   - action: list_graphql_apis
-    save_as: list_graphql_apis_response
+    save_as: response
   emit:
-    items_for: '{{ list_graphql_apis_response.graphqlApis }}'
+    items_for: '{{ response.graphqlApis }}'
     as: resource
     item:
       name: '{{ resource.name }}'
-      api_id: '{{ resource.apiId }}'
-      authentication_type: '{{ resource.authenticationType }}'
-      log_config: '{{ resource.logConfig }}'
-      user_pool_config: '{{ resource.userPoolConfig }}'
-      open_id_connect_config: '{{ resource.openIDConnectConfig }}'
+      apiId: '{{ resource.apiId }}'
+      authenticationType: '{{ resource.authenticationType }}'
+      logConfig: '{{ resource.logConfig }}'
+      userPoolConfig: '{{ resource.userPoolConfig }}'
+      openIDConnectConfig: '{{ resource.openIDConnectConfig }}'
       arn: '{{ resource.arn }}'
       uris: '{{ resource.uris }}'
       tags: '{{ resource.tags }}'
-      additional_authentication_providers: '{{ resource.additionalAuthenticationProviders
+      additionalAuthenticationProviders: '{{ resource.additionalAuthenticationProviders
         }}'
+      xrayEnabled: '{{ resource.xrayEnabled }}'
+      wafWebAclArn: '{{ resource.wafWebAclArn }}'
+      lambdaAuthorizerConfig: '{{ resource.lambdaAuthorizerConfig }}'
+      dns: '{{ resource.dns }}'
+      visibility: '{{ resource.visibility }}'
+      apiType: '{{ resource.apiType }}'
+      mergedApiExecutionRoleArn: '{{ resource.mergedApiExecutionRoleArn }}'
+      owner: '{{ resource.owner }}'
+      ownerContact: '{{ resource.ownerContact }}'
+      introspectionConfig: '{{ resource.introspectionConfig }}'
+      queryDepthLimit: '{{ resource.queryDepthLimit }}'
+      resolverCountLimit: '{{ resource.resolverCountLimit }}'
+      enhancedMetricsConfig: '{{ resource.enhancedMetricsConfig }}'
 checks:
 - rule_id: aws.appsync.field.level_logging_enabled
   for_each: aws.appsync.list_graphql_apis
   conditions:
-    var: item.log_config
+    var: item.logConfig
     op: exists
 - rule_id: aws.appsync.resource.field_level_logging_enabled
   for_each: aws.appsync.list_graphql_apis
   conditions:
-    var: item.log_config
+    var: item.logConfig
     op: exists

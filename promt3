@@ -1,0 +1,71 @@
+I have generated per-service deliverables:
+- operation_registry.json
+- adjacency.json
+- validation_report.json
+
+Problem: ambiguous tokens are still mapped to generic entities like:
+  <service>.arn, <service>.status, <service>.id, <service>.name
+This breaks dependency chaining.
+I need you to FIX the generator / transformation logic and re-generate operation_registry.json + adjacency.json so that:
+- No generic entities remain for arn/status/id/name unless truly unavoidable.
+- Ambiguous cases are resolved using context-based entity naming or operation-specific overrides.
+
+TASK (do in this folder first, but write changes so it works for all services):
+1) Read validation_report.json and operation_registry.json.
+2) Implement a normalization pass that rewrites entities using the rules below.
+3) Update operation_registry.json accordingly.
+4) Rebuild adjacency.json from the updated registry.
+5) Re-run the validation logic and update validation_report.json.
+6) Ensure overrides_applied in the report is non-empty when fixes are applied.
+
+RULES (must follow):
+
+A) Eliminate generic arn/status/id/name entities
+Replace <service>.arn/<service>.status/<service>.id/<service>.name with context-specific entities.
+
+B) How to derive context for produces paths:
+- If produces.path is like "<obj>.arn" or "<obj>[].arn" then entity must be "<service>.<obj_singular>_arn"
+- If produces.path is like "<obj>.status" or "<obj>[].status" then entity must be "<service>.<obj_singular>_status"
+- If produces.path is like "<obj>.id" or "<obj>[].id" then entity must be "<service>.<obj_singular>_id"
+- If produces.path is like "<obj>.name" or "<obj>[].name" then entity must be "<service>.<obj_singular>_name"
+Where obj_singular = obj with trailing "s" removed (best effort).
+
+Examples:
+- "analyzer.arn" -> "<service>.analyzer_arn"
+- "analyzers[].arn" -> "<service>.analyzer_arn"
+- "accessPreview.status" -> "<service>.access_preview_status"
+- "findings[].id" -> "<service>.finding_id"
+
+C) Special-case mapping based on operation name (consumes side):
+If an operation CONSUMES a param that is generic:
+- param "id":
+    if operation name contains "Finding" -> entity "<service>.finding_id"
+    else if operation name contains "AccessPreview" -> "<service>.access_preview_id"
+    else if operation name contains "PolicyGeneration" or consumes "jobId" -> "<service>.job_id"
+    else keep default snake_case but do NOT use "<service>.id"
+- param "status":
+    if operation name contains "Finding" OR operation is UpdateFindings -> "<service>.finding_status"
+    else map to "<service>.<operation_specific>_status" if known, else "<service>.status" only as last resort.
+- param "arn":
+    never use "<service>.arn"; map to context like "<service>.analyzer_arn" if param is analyzerArn, etc.
+
+D) Fix Get* output object paths
+For Get* operations where produces.path starts with "<main_object>[]", remove [].
+Example: "analyzer[].arn" must become "analyzer.arn"
+Only list operations should use [] (List*/Describe* plural).
+
+E) Use overrides only when heuristics cannot decide
+- Add/extend registry.overrides (or registry.entity_aliases if your schema lacks overrides) ONLY for:
+   - CreateX output "id" feeding GetX required "xId"
+   - id/status/arn collisions where object context cannot be inferred
+- Prefer producing consistent entities rather than aliasing.
+
+F) After rewriting registry, rebuild adjacency:
+- op_consumes/op_produces should reflect new entities
+- external_entities must be recomputed
+
+OUTPUT:
+- Save updated operation_registry.json
+- Save updated adjacency.json
+- Save updated validation_report.json
+- Confirm that ambiguous_tokens list is reduced significantly and generic entities (<service>.arn/status/id/name) are gone or near-zero.

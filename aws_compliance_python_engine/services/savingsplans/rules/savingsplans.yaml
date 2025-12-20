@@ -1,25 +1,35 @@
 version: '1.0'
 provider: aws
 service: savingsplans
+services:
+  client: savingsplans
+  module: boto3.client
 discovery:
 - discovery_id: aws.savingsplans.describe_savings_plans
   calls:
   - action: describe_savings_plans
-    save_as: describe_savings_plans_response
+    save_as: response
   emit:
-    items_for: '{{ describe_savings_plans_response.savingsPlans }}'
-    as: resource
     item:
-      offering_id: '{{ resource.offeringId }}'
-      savings_plan_id: '{{ resource.savingsPlanId }}'
-      savings_plan_arn: '{{ resource.savingsPlanArn }}'
-      description: '{{ resource.description }}'
-      start: '{{ resource.start }}'
-      end: '{{ resource.end }}'
-      state: '{{ resource.state }}'
-      region: '{{ resource.region }}'
-      ec2_instance_family: '{{ resource.ec2InstanceFamily }}'
-      savings_plan_type: '{{ resource.savingsPlanType }}'
+      offeringId: '{{ response.savingsPlans.offeringId }}'
+      savingsPlanId: '{{ response.savingsPlans.savingsPlanId }}'
+      savingsPlanArn: '{{ response.savingsPlans.savingsPlanArn }}'
+      description: '{{ response.savingsPlans.description }}'
+      start: '{{ response.savingsPlans.start }}'
+      end: '{{ response.savingsPlans.end }}'
+      state: '{{ response.savingsPlans.state }}'
+      region: '{{ response.savingsPlans.region }}'
+      ec2InstanceFamily: '{{ response.savingsPlans.ec2InstanceFamily }}'
+      savingsPlanType: '{{ response.savingsPlans.savingsPlanType }}'
+      paymentOption: '{{ response.savingsPlans.paymentOption }}'
+      productTypes: '{{ response.savingsPlans.productTypes }}'
+      currency: '{{ response.savingsPlans.currency }}'
+      commitment: '{{ response.savingsPlans.commitment }}'
+      upfrontPaymentAmount: '{{ response.savingsPlans.upfrontPaymentAmount }}'
+      recurringPaymentAmount: '{{ response.savingsPlans.recurringPaymentAmount }}'
+      termDurationInSeconds: '{{ response.savingsPlans.termDurationInSeconds }}'
+      tags: '{{ response.savingsPlans.tags }}'
+      returnableUntil: '{{ response.savingsPlans.returnableUntil }}'
 checks:
 - rule_id: aws.savingsplans.savingsplan.savingsplans_approval_workflow_required
   for_each: aws.savingsplans.describe_savings_plans
@@ -27,16 +37,6 @@ checks:
     var: item.state
     op: equals
     value: ACTIVE
-- rule_id: aws.savingsplans.savingsplan.purchase_permissions_restricted
-  for_each: aws.savingsplans.describe_savings_plans
-  conditions:
-    all:
-    - var: item.state
-      op: equals
-      value: ACTIVE
-    - var: item.savings_plan_type
-      op: equals
-      value: RESTRICTED
 - rule_id: aws.savingsplans.savingsplan.billing_admins_mfa_required
   for_each: aws.savingsplans.describe_savings_plans
   conditions:

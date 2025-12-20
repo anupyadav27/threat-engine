@@ -1,51 +1,63 @@
 version: '1.0'
 provider: aws
 service: emr
+services:
+  client: emr
+  module: boto3.client
 discovery:
 - discovery_id: aws.emr.get_block_public_access_configuration
   calls:
   - action: get_block_public_access_configuration
-    save_as: get_block_public_access_configuration_response
+    save_as: response
   emit:
-    items_for: '{{ get_block_public_access_configuration_response.BlockPublicAccessConfiguration
-      }}'
-    as: resource
     item:
-      block_public_security_group_rules: '{{ resource.BlockPublicSecurityGroupRules
+      BlockPublicSecurityGroupRules: '{{ response.BlockPublicAccessConfiguration.BlockPublicSecurityGroupRules
         }}'
-      permitted_public_security_group_rule_ranges: '{{ resource.PermittedPublicSecurityGroupRuleRanges
+      PermittedPublicSecurityGroupRuleRanges: '{{ response.BlockPublicAccessConfiguration.PermittedPublicSecurityGroupRuleRanges
         }}'
+- discovery_id: aws.emr.add_instance_fleet
+  calls:
+  - action: add_instance_fleet
+    save_as: response
 - discovery_id: aws.emr.list_instances
   calls:
   - action: list_instances
-    save_as: list_instances_response
+    save_as: response
     params:
-      ClusterId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.emr.get_block_public_access_configuration
+      ClusterId: '{{ item.ClusterId }}'
+  on_error: continue
+  for_each: aws.emr.add_instance_fleet
   emit:
+    items_for: '{{ response.Instances }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ list_instances_response.Instances.Id }}'
-      ec2_instance_id: '{{ list_instances_response.Instances.Ec2InstanceId }}'
-      public_dns_name: '{{ list_instances_response.Instances.PublicDnsName }}'
-      public_ip_address: '{{ list_instances_response.Instances.PublicIpAddress }}'
-      private_dns_name: '{{ list_instances_response.Instances.PrivateDnsName }}'
+      Id: '{{ resource.Id }}'
+      Ec2InstanceId: '{{ resource.Ec2InstanceId }}'
+      PublicDnsName: '{{ resource.PublicDnsName }}'
+      PublicIpAddress: '{{ resource.PublicIpAddress }}'
+      PrivateDnsName: '{{ resource.PrivateDnsName }}'
+      PrivateIpAddress: '{{ resource.PrivateIpAddress }}'
+      Status: '{{ resource.Status }}'
+      InstanceGroupId: '{{ resource.InstanceGroupId }}'
+      InstanceFleetId: '{{ resource.InstanceFleetId }}'
+      Market: '{{ resource.Market }}'
+      InstanceType: '{{ resource.InstanceType }}'
+      EbsVolumes: '{{ resource.EbsVolumes }}'
 checks:
 - rule_id: aws.emr.cluster.account_public_block_enabled
   for_each: aws.emr.get_block_public_access_configuration
   conditions:
-    var: item.block_public_security_group_rules
+    var: item.BlockPublicSecurityGroupRules
     op: equals
     value: true
 - rule_id: aws.emr.cluster.master_nodes_no_public_ip_configured
   for_each: aws.emr.list_instances
   conditions:
-    var: item.public_ip_address
+    var: item.PublicIpAddress
     op: equals
 - rule_id: aws.emr.cluster.publicly_accesible_configured
   for_each: aws.emr.get_block_public_access_configuration
   conditions:
-    var: item.block_public_security_group_rules
+    var: item.BlockPublicSecurityGroupRules
     op: equals
     value: true

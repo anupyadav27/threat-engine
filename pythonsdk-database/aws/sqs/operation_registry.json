@@ -1,0 +1,201 @@
+{
+  "service": "sqs",
+  "version": "1.0",
+  "kind_rules": {
+    "read_list": ["List"],
+    "read_get": ["Get", "Describe"],
+    "write_create": ["Create", "Start", "Generate", "Import", "Enable", "Register"],
+    "write_update": ["Update", "Modify", "Put", "Set", "Change", "Reset", "Patch"],
+    "write_delete": ["Delete", "Remove", "Terminate", "Destroy", "Disable", "Detach", "Disassociate", "Untag", "Revoke"],
+    "write_apply": ["Apply", "Attach", "Associate", "Add", "Tag", "Authorize", "Unauthorize", "Grant"],
+    "other": ["default"]
+  },
+  "entity_aliases": {"sqs.result_source_arn": "sqs.source_arn"},
+  "overrides": {},
+  "operations": {
+    "ListQueues": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "list_queues"},
+      "consumes": [],
+      "produces": [{"entity": "sqs.queue_urls", "source": "output", "path": "QueueUrls"}, {"entity": "sqs.next_token", "source": "output", "path": "NextToken"}],
+      "notes": ""
+    },
+    "AddPermission": {
+      "kind": "write_apply",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "add_permission"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.label", "param": "Label", "required": true, "source": "external"}, {"entity": "sqs.aws_account_ids", "param": "AWSAccountIds", "required": true, "source": "external"}, {"entity": "sqs.actions", "param": "Actions", "required": true, "source": "external"}],
+      "produces": [],
+      "notes": ""
+    },
+    "CancelMessageMoveTask": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "cancel_message_move_task"},
+      "consumes": [{"entity": "sqs.task_handle", "param": "TaskHandle", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.approximate_number_of_messages_moved", "source": "output", "path": "ApproximateNumberOfMessagesMoved"}],
+      "notes": ""
+    },
+    "ChangeMessageVisibility": {
+      "kind": "write_update",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "change_message_visibility"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.receipt_handle", "param": "ReceiptHandle", "required": true, "source": "external"}, {"entity": "sqs.visibility_timeout", "param": "VisibilityTimeout", "required": true, "source": "external"}],
+      "produces": [],
+      "notes": ""
+    },
+    "ChangeMessageVisibilityBatch": {
+      "kind": "write_update",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "change_message_visibility_batch"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.entries", "param": "Entries", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.successful", "source": "output", "path": "Successful"}, {"entity": "sqs.failed", "source": "output", "path": "Failed"}, {"entity": "sqs.successful_id", "source": "item", "path": "Successful.Id"}],
+      "notes": ""
+    },
+    "CreateQueue": {
+      "kind": "write_create",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "create_queue"},
+      "consumes": [{"entity": "sqs.queue_name", "param": "QueueName", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.queue_url", "source": "output", "path": "QueueUrl"}],
+      "notes": ""
+    },
+    "DeleteMessage": {
+      "kind": "write_delete",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "delete_message"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.receipt_handle", "param": "ReceiptHandle", "required": true, "source": "external"}],
+      "produces": [],
+      "notes": ""
+    },
+    "DeleteMessageBatch": {
+      "kind": "write_delete",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "delete_message_batch"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.entries", "param": "Entries", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.successful", "source": "output", "path": "Successful"}, {"entity": "sqs.failed", "source": "output", "path": "Failed"}, {"entity": "sqs.successful_id", "source": "item", "path": "Successful.Id"}],
+      "notes": ""
+    },
+    "DeleteQueue": {
+      "kind": "write_delete",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "delete_queue"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [],
+      "notes": ""
+    },
+    "GetQueueAttributes": {
+      "kind": "read_get",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "get_queue_attributes"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.attributes", "source": "output", "path": "Attributes"}],
+      "notes": ""
+    },
+    "GetQueueUrl": {
+      "kind": "read_get",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "get_queue_url"},
+      "consumes": [{"entity": "sqs.queue_name", "param": "QueueName", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.queue_url", "source": "output", "path": "QueueUrl"}],
+      "notes": ""
+    },
+    "ListDeadLetterSourceQueues": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "list_dead_letter_source_queues"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.queue_urls", "source": "output", "path": "queueUrls"}, {"entity": "sqs.next_token", "source": "output", "path": "NextToken"}],
+      "notes": ""
+    },
+    "ListMessageMoveTasks": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "list_message_move_tasks"},
+      "consumes": [{"entity": "sqs.source_arn", "param": "SourceArn", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.results", "source": "output", "path": "Results"}, {"entity": "sqs.result_task_handle", "source": "item", "path": "Results[].TaskHandle"}, {"entity": "sqs.result_status", "source": "item", "path": "Results[].Status"}, {"entity": "sqs.source_arn", "source": "item", "path": "Results[].SourceArn"}, {"entity": "sqs.result_destination_arn", "source": "item", "path": "Results[].DestinationArn"}, {"entity": "sqs.result_max_number_of_messages_per_second", "source": "item", "path": "Results[].MaxNumberOfMessagesPerSecond"}, {"entity": "sqs.result_approximate_number_of_messages_moved", "source": "item", "path": "Results[].ApproximateNumberOfMessagesMoved"}, {"entity": "sqs.result_approximate_number_of_messages_to_move", "source": "item", "path": "Results[].ApproximateNumberOfMessagesToMove"}, {"entity": "sqs.result_failure_reason", "source": "item", "path": "Results[].FailureReason"}, {"entity": "sqs.result_started_timestamp", "source": "item", "path": "Results[].StartedTimestamp"}],
+      "notes": ""
+    },
+    "ListQueueTags": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "sqs", "method": "list_queue_tags"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.tags", "source": "output", "path": "Tags"}],
+      "notes": ""
+    },
+    "PurgeQueue": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "purge_queue"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [],
+      "notes": ""
+    },
+    "ReceiveMessage": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "receive_message"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.messages", "source": "output", "path": "Messages"}, {"entity": "sqs.messag_message_id", "source": "item", "path": "Messages.MessageId"}, {"entity": "sqs.messag_receipt_handle", "source": "item", "path": "Messages.ReceiptHandle"}, {"entity": "sqs.messag_md5_of_body", "source": "item", "path": "Messages.MD5OfBody"}, {"entity": "sqs.messag_body", "source": "item", "path": "Messages.Body"}, {"entity": "sqs.messag_attributes", "source": "item", "path": "Messages.Attributes"}, {"entity": "sqs.messag_md5_of_message_attributes", "source": "item", "path": "Messages.MD5OfMessageAttributes"}, {"entity": "sqs.messag_message_attributes", "source": "item", "path": "Messages.MessageAttributes"}],
+      "notes": ""
+    },
+    "RemovePermission": {
+      "kind": "write_delete",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "remove_permission"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.label", "param": "Label", "required": true, "source": "external"}],
+      "produces": [],
+      "notes": ""
+    },
+    "SendMessage": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "send_message"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.message_body", "param": "MessageBody", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.md5_of_message_body", "source": "output", "path": "MD5OfMessageBody"}, {"entity": "sqs.md5_of_message_attributes", "source": "output", "path": "MD5OfMessageAttributes"}, {"entity": "sqs.md5_of_message_system_attributes", "source": "output", "path": "MD5OfMessageSystemAttributes"}, {"entity": "sqs.message_id", "source": "output", "path": "MessageId"}, {"entity": "sqs.sequence_number", "source": "output", "path": "SequenceNumber"}],
+      "notes": ""
+    },
+    "SendMessageBatch": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "send_message_batch"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.entries", "param": "Entries", "required": true, "source": "external"}],
+      "produces": [{"entity": "sqs.successful", "source": "output", "path": "Successful"}, {"entity": "sqs.failed", "source": "output", "path": "Failed"}, {"entity": "sqs.successful_id", "source": "item", "path": "Successful.Id"}, {"entity": "sqs.successful_message_id", "source": "item", "path": "Successful.MessageId"}, {"entity": "sqs.successful_md5_of_message_body", "source": "item", "path": "Successful.MD5OfMessageBody"}, {"entity": "sqs.successful_md5_of_message_attributes", "source": "item", "path": "Successful.MD5OfMessageAttributes"}, {"entity": "sqs.successful_md5_of_message_system_attributes", "source": "item", "path": "Successful.MD5OfMessageSystemAttributes"}, {"entity": "sqs.successful_sequence_number", "source": "item", "path": "Successful.SequenceNumber"}],
+      "notes": ""
+    },
+    "SetQueueAttributes": {
+      "kind": "write_update",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "set_queue_attributes"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.attributes", "param": "Attributes", "required": true, "source": "internal"}],
+      "produces": [],
+      "notes": ""
+    },
+    "StartMessageMoveTask": {
+      "kind": "write_create",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "start_message_move_task"},
+      "consumes": [{"entity": "sqs.source_arn", "param": "SourceArn", "required": true, "source": "internal"}],
+      "produces": [{"entity": "sqs.task_handle", "source": "output", "path": "TaskHandle"}],
+      "notes": ""
+    },
+    "TagQueue": {
+      "kind": "write_apply",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "tag_queue"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.tags", "param": "Tags", "required": true, "source": "internal"}],
+      "produces": [],
+      "notes": ""
+    },
+    "UntagQueue": {
+      "kind": "write_delete",
+      "side_effect": true,
+      "sdk": {"client": "sqs", "method": "untag_queue"},
+      "consumes": [{"entity": "sqs.queue_url", "param": "QueueUrl", "required": true, "source": "internal"}, {"entity": "sqs.tag_keys", "param": "TagKeys", "required": true, "source": "external"}],
+      "produces": [],
+      "notes": ""
+    }
+  }
+}

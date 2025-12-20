@@ -1,0 +1,65 @@
+{
+  "service": "ebs",
+  "version": "1.0",
+  "kind_rules": {
+    "read_list": ["List"],
+    "read_get": ["Get", "Describe"],
+    "write_create": ["Create", "Start", "Generate", "Import", "Enable", "Register"],
+    "write_update": ["Update", "Modify", "Put", "Set", "Change", "Reset", "Patch"],
+    "write_delete": ["Delete", "Remove", "Terminate", "Destroy", "Disable", "Detach", "Disassociate", "Untag", "Revoke"],
+    "write_apply": ["Apply", "Attach", "Associate", "Add", "Tag", "Authorize", "Unauthorize", "Grant"],
+    "other": ["default"]
+  },
+  "entity_aliases": {"ebs.parent_snapshot_id": "ebs.snapshot_id"},
+  "overrides": {},
+  "operations": {
+    "CompleteSnapshot": {
+      "kind": "other",
+      "side_effect": true,
+      "sdk": {"client": "ebs", "method": "complete_snapshot"},
+      "consumes": [{"entity": "ebs.snapshot_id", "param": "SnapshotId", "required": true, "source": "internal"}, {"entity": "ebs.changed_blocks_count", "param": "ChangedBlocksCount", "required": true, "source": "external"}],
+      "produces": [{"entity": "ebs.complete_snapshot_status", "source": "output", "path": "Status"}],
+      "notes": ""
+    },
+    "GetSnapshotBlock": {
+      "kind": "read_get",
+      "side_effect": false,
+      "sdk": {"client": "ebs", "method": "get_snapshot_block"},
+      "consumes": [{"entity": "ebs.snapshot_id", "param": "SnapshotId", "required": true, "source": "internal"}, {"entity": "ebs.block_index", "param": "BlockIndex", "required": true, "source": "internal"}, {"entity": "ebs.block_token", "param": "BlockToken", "required": true, "source": "internal"}],
+      "produces": [{"entity": "ebs.data_length", "source": "output", "path": "DataLength"}, {"entity": "ebs.block_data", "source": "output", "path": "BlockData"}, {"entity": "ebs.checksum", "source": "output", "path": "Checksum"}, {"entity": "ebs.checksum_algorithm", "source": "output", "path": "ChecksumAlgorithm"}],
+      "notes": ""
+    },
+    "ListChangedBlocks": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "ebs", "method": "list_changed_blocks"},
+      "consumes": [{"entity": "ebs.secondsnapshot_id", "param": "SecondSnapshotId", "required": true, "source": "external"}],
+      "produces": [{"entity": "ebs.changed_blocks", "source": "output", "path": "ChangedBlocks"}, {"entity": "ebs.expiry_time", "source": "output", "path": "ExpiryTime"}, {"entity": "ebs.volume_size", "source": "output", "path": "VolumeSize"}, {"entity": "ebs.block_size", "source": "output", "path": "BlockSize"}, {"entity": "ebs.next_token", "source": "output", "path": "NextToken"}, {"entity": "ebs.changed_block_block_index", "source": "item", "path": "ChangedBlocks[].BlockIndex"}, {"entity": "ebs.changed_block_first_block_token", "source": "item", "path": "ChangedBlocks[].FirstBlockToken"}, {"entity": "ebs.changed_block_second_block_token", "source": "item", "path": "ChangedBlocks[].SecondBlockToken"}],
+      "notes": ""
+    },
+    "ListSnapshotBlocks": {
+      "kind": "read_list",
+      "side_effect": false,
+      "sdk": {"client": "ebs", "method": "list_snapshot_blocks"},
+      "consumes": [{"entity": "ebs.snapshot_id", "param": "SnapshotId", "required": true, "source": "internal"}],
+      "produces": [{"entity": "ebs.blocks", "source": "output", "path": "Blocks"}, {"entity": "ebs.expiry_time", "source": "output", "path": "ExpiryTime"}, {"entity": "ebs.volume_size", "source": "output", "path": "VolumeSize"}, {"entity": "ebs.block_size", "source": "output", "path": "BlockSize"}, {"entity": "ebs.next_token", "source": "output", "path": "NextToken"}, {"entity": "ebs.block_index", "source": "item", "path": "Blocks[].BlockIndex"}, {"entity": "ebs.block_token", "source": "item", "path": "Blocks[].BlockToken"}],
+      "notes": ""
+    },
+    "PutSnapshotBlock": {
+      "kind": "write_update",
+      "side_effect": true,
+      "sdk": {"client": "ebs", "method": "put_snapshot_block"},
+      "consumes": [{"entity": "ebs.snapshot_id", "param": "SnapshotId", "required": true, "source": "internal"}, {"entity": "ebs.block_index", "param": "BlockIndex", "required": true, "source": "internal"}, {"entity": "ebs.block_data", "param": "BlockData", "required": true, "source": "internal"}, {"entity": "ebs.data_length", "param": "DataLength", "required": true, "source": "internal"}, {"entity": "ebs.checksum", "param": "Checksum", "required": true, "source": "internal"}, {"entity": "ebs.checksum_algorithm", "param": "ChecksumAlgorithm", "required": true, "source": "internal"}],
+      "produces": [{"entity": "ebs.checksum", "source": "output", "path": "Checksum"}, {"entity": "ebs.checksum_algorithm", "source": "output", "path": "ChecksumAlgorithm"}],
+      "notes": ""
+    },
+    "StartSnapshot": {
+      "kind": "write_create",
+      "side_effect": true,
+      "sdk": {"client": "ebs", "method": "start_snapshot"},
+      "consumes": [{"entity": "ebs.volume_size", "param": "VolumeSize", "required": true, "source": "internal"}],
+      "produces": [{"entity": "ebs.description", "source": "output", "path": "Description"}, {"entity": "ebs.snapshot_id", "source": "output", "path": "SnapshotId"}, {"entity": "ebs.owner_id", "source": "output", "path": "OwnerId"}, {"entity": "ebs.snapshot_status", "source": "output", "path": "Status"}, {"entity": "ebs.start_time", "source": "output", "path": "StartTime"}, {"entity": "ebs.volume_size", "source": "output", "path": "VolumeSize"}, {"entity": "ebs.block_size", "source": "output", "path": "BlockSize"}, {"entity": "ebs.tags", "source": "output", "path": "Tags"}, {"entity": "ebs.snapshot_id", "source": "output", "path": "ParentSnapshotId"}, {"entity": "ebs.kms_key_arn", "source": "output", "path": "KmsKeyArn"}, {"entity": "ebs.sse_type", "source": "output", "path": "SseType"}, {"entity": "ebs.tag_key", "source": "item", "path": "Tags.Key"}, {"entity": "ebs.tag_value", "source": "item", "path": "Tags.Value"}],
+      "notes": ""
+    }
+  }
+}

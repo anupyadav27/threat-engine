@@ -1,70 +1,71 @@
 version: '1.0'
 provider: aws
 service: sqs
+services:
+  client: sqs
+  module: boto3.client
 discovery:
+- discovery_id: aws.sqs.get_queue_url
+  calls:
+  - action: get_queue_url
+    save_as: response
 - discovery_id: aws.sqs.list_message_move_tasks
   calls:
   - action: list_message_move_tasks
-    save_as: list_message_move_tasks_response
-    params:
-      SourceArn: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.sqs.PARENT_DISCOVERY
+    save_as: response
   emit:
+    items_for: '{{ response.Results }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      task_handle: '{{ list_message_move_tasks_response.Results.TaskHandle }}'
-      status: '{{ list_message_move_tasks_response.Results.Status }}'
-      source_arn: '{{ list_message_move_tasks_response.Results.SourceArn }}'
-      destination_arn: '{{ list_message_move_tasks_response.Results.DestinationArn
+      TaskHandle: '{{ resource.TaskHandle }}'
+      Status: '{{ resource.Status }}'
+      SourceArn: '{{ resource.SourceArn }}'
+      DestinationArn: '{{ resource.DestinationArn }}'
+      MaxNumberOfMessagesPerSecond: '{{ resource.MaxNumberOfMessagesPerSecond }}'
+      ApproximateNumberOfMessagesMoved: '{{ resource.ApproximateNumberOfMessagesMoved
         }}'
-      max_number_of_messages_per_second: '{{ list_message_move_tasks_response.Results.MaxNumberOfMessagesPerSecond
+      ApproximateNumberOfMessagesToMove: '{{ resource.ApproximateNumberOfMessagesToMove
         }}'
+      FailureReason: '{{ resource.FailureReason }}'
+      StartedTimestamp: '{{ resource.StartedTimestamp }}'
 - discovery_id: aws.sqs.receive_message
   calls:
   - action: receive_message
-    save_as: receive_message_response
+    save_as: response
     params:
-      QueueUrl: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.sqs.PARENT_DISCOVERY
+      QueueUrl: '{{ item.QueueUrl }}'
+  on_error: continue
+  for_each: aws.sqs.get_queue_url
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      message_id: '{{ receive_message_response.Messages.MessageId }}'
-      receipt_handle: '{{ receive_message_response.Messages.ReceiptHandle }}'
-      md5_of_body: '{{ receive_message_response.Messages.MD5OfBody }}'
-      body: '{{ receive_message_response.Messages.Body }}'
-      attributes: '{{ receive_message_response.Messages.Attributes }}'
+      MessageId: '{{ response.Messages.MessageId }}'
+      ReceiptHandle: '{{ response.Messages.ReceiptHandle }}'
+      MD5OfBody: '{{ response.Messages.MD5OfBody }}'
+      Body: '{{ response.Messages.Body }}'
+      Attributes: '{{ response.Messages.Attributes }}'
+      MD5OfMessageAttributes: '{{ response.Messages.MD5OfMessageAttributes }}'
+      MessageAttributes: '{{ response.Messages.MessageAttributes }}'
 checks:
 - rule_id: aws.sqs.queue.private_network_only_if_supported
   for_each: aws.sqs.list_message_move_tasks
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
-- rule_id: aws.sqs.queue.cross_account_send_receive_restricted
-  for_each: aws.sqs.list_message_move_tasks
-  conditions:
-    all:
-    - var: item.source_arn
-      op: exists
-    - var: item.destination_arn
-      op: exists
 - rule_id: aws.sqs.queues_not_publicly_accessible.queues_not_publicly_accessible_configured
   for_each: aws.sqs.receive_message
   conditions:
-    var: item.attributes
+    var: item.Attributes
     op: contains
     value: Policy
 - rule_id: aws.sqs.queue.auth_required
   for_each: aws.sqs.receive_message
   conditions:
-    var: item.message_attributes
+    var: item.Attributes
     op: exists
 - rule_id: aws.sqs.resource.queues_server_side_encryption_enabled
   for_each: aws.sqs.receive_message
   conditions:
-    var: item.attributes
+    var: item.Attributes
     op: contains
     value: SqsManagedSseEnabled

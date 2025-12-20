@@ -1,0 +1,58 @@
+version: '1.0'
+provider: azure
+service: hdinsight
+discovery:
+- discovery_id: azure.hdinsight.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      platform_update_domain_count: '{{ item.platform_update_domain_count }}'
+      platform_fault_domain_count: '{{ item.platform_fault_domain_count }}'
+      virtual_machines: '{{ item.virtual_machines }}'
+      proximity_placement_group: '{{ item.proximity_placement_group }}'
+      statuses: '{{ item.statuses }}'
+      scheduled_events_policy: '{{ item.scheduled_events_policy }}'
+      virtual_machine_scale_set_migration_info: '{{ item.virtual_machine_scale_set_migration_info
+        }}'
+checks:
+- rule_id: azure.hdinsight.cluster.data_analytics_admin_access_least_privilege
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.hdinsight.cluster.data_analytics_encryption_at_rest_cmek
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.hdinsight.cluster.data_analytics_private_networking_enforced
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.hdinsight.cluster.master_nodes_no_public_ip
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.hdinsight.cluster.data_analytics_tls_min_1_2_enforced
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.hdinsight.cluster.data_analytics_audit_logging_enabled
+  for_each: azure.hdinsight.list
+  conditions:
+    var: item.id
+    op: exists

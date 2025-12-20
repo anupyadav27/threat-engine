@@ -1,213 +1,129 @@
 version: '1.0'
 provider: aws
 service: elbv2
+services:
+  client: elbv2
+  module: boto3.client
 discovery:
 - discovery_id: aws.elbv2.describe_listeners
   calls:
   - action: describe_listeners
-    save_as: describe_listeners_response
+    save_as: response
   emit:
-    items_for: '{{ describe_listeners_response.Listeners }}'
-    as: resource
     item:
-      listener_arn: '{{ resource.ListenerArn }}'
-      load_balancer_arn: '{{ resource.LoadBalancerArn }}'
-      port: '{{ resource.Port }}'
-      protocol: '{{ resource.Protocol }}'
-      certificates: '{{ resource.Certificates }}'
-      ssl_policy: '{{ resource.SslPolicy }}'
-      default_actions: '{{ resource.DefaultActions }}'
-      alpn_policy: '{{ resource.AlpnPolicy }}'
-      mutual_authentication: '{{ resource.MutualAuthentication }}'
+      ListenerArn: '{{ response.Listeners.ListenerArn }}'
+      LoadBalancerArn: '{{ response.Listeners.LoadBalancerArn }}'
+      Port: '{{ response.Listeners.Port }}'
+      Protocol: '{{ response.Listeners.Protocol }}'
+      Certificates: '{{ response.Listeners.Certificates }}'
+      SslPolicy: '{{ response.Listeners.SslPolicy }}'
+      DefaultActions: '{{ response.Listeners.DefaultActions }}'
+      AlpnPolicy: '{{ response.Listeners.AlpnPolicy }}'
+      MutualAuthentication: '{{ response.Listeners.MutualAuthentication }}'
 - discovery_id: aws.elbv2.describe_load_balancers
   calls:
   - action: describe_load_balancers
-    save_as: describe_load_balancers_response
+    save_as: response
   emit:
-    items_for: '{{ describe_load_balancers_response.LoadBalancers }}'
-    as: resource
     item:
-      load_balancer_arn: '{{ resource.LoadBalancerArn }}'
-      dns_name: '{{ resource.DNSName }}'
-      canonical_hosted_zone_id: '{{ resource.CanonicalHostedZoneId }}'
-      created_time: '{{ resource.CreatedTime }}'
-      load_balancer_name: '{{ resource.LoadBalancerName }}'
-      scheme: '{{ resource.Scheme }}'
-      vpc_id: '{{ resource.VpcId }}'
-      state: '{{ resource.State }}'
-      type: '{{ resource.Type }}'
-      availability_zones: '{{ resource.AvailabilityZones }}'
+      LoadBalancerArn: '{{ response.LoadBalancers.LoadBalancerArn }}'
+      DNSName: '{{ response.LoadBalancers.DNSName }}'
+      CanonicalHostedZoneId: '{{ response.LoadBalancers.CanonicalHostedZoneId }}'
+      CreatedTime: '{{ response.LoadBalancers.CreatedTime }}'
+      LoadBalancerName: '{{ response.LoadBalancers.LoadBalancerName }}'
+      Scheme: '{{ response.LoadBalancers.Scheme }}'
+      VpcId: '{{ response.LoadBalancers.VpcId }}'
+      State: '{{ response.LoadBalancers.State }}'
+      Type: '{{ response.LoadBalancers.Type }}'
+      AvailabilityZones: '{{ response.LoadBalancers.AvailabilityZones }}'
+      SecurityGroups: '{{ response.LoadBalancers.SecurityGroups }}'
+      IpAddressType: '{{ response.LoadBalancers.IpAddressType }}'
+      CustomerOwnedIpv4Pool: '{{ response.LoadBalancers.CustomerOwnedIpv4Pool }}'
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ response.LoadBalancers.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic
+        }}'
+      EnablePrefixForIpv6SourceNat: '{{ response.LoadBalancers.EnablePrefixForIpv6SourceNat
+        }}'
+      IpamPools: '{{ response.LoadBalancers.IpamPools }}'
 - discovery_id: aws.elbv2.describe_target_groups
   calls:
   - action: describe_target_groups
-    save_as: describe_target_groups_response
-  emit:
-    items_for: '{{ describe_target_groups_response.TargetGroups }}'
-    as: resource
-    item:
-      target_group_arn: '{{ resource.TargetGroupArn }}'
-      target_group_name: '{{ resource.TargetGroupName }}'
-      protocol: '{{ resource.Protocol }}'
-      port: '{{ resource.Port }}'
-      vpc_id: '{{ resource.VpcId }}'
-      health_check_protocol: '{{ resource.HealthCheckProtocol }}'
-      health_check_port: '{{ resource.HealthCheckPort }}'
-      health_check_enabled: '{{ resource.HealthCheckEnabled }}'
-      health_check_interval_seconds: '{{ resource.HealthCheckIntervalSeconds }}'
-      health_check_timeout_seconds: '{{ resource.HealthCheckTimeoutSeconds }}'
-- discovery_id: aws.elbv2.describe_listener_attributes
-  calls:
-  - action: describe_listener_attributes
-    save_as: describe_listener_attributes_response
-    params:
-      ListenerArn: '{{ item.listener_arn }}'
-    on_error: continue
-  for_each: aws.elbv2.describe_listeners
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      key: '{{ describe_listener_attributes_response.Attributes.Key }}'
-      value: '{{ describe_listener_attributes_response.Attributes.Value }}'
+      TargetGroupArn: '{{ response.TargetGroups.TargetGroupArn }}'
+      TargetGroupName: '{{ response.TargetGroups.TargetGroupName }}'
+      Protocol: '{{ response.TargetGroups.Protocol }}'
+      Port: '{{ response.TargetGroups.Port }}'
+      VpcId: '{{ response.TargetGroups.VpcId }}'
+      HealthCheckProtocol: '{{ response.TargetGroups.HealthCheckProtocol }}'
+      HealthCheckPort: '{{ response.TargetGroups.HealthCheckPort }}'
+      HealthCheckEnabled: '{{ response.TargetGroups.HealthCheckEnabled }}'
+      HealthCheckIntervalSeconds: '{{ response.TargetGroups.HealthCheckIntervalSeconds
+        }}'
+      HealthCheckTimeoutSeconds: '{{ response.TargetGroups.HealthCheckTimeoutSeconds
+        }}'
+      HealthyThresholdCount: '{{ response.TargetGroups.HealthyThresholdCount }}'
+      UnhealthyThresholdCount: '{{ response.TargetGroups.UnhealthyThresholdCount }}'
+      HealthCheckPath: '{{ response.TargetGroups.HealthCheckPath }}'
+      Matcher: '{{ response.TargetGroups.Matcher }}'
+      LoadBalancerArns: '{{ response.TargetGroups.LoadBalancerArns }}'
+      TargetType: '{{ response.TargetGroups.TargetType }}'
+      ProtocolVersion: '{{ response.TargetGroups.ProtocolVersion }}'
+      IpAddressType: '{{ response.TargetGroups.IpAddressType }}'
+      TargetControlPort: '{{ response.TargetGroups.TargetControlPort }}'
 - discovery_id: aws.elbv2.describe_tags
   calls:
   - action: describe_tags
-    save_as: describe_tags_response
-    params:
-      ResourceArns: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.elbv2.describe_listeners
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      resource_arn: '{{ describe_tags_response.TagDescriptions.ResourceArn }}'
-      tags: '{{ describe_tags_response.TagDescriptions.Tags }}'
+      ResourceArn: '{{ response.TagDescriptions.ResourceArn }}'
+      Tags: '{{ response.TagDescriptions.Tags }}'
 checks:
 - rule_id: aws.elbv2.listener.cipher_policy_secure_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
-    var: item.ssl_policy
+    var: item.SslPolicy
     op: equals
     value: ELBSecurityPolicy-TLS-1-2-2017-01
 - rule_id: aws.elbv2.isinmultipleaz.elbv2_is_in_multiple_az_configured
   for_each: aws.elbv2.describe_load_balancers
   conditions:
-    var: item.availability_zones
+    var: item.AvailabilityZones
     op: gt
     value: 1
 - rule_id: aws.elbv2.listener.tls_min_1_2_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
-    var: item.ssl_policy
+    var: item.SslPolicy
     op: equals
     value: ELBSecurityPolicy-TLS-1-2-2017-01
-- rule_id: aws.elbv2.deletion_protection.deletion_protection_configured
-  for_each: aws.elbv2.describe_listener_attributes
-  conditions:
-    all:
-    - var: item.key
-      op: equals
-      value: deletion_protection.enabled
-    - var: item.value
-      op: equals
-      value: 'true'
 - rule_id: aws.elbv2.group.security_check_health_check_enabled
   for_each: aws.elbv2.describe_target_groups
   conditions:
-    var: item.health_check_enabled
+    var: item.HealthCheckEnabled
     op: equals
     value: true
-- rule_id: aws.elbv2.loadbalancer.valid_certificate_enabled
-  for_each: aws.elbv2.describe_listeners
-  conditions:
-    all:
-    - var: item.certificates
-      op: exists
-    - var: item.protocol
-      op: equals
-      value: HTTPS
 - rule_id: aws.elbv2.targetgroup.health_checks_tls_if_supported_configured
   for_each: aws.elbv2.describe_target_groups
   conditions:
-    var: item.health_check_protocol
+    var: item.HealthCheckProtocol
     op: equals
     value: HTTPS
-- rule_id: aws.elbv2.targetgroup.elbv2_targets_in_private_subnets_configured
-  for_each: aws.elbv2.describe_load_balancers
-  conditions:
-    all:
-    - var: item.vpc_id
-      op: equals
-      value: vpc-12345678
-    - var: item.scheme
-      op: equals
-      value: internal
-- rule_id: aws.elbv2.resource.logging_enabled
-  for_each: aws.elbv2.describe_listener_attributes
-  conditions:
-    all:
-    - var: item.key
-      op: equals
-      value: access_logs.s3.enabled
-    - var: item.value
-      op: equals
-      value: 'true'
-- rule_id: aws.elbv2.loadbalancer.deletion_protection_enabled
-  for_each: aws.elbv2.describe_listener_attributes
-  conditions:
-    all:
-    - var: item.key
-      op: equals
-      value: deletion_protection.enabled
-    - var: item.value
-      op: equals
-      value: 'true'
-- rule_id: aws.elbv2.logging.access_logging_enabled
-  for_each: aws.elbv2.describe_listener_attributes
-  conditions:
-    all:
-    - var: item.key
-      op: equals
-      value: access_logs.s3.enabled
-    - var: item.value
-      op: equals
-      value: 'true'
 - rule_id: aws.elbv2.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
-    var: item.ssl_policy
+    var: item.SslPolicy
     op: equals
     value: ELBSecurityPolicy-2016-08
 - rule_id: aws.elbv2.wafaclattached.waf_acl_enabled
   for_each: aws.elbv2.describe_tags
   conditions:
-    var: item.resource_arn
+    var: item.ResourceArn
     op: exists
-- rule_id: aws.elbv2.loadbalancer.access_logs_enabled
-  for_each: aws.elbv2.describe_listener_attributes
-  conditions:
-    all:
-    - var: item.key
-      op: equals
-      value: access_logs.s3.enabled
-    - var: item.value
-      op: equals
-      value: 'true'
 - rule_id: aws.elbv2.loadbalancer.listener_tls_min_1_2_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
-    var: item.ssl_policy
+    var: item.SslPolicy
     op: equals
     value: ELBSecurityPolicy-TLS-1-2-2017-01
-- rule_id: aws.elbv2.alb_https_redirect.elbv2_alb_https_redirect_configured
-  for_each: aws.elbv2.describe_listeners
-  conditions:
-    all:
-    - var: item.protocol
-      op: equals
-      value: HTTP
-    - var: item.default_actions
-      op: contains
-      value:
-        Type: redirect
-        RedirectConfig:
-          Protocol: HTTPS

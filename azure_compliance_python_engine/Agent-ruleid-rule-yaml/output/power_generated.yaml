@@ -1,0 +1,96 @@
+version: '1.0'
+provider: azure
+service: power
+discovery:
+- discovery_id: azure.power.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      group_short_name: '{{ item.group_short_name }}'
+      enabled: '{{ item.enabled }}'
+      email_receivers: '{{ item.email_receivers }}'
+      sms_receivers: '{{ item.sms_receivers }}'
+      webhook_receivers: '{{ item.webhook_receivers }}'
+      itsm_receivers: '{{ item.itsm_receivers }}'
+      azure_app_push_receivers: '{{ item.azure_app_push_receivers }}'
+      automation_runbook_receivers: '{{ item.automation_runbook_receivers }}'
+      voice_receivers: '{{ item.voice_receivers }}'
+      logic_app_receivers: '{{ item.logic_app_receivers }}'
+      azure_function_receivers: '{{ item.azure_function_receivers }}'
+      arm_role_receivers: '{{ item.arm_role_receivers }}'
+      event_hub_receivers: '{{ item.event_hub_receivers }}'
+checks:
+- rule_id: azure.power.bi_user.data_analytics_user_roles_minimal
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_user.data_analytics_user_sso_required
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_public_sharing_disabled
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_access_policies_least_privilege
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_public_embeds_disabled
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_sharing_restricted_to_org
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_export_controls_enabled
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_row_level_security_enabled
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_user.data_analytics_user_external_user_access_reviewed
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_encrypted_at_rest_cmek
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_workspace.data_analytics_group_external_group_sharing_restricted
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_sso_required
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.power.bi_workspace.data_analytics_group_roles_minimal
+  for_each: azure.power.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

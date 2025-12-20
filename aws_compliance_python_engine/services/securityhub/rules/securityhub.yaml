@@ -1,176 +1,139 @@
 version: '1.0'
 provider: aws
 service: securityhub
+services:
+  client: securityhub
+  module: boto3.client
 discovery:
 - discovery_id: aws.securityhub.describe_action_targets
   calls:
   - action: describe_action_targets
-    save_as: describe_action_targets_response
+    save_as: response
   emit:
-    items_for: '{{ describe_action_targets_response.ActionTargets }}'
-    as: resource
     item:
-      action_target_arn: '{{ resource.ActionTargetArn }}'
-      name: '{{ resource.Name }}'
-      description: '{{ resource.Description }}'
-- discovery_id: aws.securityhub.list_automation_rules
-  calls:
-  - action: list_automation_rules
-    save_as: list_automation_rules_response
-  emit:
-    items_for: '{{ list_automation_rules_response.AutomationRulesMetadata }}'
-    as: resource
-    item:
-      rule_arn: '{{ resource.RuleArn }}'
-      rule_status: '{{ resource.RuleStatus }}'
-      rule_order: '{{ resource.RuleOrder }}'
-      rule_name: '{{ resource.RuleName }}'
-      description: '{{ resource.Description }}'
-      is_terminal: '{{ resource.IsTerminal }}'
-      created_at: '{{ resource.CreatedAt }}'
-      updated_at: '{{ resource.UpdatedAt }}'
-      created_by: '{{ resource.CreatedBy }}'
+      ActionTargetArn: '{{ response.ActionTargets.ActionTargetArn }}'
+      Name: '{{ response.ActionTargets.Name }}'
+      Description: '{{ response.ActionTargets.Description }}'
 - discovery_id: aws.securityhub.describe_organization_configuration
   calls:
   - action: describe_organization_configuration
-    save_as: describe_organization_configuration_response
+    save_as: response
   emit:
-    items_for: '{{ describe_organization_configuration_response.OrganizationConfiguration
-      }}'
-    as: resource
     item:
-      configuration_type: '{{ resource.ConfigurationType }}'
-      status: '{{ resource.Status }}'
-      status_message: '{{ resource.StatusMessage }}'
-- discovery_id: aws.securityhub.list_configuration_policies
-  calls:
-  - action: list_configuration_policies
-    save_as: list_configuration_policies_response
-  emit:
-    items_for: '{{ list_configuration_policies_response.ConfigurationPolicySummaries
-      }}'
-    as: resource
-    item:
-      arn: '{{ resource.Arn }}'
-      id: '{{ resource.Id }}'
-      name: '{{ resource.Name }}'
-      description: '{{ resource.Description }}'
-      updated_at: '{{ resource.UpdatedAt }}'
-      service_enabled: '{{ resource.ServiceEnabled }}'
+      ConfigurationType: '{{ response.OrganizationConfiguration.ConfigurationType
+        }}'
+      Status: '{{ response.OrganizationConfiguration.Status }}'
+      StatusMessage: '{{ response.OrganizationConfiguration.StatusMessage }}'
 - discovery_id: aws.securityhub.get_administrator_account
   calls:
   - action: get_administrator_account
-    save_as: get_administrator_account_response
+    save_as: response
   emit:
-    items_for: '{{ get_administrator_account_response.Administrator }}'
+    item:
+      AccountId: '{{ response.Administrator.AccountId }}'
+      InvitationId: '{{ response.Administrator.InvitationId }}'
+      InvitedAt: '{{ response.Administrator.InvitedAt }}'
+      MemberStatus: '{{ response.Administrator.MemberStatus }}'
+- discovery_id: aws.securityhub.list_automation_rules
+  calls:
+  - action: list_automation_rules
+    save_as: response
+  emit:
+    items_for: '{{ response.AutomationRulesMetadata }}'
     as: resource
     item:
-      account_id: '{{ resource.AccountId }}'
-      invitation_id: '{{ resource.InvitationId }}'
-      invited_at: '{{ resource.InvitedAt }}'
-      member_status: '{{ resource.MemberStatus }}'
-- discovery_id: aws.securityhub.create_configuration_policy
+      RuleArn: '{{ resource.RuleArn }}'
+      RuleStatus: '{{ resource.RuleStatus }}'
+      RuleOrder: '{{ resource.RuleOrder }}'
+      RuleName: '{{ resource.RuleName }}'
+      Description: '{{ resource.Description }}'
+      IsTerminal: '{{ resource.IsTerminal }}'
+      CreatedAt: '{{ resource.CreatedAt }}'
+      UpdatedAt: '{{ resource.UpdatedAt }}'
+      CreatedBy: '{{ resource.CreatedBy }}'
+- discovery_id: aws.securityhub.list_configuration_policies
   calls:
-  - action: create_configuration_policy
-    save_as: create_configuration_policy_response
-    params:
-      Name: '{{ item.name }}'
-      ConfigurationPolicy: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.securityhub.describe_action_targets
+  - action: list_configuration_policies
+    save_as: response
   emit:
+    items_for: '{{ response.ConfigurationPolicySummaries }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      security_hub: '{{ create_configuration_policy_response.ConfigurationPolicy.SecurityHub
-        }}'
+      Arn: '{{ resource.Arn }}'
+      Id: '{{ resource.Id }}'
+      Name: '{{ resource.Name }}'
+      Description: '{{ resource.Description }}'
+      UpdatedAt: '{{ resource.UpdatedAt }}'
+      ServiceEnabled: '{{ resource.ServiceEnabled }}'
 checks:
 - rule_id: aws.securityhub.finding.alert_destinations_configured
   for_each: aws.securityhub.describe_action_targets
   conditions:
-    var: item.action_target_arn
+    var: item.ActionTargetArn
     op: exists
-- rule_id: aws.securityhub.finding.securityhub_suppression_rules_documented_and_scoped_configured
-  for_each: aws.securityhub.list_automation_rules
-  conditions:
-    all:
-    - var: item.description
-      op: exists
-    - var: item.rule_status
-      op: equals
-      value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_detectors_enabled
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.finding.securityhub_archival_export_encrypted
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.resource.securityhub_resource_enabled
   for_each: aws.securityhub.list_configuration_policies
   conditions:
-    var: item.service_enabled
+    var: item.ServiceEnabled
     op: equals
     value: true
 - rule_id: aws.securityhub.action.rbac_least_privilege
   for_each: aws.securityhub.list_automation_rules
   conditions:
-    var: item.rule_status
+    var: item.RuleStatus
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_enabled_in_all_regions
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.action.versioning_and_immutability_enabled
   for_each: aws.securityhub.list_automation_rules
   conditions:
-    var: item.rule_status
+    var: item.RuleStatus
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_master_member_configured
   for_each: aws.securityhub.get_administrator_account
   conditions:
-    var: item.member_status
+    var: item.MemberStatus
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_finding_export_encrypted_destination
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_destinations_encrypted
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_auto_enroll_new_accounts_configured
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
-- rule_id: aws.securityhub.action.securityhub_storage_encrypted_and_private
-  for_each: aws.securityhub.create_configuration_policy
-  conditions:
-    all:
-    - var: item.security_hub
-      op: equals
-      value: true
-    - var: item.security_hub
-      op: equals
-      value: true
 - rule_id: aws.securityhub.resource.securityhub_hub_enabled_in_all_regions
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED

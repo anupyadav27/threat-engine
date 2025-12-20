@@ -1,39 +1,32 @@
 version: '1.0'
 provider: aws
 service: apigatewayv2
+services:
+  client: apigatewayv2
+  module: boto3.client
 discovery:
-- discovery_id: aws.apigatewayv2.get_stages
+- discovery_id: aws.apigatewayv2.get_route
   calls:
-  - action: get_stages
-    save_as: get_stages_response
+  - action: get_route
+    save_as: response
     params:
-      ApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigatewayv2.PARENT_DISCOVERY
+      ApiId: '{{ item.ApiId }}'
+      RouteId: '{{ item.RouteId }}'
+  on_error: continue
+  for_each: aws.apigatewayv2.get_apis
+- discovery_id: aws.apigatewayv2.get_stage
+  calls:
+  - action: get_stage
+    save_as: response
+    params:
+      StageName: '{{ item.StageName }}'
+      ApiId: '{{ item.ApiId }}'
+  on_error: continue
+  for_each: aws.apigatewayv2.get_stages
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      access_log_settings: '{{ get_stages_response.Items.AccessLogSettings }}'
-      api_gateway_managed: '{{ get_stages_response.Items.ApiGatewayManaged }}'
-      auto_deploy: '{{ get_stages_response.Items.AutoDeploy }}'
-      client_certificate_id: '{{ get_stages_response.Items.ClientCertificateId }}'
-      created_date: '{{ get_stages_response.Items.CreatedDate }}'
-- discovery_id: aws.apigatewayv2.get_routes
-  calls:
-  - action: get_routes
-    save_as: get_routes_response
-    params:
-      ApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigatewayv2.PARENT_DISCOVERY
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      api_gateway_managed: '{{ get_routes_response.Items.ApiGatewayManaged }}'
-      api_key_required: '{{ get_routes_response.Items.ApiKeyRequired }}'
-      authorization_scopes: '{{ get_routes_response.Items.AuthorizationScopes }}'
-      authorization_type: '{{ get_routes_response.Items.AuthorizationType }}'
-      authorizer_id: '{{ get_routes_response.Items.AuthorizerId }}'
+      DestinationArn: '{{ response.AccessLogSettings.DestinationArn }}'
+      Format: '{{ response.AccessLogSettings.Format }}'
 checks:
 - rule_id: aws.apigatewayv2.stage.api_quota_limit_configured
   for_each: aws.apigatewayv2.get_stages

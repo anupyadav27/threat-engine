@@ -1,156 +1,150 @@
 version: '1.0'
 provider: aws
 service: apigateway
+services:
+  client: apigateway
+  module: boto3.client
 discovery:
-- discovery_id: aws.apigateway.get_usage_plans
+- discovery_id: aws.apigateway.get_account
   calls:
-  - action: get_usage_plans
-    save_as: get_usage_plans_response
-  emit:
-    items_for: '{{ get_usage_plans_response.items }}'
-    as: resource
-    item:
-      id: '{{ resource.id }}'
-      name: '{{ resource.name }}'
-      description: '{{ resource.description }}'
-      api_stages: '{{ resource.apiStages }}'
-      throttle: '{{ resource.throttle }}'
-      quota: '{{ resource.quota }}'
-      product_code: '{{ resource.productCode }}'
-      tags: '{{ resource.tags }}'
-- discovery_id: aws.apigateway.get_api_keys
-  calls:
-  - action: get_api_keys
-    save_as: get_api_keys_response
-  emit:
-    items_for: '{{ get_api_keys_response.items }}'
-    as: resource
-    item:
-      id: '{{ resource.id }}'
-      value: '{{ resource.value }}'
-      name: '{{ resource.name }}'
-      customer_id: '{{ resource.customerId }}'
-      description: '{{ resource.description }}'
-      enabled: '{{ resource.enabled }}'
-      created_date: '{{ resource.createdDate }}'
-      last_updated_date: '{{ resource.lastUpdatedDate }}'
-      stage_keys: '{{ resource.stageKeys }}'
-      tags: '{{ resource.tags }}'
+  - action: get_account
+    save_as: response
 - discovery_id: aws.apigateway.get_domain_names
   calls:
   - action: get_domain_names
-    save_as: get_domain_names_response
-  emit:
-    items_for: '{{ get_domain_names_response.items }}'
-    as: resource
-    item:
-      domain_name: '{{ resource.domainName }}'
-      domain_name_id: '{{ resource.domainNameId }}'
-      domain_name_arn: '{{ resource.domainNameArn }}'
-      certificate_name: '{{ resource.certificateName }}'
-      certificate_arn: '{{ resource.certificateArn }}'
-      certificate_upload_date: '{{ resource.certificateUploadDate }}'
-      regional_domain_name: '{{ resource.regionalDomainName }}'
-      regional_hosted_zone_id: '{{ resource.regionalHostedZoneId }}'
-      regional_certificate_name: '{{ resource.regionalCertificateName }}'
-      regional_certificate_arn: '{{ resource.regionalCertificateArn }}'
-- discovery_id: aws.apigateway.get_client_certificates
-  calls:
-  - action: get_client_certificates
-    save_as: get_client_certificates_response
-  emit:
-    items_for: '{{ get_client_certificates_response.items }}'
-    as: resource
-    item:
-      client_certificate_id: '{{ resource.clientCertificateId }}'
-      description: '{{ resource.description }}'
-      pem_encoded_certificate: '{{ resource.pemEncodedCertificate }}'
-      created_date: '{{ resource.createdDate }}'
-      expiration_date: '{{ resource.expirationDate }}'
-      tags: '{{ resource.tags }}'
-- discovery_id: aws.apigateway.get_rest_apis
-  calls:
-  - action: get_rest_apis
-    save_as: get_rest_apis_response
-  emit:
-    items_for: '{{ get_rest_apis_response.items }}'
-    as: resource
-    item:
-      id: '{{ resource.id }}'
-      name: '{{ resource.name }}'
-      description: '{{ resource.description }}'
-      created_date: '{{ resource.createdDate }}'
-      version: '{{ resource.version }}'
-      warnings: '{{ resource.warnings }}'
-      binary_media_types: '{{ resource.binaryMediaTypes }}'
-      minimum_compression_size: '{{ resource.minimumCompressionSize }}'
-      api_key_source: '{{ resource.apiKeySource }}'
-      endpoint_configuration: '{{ resource.endpointConfiguration }}'
-- discovery_id: aws.apigateway.get_authorizers
-  calls:
-  - action: get_authorizers
-    save_as: get_authorizers_response
-    params:
-      restApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigateway.get_usage_plans
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ get_authorizers_response.items.id }}'
-      name: '{{ get_authorizers_response.items.name }}'
-      type: '{{ get_authorizers_response.items.type }}'
-      provider_ar_ns: '{{ get_authorizers_response.items.providerARNs }}'
-      auth_type: '{{ get_authorizers_response.items.authType }}'
-- discovery_id: aws.apigateway.get_request_validators
-  calls:
-  - action: get_request_validators
-    save_as: get_request_validators_response
-    params:
-      restApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigateway.get_usage_plans
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ get_request_validators_response.items.id }}'
-      name: '{{ get_request_validators_response.items.name }}'
-      validate_request_body: '{{ get_request_validators_response.items.validateRequestBody
+      domainName: '{{ response.items.domainName }}'
+      domainNameId: '{{ response.items.domainNameId }}'
+      domainNameArn: '{{ response.items.domainNameArn }}'
+      certificateName: '{{ response.items.certificateName }}'
+      certificateArn: '{{ response.items.certificateArn }}'
+      certificateUploadDate: '{{ response.items.certificateUploadDate }}'
+      regionalDomainName: '{{ response.items.regionalDomainName }}'
+      regionalHostedZoneId: '{{ response.items.regionalHostedZoneId }}'
+      regionalCertificateName: '{{ response.items.regionalCertificateName }}'
+      regionalCertificateArn: '{{ response.items.regionalCertificateArn }}'
+      distributionDomainName: '{{ response.items.distributionDomainName }}'
+      distributionHostedZoneId: '{{ response.items.distributionHostedZoneId }}'
+      endpointConfiguration: '{{ response.items.endpointConfiguration }}'
+      domainNameStatus: '{{ response.items.domainNameStatus }}'
+      domainNameStatusMessage: '{{ response.items.domainNameStatusMessage }}'
+      securityPolicy: '{{ response.items.securityPolicy }}'
+      endpointAccessMode: '{{ response.items.endpointAccessMode }}'
+      tags: '{{ response.items.tags }}'
+      mutualTlsAuthentication: '{{ response.items.mutualTlsAuthentication }}'
+      ownershipVerificationCertificateArn: '{{ response.items.ownershipVerificationCertificateArn
         }}'
-      validate_request_parameters: '{{ get_request_validators_response.items.validateRequestParameters
-        }}'
-- discovery_id: aws.apigateway.get_stages
+      managementPolicy: '{{ response.items.managementPolicy }}'
+      policy: '{{ response.items.policy }}'
+      routingMode: '{{ response.items.routingMode }}'
+- discovery_id: aws.apigateway.get_usage_plans
   calls:
-  - action: get_stages
-    save_as: get_stages_response
-    params:
-      restApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigateway.get_usage_plans
+  - action: get_usage_plans
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      deployment_id: '{{ get_stages_response.item.deploymentId }}'
-      client_certificate_id: '{{ get_stages_response.item.clientCertificateId }}'
-      stage_name: '{{ get_stages_response.item.stageName }}'
-      description: '{{ get_stages_response.item.description }}'
-      cache_cluster_enabled: '{{ get_stages_response.item.cacheClusterEnabled }}'
-- discovery_id: aws.apigateway.get_resources
+      id: '{{ response.items.id }}'
+      name: '{{ response.items.name }}'
+      description: '{{ response.items.description }}'
+      apiStages: '{{ response.items.apiStages }}'
+      throttle: '{{ response.items.throttle }}'
+      quota: '{{ response.items.quota }}'
+      productCode: '{{ response.items.productCode }}'
+      tags: '{{ response.items.tags }}'
+- discovery_id: aws.apigateway.get_api_key
   calls:
-  - action: get_resources
-    save_as: get_resources_response
+  - action: get_api_key
+    save_as: response
+- discovery_id: aws.apigateway.get_authorizer
+  calls:
+  - action: get_authorizer
+    save_as: response
     params:
-      restApiId: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.apigateway.get_usage_plans
+      restApiId: '{{ item.restApiId }}'
+      authorizerId: '{{ item.authorizerId }}'
+  on_error: continue
+  for_each: aws.apigateway.get_base_path_mapping
+- discovery_id: aws.apigateway.get_client_certificate
+  calls:
+  - action: get_client_certificate
+    save_as: response
+    params:
+      clientCertificateId: '{{ item.clientCertificateId }}'
+  on_error: continue
+  for_each: aws.apigateway.get_client_certificates
+- discovery_id: aws.apigateway.get_domain_name
+  calls:
+  - action: get_domain_name
+    save_as: response
+    params:
+      domainName: '{{ item.domainName }}'
+  on_error: continue
+  for_each: aws.apigateway.get_domain_names
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      id: '{{ get_resources_response.items.id }}'
-      parent_id: '{{ get_resources_response.items.parentId }}'
-      path_part: '{{ get_resources_response.items.pathPart }}'
-      path: '{{ get_resources_response.items.path }}'
-      resource_methods: '{{ get_resources_response.items.resourceMethods }}'
+      types: '{{ response.endpointConfiguration.types }}'
+      ipAddressType: '{{ response.endpointConfiguration.ipAddressType }}'
+      vpcEndpointIds: '{{ response.endpointConfiguration.vpcEndpointIds }}'
+- discovery_id: aws.apigateway.get_request_validator
+  calls:
+  - action: get_request_validator
+    save_as: response
+    params:
+      restApiId: '{{ item.restApiId }}'
+      requestValidatorId: '{{ item.requestValidatorId }}'
+  on_error: continue
+  for_each: aws.apigateway.get_base_path_mapping
+- discovery_id: aws.apigateway.get_resource
+  calls:
+  - action: get_resource
+    save_as: response
+    params:
+      restApiId: '{{ item.restApiId }}'
+      resourceId: '{{ item.id }}'
+  on_error: continue
+  for_each: aws.apigateway.get_base_path_mapping
+- discovery_id: aws.apigateway.get_rest_api
+  calls:
+  - action: get_rest_api
+    save_as: response
+    params:
+      restApiId: '{{ item.restApiId }}'
+  on_error: continue
+  for_each: aws.apigateway.get_base_path_mapping
+- discovery_id: aws.apigateway.get_stage
+  calls:
+  - action: get_stage
+    save_as: response
+    params:
+      restApiId: '{{ item.restApiId }}'
+      stageName: '{{ item.stageName }}'
+  on_error: continue
+  for_each: aws.apigateway.get_base_path_mapping
+  emit:
+    item:
+      format: '{{ response.accessLogSettings.format }}'
+      destinationArn: '{{ response.accessLogSettings.destinationArn }}'
+- discovery_id: aws.apigateway.get_usage
+  calls:
+  - action: get_usage
+    save_as: response
+    params:
+      usagePlanId: '{{ item.usagePlanId }}'
+      startDate: '{{ item.startDate }}'
+      endDate: '{{ item.endDate }}'
+  on_error: continue
+  for_each: aws.apigateway.get_vpc_links
+- discovery_id: aws.apigateway.update_usage
+  calls:
+  - action: update_usage
+    save_as: response
+    params:
+      usagePlanId: '{{ item.usagePlanId }}'
+      keyId: '{{ item.id }}'
+  on_error: continue
+  for_each: aws.apigateway.get_usage
 checks:
 - rule_id: aws.apigateway.usageplan.api_stage_rate_limit_configured
   for_each: aws.apigateway.get_usage_plans
@@ -163,15 +157,6 @@ checks:
     var: item.auth_type
     op: equals
     value: AWS_IAM
-- rule_id: aws.apigateway.apikey.key_rotation_policy_configured
-  for_each: aws.apigateway.get_api_keys
-  conditions:
-    all:
-    - var: item.enabled
-      op: equals
-      value: true
-    - var: item.last_updated_date
-      op: exists
 - rule_id: aws.apigateway.usageplan.api_quota_limit_configured
   for_each: aws.apigateway.get_usage_plans
   conditions:
@@ -183,46 +168,16 @@ checks:
     var: item.authorizer_result_ttl_in_seconds
     op: gt
     value: 0
-- rule_id: aws.apigateway.requestvalidator.api_required_security_headers_enforced
-  for_each: aws.apigateway.get_request_validators
-  conditions:
-    all:
-    - var: item.validate_request_body
-      op: equals
-      value: true
-    - var: item.validate_request_parameters
-      op: equals
-      value: true
 - rule_id: aws.apigateway.stage.logging_enabled
   for_each: aws.apigateway.get_stages
   conditions:
     var: item.access_log_settings
     op: exists
-- rule_id: aws.apigateway.requestvalidator.api_content_type_whitelist_enforced
-  for_each: aws.apigateway.get_request_validators
-  conditions:
-    all:
-    - var: item.validate_request_body
-      op: equals
-      value: true
-    - var: item.validate_request_parameters
-      op: equals
-      value: true
 - rule_id: aws.apigateway.throttle.api_stage_overrides_bounded
   for_each: aws.apigateway.get_usage_plans
   conditions:
     var: item.throttle
     op: exists
-- rule_id: aws.apigateway.requestvalidator.api_request_schema_validation_enabled
-  for_each: aws.apigateway.get_request_validators
-  conditions:
-    all:
-    - var: item.validate_request_body
-      op: equals
-      value: true
-    - var: item.validate_request_parameters
-      op: equals
-      value: true
 - rule_id: aws.apigateway.restapi.waf_enabled
   for_each: aws.apigateway.get_stages
   conditions:
@@ -247,7 +202,7 @@ checks:
 - rule_id: aws.apigateway.authorizer.tls_min_1_2_enforced
   for_each: aws.apigateway.get_domain_names
   conditions:
-    var: item.security_policy
+    var: item.securityPolicy
     op: equals
     value: TLS_1_2
 - rule_id: aws.apigateway.stage.api_logs_retention_days_minimum
@@ -264,7 +219,7 @@ checks:
 - rule_id: aws.apigateway.resource.api_gateway_https_required
   for_each: aws.apigateway.get_domain_names
   conditions:
-    var: item.security_policy
+    var: item.securityPolicy
     op: equals
     value: TLS_1_2
 - rule_id: aws.apigateway.usageplan.api_rate_limits_configured
@@ -294,7 +249,7 @@ checks:
     var: item.access_log_settings
     op: exists
 - rule_id: aws.apigateway.requestvalidator.api_parameters_validation_enabled
-  for_each: aws.apigateway.get_request_validators
+  for_each: aws.apigateway.get_usage_plans
   conditions:
     var: item.validate_request_parameters
     op: equals
@@ -304,16 +259,6 @@ checks:
   conditions:
     var: item.throttle
     op: exists
-- rule_id: aws.apigateway.authorizer.api_token_audience_restricted
-  for_each: aws.apigateway.get_authorizers
-  conditions:
-    all:
-    - var: item.type
-      op: equals
-      value: TOKEN
-    - var: item.identity_source
-      op: contains
-      value: method.request.header.Authorization
 - rule_id: aws.apigateway.restapi.tracing_enabled
   for_each: aws.apigateway.get_stages
   conditions:
@@ -323,7 +268,7 @@ checks:
 - rule_id: aws.apigateway.v2api.private_networking_enforced
   for_each: aws.apigateway.get_domain_names
   conditions:
-    var: item.endpoint_configuration
+    var: item.endpointConfiguration
     op: equals
     value: PRIVATE
 - rule_id: aws.apigateway.throttle.api_stage_rate_limit_configured
@@ -342,15 +287,6 @@ checks:
     var: item.api_key_source
     op: equals
     value: HEADER
-- rule_id: aws.apigateway.restapi.authz_policies_enforced
-  for_each: aws.apigateway.get_domain_names
-  conditions:
-    all:
-    - var: item.policy
-      op: exists
-    - var: item.security_policy
-      op: equals
-      value: TLS_1_2
 - rule_id: aws.apigateway.restapi.public_access_restricted
   for_each: aws.apigateway.get_rest_apis
   conditions:
@@ -363,23 +299,6 @@ checks:
     var: item.minimum_compression_size
     op: gt
     value: 0
-- rule_id: aws.apigateway.resource.restapi_logging_enabled
-  for_each: aws.apigateway.get_stages
-  conditions:
-    all:
-    - var: item.access_log_settings
-      op: exists
-    - var: item.tracing_enabled
-      op: equals
-      value: true
-- rule_id: aws.apigateway.stage.api_execution_logging_level_minimum_error_configured
-  for_each: aws.apigateway.get_stages
-  conditions:
-    all:
-    - var: item.method_settings
-      op: exists
-    - var: item.access_log_settings
-      op: exists
 - rule_id: aws.apigateway.stage.api_access_logging_enabled
   for_each: aws.apigateway.get_stages
   conditions:
@@ -393,48 +312,21 @@ checks:
 - rule_id: aws.apigateway.restapi.authn_required
   for_each: aws.apigateway.get_domain_names
   conditions:
-    var: item.security_policy
+    var: item.securityPolicy
     op: exists
-- rule_id: aws.apigateway.v2api.authn_required
-  for_each: aws.apigateway.get_rest_apis
-  conditions:
-    all:
-    - var: item.api_key_source
-      op: equals
-      value: AUTHORIZER
-    - var: item.id
-      op: exists
 - rule_id: aws.apigateway.usageplan.api_quota_limits_configured
   for_each: aws.apigateway.get_usage_plans
   conditions:
     var: item.quota
     op: exists
-- rule_id: aws.apigateway.certificate.certificate_enabled
-  for_each: aws.apigateway.get_domain_names
-  conditions:
-    all:
-    - var: item.certificate_name
-      op: exists
-    - var: item.certificate_arn
-      op: exists
 - rule_id: aws.apigateway.restapi.private_networking_enforced
   for_each: aws.apigateway.get_domain_names
   conditions:
-    var: item.endpoint_configuration
+    var: item.endpointConfiguration
     op: equals
     value:
       types:
       - PRIVATE
-- rule_id: aws.apigateway.requestvalidator.api_response_schema_validation_enabled
-  for_each: aws.apigateway.get_request_validators
-  conditions:
-    all:
-    - var: item.validate_request_body
-      op: equals
-      value: true
-    - var: item.validate_request_parameters
-      op: equals
-      value: true
 - rule_id: aws.apigateway.stage.usage_plan_for_api_keys_required
   for_each: aws.apigateway.get_rest_apis
   conditions:

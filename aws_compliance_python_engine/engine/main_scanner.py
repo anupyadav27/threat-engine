@@ -129,8 +129,14 @@ def resolve_services(
     
     if service:
         # Single specific service
+        # Normalize service name (handle folder name vs config name differences)
+        service_normalized = service.replace('_', '').lower()
         for svc_name, scope in all_services:
             if svc_name == service:
+                return [(svc_name, scope)]
+            # Also check normalized match (e.g., vpcflowlogs matches vpc_flow_logs)
+            svc_name_normalized = svc_name.replace('_', '').lower()
+            if svc_name_normalized == service_normalized:
                 return [(svc_name, scope)]
         raise ValueError(f"Service '{service}' not found or not enabled")
     

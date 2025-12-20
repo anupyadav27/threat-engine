@@ -2,123 +2,101 @@ version: '1.0'
 provider: aws
 service: cognito
 discovery:
-- discovery_id: aws.cognito.update_managed_login_branding
+- discovery_id: aws.cognito.list_user_pools
   calls:
-  - action: update_managed_login_branding
-    save_as: update_managed_login_branding_response
+  - action: list_user_pools
+    save_as: list_user_pools_response
+    on_error: continue
   emit:
-    items_for: '{{ update_managed_login_branding_response.ManagedLoginBranding }}'
-    as: resource
     item:
-      managed_login_branding_id: '{{ resource.ManagedLoginBrandingId }}'
-      user_pool_id: '{{ resource.UserPoolId }}'
-      use_cognito_provided_values: '{{ resource.UseCognitoProvidedValues }}'
-      settings: '{{ resource.Settings }}'
-      assets: '{{ resource.Assets }}'
-      creation_date: '{{ resource.CreationDate }}'
-      last_modified_date: '{{ resource.LastModifiedDate }}'
-- discovery_id: aws.cognito.admin_list_groups_for_user
+      resource_id: '{{ item.resource_id }}'
+      id: '{{ list_user_pools_response.UserPools.Id }}'
+      name: '{{ list_user_pools_response.UserPools.Name }}'
+      lambda_config: '{{ list_user_pools_response.UserPools.LambdaConfig }}'
+      status: '{{ list_user_pools_response.UserPools.Status }}'
+      last_modified_date: '{{ list_user_pools_response.UserPools.LastModifiedDate
+        }}'
+- discovery_id: aws.cognito.get_group
   calls:
-  - action: admin_list_groups_for_user
-    save_as: admin_list_groups_for_user_response
+  - action: get_group
+    save_as: get_group_response
     params:
-      Username: '{{ item.id }}'
+      GroupName: '{{ item.group_name }}'
       UserPoolId: '{{ item.user_pool_id }}'
     on_error: continue
-  for_each: aws.cognito.update_managed_login_branding
+  for_each: aws.cognito.get_group
   emit:
     item:
       resource_id: '{{ item.resource_id }}'
-      group_name: '{{ admin_list_groups_for_user_response.Groups.GroupName }}'
-      user_pool_id: '{{ admin_list_groups_for_user_response.Groups.UserPoolId }}'
-      description: '{{ admin_list_groups_for_user_response.Groups.Description }}'
-      role_arn: '{{ admin_list_groups_for_user_response.Groups.RoleArn }}'
-      precedence: '{{ admin_list_groups_for_user_response.Groups.Precedence }}'
-- discovery_id: aws.cognito.create_user_pool
+      group_name: '{{ get_group_response.Group.GroupName }}'
+      user_pool_id: '{{ get_group_response.Group.UserPoolId }}'
+      description: '{{ get_group_response.Group.Description }}'
+      role_arn: '{{ get_group_response.Group.RoleArn }}'
+      precedence: '{{ get_group_response.Group.Precedence }}'
+- discovery_id: aws.cognito.describe_user_pool
   calls:
-  - action: create_user_pool
-    save_as: create_user_pool_response
+  - action: describe_user_pool
+    save_as: describe_user_pool_response
     params:
-      PoolName: '{{ item.id }}'
+      UserPoolId: '{{ item.id }}'
     on_error: continue
-  for_each: aws.cognito.update_managed_login_branding
+  for_each: aws.cognito.list_user_pools
   emit:
     item:
       resource_id: '{{ item.resource_id }}'
-      id: '{{ create_user_pool_response.UserPool.Id }}'
-      name: '{{ create_user_pool_response.UserPool.Name }}'
-      policies: '{{ create_user_pool_response.UserPool.Policies }}'
-      deletion_protection: '{{ create_user_pool_response.UserPool.DeletionProtection
+      id: '{{ describe_user_pool_response.UserPool.Id }}'
+      name: '{{ describe_user_pool_response.UserPool.Name }}'
+      policies: '{{ describe_user_pool_response.UserPool.Policies }}'
+      deletion_protection: '{{ describe_user_pool_response.UserPool.DeletionProtection
         }}'
-      lambda_config: '{{ create_user_pool_response.UserPool.LambdaConfig }}'
-- discovery_id: aws.cognito.admin_create_user
+      lambda_config: '{{ describe_user_pool_response.UserPool.LambdaConfig }}'
+- discovery_id: aws.cognito.list_users
   calls:
-  - action: admin_create_user
-    save_as: admin_create_user_response
+  - action: list_users
+    save_as: list_users_response
     params:
-      UserPoolId: '{{ item.user_pool_id }}'
-      Username: '{{ item.id }}'
+      UserPoolId: '{{ item.id }}'
     on_error: continue
-  for_each: aws.cognito.update_managed_login_branding
+  for_each: aws.cognito.list_user_pools
   emit:
     item:
       resource_id: '{{ item.resource_id }}'
-      username: '{{ admin_create_user_response.User.Username }}'
-      attributes: '{{ admin_create_user_response.User.Attributes }}'
-      user_create_date: '{{ admin_create_user_response.User.UserCreateDate }}'
-      user_last_modified_date: '{{ admin_create_user_response.User.UserLastModifiedDate
+      username: '{{ list_users_response.Users.Username }}'
+      attributes: '{{ list_users_response.Users.Attributes }}'
+      user_create_date: '{{ list_users_response.Users.UserCreateDate }}'
+      user_last_modified_date: '{{ list_users_response.Users.UserLastModifiedDate
         }}'
-      enabled: '{{ admin_create_user_response.User.Enabled }}'
-- discovery_id: aws.cognito.create_user_import_job
-  calls:
-  - action: create_user_import_job
-    save_as: create_user_import_job_response
-    params:
-      JobName: '{{ item.id }}'
-      UserPoolId: '{{ item.user_pool_id }}'
-      CloudWatchLogsRoleArn: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.cognito.update_managed_login_branding
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      job_name: '{{ create_user_import_job_response.UserImportJob.JobName }}'
-      job_id: '{{ create_user_import_job_response.UserImportJob.JobId }}'
-      user_pool_id: '{{ create_user_import_job_response.UserImportJob.UserPoolId }}'
-      pre_signed_url: '{{ create_user_import_job_response.UserImportJob.PreSignedUrl
-        }}'
-      creation_date: '{{ create_user_import_job_response.UserImportJob.CreationDate
-        }}'
+      enabled: '{{ list_users_response.Users.Enabled }}'
 checks:
 - rule_id: aws.cognito.userpool.access_keys_rotated_90_days_or_less_when_present
-  for_each: aws.cognito.update_managed_login_branding
+  for_each: aws.cognito.list_user_pools
   conditions:
     var: item.last_modified_date
     op: lte
     value: 90
 - rule_id: aws.cognito.userpoolgroup.cognito_no_inline_policies_configured
-  for_each: aws.cognito.admin_list_groups_for_user
+  for_each: aws.cognito.get_group
   conditions:
     var: item.role_arn
     op: exists
 - rule_id: aws.cognito.userpool.console_password_present_only_if_required
-  for_each: aws.cognito.create_user_pool
+  for_each: aws.cognito.describe_user_pool
   conditions:
     var: item.policies
     op: exists
 - rule_id: aws.cognito.userpool.mfa_required
-  for_each: aws.cognito.admin_create_user
+  for_each: aws.cognito.list_users
   conditions:
     var: item.mfa_options
     op: exists
 - rule_id: aws.cognito.userpool.cognito_store_encrypted
-  for_each: aws.cognito.create_user_import_job
+  for_each: aws.cognito.list_user_pools
   conditions:
     var: item.status
     op: equals
     value: ENABLED
 - rule_id: aws.cognito.userpool.cognito_inactive_90_days_disabled
-  for_each: aws.cognito.admin_create_user
+  for_each: aws.cognito.list_users
   conditions:
     all:
     - var: item.user_status
@@ -128,29 +106,29 @@ checks:
       op: gt
       value: 90_days_ago
 - rule_id: aws.cognito.userpool.cognito_no_inline_policies_enabled
-  for_each: aws.cognito.create_user_pool
+  for_each: aws.cognito.describe_user_pool
   conditions:
     var: item.policies
     op: equals
 - rule_id: aws.cognito.userpoolgroup.cognito_attached_policies_not_admin_star_configured
-  for_each: aws.cognito.admin_list_groups_for_user
+  for_each: aws.cognito.get_group
   conditions:
     var: item.role_arn
     op: not_contains
     value: arn:aws:iam::aws:policy/AdministratorAccess
 - rule_id: aws.cognito.userpool.cognito_workflow_storage_encrypted
-  for_each: aws.cognito.create_user_import_job
+  for_each: aws.cognito.list_user_pools
   conditions:
     var: item.status
     op: equals
     value: ENABLED
 - rule_id: aws.cognito.userpool.execution_roles_least_privilege
-  for_each: aws.cognito.admin_list_groups_for_user
+  for_each: aws.cognito.get_group
   conditions:
     var: item.role_arn
     op: exists
 - rule_id: aws.cognito.userpoolgroup.cognito_membership_review_enabled_if_supported
-  for_each: aws.cognito.admin_list_groups_for_user
+  for_each: aws.cognito.get_group
   conditions:
     var: item.description
     op: exists

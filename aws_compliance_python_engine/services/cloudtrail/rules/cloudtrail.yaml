@@ -1,419 +1,165 @@
 version: '1.0'
 provider: aws
 service: cloudtrail
+services:
+  client: cloudtrail
+  module: boto3.client
 discovery:
 - discovery_id: aws.cloudtrail.describe_trails
   calls:
   - action: describe_trails
-    save_as: describe_trails_response
+    save_as: response
   emit:
-    items_for: '{{ describe_trails_response.trailList }}'
-    as: resource
     item:
-      name: '{{ resource.Name }}'
-      s3_bucket_name: '{{ resource.S3BucketName }}'
-      s3_key_prefix: '{{ resource.S3KeyPrefix }}'
-      sns_topic_name: '{{ resource.SnsTopicName }}'
-      sns_topic_arn: '{{ resource.SnsTopicARN }}'
-      include_global_service_events: '{{ resource.IncludeGlobalServiceEvents }}'
-      is_multi_region_trail: '{{ resource.IsMultiRegionTrail }}'
-      home_region: '{{ resource.HomeRegion }}'
-      trail_arn: '{{ resource.TrailARN }}'
-      log_file_validation_enabled: '{{ resource.LogFileValidationEnabled }}'
+      Name: '{{ response.trailList.Name }}'
+      S3BucketName: '{{ response.trailList.S3BucketName }}'
+      S3KeyPrefix: '{{ response.trailList.S3KeyPrefix }}'
+      SnsTopicName: '{{ response.trailList.SnsTopicName }}'
+      SnsTopicARN: '{{ response.trailList.SnsTopicARN }}'
+      IncludeGlobalServiceEvents: '{{ response.trailList.IncludeGlobalServiceEvents
+        }}'
+      IsMultiRegionTrail: '{{ response.trailList.IsMultiRegionTrail }}'
+      HomeRegion: '{{ response.trailList.HomeRegion }}'
+      TrailARN: '{{ response.trailList.TrailARN }}'
+      LogFileValidationEnabled: '{{ response.trailList.LogFileValidationEnabled }}'
+      CloudWatchLogsLogGroupArn: '{{ response.trailList.CloudWatchLogsLogGroupArn
+        }}'
+      CloudWatchLogsRoleArn: '{{ response.trailList.CloudWatchLogsRoleArn }}'
+      KmsKeyId: '{{ response.trailList.KmsKeyId }}'
+      HasCustomEventSelectors: '{{ response.trailList.HasCustomEventSelectors }}'
+      HasInsightSelectors: '{{ response.trailList.HasInsightSelectors }}'
+      IsOrganizationTrail: '{{ response.trailList.IsOrganizationTrail }}'
 - discovery_id: aws.cloudtrail.list_event_data_stores
   calls:
   - action: list_event_data_stores
-    save_as: list_event_data_stores_response
+    save_as: response
   emit:
-    items_for: '{{ list_event_data_stores_response.EventDataStores }}'
+    items_for: '{{ response.EventDataStores }}'
     as: resource
     item:
-      event_data_store_arn: '{{ resource.EventDataStoreArn }}'
-      name: '{{ resource.Name }}'
-      termination_protection_enabled: '{{ resource.TerminationProtectionEnabled }}'
-      status: '{{ resource.Status }}'
-      advanced_event_selectors: '{{ resource.AdvancedEventSelectors }}'
-      multi_region_enabled: '{{ resource.MultiRegionEnabled }}'
-      organization_enabled: '{{ resource.OrganizationEnabled }}'
-      retention_period: '{{ resource.RetentionPeriod }}'
-      created_timestamp: '{{ resource.CreatedTimestamp }}'
-      updated_timestamp: '{{ resource.UpdatedTimestamp }}'
+      EventDataStoreArn: '{{ resource.EventDataStoreArn }}'
+      Name: '{{ resource.Name }}'
+      TerminationProtectionEnabled: '{{ resource.TerminationProtectionEnabled }}'
+      Status: '{{ resource.Status }}'
+      AdvancedEventSelectors: '{{ resource.AdvancedEventSelectors }}'
+      MultiRegionEnabled: '{{ resource.MultiRegionEnabled }}'
+      OrganizationEnabled: '{{ resource.OrganizationEnabled }}'
+      RetentionPeriod: '{{ resource.RetentionPeriod }}'
+      CreatedTimestamp: '{{ resource.CreatedTimestamp }}'
+      UpdatedTimestamp: '{{ resource.UpdatedTimestamp }}'
 - discovery_id: aws.cloudtrail.get_event_selectors
   calls:
   - action: get_event_selectors
-    save_as: get_event_selectors_response
-    params:
-      TrailName: '{{ item.name }}'
-    on_error: continue
-  for_each: aws.cloudtrail.describe_trails
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      read_write_type: '{{ get_event_selectors_response.EventSelectors.ReadWriteType
+      ReadWriteType: '{{ response.EventSelectors.ReadWriteType }}'
+      IncludeManagementEvents: '{{ response.EventSelectors.IncludeManagementEvents
         }}'
-      include_management_events: '{{ get_event_selectors_response.EventSelectors.IncludeManagementEvents
-        }}'
-      data_resources: '{{ get_event_selectors_response.EventSelectors.DataResources
-        }}'
-      exclude_management_event_sources: '{{ get_event_selectors_response.EventSelectors.ExcludeManagementEventSources
+      DataResources: '{{ response.EventSelectors.DataResources }}'
+      ExcludeManagementEventSources: '{{ response.EventSelectors.ExcludeManagementEventSources
         }}'
 checks:
 - rule_id: aws.cloudtrail.trail.alerts_for_anomalies_configured
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.has_insight_selectors
+    var: item.HasInsightSelectors
     op: equals
     value: true
-- rule_id: aws.cloudtrail.nacl_event_selectors_monitoring.nacl_event_selectors_monitoring_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_custom_event_selectors
-      op: equals
-      value: true
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
-- rule_id: aws.cloudtrail.group.trail_cloudtrail_configuration_changes_monitored
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-- rule_id: aws.cloudtrail.config_changes_monitoring.config_changes_monitoring_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.sns_topic_arn
-      op: exists
-- rule_id: aws.cloudtrail.monitor_organizations_changes_metric_filter.trail_cloudtrail_monitor_organizations_changes_metric_filter_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
-- rule_id: aws.cloudtrail.network.gateway_changes_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.include_global_service_events
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-- rule_id: aws.cloudtrail.threat_detection_privilege_escalation.trail_cloudtrail_threat_detection_privilege_escalation_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.include_global_service_events
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.trail.flow_logging_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.has_insight_selectors
+    var: item.HasInsightSelectors
     op: equals
     value: true
 - rule_id: aws.cloudtrail.resource.cloudwatch_logging_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.cloud_watch_logs_log_group_arn
+    var: item.CloudWatchLogsLogGroupArn
     op: exists
-- rule_id: aws.cloudtrail.unauthorized_api_calls_monitoring_configured.unauthorized_api_calls_monitoring_configured_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-- rule_id: aws.cloudtrail.network.gateway_change_monitoring_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-- rule_id: aws.cloudtrail.resource.vpc_changes_monitoring_enabled
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-- rule_id: aws.cloudtrail.threat_detection_llm_jacking.trail_cloudtrail_threat_detection_llm_jacking_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.bucket.is_not_publicly_accessible_configured
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.s3_bucket_name
+    var: item.S3BucketName
     op: exists
 - rule_id: aws.cloudtrail.logs.s3_bucket_access_logging_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.log_file_validation_enabled
+    var: item.LogFileValidationEnabled
     op: equals
     value: true
-- rule_id: aws.cloudtrail.threat_detection_enumeration.trail_cloudtrail_threat_detection_enumeration_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.include_global_service_events
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.trail.retention_days_minimum
   for_each: aws.cloudtrail.list_event_data_stores
   conditions:
-    var: item.retention_period
+    var: item.RetentionPeriod
     op: gte
     value: 90
 - rule_id: aws.cloudtrail.resource.trail_cloudtrail_log_file_validation_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.log_file_validation_enabled
+    var: item.LogFileValidationEnabled
     op: equals
     value: true
-- rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm.route_table_changes_metric_filter_alarm_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
-- rule_id: aws.cloudtrail.account.usage_monitoring_config_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
 - rule_id: aws.cloudtrail.resource.trail_cloudtrail_multi_region_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.is_multi_region_trail
+    var: item.IsMultiRegionTrail
     op: equals
     value: true
 - rule_id: aws.cloudtrail.trail.cloudtrail_trail_ids_ips_enabled_if_supported
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.has_insight_selectors
+    var: item.HasInsightSelectors
     op: equals
     value: true
 - rule_id: aws.cloudtrail.resource.kms_encryption_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.kms_key_id
+    var: item.KmsKeyId
     op: exists
 - rule_id: aws.cloudtrail.kms.encryption_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.kms_key_id
+    var: item.KmsKeyId
     op: exists
-- rule_id: aws.cloudtrail.console_auth_failures_monitoring.console_auth_failures_monitoring_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-- rule_id: aws.cloudtrail.policy.change_monitoring_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-- rule_id: aws.cloudtrail.cloudwatch_monitor_no_mfa_console_signin.cloudwatch_monitor_no_mfa_console_signin_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-- rule_id: aws.cloudtrail.group.change_alerts_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.include_global_service_events
-      op: equals
-      value: true
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
-    - var: item.sns_topic_name
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_read_enabled
   for_each: aws.cloudtrail.get_event_selectors
   conditions:
-    var: item.read_write_type
+    var: item.ReadWriteType
     op: equals
     value: ReadOnly
 - rule_id: aws.cloudtrail.resource.trail_cloudtrail_s3_dataevents_read_enabled
   for_each: aws.cloudtrail.get_event_selectors
   conditions:
-    var: item.read_write_type
+    var: item.ReadWriteType
     op: equals
     value: ReadOnly
-- rule_id: aws.cloudtrail.trail.alert_destinations_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    any:
-    - var: item.sns_topic_name
-      op: exists
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
 - rule_id: aws.cloudtrail.bucket.access_logging_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.log_file_validation_enabled
+    var: item.LogFileValidationEnabled
     op: equals
     value: true
-- rule_id: aws.cloudtrail.resource.nacl_change_monitoring_configuration_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.logs.s3_bucket_is_not_publicly_accessible_configured
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.s3_bucket_name
+    var: item.S3BucketName
     op: exists
 - rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_write_enabled
   for_each: aws.cloudtrail.get_event_selectors
   conditions:
-    var: item.read_write_type
+    var: item.ReadWriteType
     op: equals
     value: WriteOnly
-- rule_id: aws.cloudtrail.cloudwatch.logging_enabled
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
 - rule_id: aws.cloudtrail.log.file_validation_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.log_file_validation_enabled
+    var: item.LogFileValidationEnabled
     op: equals
     value: true
-- rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring.route_table_changes_monitored
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.cloud_watch_logs_role_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true
-- rule_id: aws.cloudtrail.trail.log_trail_logs_centralized_and_encrypted
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.kms_key_id
-      op: exists
-    - var: item.log_file_validation_enabled
-      op: equals
-      value: true
 - rule_id: aws.cloudtrail.multi.trail_cloudtrail_region_enabled
   for_each: aws.cloudtrail.describe_trails
   conditions:
-    var: item.is_multi_region_trail
+    var: item.IsMultiRegionTrail
     op: equals
     value: true
-- rule_id: aws.cloudtrail.organizations_changes_monitoring_setup.organizations_changes_monitoring_setup_configured
-  for_each: aws.cloudtrail.describe_trails
-  conditions:
-    all:
-    - var: item.is_multi_region_trail
-      op: equals
-      value: true
-    - var: item.cloud_watch_logs_log_group_arn
-      op: exists
-    - var: item.has_insight_selectors
-      op: equals
-      value: true

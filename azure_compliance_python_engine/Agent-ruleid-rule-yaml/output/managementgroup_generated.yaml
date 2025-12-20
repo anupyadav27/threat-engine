@@ -1,0 +1,21 @@
+version: '1.0'
+provider: azure
+service: managementgroup
+discovery:
+- discovery_id: azure.managementgroup.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      value: '{{ item.value }}'
+      count: '{{ item.count }}'
+      next_link: '{{ item.next_link }}'
+checks:
+- rule_id: azure.managementgroup.subscription.part_of_management_group
+  for_each: azure.managementgroup.list
+  conditions:
+    var: item.value
+    op: not_empty

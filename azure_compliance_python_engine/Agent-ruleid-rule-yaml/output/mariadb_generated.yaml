@@ -1,0 +1,37 @@
+version: '1.0'
+provider: azure
+service: mariadb
+discovery:
+- discovery_id: azure.mariadb.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      administrator_login: '{{ item.administrator_login }}'
+      version: '{{ item.version }}'
+      ssl_enforcement: '{{ item.ssl_enforcement }}'
+      minimal_tls_version: '{{ item.minimal_tls_version }}'
+      user_visible_state: '{{ item.user_visible_state }}'
+      fully_qualified_domain_name: '{{ item.fully_qualified_domain_name }}'
+      earliest_restore_date: '{{ item.earliest_restore_date }}'
+      storage_profile: '{{ item.storage_profile }}'
+      replication_role: '{{ item.replication_role }}'
+      master_server_id: '{{ item.master_server_id }}'
+      replica_capacity: '{{ item.replica_capacity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+checks:
+- rule_id: azure.mariadb.server.geo_redundant_backup
+  for_each: azure.mariadb.list
+  conditions:
+    var: item.id
+    op: exists

@@ -1,0 +1,203 @@
+version: '1.0'
+provider: azure
+service: cdn
+discovery:
+- discovery_id: azure.cdn.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      zones: '{{ item.zones }}'
+      identity: '{{ item.identity }}'
+      sku: '{{ item.sku }}'
+      ssl_policy: '{{ item.ssl_policy }}'
+      operational_state: '{{ item.operational_state }}'
+      gateway_ip_configurations: '{{ item.gateway_ip_configurations }}'
+      authentication_certificates: '{{ item.authentication_certificates }}'
+      trusted_root_certificates: '{{ item.trusted_root_certificates }}'
+      trusted_client_certificates: '{{ item.trusted_client_certificates }}'
+      ssl_certificates: '{{ item.ssl_certificates }}'
+      frontend_ip_configurations: '{{ item.frontend_ip_configurations }}'
+      frontend_ports: '{{ item.frontend_ports }}'
+      probes: '{{ item.probes }}'
+      backend_address_pools: '{{ item.backend_address_pools }}'
+checks:
+- rule_id: azure.cdn.custom_domain.edge_ip_set_cidrs_valid_and_minimized
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_tls_min_1_2_enforced
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_no_secret_headers_forwarded
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_cache_key_excludes_sensitive_headers
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_valid_trusted_certificate_attached
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule_set.edge_rule_group_references_only_approved_managed_sets_where_used
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_origin_access_restricted
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_headers_minimal
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule_set.edge_rule_group_no_permit_all_rule
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_cookies_minimal
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.custom_domain.edge_ip_set_cross_account_sharing_restricted
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.custom_domain.edge_ip_set_used_by_at_least_one_rule
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.deprecated_ssl_protocols
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule_set.edge_rule_group_visibility_config_enabled
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule_set.edge_rule_group_unique_priorities
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_cache_policy_no_sensitive_headers_cached
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule.edge_has_effective_action_not_count_only
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.https_required
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_waf_web_acl_attached
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_regex_set_not_empty
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule.edge_references_valid_ip_or_regex_sets_only
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_regex_set_used_by_at_least_one_rule
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_https_only_viewer_protocol
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_signed_urls_or_headers_required_for_private_content
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_cache_policy_allowlists_minimal_query_headers_cookies
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_querystrings_minimal
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.rule.edge_priority_unique_within_web_acl
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.custom_domain.edge_ip_set_not_empty
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_cache_key_minimal_query_and_cookie_variants
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.logging_enabled
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_cache_policy_respects_cache_control_no_store_private
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_access_logging_enabled
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.profile.edge_hsts_enabled
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.cdn.endpoint.edge_regex_set_no_overly_broad_patterns
+  for_each: azure.cdn.list
+  conditions:
+    var: item.id
+    op: exists

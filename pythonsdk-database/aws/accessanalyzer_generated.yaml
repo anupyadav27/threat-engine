@@ -1,0 +1,381 @@
+version: '1.0'
+provider: aws
+service: accessanalyzer
+services:
+  client: accessanalyzer
+  module: boto3.client
+discovery:
+- discovery_id: aws.accessanalyzer.list_analyzers
+  calls:
+  - action: list_analyzers
+    save_as: list_analyzers_response
+  emit:
+    items_for: '{{ list_analyzers_response.analyzers }}'
+    as: resource
+    item:
+      arn: '{{ resource.arn }}'
+      name: '{{ resource.name }}'
+      type: '{{ resource.type }}'
+      createdAt: '{{ resource.createdAt }}'
+      lastResourceAnalyzed: '{{ resource.lastResourceAnalyzed }}'
+      lastResourceAnalyzedAt: '{{ resource.lastResourceAnalyzedAt }}'
+      tags: '{{ resource.tags }}'
+      status: '{{ resource.status }}'
+      statusReason: '{{ resource.statusReason }}'
+      configuration: '{{ resource.configuration }}'
+- discovery_id: aws.accessanalyzer.list_policy_generations
+  calls:
+  - action: list_policy_generations
+    save_as: list_policy_generations_response
+  emit:
+    items_for: '{{ list_policy_generations_response.policyGenerations }}'
+    as: resource
+    item:
+      jobId: '{{ resource.jobId }}'
+      principalArn: '{{ resource.principalArn }}'
+      status: '{{ resource.status }}'
+      startedOn: '{{ resource.startedOn }}'
+      completedOn: '{{ resource.completedOn }}'
+- discovery_id: aws.accessanalyzer.create_access_preview
+  calls:
+  - action: create_access_preview
+    save_as: create_access_preview_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+      configurations: '{{ get_access_preview_response.accessPreview[0].configurations }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item: {}
+- discovery_id: aws.accessanalyzer.create_analyzer
+  calls:
+  - action: create_analyzer
+    save_as: create_analyzer_response
+    params:
+      analyzerName: '{{ item.name }}'
+      type: '{{ item.type }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzers
+  emit:
+    item: {}
+- discovery_id: aws.accessanalyzer.get_access_preview
+  calls:
+  - action: get_access_preview
+    save_as: get_access_preview_response
+    params:
+      accessPreviewId: '{{ list_access_previews_response.accessPreviews[0].id }}'
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      id: '{{ get_access_preview_response.accessPreview.id }}'
+      analyzerArn: '{{ get_access_preview_response.accessPreview.analyzerArn }}'
+      configurations: '{{ get_access_preview_response.accessPreview.configurations }}'
+      createdAt: '{{ get_access_preview_response.accessPreview.createdAt }}'
+      status: '{{ get_access_preview_response.accessPreview.status }}'
+      statusReason: '{{ get_access_preview_response.accessPreview.statusReason }}'
+- discovery_id: aws.accessanalyzer.get_analyzed_resource
+  calls:
+  - action: get_analyzed_resource
+    save_as: get_analyzed_resource_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+      resourceArn: '{{ list_analyzed_resources_response.analyzedResources[0].resourceArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      resourceArn: '{{ get_analyzed_resource_response.actions.resourceArn }}'
+      resourceType: '{{ get_analyzed_resource_response.actions.resourceType }}'
+      createdAt: '{{ get_analyzed_resource_response.actions.createdAt }}'
+      analyzedAt: '{{ get_analyzed_resource_response.actions.analyzedAt }}'
+      updatedAt: '{{ get_analyzed_resource_response.actions.updatedAt }}'
+      isPublic: '{{ get_analyzed_resource_response.actions.isPublic }}'
+      actions: '{{ get_analyzed_resource_response.actions.actions }}'
+      sharedVia: '{{ get_analyzed_resource_response.actions.sharedVia }}'
+      status: '{{ get_analyzed_resource_response.actions.status }}'
+      resourceOwnerAccount: '{{ get_analyzed_resource_response.actions.resourceOwnerAccount }}'
+      error: '{{ get_analyzed_resource_response.actions.error }}'
+- discovery_id: aws.accessanalyzer.get_analyzer
+  calls:
+  - action: get_analyzer
+    save_as: get_analyzer_response
+    params:
+      analyzerName: '{{ item.name }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzers
+  emit:
+    item:
+      arn: '{{ get_analyzer_response.analyzer.arn }}'
+      name: '{{ get_analyzer_response.analyzer.name }}'
+      type: '{{ get_analyzer_response.analyzer.type }}'
+      createdAt: '{{ get_analyzer_response.analyzer.createdAt }}'
+      lastResourceAnalyzed: '{{ get_analyzer_response.analyzer.lastResourceAnalyzed }}'
+      lastResourceAnalyzedAt: '{{ get_analyzer_response.analyzer.lastResourceAnalyzedAt }}'
+      tags: '{{ get_analyzer_response.analyzer.tags }}'
+      status: '{{ get_analyzer_response.analyzer.status }}'
+      statusReason: '{{ get_analyzer_response.analyzer.statusReason }}'
+      configuration: '{{ get_analyzer_response.analyzer.configuration }}'
+- discovery_id: aws.accessanalyzer.get_archive_rule
+  calls:
+  - action: get_archive_rule
+    save_as: get_archive_rule_response
+    params:
+      analyzerName: '{{ item.name }}'
+      ruleName: '{{ item.ruleName }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzers
+  emit:
+    item:
+      ruleName: '{{ get_archive_rule_response.archiveRule.ruleName }}'
+      filter: '{{ get_archive_rule_response.archiveRule.filter }}'
+      createdAt: '{{ get_archive_rule_response.archiveRule.createdAt }}'
+      updatedAt: '{{ get_archive_rule_response.archiveRule.updatedAt }}'
+- discovery_id: aws.accessanalyzer.get_finding
+  calls:
+  - action: get_finding
+    save_as: get_finding_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+      id: '{{ list_findings_v2_response.findings[0].id }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      id: '{{ get_finding_response.action.id }}'
+      principal: '{{ get_finding_response.action.principal }}'
+      action: '{{ get_finding_response.action.action }}'
+      resource: '{{ get_finding_response.action.resource }}'
+      isPublic: '{{ get_finding_response.action.isPublic }}'
+      resourceType: '{{ get_finding_response.action.resourceType }}'
+      condition: '{{ get_finding_response.action.condition }}'
+      createdAt: '{{ get_finding_response.action.createdAt }}'
+      analyzedAt: '{{ get_finding_response.action.analyzedAt }}'
+      updatedAt: '{{ get_finding_response.action.updatedAt }}'
+      status: '{{ get_finding_response.action.status }}'
+      resourceOwnerAccount: '{{ get_finding_response.action.resourceOwnerAccount }}'
+      error: '{{ get_finding_response.action.error }}'
+      sources: '{{ get_finding_response.action.sources }}'
+      resourceControlPolicyRestriction: '{{ get_finding_response.action.resourceControlPolicyRestriction }}'
+- discovery_id: aws.accessanalyzer.get_finding_recommendation
+  calls:
+  - action: get_finding_recommendation
+    save_as: get_finding_recommendation_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+      id: '{{ list_findings_v2_response.findings[0].id }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      unusedPermissionsRecommendedStep: '{{ get_finding_recommendation_response.completedAt.unusedPermissionsRecommendedStep
+        }}'
+- discovery_id: aws.accessanalyzer.get_finding_v2
+  calls:
+  - action: get_finding_v2
+    save_as: get_finding_v2_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+      id: '{{ list_findings_v2_response.findings[0].id }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      internalAccessDetails: '{{ get_finding_v2_response.analyzedAt.internalAccessDetails }}'
+      externalAccessDetails: '{{ get_finding_v2_response.analyzedAt.externalAccessDetails }}'
+      unusedPermissionDetails: '{{ get_finding_v2_response.analyzedAt.unusedPermissionDetails }}'
+      unusedIamUserAccessKeyDetails: '{{ get_finding_v2_response.analyzedAt.unusedIamUserAccessKeyDetails }}'
+      unusedIamRoleDetails: '{{ get_finding_v2_response.analyzedAt.unusedIamRoleDetails }}'
+      unusedIamUserPasswordDetails: '{{ get_finding_v2_response.analyzedAt.unusedIamUserPasswordDetails }}'
+- discovery_id: aws.accessanalyzer.get_findings_statistics
+  calls:
+  - action: get_findings_statistics
+    save_as: get_findings_statistics_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    item:
+      externalAccessFindingsStatistics: '{{ get_findings_statistics_response.lastUpdatedAt.externalAccessFindingsStatistics
+        }}'
+      internalAccessFindingsStatistics: '{{ get_findings_statistics_response.lastUpdatedAt.internalAccessFindingsStatistics
+        }}'
+      unusedAccessFindingsStatistics: '{{ get_findings_statistics_response.lastUpdatedAt.unusedAccessFindingsStatistics }}'
+- discovery_id: aws.accessanalyzer.get_generated_policy
+  calls:
+  - action: get_generated_policy
+    save_as: get_generated_policy_response
+    params:
+      jobId: '{{ list_policy_generations_response.policyGenerations[0].jobId }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_policy_generations
+  emit:
+    item:
+      jobId: '{{ get_generated_policy_response.generatedPolicyResult.jobId }}'
+      status: '{{ get_generated_policy_response.generatedPolicyResult.status }}'
+      startedOn: '{{ get_generated_policy_response.generatedPolicyResult.startedOn }}'
+      completedOn: '{{ get_generated_policy_response.generatedPolicyResult.completedOn }}'
+      jobError: '{{ get_generated_policy_response.generatedPolicyResult.jobError }}'
+- discovery_id: aws.accessanalyzer.list_access_preview_findings
+  calls:
+  - action: list_access_preview_findings
+    save_as: list_access_preview_findings_response
+    params:
+      accessPreviewId: '{{ list_access_previews_response.accessPreviews[0].id }}'
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    items_for: '{{ list_access_preview_findings_response.findings }}'
+    as: resource
+    item:
+      id: '{{ resource.id }}'
+      existingFindingId: '{{ resource.existingFindingId }}'
+      existingFindingStatus: '{{ resource.existingFindingStatus }}'
+      principal: '{{ resource.principal }}'
+      action: '{{ resource.action }}'
+      condition: '{{ resource.condition }}'
+      resource: '{{ resource.resource }}'
+      isPublic: '{{ resource.isPublic }}'
+      resourceType: '{{ resource.resourceType }}'
+      createdAt: '{{ resource.createdAt }}'
+      changeType: '{{ resource.changeType }}'
+      status: '{{ resource.status }}'
+      resourceOwnerAccount: '{{ resource.resourceOwnerAccount }}'
+      error: '{{ resource.error }}'
+      sources: '{{ resource.sources }}'
+      resourceControlPolicyRestriction: '{{ resource.resourceControlPolicyRestriction }}'
+- discovery_id: aws.accessanalyzer.list_access_previews
+  calls:
+  - action: list_access_previews
+    save_as: list_access_previews_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    items_for: '{{ list_access_previews_response.accessPreviews }}'
+    as: resource
+    item:
+      id: '{{ resource.id }}'
+      analyzerArn: '{{ resource.analyzerArn }}'
+      createdAt: '{{ resource.createdAt }}'
+      status: '{{ resource.status }}'
+      statusReason: '{{ resource.statusReason }}'
+- discovery_id: aws.accessanalyzer.list_analyzed_resources
+  calls:
+  - action: list_analyzed_resources
+    save_as: list_analyzed_resources_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    items_for: '{{ list_analyzed_resources_response.analyzedResources }}'
+    as: resource
+    item:
+      resourceArn: '{{ resource.resourceArn }}'
+      resourceOwnerAccount: '{{ resource.resourceOwnerAccount }}'
+      resourceType: '{{ resource.resourceType }}'
+- discovery_id: aws.accessanalyzer.list_archive_rules
+  calls:
+  - action: list_archive_rules
+    save_as: list_archive_rules_response
+    params:
+      analyzerName: '{{ item.name }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzers
+  emit:
+    items_for: '{{ list_archive_rules_response.archiveRules }}'
+    as: resource
+    item:
+      ruleName: '{{ resource.ruleName }}'
+      filter: '{{ resource.filter }}'
+      createdAt: '{{ resource.createdAt }}'
+      updatedAt: '{{ resource.updatedAt }}'
+- discovery_id: aws.accessanalyzer.list_findings
+  calls:
+  - action: list_findings
+    save_as: list_findings_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    items_for: '{{ list_findings_response.findings }}'
+    as: resource
+    item:
+      id: '{{ resource.id }}'
+      principal: '{{ resource.principal }}'
+      action: '{{ resource.action }}'
+      resource: '{{ resource.resource }}'
+      isPublic: '{{ resource.isPublic }}'
+      resourceType: '{{ resource.resourceType }}'
+      condition: '{{ resource.condition }}'
+      createdAt: '{{ resource.createdAt }}'
+      analyzedAt: '{{ resource.analyzedAt }}'
+      updatedAt: '{{ resource.updatedAt }}'
+      status: '{{ resource.status }}'
+      resourceOwnerAccount: '{{ resource.resourceOwnerAccount }}'
+      error: '{{ resource.error }}'
+      sources: '{{ resource.sources }}'
+      resourceControlPolicyRestriction: '{{ resource.resourceControlPolicyRestriction }}'
+- discovery_id: aws.accessanalyzer.list_findings_v2
+  calls:
+  - action: list_findings_v2
+    save_as: list_findings_v2_response
+    params:
+      analyzerArn: '{{ list_access_previews_response.accessPreviews[0].analyzerArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_access_previews
+  emit:
+    items_for: '{{ list_findings_v2_response.findings }}'
+    as: resource
+    item:
+      analyzedAt: '{{ resource.analyzedAt }}'
+      createdAt: '{{ resource.createdAt }}'
+      error: '{{ resource.error }}'
+      id: '{{ resource.id }}'
+      resource: '{{ resource.resource }}'
+      resourceType: '{{ resource.resourceType }}'
+      resourceOwnerAccount: '{{ resource.resourceOwnerAccount }}'
+      status: '{{ resource.status }}'
+      updatedAt: '{{ resource.updatedAt }}'
+      findingType: '{{ resource.findingType }}'
+- discovery_id: aws.accessanalyzer.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: list_tags_for_resource_response
+    params:
+      resourceArn: '{{ list_analyzed_resources_response.analyzedResources[0].resourceArn }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzed_resources
+  emit:
+    item: {}
+- discovery_id: aws.accessanalyzer.update_analyzer
+  calls:
+  - action: update_analyzer
+    save_as: update_analyzer_response
+    params:
+      analyzerName: '{{ item.name }}'
+  on_error: continue
+  for_each: aws.accessanalyzer.list_analyzers
+  emit:
+    item:
+      unusedAccess: '{{ update_analyzer_response.configuration.unusedAccess }}'
+      internalAccess: '{{ update_analyzer_response.configuration.internalAccess }}'
+checks:
+- rule_id: aws.accessanalyzer.resource.analyzer_active
+  for_each: aws.accessanalyzer.list_analyzers
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.accessanalyzer.resource.analyzer_with_findings
+  for_each: aws.accessanalyzer.get_access_preview
+  conditions:
+    var: item.id
+    op: exists
+    value: null

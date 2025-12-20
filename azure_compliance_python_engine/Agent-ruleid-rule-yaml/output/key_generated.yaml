@@ -1,0 +1,67 @@
+version: '1.0'
+provider: azure
+service: key
+discovery:
+- discovery_id: azure.key.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+      identity: '{{ item.identity }}'
+      properties: '{{ item.properties }}'
+checks:
+- rule_id: azure.key.vault.secrets_kms_deletion_requires_waiting_period
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.vault.secrets_kms_not_publicly_accessible
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.key.lifecycle_policy
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.keyvault.key.cmk_rotation_enabled
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.key.expiration_set
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.vault.secrets_kms_policy_least_privilege
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.vault.secrets_kms_rotation_enabled
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.vault_vault.secrets_kms_logging_enabled
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.key.vault_vault.secrets_kms_default_keys_disabled_where_cmek_required
+  for_each: azure.key.list_by_resource_group
+  conditions:
+    var: item.id
+    op: exists

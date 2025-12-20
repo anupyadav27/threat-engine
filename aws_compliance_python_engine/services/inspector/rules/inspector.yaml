@@ -1,134 +1,90 @@
 version: '1.0'
 provider: aws
 service: inspector
+services:
+  client: inspector
+  module: boto3.client
 discovery:
+- discovery_id: aws.inspector.list_assessment_runs
+  calls:
+  - action: list_assessment_runs
+    save_as: response
+- discovery_id: aws.inspector.list_assessment_targets
+  calls:
+  - action: list_assessment_targets
+    save_as: response
 - discovery_id: aws.inspector.list_event_subscriptions
   calls:
   - action: list_event_subscriptions
-    save_as: list_event_subscriptions_response
+    save_as: response
   emit:
-    items_for: '{{ list_event_subscriptions_response.subscriptions }}'
+    items_for: '{{ response.subscriptions }}'
     as: resource
     item:
-      resource_arn: '{{ resource.resourceArn }}'
-      topic_arn: '{{ resource.topicArn }}'
-      event_subscriptions: '{{ resource.eventSubscriptions }}'
-- discovery_id: aws.inspector.get_exclusions_preview
-  calls:
-  - action: get_exclusions_preview
-    save_as: get_exclusions_preview_response
-    params:
-      assessmentTemplateArn: '{{ item.id }}'
-      previewToken: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.inspector.list_event_subscriptions
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      title: '{{ get_exclusions_preview_response.exclusionPreviews.title }}'
-      description: '{{ get_exclusions_preview_response.exclusionPreviews.description
-        }}'
-      recommendation: '{{ get_exclusions_preview_response.exclusionPreviews.recommendation
-        }}'
-      scopes: '{{ get_exclusions_preview_response.exclusionPreviews.scopes }}'
-      attributes: '{{ get_exclusions_preview_response.exclusionPreviews.attributes
-        }}'
+      resourceArn: '{{ resource.resourceArn }}'
+      topicArn: '{{ resource.topicArn }}'
+      eventSubscriptions: '{{ resource.eventSubscriptions }}'
 - discovery_id: aws.inspector.describe_assessment_runs
   calls:
   - action: describe_assessment_runs
-    save_as: describe_assessment_runs_response
+    save_as: response
     params:
-      assessmentRunArns: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.inspector.list_event_subscriptions
+      assessmentRunArns: '{{ item.assessmentRunArns }}'
+  on_error: continue
+  for_each: aws.inspector.list_assessment_runs
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ describe_assessment_runs_response.assessmentRuns.arn }}'
-      name: '{{ describe_assessment_runs_response.assessmentRuns.name }}'
-      assessment_template_arn: '{{ describe_assessment_runs_response.assessmentRuns.assessmentTemplateArn
+      arn: '{{ response.assessmentRuns.arn }}'
+      name: '{{ response.assessmentRuns.name }}'
+      assessmentTemplateArn: '{{ response.assessmentRuns.assessmentTemplateArn }}'
+      state: '{{ response.assessmentRuns.state }}'
+      durationInSeconds: '{{ response.assessmentRuns.durationInSeconds }}'
+      rulesPackageArns: '{{ response.assessmentRuns.rulesPackageArns }}'
+      userAttributesForFindings: '{{ response.assessmentRuns.userAttributesForFindings
         }}'
-      state: '{{ describe_assessment_runs_response.assessmentRuns.state }}'
-      duration_in_seconds: '{{ describe_assessment_runs_response.assessmentRuns.durationInSeconds
-        }}'
+      createdAt: '{{ response.assessmentRuns.createdAt }}'
+      startedAt: '{{ response.assessmentRuns.startedAt }}'
+      completedAt: '{{ response.assessmentRuns.completedAt }}'
+      stateChangedAt: '{{ response.assessmentRuns.stateChangedAt }}'
+      dataCollected: '{{ response.assessmentRuns.dataCollected }}'
+      stateChanges: '{{ response.assessmentRuns.stateChanges }}'
+      notifications: '{{ response.assessmentRuns.notifications }}'
+      findingCounts: '{{ response.assessmentRuns.findingCounts }}'
 - discovery_id: aws.inspector.describe_assessment_targets
   calls:
   - action: describe_assessment_targets
-    save_as: describe_assessment_targets_response
+    save_as: response
     params:
-      assessmentTargetArns: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.inspector.list_event_subscriptions
+      assessmentTargetArns: '{{ item.assessmentTargetArns }}'
+  on_error: continue
+  for_each: aws.inspector.list_assessment_targets
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ describe_assessment_targets_response.assessmentTargets.arn }}'
-      name: '{{ describe_assessment_targets_response.assessmentTargets.name }}'
-      resource_group_arn: '{{ describe_assessment_targets_response.assessmentTargets.resourceGroupArn
-        }}'
-      created_at: '{{ describe_assessment_targets_response.assessmentTargets.createdAt
-        }}'
-      updated_at: '{{ describe_assessment_targets_response.assessmentTargets.updatedAt
-        }}'
+      arn: '{{ response.assessmentTargets.arn }}'
+      name: '{{ response.assessmentTargets.name }}'
+      resourceGroupArn: '{{ response.assessmentTargets.resourceGroupArn }}'
+      createdAt: '{{ response.assessmentTargets.createdAt }}'
+      updatedAt: '{{ response.assessmentTargets.updatedAt }}'
 checks:
-- rule_id: aws.inspector.finding.inspector_suppression_rules_documented_and_scoped_configured
-  for_each: aws.inspector.get_exclusions_preview
-  conditions:
-    all:
-    - var: item.description
-      op: contains
-      value: suppression rules
-    - var: item.scopes
-      op: exists
 - rule_id: aws.inspector.resource.inspector_is_enabled
   for_each: aws.inspector.describe_assessment_runs
   conditions:
     var: item.state
     op: equals
     value: ENABLED
-- rule_id: aws.inspector.finding.inspector_archival_export_encrypted
-  for_each: aws.inspector.describe_assessment_runs
-  conditions:
-    all:
-    - var: item.state
-      op: equals
-      value: COMPLETED
-    - var: item.data_collected
-      op: equals
-      value: true
 - rule_id: aws.inspector.assessment.policy_store_encrypted
   for_each: aws.inspector.describe_assessment_runs
   conditions:
     var: item.state
     op: equals
     value: ENABLED
-- rule_id: aws.inspector.assessment.role_least_privilege
-  for_each: aws.inspector.describe_assessment_runs
-  conditions:
-    all:
-    - var: item.state
-      op: equals
-      value: COMPLETED
-    - var: item.finding_counts
-      op: equals
-      value: 0
 - rule_id: aws.inspector.assessment.scope_includes_all_asset_groups_configured
   for_each: aws.inspector.describe_assessment_targets
   conditions:
-    var: item.resource_group_arn
+    var: item.resourceGroupArn
     op: exists
 - rule_id: aws.inspector.finding.alert_destinations_configured
   for_each: aws.inspector.list_event_subscriptions
   conditions:
-    var: item.topic_arn
+    var: item.topicArn
     op: exists
-- rule_id: aws.inspector.assessment.inspector_results_export_destination_encrypted
-  for_each: aws.inspector.describe_assessment_runs
-  conditions:
-    all:
-    - var: item.state
-      op: equals
-      value: COMPLETED
-    - var: item.data_collected
-      op: equals
-      value: true

@@ -1,238 +1,225 @@
 version: '1.0'
 provider: aws
 service: quicksight
+services:
+  client: quicksight
+  module: boto3.client
 discovery:
 - discovery_id: aws.quicksight.describe_account_settings
   calls:
   - action: describe_account_settings
-    save_as: describe_account_settings_response
+    save_as: response
     params:
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
+      AwsAccountId: '{{ item.AwsAccountId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      account_name: '{{ describe_account_settings_response.AccountSettings.AccountName
-        }}'
-      edition: '{{ describe_account_settings_response.AccountSettings.Edition }}'
-      default_namespace: '{{ describe_account_settings_response.AccountSettings.DefaultNamespace
-        }}'
-      notification_email: '{{ describe_account_settings_response.AccountSettings.NotificationEmail
-        }}'
-      public_sharing_enabled: '{{ describe_account_settings_response.AccountSettings.PublicSharingEnabled
+      AccountName: '{{ response.AccountSettings.AccountName }}'
+      Edition: '{{ response.AccountSettings.Edition }}'
+      DefaultNamespace: '{{ response.AccountSettings.DefaultNamespace }}'
+      NotificationEmail: '{{ response.AccountSettings.NotificationEmail }}'
+      PublicSharingEnabled: '{{ response.AccountSettings.PublicSharingEnabled }}'
+      TerminationProtectionEnabled: '{{ response.AccountSettings.TerminationProtectionEnabled
         }}'
 - discovery_id: aws.quicksight.describe_account_subscription
   calls:
   - action: describe_account_subscription
-    save_as: describe_account_subscription_response
+    save_as: response
     params:
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
+      AwsAccountId: '{{ item.AwsAccountId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      account_name: '{{ describe_account_subscription_response.AccountInfo.AccountName
+      AccountName: '{{ response.AccountInfo.AccountName }}'
+      Edition: '{{ response.AccountInfo.Edition }}'
+      NotificationEmail: '{{ response.AccountInfo.NotificationEmail }}'
+      AuthenticationType: '{{ response.AccountInfo.AuthenticationType }}'
+      AccountSubscriptionStatus: '{{ response.AccountInfo.AccountSubscriptionStatus
         }}'
-      edition: '{{ describe_account_subscription_response.AccountInfo.Edition }}'
-      notification_email: '{{ describe_account_subscription_response.AccountInfo.NotificationEmail
+      IAMIdentityCenterInstanceArn: '{{ response.AccountInfo.IAMIdentityCenterInstanceArn
         }}'
-      authentication_type: '{{ describe_account_subscription_response.AccountInfo.AuthenticationType
-        }}'
-      account_subscription_status: '{{ describe_account_subscription_response.AccountInfo.AccountSubscriptionStatus
-        }}'
-- discovery_id: aws.quicksight.create_group
-  calls:
-  - action: create_group
-    save_as: create_group_response
-    params:
-      GroupName: '{{ item.FIELD_NAME }}'
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-      Namespace: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ create_group_response.Group.Arn }}'
-      group_name: '{{ create_group_response.Group.GroupName }}'
-      description: '{{ create_group_response.Group.Description }}'
-      principal_id: '{{ create_group_response.Group.PrincipalId }}'
-- discovery_id: aws.quicksight.describe_data_set
-  calls:
-  - action: describe_data_set
-    save_as: describe_data_set_response
-    params:
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-      DataSetId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ describe_data_set_response.DataSet.Arn }}'
-      data_set_id: '{{ describe_data_set_response.DataSet.DataSetId }}'
-      name: '{{ describe_data_set_response.DataSet.Name }}'
-      created_time: '{{ describe_data_set_response.DataSet.CreatedTime }}'
-      last_updated_time: '{{ describe_data_set_response.DataSet.LastUpdatedTime }}'
 - discovery_id: aws.quicksight.describe_action_connector
   calls:
   - action: describe_action_connector
-    save_as: describe_action_connector_response
+    save_as: response
     params:
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-      ActionConnectorId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
+      AwsAccountId: '{{ item.AwsAccountId }}'
+      ActionConnectorId: '{{ item.ActionConnectorId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ describe_action_connector_response.ActionConnector.Arn }}'
-      action_connector_id: '{{ describe_action_connector_response.ActionConnector.ActionConnectorId
-        }}'
-      type: '{{ describe_action_connector_response.ActionConnector.Type }}'
-      name: '{{ describe_action_connector_response.ActionConnector.Name }}'
-      created_time: '{{ describe_action_connector_response.ActionConnector.CreatedTime
-        }}'
-- discovery_id: aws.quicksight.describe_action_connector_permissions
+      Arn: '{{ response.ActionConnector.Arn }}'
+      ActionConnectorId: '{{ response.ActionConnector.ActionConnectorId }}'
+      Type: '{{ response.ActionConnector.Type }}'
+      Name: '{{ response.ActionConnector.Name }}'
+      CreatedTime: '{{ response.ActionConnector.CreatedTime }}'
+      LastUpdatedTime: '{{ response.ActionConnector.LastUpdatedTime }}'
+      Status: '{{ response.ActionConnector.Status }}'
+      Error: '{{ response.ActionConnector.Error }}'
+      Description: '{{ response.ActionConnector.Description }}'
+      AuthenticationConfig: '{{ response.ActionConnector.AuthenticationConfig }}'
+      EnabledActions: '{{ response.ActionConnector.EnabledActions }}'
+      VpcConnectionArn: '{{ response.ActionConnector.VpcConnectionArn }}'
+- discovery_id: aws.quicksight.describe_data_set
   calls:
-  - action: describe_action_connector_permissions
-    save_as: describe_action_connector_permissions_response
+  - action: describe_data_set
+    save_as: response
     params:
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-      ActionConnectorId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
+      AwsAccountId: '{{ item.AwsAccountId }}'
+      DataSetId: '{{ item.DataSetId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      principal: '{{ describe_action_connector_permissions_response.Permissions.Principal
+      Arn: '{{ response.DataSet.Arn }}'
+      DataSetId: '{{ response.DataSet.DataSetId }}'
+      Name: '{{ response.DataSet.Name }}'
+      CreatedTime: '{{ response.DataSet.CreatedTime }}'
+      LastUpdatedTime: '{{ response.DataSet.LastUpdatedTime }}'
+      PhysicalTableMap: '{{ response.DataSet.PhysicalTableMap }}'
+      LogicalTableMap: '{{ response.DataSet.LogicalTableMap }}'
+      OutputColumns: '{{ response.DataSet.OutputColumns }}'
+      ImportMode: '{{ response.DataSet.ImportMode }}'
+      ConsumedSpiceCapacityInBytes: '{{ response.DataSet.ConsumedSpiceCapacityInBytes
         }}'
-      actions: '{{ describe_action_connector_permissions_response.Permissions.Actions
+      ColumnGroups: '{{ response.DataSet.ColumnGroups }}'
+      FieldFolders: '{{ response.DataSet.FieldFolders }}'
+      RowLevelPermissionDataSet: '{{ response.DataSet.RowLevelPermissionDataSet }}'
+      RowLevelPermissionTagConfiguration: '{{ response.DataSet.RowLevelPermissionTagConfiguration
         }}'
-- discovery_id: aws.quicksight.describe_user
+      ColumnLevelPermissionRules: '{{ response.DataSet.ColumnLevelPermissionRules
+        }}'
+      DataSetUsageConfiguration: '{{ response.DataSet.DataSetUsageConfiguration }}'
+      DatasetParameters: '{{ response.DataSet.DatasetParameters }}'
+      PerformanceConfiguration: '{{ response.DataSet.PerformanceConfiguration }}'
+      UseAs: '{{ response.DataSet.UseAs }}'
+      DataPrepConfiguration: '{{ response.DataSet.DataPrepConfiguration }}'
+      SemanticModelConfiguration: '{{ response.DataSet.SemanticModelConfiguration
+        }}'
+- discovery_id: aws.quicksight.list_action_connectors
   calls:
-  - action: describe_user
-    save_as: describe_user_response
+  - action: list_action_connectors
+    save_as: response
     params:
-      UserName: '{{ item.FIELD_NAME }}'
-      AwsAccountId: '{{ item.FIELD_NAME }}'
-      Namespace: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.quicksight.PARENT_DISCOVERY
+      AwsAccountId: '{{ item.AwsAccountId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
+  emit:
+    items_for: '{{ response.ActionConnectorSummaries }}'
+    as: resource
+    item:
+      Arn: '{{ resource.Arn }}'
+      ActionConnectorId: '{{ resource.ActionConnectorId }}'
+      Type: '{{ resource.Type }}'
+      Name: '{{ resource.Name }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+      LastUpdatedTime: '{{ resource.LastUpdatedTime }}'
+      Status: '{{ resource.Status }}'
+      Error: '{{ resource.Error }}'
+- discovery_id: aws.quicksight.list_data_sets
+  calls:
+  - action: list_data_sets
+    save_as: response
+    params:
+      AwsAccountId: '{{ item.AwsAccountId }}'
+  on_error: continue
+  for_each: aws.quicksight.update_account_customization
+  emit:
+    items_for: '{{ response.DataSetSummaries }}'
+    as: resource
+    item:
+      Arn: '{{ resource.Arn }}'
+      DataSetId: '{{ resource.DataSetId }}'
+      Name: '{{ resource.Name }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+      LastUpdatedTime: '{{ resource.LastUpdatedTime }}'
+      ImportMode: '{{ resource.ImportMode }}'
+      RowLevelPermissionDataSet: '{{ resource.RowLevelPermissionDataSet }}'
+      RowLevelPermissionDataSetMap: '{{ resource.RowLevelPermissionDataSetMap }}'
+      RowLevelPermissionTagConfigurationApplied: '{{ resource.RowLevelPermissionTagConfigurationApplied
+        }}'
+      ColumnLevelPermissionRulesApplied: '{{ resource.ColumnLevelPermissionRulesApplied
+        }}'
+      UseAs: '{{ resource.UseAs }}'
+- discovery_id: aws.quicksight.update_account_customization
+  calls:
+  - action: update_account_customization
+    save_as: response
+    params:
+      AccountCustomization: '{{ item.AccountCustomization }}'
+  on_error: continue
+  for_each: aws.quicksight.describe_account_customization
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      arn: '{{ describe_user_response.User.Arn }}'
-      user_name: '{{ describe_user_response.User.UserName }}'
-      email: '{{ describe_user_response.User.Email }}'
-      role: '{{ describe_user_response.User.Role }}'
-      identity_type: '{{ describe_user_response.User.IdentityType }}'
+      DefaultTheme: '{{ response.AccountCustomization.DefaultTheme }}'
+      DefaultEmailCustomizationTemplate: '{{ response.AccountCustomization.DefaultEmailCustomizationTemplate
+        }}'
 checks:
 - rule_id: aws.quicksight.dataset.public_sharing_disabled
   for_each: aws.quicksight.describe_account_settings
   conditions:
-    var: item.public_sharing_enabled
+    var: item.PublicSharingEnabled
     op: equals
     value: false
 - rule_id: aws.quicksight.user.quicksight_sso_required
   for_each: aws.quicksight.describe_account_subscription
   conditions:
-    var: item.authentication_type
+    var: item.AuthenticationType
     op: equals
     value: IAM_IDENTITY_CENTER
 - rule_id: aws.quicksight.dashboard.quicksight_sharing_restricted_to_org_configured
   for_each: aws.quicksight.describe_account_settings
   conditions:
-    var: item.public_sharing_enabled
+    var: item.PublicSharingEnabled
     op: equals
     value: false
-- rule_id: aws.quicksight.group.roles_minimal_configured
-  for_each: aws.quicksight.create_group
-  conditions:
-    all:
-    - var: item.arn
-      op: exists
-    - var: item.group_name
-      op: exists
-    - var: item.description
-      op: exists
-    - var: item.principal_id
-      op: exists
 - rule_id: aws.quicksight.dataset.encryption_at_rest_enabled
   for_each: aws.quicksight.describe_data_set
   conditions:
-    var: item.import_mode
+    var: item.ImportMode
     op: equals
     value: SPICE
 - rule_id: aws.quicksight.dashboard.admin_activity_logging_enabled
   for_each: aws.quicksight.describe_action_connector
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.quicksight.dataset.row_level_security_enabled
   for_each: aws.quicksight.describe_data_set
   conditions:
-    var: item.row_level_permission_data_set
+    var: item.RowLevelPermissionDataSet
     op: exists
-- rule_id: aws.quicksight.dataset.access_policies_least_privilege
-  for_each: aws.quicksight.describe_action_connector_permissions
-  conditions:
-    all:
-    - var: item.principal
-      op: exists
-    - var: item.actions
-      op: equals
-      value: []
 - rule_id: aws.quicksight.group.quicksight_external_sharing_restricted
   for_each: aws.quicksight.describe_account_settings
   conditions:
-    var: item.public_sharing_enabled
+    var: item.PublicSharingEnabled
     op: equals
     value: false
 - rule_id: aws.quicksight.dashboard.quicksight_export_controls_enabled
   for_each: aws.quicksight.describe_account_settings
   conditions:
-    var: item.public_sharing_enabled
+    var: item.PublicSharingEnabled
     op: equals
     value: true
 - rule_id: aws.quicksight.dashboard.public_embeds_disabled
   for_each: aws.quicksight.describe_account_settings
   conditions:
-    var: item.public_sharing_enabled
+    var: item.PublicSharingEnabled
     op: equals
     value: false
 - rule_id: aws.quicksight.dashboard.query_access_logging_enabled
   for_each: aws.quicksight.describe_action_connector
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.quicksight.dashboard.quicksight_sso_required
   for_each: aws.quicksight.describe_account_subscription
   conditions:
-    var: item.authentication_type
+    var: item.AuthenticationType
     op: equals
     value: IAMIdentityCenter
-- rule_id: aws.quicksight.user.external_access_reviewed_configured
-  for_each: aws.quicksight.describe_user
-  conditions:
-    all:
-    - var: item.external_login_federation_provider_type
-      op: exists
-    - var: item.external_login_federation_provider_url
-      op: exists
-    - var: item.external_login_id
-      op: exists
-- rule_id: aws.quicksight.user.roles_minimal_configured
-  for_each: aws.quicksight.describe_user
-  conditions:
-    all:
-    - var: item.role
-      op: equals
-      value: READER
-    - var: item.active
-      op: equals
-      value: true

@@ -1,0 +1,451 @@
+version: '1.0'
+provider: azure
+service: network
+discovery:
+- discovery_id: azure.network.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      zones: '{{ item.zones }}'
+      identity: '{{ item.identity }}'
+      sku: '{{ item.sku }}'
+      ssl_policy: '{{ item.ssl_policy }}'
+      operational_state: '{{ item.operational_state }}'
+      gateway_ip_configurations: '{{ item.gateway_ip_configurations }}'
+      authentication_certificates: '{{ item.authentication_certificates }}'
+      trusted_root_certificates: '{{ item.trusted_root_certificates }}'
+      trusted_client_certificates: '{{ item.trusted_client_certificates }}'
+      ssl_certificates: '{{ item.ssl_certificates }}'
+      frontend_ip_configurations: '{{ item.frontend_ip_configurations }}'
+      frontend_ports: '{{ item.frontend_ports }}'
+      probes: '{{ item.probes }}'
+      backend_address_pools: '{{ item.backend_address_pools }}'
+checks:
+- rule_id: azure.network.privacy_anonymization.jobs_private_networking
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.nsg.flow.logs.to.log.analytics
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.traffic_analysis.alert_destinations
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.interface.eni_security_groups_present
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.vpn_connection.vpn_tunnel_health_monitoring_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.operational_state
+    op: equals
+    value: Enabled
+- rule_id: azure.network.nsg.flow.log.retention.days.check
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.segmentation.default_deny_between_tiers
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.anomaly_detection.anomaly_destinations_encrypted
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_certificates
+    op: not_empty
+- rule_id: azure.network.load_balancer.lb_listener_tls_min_1_2
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: contains
+    value: TLS1_2
+- rule_id: azure.networksecuritygroup.default.restrict.traffic
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.backend_pool.tg_health_checks_tls_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: not_empty
+- rule_id: azure.network.encryption.mtls_required_for_internal_services_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: equals
+    value: Enabled
+- rule_id: azure.network.firewall.no_permit_any_any
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.network_acl.nacl_egress_restricted
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.security_group.sg_no_0_0_0_0_ingress
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.load.balancer_health_probe_configured:az.azure_network_load_balancer.network_security_lb_listener_tls_min_1_2
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: contains
+    value: TLS1_2
+- rule_id: azure.network.listener.cipher_policy_secure
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: equals
+    value: Secure
+- rule_id: azure.network.segmentation.tier_to_tier_policies_defined
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.subnet.route_table_association_present
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.endpoint.private_dns_enabled_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: contains
+    value: private_dns_enabled
+- rule_id: azure.network.micro_segmentation.microseg_identity_aware_policies_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.identity
+    op: not_empty
+- rule_id: azure.network.route_table.vpc_endpoints_used_for_saas_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.gateway_ip_configurations
+    op: not_empty
+- rule_id: azure.network.traffic_analysis.ids_ips_enabled_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.operational_state
+    op: equals
+    value: Enabled
+- rule_id: azure.network.route_table.no_0_0_0_0_from_private_subnets
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.load_balancer.lb_access_logs_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.access_control.policy_store_encrypted
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: not_empty
+- rule_id: azure.network.load_balancer.lb_waf_attached_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.sku
+    op: equals
+    value: WAF
+- rule_id: azure.network.segmentation.exception_approvals_required
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.security_group.data_warehouse_sg_only_required_ports_open
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.network.nsg.rdp.internet.access.check
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.network.watcher.region.compliance.check
+  for_each: azure.network.list
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.network.isolation.quarantine_network_defined
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.subnet.private_subnets_no_igw_route
+  for_each: azure.network.list
+  conditions:
+    var: item.gateway_ip_configurations
+    op: not_empty
+- rule_id: azure.network.network_acl.nacl_no_allow_all_rules
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.flow.log.retention.period.check
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.security_group.data_warehouse_sg_no_0_0_0_0_ingress
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.network.paas_app.private_networking_enforced
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.network.vpn_connection.vpn_ike_phase_encryption_strong
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: not_empty
+- rule_id: azure.network.public.ip.list.and.review
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.network.virtual_network.route_tables_no_unintended_internet_paths
+  for_each: azure.network.list
+  conditions:
+    var: item.gateway_ip_configurations
+    op: not_empty
+- rule_id: azure.network.security_group.data_warehouse_sg_ingress_no_0_0_0_0
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.network.access_control.no_permit_all
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.firewall.rule_groups_attached
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.backend_pool.tg_targets_in_private_subnets
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.virtual_network.dns_hostnames_and_support
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.micro_segmentation.microseg_endpoint_policies_applied
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.security_group.data_warehouse_sg_egress_egress_restricted
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.nsg.ssh.access.evaluation
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.interface.eni_security_groups_restrictive
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.monitoring.flow_logs_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.virtual_network.flow_logs_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.virtual.network.ddos.protection.status
+  for_each: azure.network.list
+  conditions:
+    var: item.sku
+    op: equals
+    value: Enabled
+- rule_id: azure.network.isolation.automated_isolation_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.operational_state
+    op: equals
+    value: Succeeded
+- rule_id: azure.network.security_group.data_warehouse_sg_ingress_only_required_ports
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.network.monitoring.alerts_for_anomalies
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.security_group.sg_egress_restricted
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.access_control.policies_present
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: not_empty
+- rule_id: azure.network.customer_gateway.cgw_ip_addresses_valid_and_owned
+  for_each: azure.network.list
+  conditions:
+    var: item.gateway_ip_configurations
+    op: not_empty
+- rule_id: azure.network.listener.tls_min_1_2
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: contains
+    value: TLS1_2
+- rule_id: azure.loadbalancer.v2.waf.acl.attached
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.subnet.public_subnets_use_nacl_restrictions
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.loadbalancer.deletion.protection
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.load.balancer_waf_acl_attached:az.azure_network_load_balancer.network_security_lb_waf_attached_where_supported
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: not_empty
+- rule_id: azure.network.vpn_connection.vpn_pre_shared_keys_rotation_policy_defined
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.firewall.logging_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.anomaly_detection.anomaly_detectors_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.operational_state
+    op: equals
+    value: Enabled
+- rule_id: azure.network.security_group.data_warehouse_sg_egress_restricted
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.customer_gateway.cgw_no_public_management_interfaces_exposed
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ip_configurations
+    op: not_empty
+- rule_id: azure.network.vnet.flow.logs.to.log.analytics.enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.endpoint.policy_least_privilege
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_settings_collection
+    op: not_empty
+- rule_id: azure.network.automation.change_audit_logging_enabled
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.nsg.databricks.subnet.explicit.rules
+  for_each: azure.network.list
+  conditions:
+    var: item.backend_address_pools
+    op: not_empty
+- rule_id: azure.network.load_balancer.lb_valid_certificate_attached
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_certificates
+    op: not_empty
+- rule_id: azure.network.nsg.inbound.http.access.check
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.vpn.gateway.point.to.site.authentication.type.set.to.azure.ad
+  for_each: azure.network.list
+  conditions:
+    var: item.authentication_certificates
+    op: not_empty
+- rule_id: azure.network.bastion.host.existence.check
+  for_each: azure.network.list
+  conditions:
+    var: item.gateway_ip_configurations
+    op: not_empty
+- rule_id: azure.network.vnet.subnet.nsg.association.check
+  for_each: azure.network.list
+  conditions:
+    var: item.tags
+    op: not_empty
+- rule_id: azure.network.encryption.tls_min_1_2_enforced
+  for_each: azure.network.list
+  conditions:
+    var: item.ssl_policy
+    op: contains
+    value: TLS1_2
+- rule_id: azure.network.nsg.udp.internet.access.check
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.network.security_group.sg_only_required_ports_open
+  for_each: azure.network.list
+  conditions:
+    var: item.frontend_ports
+    op: not_empty
+- rule_id: azure.network.automation.remediation_roles_least_privilege
+  for_each: azure.network.list
+  conditions:
+    var: item.identity
+    op: not_empty

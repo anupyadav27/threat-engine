@@ -1,0 +1,21 @@
+version: '1.0'
+provider: azure
+service: kusto
+discovery:
+- discovery_id: azure.kusto.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+checks:
+- rule_id: azure.kusto.basic.compliance.check
+  for_each: azure.kusto.list
+  conditions:
+    var: item.id
+    op: exists

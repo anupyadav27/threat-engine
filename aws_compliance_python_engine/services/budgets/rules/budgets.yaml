@@ -1,77 +1,101 @@
 version: '1.0'
 provider: aws
 service: budgets
+services:
+  client: budgets
+  module: boto3.client
 discovery:
 - discovery_id: aws.budgets.delete_budget_action
   calls:
   - action: delete_budget_action
-    save_as: delete_budget_action_response
+    save_as: response
     params:
-      AccountId: '{{ item.FIELD_NAME }}'
-      BudgetName: '{{ item.FIELD_NAME }}'
-      ActionId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.budgets.PARENT_DISCOVERY
+      AccountId: '{{ item.AccountId }}'
+      BudgetName: '{{ item.BudgetName }}'
+      ActionId: '{{ item.ActionId }}'
+  on_error: continue
+  for_each: aws.budgets.update_budget_action
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      action_id: '{{ delete_budget_action_response.Action.ActionId }}'
-      budget_name: '{{ delete_budget_action_response.Action.BudgetName }}'
-      notification_type: '{{ delete_budget_action_response.Action.NotificationType
-        }}'
-      action_type: '{{ delete_budget_action_response.Action.ActionType }}'
-      action_threshold: '{{ delete_budget_action_response.Action.ActionThreshold }}'
-- discovery_id: aws.budgets.describe_notifications_for_budget
+      ActionId: '{{ response.Action.ActionId }}'
+      BudgetName: '{{ response.Action.BudgetName }}'
+      NotificationType: '{{ response.Action.NotificationType }}'
+      ActionType: '{{ response.Action.ActionType }}'
+      ActionThreshold: '{{ response.Action.ActionThreshold }}'
+      Definition: '{{ response.Action.Definition }}'
+      ExecutionRoleArn: '{{ response.Action.ExecutionRoleArn }}'
+      ApprovalModel: '{{ response.Action.ApprovalModel }}'
+      Status: '{{ response.Action.Status }}'
+      Subscribers: '{{ response.Action.Subscribers }}'
+- discovery_id: aws.budgets.describe_budget_actions_for_account
   calls:
-  - action: describe_notifications_for_budget
-    save_as: describe_notifications_for_budget_response
+  - action: describe_budget_actions_for_account
+    save_as: response
     params:
-      AccountId: '{{ item.FIELD_NAME }}'
-      BudgetName: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.budgets.PARENT_DISCOVERY
+      AccountId: '{{ item.AccountId }}'
+  on_error: continue
+  for_each: aws.budgets.update_budget_action
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      notification_type: '{{ describe_notifications_for_budget_response.Notifications.NotificationType
-        }}'
-      comparison_operator: '{{ describe_notifications_for_budget_response.Notifications.ComparisonOperator
-        }}'
-      threshold: '{{ describe_notifications_for_budget_response.Notifications.Threshold
-        }}'
-      threshold_type: '{{ describe_notifications_for_budget_response.Notifications.ThresholdType
-        }}'
-      notification_state: '{{ describe_notifications_for_budget_response.Notifications.NotificationState
-        }}'
+      ActionId: '{{ response.Actions.ActionId }}'
+      BudgetName: '{{ response.Actions.BudgetName }}'
+      NotificationType: '{{ response.Actions.NotificationType }}'
+      ActionType: '{{ response.Actions.ActionType }}'
+      ActionThreshold: '{{ response.Actions.ActionThreshold }}'
+      Definition: '{{ response.Actions.Definition }}'
+      ExecutionRoleArn: '{{ response.Actions.ExecutionRoleArn }}'
+      ApprovalModel: '{{ response.Actions.ApprovalModel }}'
+      Status: '{{ response.Actions.Status }}'
+      Subscribers: '{{ response.Actions.Subscribers }}'
+- discovery_id: aws.budgets.describe_budgets
+  calls:
+  - action: describe_budgets
+    save_as: response
+    params:
+      AccountId: '{{ item.AccountId }}'
+  on_error: continue
+  for_each: aws.budgets.update_budget_action
+  emit:
+    item:
+      BudgetName: '{{ response.Budgets.BudgetName }}'
+      BudgetLimit: '{{ response.Budgets.BudgetLimit }}'
+      PlannedBudgetLimits: '{{ response.Budgets.PlannedBudgetLimits }}'
+      CostFilters: '{{ response.Budgets.CostFilters }}'
+      CostTypes: '{{ response.Budgets.CostTypes }}'
+      TimeUnit: '{{ response.Budgets.TimeUnit }}'
+      TimePeriod: '{{ response.Budgets.TimePeriod }}'
+      CalculatedSpend: '{{ response.Budgets.CalculatedSpend }}'
+      BudgetType: '{{ response.Budgets.BudgetType }}'
+      LastUpdatedTime: '{{ response.Budgets.LastUpdatedTime }}'
+      AutoAdjustData: '{{ response.Budgets.AutoAdjustData }}'
+      FilterExpression: '{{ response.Budgets.FilterExpression }}'
+      Metrics: '{{ response.Budgets.Metrics }}'
+      BillingViewArn: '{{ response.Budgets.BillingViewArn }}'
+      HealthStatus: '{{ response.Budgets.HealthStatus }}'
+- discovery_id: aws.budgets.update_budget_action
+  calls:
+  - action: update_budget_action
+    save_as: response
+    params:
+      BudgetName: '{{ item.BudgetName }}'
+      ActionId: '{{ item.ActionId }}'
+  on_error: continue
+  for_each: aws.budgets.describe_budgets
+  emit:
+    item:
+      ActionId: '{{ response.OldAction.ActionId }}'
+      BudgetName: '{{ response.OldAction.BudgetName }}'
+      NotificationType: '{{ response.OldAction.NotificationType }}'
+      ActionType: '{{ response.OldAction.ActionType }}'
+      ActionThreshold: '{{ response.OldAction.ActionThreshold }}'
+      Definition: '{{ response.OldAction.Definition }}'
+      ExecutionRoleArn: '{{ response.OldAction.ExecutionRoleArn }}'
+      ApprovalModel: '{{ response.OldAction.ApprovalModel }}'
+      Status: '{{ response.OldAction.Status }}'
+      Subscribers: '{{ response.OldAction.Subscribers }}'
 checks:
-- rule_id: aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured
-  for_each: aws.budgets.delete_budget_action
-  conditions:
-    all:
-    - var: item.status
-      op: equals
-      value: ACTIVE
-    - var: item.budget_name
-      op: exists
 - rule_id: aws.budgets.budget.alert_destinations_configured
   for_each: aws.budgets.delete_budget_action
   conditions:
-    var: item.subscribers
+    var: item.Subscribers
     op: exists
-- rule_id: aws.budgets.budget.alert_thresholds_configured
-  for_each: aws.budgets.describe_notifications_for_budget
-  conditions:
-    all:
-    - var: item.threshold
-      op: exists
-    - var: item.comparison_operator
-      op: exists
-- rule_id: aws.budgets.budget.modify_permissions_restricted
-  for_each: aws.budgets.delete_budget_action
-  conditions:
-    all:
-    - var: item.status
-      op: equals
-      value: ACTIVE
-    - var: item.execution_role_arn
-      op: exists

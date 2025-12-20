@@ -1,43 +1,33 @@
 version: '1.0'
 provider: aws
 service: kinesis
+services:
+  client: kinesis
+  module: boto3.client
 discovery:
 - discovery_id: aws.kinesis.describe_stream
   calls:
   - action: describe_stream
-    save_as: describe_stream_response
+    save_as: response
   emit:
-    items_for: '{{ describe_stream_response.StreamDescription }}'
-    as: resource
     item:
-      stream_name: '{{ resource.StreamName }}'
-      stream_arn: '{{ resource.StreamARN }}'
-      stream_status: '{{ resource.StreamStatus }}'
-      stream_mode_details: '{{ resource.StreamModeDetails }}'
-      shards: '{{ resource.Shards }}'
-      has_more_shards: '{{ resource.HasMoreShards }}'
-      retention_period_hours: '{{ resource.RetentionPeriodHours }}'
-      stream_creation_timestamp: '{{ resource.StreamCreationTimestamp }}'
-      enhanced_monitoring: '{{ resource.EnhancedMonitoring }}'
-      encryption_type: '{{ resource.EncryptionType }}'
-- discovery_id: aws.kinesis.describe_stream_consumer
-  calls:
-  - action: describe_stream_consumer
-    save_as: describe_stream_consumer_response
-  emit:
-    items_for: '{{ describe_stream_consumer_response.ConsumerDescription }}'
-    as: resource
-    item:
-      consumer_name: '{{ resource.ConsumerName }}'
-      consumer_arn: '{{ resource.ConsumerARN }}'
-      consumer_status: '{{ resource.ConsumerStatus }}'
-      consumer_creation_timestamp: '{{ resource.ConsumerCreationTimestamp }}'
-      stream_arn: '{{ resource.StreamARN }}'
+      StreamName: '{{ response.StreamDescription.StreamName }}'
+      StreamARN: '{{ response.StreamDescription.StreamARN }}'
+      StreamStatus: '{{ response.StreamDescription.StreamStatus }}'
+      StreamModeDetails: '{{ response.StreamDescription.StreamModeDetails }}'
+      Shards: '{{ response.StreamDescription.Shards }}'
+      HasMoreShards: '{{ response.StreamDescription.HasMoreShards }}'
+      RetentionPeriodHours: '{{ response.StreamDescription.RetentionPeriodHours }}'
+      StreamCreationTimestamp: '{{ response.StreamDescription.StreamCreationTimestamp
+        }}'
+      EnhancedMonitoring: '{{ response.StreamDescription.EnhancedMonitoring }}'
+      EncryptionType: '{{ response.StreamDescription.EncryptionType }}'
+      KeyId: '{{ response.StreamDescription.KeyId }}'
 checks:
 - rule_id: aws.kinesis.resource.stream_encrypted_at_rest
   for_each: aws.kinesis.describe_stream
   conditions:
-    var: item.encryption_type
+    var: item.EncryptionType
     op: equals
     value: KMS
 - rule_id: aws.kinesis.consumer.auth_required
@@ -49,22 +39,13 @@ checks:
 - rule_id: aws.kinesis.stream.encryption_at_rest_enabled
   for_each: aws.kinesis.describe_stream
   conditions:
-    var: item.encryption_type
+    var: item.EncryptionType
     op: equals
     value: KMS
-- rule_id: aws.kinesis.stream.private_network_only_if_supported
-  for_each: aws.kinesis.describe_stream
-  conditions:
-    all:
-    - var: item.stream_status
-      op: equals
-      value: ACTIVE
-    - var: item.stream_mode_details
-      op: exists
 - rule_id: aws.kinesis.stream_data_retention_period.stream_data_retention_period_configured
   for_each: aws.kinesis.describe_stream
   conditions:
-    var: item.retention_period_hours
+    var: item.RetentionPeriodHours
     op: gte
     value: 24
 - rule_id: aws.kinesis.stream.consumer_auth_required

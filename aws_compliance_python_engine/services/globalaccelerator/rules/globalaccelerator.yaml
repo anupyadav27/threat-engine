@@ -1,63 +1,116 @@
 version: '1.0'
 provider: aws
 service: globalaccelerator
+services:
+  client: globalaccelerator
+  module: boto3.client
 discovery:
 - discovery_id: aws.globalaccelerator.list_accelerators
   calls:
   - action: list_accelerators
-    save_as: list_accelerators_response
+    save_as: response
   emit:
-    items_for: '{{ list_accelerators_response.Accelerators }}'
+    items_for: '{{ response.Accelerators }}'
     as: resource
     item:
-      accelerator_arn: '{{ resource.AcceleratorArn }}'
-      name: '{{ resource.Name }}'
-      ip_address_type: '{{ resource.IpAddressType }}'
-      enabled: '{{ resource.Enabled }}'
-      ip_sets: '{{ resource.IpSets }}'
-      dns_name: '{{ resource.DnsName }}'
-      status: '{{ resource.Status }}'
-      created_time: '{{ resource.CreatedTime }}'
-      last_modified_time: '{{ resource.LastModifiedTime }}'
-      dual_stack_dns_name: '{{ resource.DualStackDnsName }}'
-- discovery_id: aws.globalaccelerator.describe_accelerator_attributes
+      AcceleratorArn: '{{ resource.AcceleratorArn }}'
+      Name: '{{ resource.Name }}'
+      IpAddressType: '{{ resource.IpAddressType }}'
+      Enabled: '{{ resource.Enabled }}'
+      IpSets: '{{ resource.IpSets }}'
+      DnsName: '{{ resource.DnsName }}'
+      Status: '{{ resource.Status }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
+      DualStackDnsName: '{{ resource.DualStackDnsName }}'
+      Events: '{{ resource.Events }}'
+- discovery_id: aws.globalaccelerator.list_custom_routing_accelerators
   calls:
-  - action: describe_accelerator_attributes
-    save_as: describe_accelerator_attributes_response
-    params:
-      AcceleratorArn: '{{ item.accelerator_arn }}'
-    on_error: continue
-  for_each: aws.globalaccelerator.list_accelerators
+  - action: list_custom_routing_accelerators
+    save_as: response
   emit:
+    items_for: '{{ response.Accelerators }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      flow_logs_enabled: '{{ describe_accelerator_attributes_response.AcceleratorAttributes.FlowLogsEnabled
-        }}'
-      flow_logs_s3_bucket: '{{ describe_accelerator_attributes_response.AcceleratorAttributes.FlowLogsS3Bucket
-        }}'
-      flow_logs_s3_prefix: '{{ describe_accelerator_attributes_response.AcceleratorAttributes.FlowLogsS3Prefix
-        }}'
+      AcceleratorArn: '{{ resource.AcceleratorArn }}'
+      Name: '{{ resource.Name }}'
+      IpAddressType: '{{ resource.IpAddressType }}'
+      Enabled: '{{ resource.Enabled }}'
+      IpSets: '{{ resource.IpSets }}'
+      DnsName: '{{ resource.DnsName }}'
+      Status: '{{ resource.Status }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
 - discovery_id: aws.globalaccelerator.create_listener
   calls:
   - action: create_listener
-    save_as: create_listener_response
+    save_as: response
     params:
-      AcceleratorArn: '{{ item.accelerator_arn }}'
-      PortRanges: '{{ item.id }}'
-      Protocol: '{{ item.id }}'
-      IdempotencyToken: '{{ item.id }}'
-    on_error: continue
-  for_each: aws.globalaccelerator.list_accelerators
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+      PortRanges: '{{ item.PortRanges }}'
+      Protocol: '{{ item.Protocol }}'
+  on_error: continue
+  for_each: aws.globalaccelerator.list_custom_routing_accelerators
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      listener_arn: '{{ create_listener_response.Listener.ListenerArn }}'
-      port_ranges: '{{ create_listener_response.Listener.PortRanges }}'
-      protocol: '{{ create_listener_response.Listener.Protocol }}'
-      client_affinity: '{{ create_listener_response.Listener.ClientAffinity }}'
+      ListenerArn: '{{ response.Listener.ListenerArn }}'
+      PortRanges: '{{ response.Listener.PortRanges }}'
+      Protocol: '{{ response.Listener.Protocol }}'
+      ClientAffinity: '{{ response.Listener.ClientAffinity }}'
+- discovery_id: aws.globalaccelerator.describe_accelerator
+  calls:
+  - action: describe_accelerator
+    save_as: response
+    params:
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+  on_error: continue
+  for_each: aws.globalaccelerator.list_custom_routing_accelerators
+  emit:
+    item:
+      AcceleratorArn: '{{ response.Accelerator.AcceleratorArn }}'
+      Name: '{{ response.Accelerator.Name }}'
+      IpAddressType: '{{ response.Accelerator.IpAddressType }}'
+      Enabled: '{{ response.Accelerator.Enabled }}'
+      IpSets: '{{ response.Accelerator.IpSets }}'
+      DnsName: '{{ response.Accelerator.DnsName }}'
+      Status: '{{ response.Accelerator.Status }}'
+      CreatedTime: '{{ response.Accelerator.CreatedTime }}'
+      LastModifiedTime: '{{ response.Accelerator.LastModifiedTime }}'
+      DualStackDnsName: '{{ response.Accelerator.DualStackDnsName }}'
+      Events: '{{ response.Accelerator.Events }}'
+- discovery_id: aws.globalaccelerator.list_custom_routing_listeners
+  calls:
+  - action: list_custom_routing_listeners
+    save_as: response
+    params:
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+  on_error: continue
+  for_each: aws.globalaccelerator.list_custom_routing_accelerators
+  emit:
+    items_for: '{{ response.Listeners }}'
+    as: resource
+    item:
+      ListenerArn: '{{ resource.ListenerArn }}'
+      PortRanges: '{{ resource.PortRanges }}'
+- discovery_id: aws.globalaccelerator.list_listeners
+  calls:
+  - action: list_listeners
+    save_as: response
+    params:
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+  on_error: continue
+  for_each: aws.globalaccelerator.list_custom_routing_accelerators
+  emit:
+    items_for: '{{ response.Listeners }}'
+    as: resource
+    item:
+      ListenerArn: '{{ resource.ListenerArn }}'
+      PortRanges: '{{ resource.PortRanges }}'
+      Protocol: '{{ resource.Protocol }}'
+      ClientAffinity: '{{ resource.ClientAffinity }}'
 checks:
 - rule_id: aws.globalaccelerator.accelerator.access_logs_enabled
-  for_each: aws.globalaccelerator.describe_accelerator_attributes
+  for_each: aws.globalaccelerator.list_accelerators
   conditions:
     var: item.flow_logs_enabled
     op: equals
@@ -65,22 +118,12 @@ checks:
 - rule_id: aws.globalaccelerator.accelerator.listener_tls_min_1_2_configured
   for_each: aws.globalaccelerator.create_listener
   conditions:
-    var: item.protocol
+    var: item.Protocol
     op: equals
     value: TLS
 - rule_id: aws.globalaccelerator.accelerator.valid_certificate_enabled
   for_each: aws.globalaccelerator.list_accelerators
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
-- rule_id: aws.globalaccelerator.accelerator.waf_attached_if_supported
-  for_each: aws.globalaccelerator.list_accelerators
-  conditions:
-    all:
-    - var: item.status
-      op: equals
-      value: DEPLOYED
-    - var: item.enabled
-      op: equals
-      value: true

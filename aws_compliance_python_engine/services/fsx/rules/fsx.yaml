@@ -1,87 +1,92 @@
 version: '1.0'
 provider: aws
 service: fsx
+services:
+  client: fsx
+  module: boto3.client
 discovery:
 - discovery_id: aws.fsx.create_backup
   calls:
   - action: create_backup
-    save_as: create_backup_response
+    save_as: response
   emit:
-    items_for: '{{ create_backup_response.Backup }}'
-    as: resource
     item:
-      backup_id: '{{ resource.BackupId }}'
-      lifecycle: '{{ resource.Lifecycle }}'
-      failure_details: '{{ resource.FailureDetails }}'
-      type: '{{ resource.Type }}'
-      progress_percent: '{{ resource.ProgressPercent }}'
-      creation_time: '{{ resource.CreationTime }}'
-      kms_key_id: '{{ resource.KmsKeyId }}'
-      resource_arn: '{{ resource.ResourceARN }}'
-      tags: '{{ resource.Tags }}'
-      file_system: '{{ resource.FileSystem }}'
+      BackupId: '{{ response.Backup.BackupId }}'
+      Lifecycle: '{{ response.Backup.Lifecycle }}'
+      FailureDetails: '{{ response.Backup.FailureDetails }}'
+      Type: '{{ response.Backup.Type }}'
+      ProgressPercent: '{{ response.Backup.ProgressPercent }}'
+      CreationTime: '{{ response.Backup.CreationTime }}'
+      KmsKeyId: '{{ response.Backup.KmsKeyId }}'
+      ResourceARN: '{{ response.Backup.ResourceARN }}'
+      Tags: '{{ response.Backup.Tags }}'
+      FileSystem: '{{ response.Backup.FileSystem }}'
+      DirectoryInformation: '{{ response.Backup.DirectoryInformation }}'
+      OwnerId: '{{ response.Backup.OwnerId }}'
+      SourceBackupId: '{{ response.Backup.SourceBackupId }}'
+      SourceBackupRegion: '{{ response.Backup.SourceBackupRegion }}'
+      ResourceType: '{{ response.Backup.ResourceType }}'
+      Volume: '{{ response.Backup.Volume }}'
+      SizeInBytes: '{{ response.Backup.SizeInBytes }}'
 - discovery_id: aws.fsx.describe_file_caches
   calls:
   - action: describe_file_caches
-    save_as: describe_file_caches_response
+    save_as: response
   emit:
-    items_for: '{{ describe_file_caches_response.FileCaches }}'
-    as: resource
     item:
-      owner_id: '{{ resource.OwnerId }}'
-      creation_time: '{{ resource.CreationTime }}'
-      file_cache_id: '{{ resource.FileCacheId }}'
-      file_cache_type: '{{ resource.FileCacheType }}'
-      file_cache_type_version: '{{ resource.FileCacheTypeVersion }}'
-      lifecycle: '{{ resource.Lifecycle }}'
-      failure_details: '{{ resource.FailureDetails }}'
-      storage_capacity: '{{ resource.StorageCapacity }}'
-      vpc_id: '{{ resource.VpcId }}'
-      subnet_ids: '{{ resource.SubnetIds }}'
+      OwnerId: '{{ response.FileCaches.OwnerId }}'
+      CreationTime: '{{ response.FileCaches.CreationTime }}'
+      FileCacheId: '{{ response.FileCaches.FileCacheId }}'
+      FileCacheType: '{{ response.FileCaches.FileCacheType }}'
+      FileCacheTypeVersion: '{{ response.FileCaches.FileCacheTypeVersion }}'
+      Lifecycle: '{{ response.FileCaches.Lifecycle }}'
+      FailureDetails: '{{ response.FileCaches.FailureDetails }}'
+      StorageCapacity: '{{ response.FileCaches.StorageCapacity }}'
+      VpcId: '{{ response.FileCaches.VpcId }}'
+      SubnetIds: '{{ response.FileCaches.SubnetIds }}'
+      NetworkInterfaceIds: '{{ response.FileCaches.NetworkInterfaceIds }}'
+      DNSName: '{{ response.FileCaches.DNSName }}'
+      KmsKeyId: '{{ response.FileCaches.KmsKeyId }}'
+      ResourceARN: '{{ response.FileCaches.ResourceARN }}'
+      LustreConfiguration: '{{ response.FileCaches.LustreConfiguration }}'
+      DataRepositoryAssociationIds: '{{ response.FileCaches.DataRepositoryAssociationIds
+        }}'
 checks:
 - rule_id: aws.fsx.resource.backup_enabled
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.lifecycle
+    var: item.Lifecycle
     op: equals
     value: AVAILABLE
 - rule_id: aws.fsx.filesystem.kms_key_policy_least_privilege
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.kms_key_id
+    var: item.KmsKeyId
     op: exists
 - rule_id: aws.fsx.resource.fsx_windows_file_system_multi_az_enabled
   for_each: aws.fsx.describe_file_caches
   conditions:
-    var: item.subnet_ids
+    var: item.SubnetIds
     op: gt
     value: 1
 - rule_id: aws.fsx.resource.file_system_copy_tags_to_backups_enabled
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.tags
+    var: item.Tags
     op: exists
-- rule_id: aws.fsx.filesystem.private_network_only_configured
-  for_each: aws.fsx.describe_file_caches
-  conditions:
-    all:
-    - var: item.vpc_id
-      op: exists
-    - var: item.subnet_ids
-      op: exists
 - rule_id: aws.fsx.filesystem.encryption_at_rest_enabled
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.kms_key_id
+    var: item.KmsKeyId
     op: exists
 - rule_id: aws.fsx.filesystem.snapshots_enabled
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.lifecycle
+    var: item.Lifecycle
     op: equals
     value: AVAILABLE
 - rule_id: aws.fsx.resource.file_system_copy_tags_to_volumes_enabled
   for_each: aws.fsx.create_backup
   conditions:
-    var: item.tags
+    var: item.Tags
     op: exists

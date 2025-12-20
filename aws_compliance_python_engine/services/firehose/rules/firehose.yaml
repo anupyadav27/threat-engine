@@ -1,31 +1,39 @@
 version: '1.0'
 provider: aws
 service: firehose
+services:
+  client: firehose
+  module: boto3.client
 discovery:
 - discovery_id: aws.firehose.describe_delivery_stream
   calls:
   - action: describe_delivery_stream
-    save_as: describe_delivery_stream_response
-    params:
-      DeliveryStreamName: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.firehose.PARENT_DISCOVERY
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      delivery_stream_name: '{{ describe_delivery_stream_response.DeliveryStreamDescription.DeliveryStreamName
+      DeliveryStreamName: '{{ response.DeliveryStreamDescription.DeliveryStreamName
         }}'
-      delivery_stream_arn: '{{ describe_delivery_stream_response.DeliveryStreamDescription.DeliveryStreamARN
+      DeliveryStreamARN: '{{ response.DeliveryStreamDescription.DeliveryStreamARN
         }}'
-      delivery_stream_status: '{{ describe_delivery_stream_response.DeliveryStreamDescription.DeliveryStreamStatus
+      DeliveryStreamStatus: '{{ response.DeliveryStreamDescription.DeliveryStreamStatus
         }}'
-      failure_description: '{{ describe_delivery_stream_response.DeliveryStreamDescription.FailureDescription
+      FailureDescription: '{{ response.DeliveryStreamDescription.FailureDescription
         }}'
-      delivery_stream_encryption_configuration: '{{ describe_delivery_stream_response.DeliveryStreamDescription.DeliveryStreamEncryptionConfiguration
+      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamDescription.DeliveryStreamEncryptionConfiguration
+        }}'
+      DeliveryStreamType: '{{ response.DeliveryStreamDescription.DeliveryStreamType
+        }}'
+      VersionId: '{{ response.DeliveryStreamDescription.VersionId }}'
+      CreateTimestamp: '{{ response.DeliveryStreamDescription.CreateTimestamp }}'
+      LastUpdateTimestamp: '{{ response.DeliveryStreamDescription.LastUpdateTimestamp
+        }}'
+      Source: '{{ response.DeliveryStreamDescription.Source }}'
+      Destinations: '{{ response.DeliveryStreamDescription.Destinations }}'
+      HasMoreDestinations: '{{ response.DeliveryStreamDescription.HasMoreDestinations
         }}'
 checks:
 - rule_id: aws.firehose.resource.stream_encrypted_at_rest
   for_each: aws.firehose.describe_delivery_stream
   conditions:
-    var: item.delivery_stream_encryption_configuration
+    var: item.DeliveryStreamEncryptionConfiguration
     op: exists

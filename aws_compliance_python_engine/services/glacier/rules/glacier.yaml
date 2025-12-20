@@ -1,113 +1,77 @@
 version: '1.0'
 provider: aws
 service: glacier
+services:
+  client: glacier
+  module: boto3.client
 discovery:
 - discovery_id: aws.glacier.get_vault_access_policy
   calls:
   - action: get_vault_access_policy
-    save_as: get_vault_access_policy_response
-    params:
-      accountId: '{{ item.FIELD_NAME }}'
-      vaultName: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.glacier.PARENT_DISCOVERY
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      policy: '{{ get_vault_access_policy_response.policy.Policy }}'
+      Policy: '{{ response.policy.Policy }}'
 - discovery_id: aws.glacier.list_provisioned_capacity
   calls:
   - action: list_provisioned_capacity
-    save_as: list_provisioned_capacity_response
-    params:
-      accountId: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.glacier.PARENT_DISCOVERY
+    save_as: response
   emit:
+    items_for: '{{ response.ProvisionedCapacityList }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      capacity_id: '{{ list_provisioned_capacity_response.ProvisionedCapacityList.CapacityId
-        }}'
-      start_date: '{{ list_provisioned_capacity_response.ProvisionedCapacityList.StartDate
-        }}'
-      expiration_date: '{{ list_provisioned_capacity_response.ProvisionedCapacityList.ExpirationDate
-        }}'
-- discovery_id: aws.glacier.get_vault_notifications
-  calls:
-  - action: get_vault_notifications
-    save_as: get_vault_notifications_response
-    params:
-      accountId: '{{ item.FIELD_NAME }}'
-      vaultName: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.glacier.PARENT_DISCOVERY
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      sns_topic: '{{ get_vault_notifications_response.vaultNotificationConfig.SNSTopic
-        }}'
-      events: '{{ get_vault_notifications_response.vaultNotificationConfig.Events
-        }}'
+      CapacityId: '{{ resource.CapacityId }}'
+      StartDate: '{{ resource.StartDate }}'
+      ExpirationDate: '{{ resource.ExpirationDate }}'
 checks:
 - rule_id: aws.glacier.vault.cmk_cmek_key_configured
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.vault.encryption_at_rest_enabled
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.vault.key_policy_least_privilege
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.vault.encryption_in_transit_tls_min_1_2_configured
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.vault.certificate_expiration_rules_configured
   for_each: aws.glacier.list_provisioned_capacity
   conditions:
-    var: item.expiration_date
+    var: item.ExpirationDate
     op: exists
 - rule_id: aws.glacier.vault.immutable_retention_locked_where_required
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.policy.public_access_configured
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: equals
     value: []
 - rule_id: aws.glacier.vault.key_rotation_enabled
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
-- rule_id: aws.glacier.vault.backup_enforced_on_sensitive_datasets_configured
-  for_each: aws.glacier.get_vault_notifications
-  conditions:
-    all:
-    - var: item.sns_topic
-      op: exists
-    - var: item.events
-      op: equals
-      value:
-      - ArchiveRetrievalCompleted
-      - InventoryRetrievalCompleted
 - rule_id: aws.glacier.vault.protected_from_public_override_configured
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists
 - rule_id: aws.glacier.vault.versioning_enabled_if_supported
   for_each: aws.glacier.get_vault_access_policy
   conditions:
-    var: item.policy
+    var: item.Policy
     op: exists

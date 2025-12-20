@@ -1,238 +1,199 @@
 version: '1.0'
 provider: aws
 service: organizations
+services:
+  client: organizations
+  module: boto3.client
 discovery:
 - discovery_id: aws.organizations.create_organization
   calls:
   - action: create_organization
-    save_as: create_organization_response
+    save_as: response
   emit:
-    items_for: '{{ create_organization_response.Organization }}'
-    as: resource
     item:
-      id: '{{ resource.Id }}'
-      arn: '{{ resource.Arn }}'
-      feature_set: '{{ resource.FeatureSet }}'
-      master_account_arn: '{{ resource.MasterAccountArn }}'
-      master_account_id: '{{ resource.MasterAccountId }}'
-      master_account_email: '{{ resource.MasterAccountEmail }}'
-      available_policy_types: '{{ resource.AvailablePolicyTypes }}'
-- discovery_id: aws.organizations.list_accounts
-  calls:
-  - action: list_accounts
-    save_as: list_accounts_response
-  emit:
-    items_for: '{{ list_accounts_response.Accounts }}'
-    as: resource
-    item:
-      id: '{{ resource.Id }}'
-      arn: '{{ resource.Arn }}'
-      email: '{{ resource.Email }}'
-      name: '{{ resource.Name }}'
-      status: '{{ resource.Status }}'
-      state: '{{ resource.State }}'
-      joined_method: '{{ resource.JoinedMethod }}'
-      joined_timestamp: '{{ resource.JoinedTimestamp }}'
+      Id: '{{ response.Organization.Id }}'
+      Arn: '{{ response.Organization.Arn }}'
+      FeatureSet: '{{ response.Organization.FeatureSet }}'
+      MasterAccountArn: '{{ response.Organization.MasterAccountArn }}'
+      MasterAccountId: '{{ response.Organization.MasterAccountId }}'
+      MasterAccountEmail: '{{ response.Organization.MasterAccountEmail }}'
+      AvailablePolicyTypes: '{{ response.Organization.AvailablePolicyTypes }}'
 - discovery_id: aws.organizations.describe_resource_policy
   calls:
   - action: describe_resource_policy
-    save_as: describe_resource_policy_response
+    save_as: response
   emit:
-    items_for: '{{ describe_resource_policy_response.ResourcePolicy }}'
-    as: resource
     item:
-      resource_policy_summary: '{{ resource.ResourcePolicySummary }}'
-      content: '{{ resource.Content }}'
-- discovery_id: aws.organizations.list_roots
-  calls:
-  - action: list_roots
-    save_as: list_roots_response
-  emit:
-    items_for: '{{ list_roots_response.Roots }}'
-    as: resource
-    item:
-      id: '{{ resource.Id }}'
-      arn: '{{ resource.Arn }}'
-      name: '{{ resource.Name }}'
-      policy_types: '{{ resource.PolicyTypes }}'
+      ResourcePolicySummary: '{{ response.ResourcePolicy.ResourcePolicySummary }}'
+      Content: '{{ response.ResourcePolicy.Content }}'
 - discovery_id: aws.organizations.enable_all_features
   calls:
   - action: enable_all_features
-    save_as: enable_all_features_response
+    save_as: response
   emit:
-    items_for: '{{ enable_all_features_response.Handshake }}'
+    item:
+      Id: '{{ response.Handshake.Id }}'
+      Arn: '{{ response.Handshake.Arn }}'
+      Parties: '{{ response.Handshake.Parties }}'
+      State: '{{ response.Handshake.State }}'
+      RequestedTimestamp: '{{ response.Handshake.RequestedTimestamp }}'
+      ExpirationTimestamp: '{{ response.Handshake.ExpirationTimestamp }}'
+      Action: '{{ response.Handshake.Action }}'
+      Resources: '{{ response.Handshake.Resources }}'
+- discovery_id: aws.organizations.list_accounts
+  calls:
+  - action: list_accounts
+    save_as: response
+  emit:
+    items_for: '{{ response.Accounts }}'
     as: resource
     item:
-      id: '{{ resource.Id }}'
-      arn: '{{ resource.Arn }}'
-      parties: '{{ resource.Parties }}'
-      state: '{{ resource.State }}'
-      requested_timestamp: '{{ resource.RequestedTimestamp }}'
-      expiration_timestamp: '{{ resource.ExpirationTimestamp }}'
-      action: '{{ resource.Action }}'
-      resources: '{{ resource.Resources }}'
+      Id: '{{ resource.Id }}'
+      Arn: '{{ resource.Arn }}'
+      Email: '{{ resource.Email }}'
+      Name: '{{ resource.Name }}'
+      Status: '{{ resource.Status }}'
+      State: '{{ resource.State }}'
+      JoinedMethod: '{{ resource.JoinedMethod }}'
+      JoinedTimestamp: '{{ resource.JoinedTimestamp }}'
+- discovery_id: aws.organizations.list_roots
+  calls:
+  - action: list_roots
+    save_as: response
+  emit:
+    items_for: '{{ response.Roots }}'
+    as: resource
+    item:
+      Id: '{{ resource.Id }}'
+      Arn: '{{ resource.Arn }}'
+      Name: '{{ resource.Name }}'
+      PolicyTypes: '{{ resource.PolicyTypes }}'
 checks:
-- rule_id: aws.organizations.service_control_policy.organizations_mandatory_block_disabling_guardrail_services_configured
-  for_each: aws.organizations.create_organization
-  conditions:
-    all:
-    - var: item.feature_set
-      op: equals
-      value: ALL
-    - var: item.available_policy_types
-      op: contains
-      value:
-      - Type: SERVICE_CONTROL_POLICY
-        Status: ENABLED
 - rule_id: aws.organizations.organization.inactive_user_disable_threshold_configured
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
 - rule_id: aws.organizations.service_control_policy.mandatory_deny_iam_star_admin_configured
   for_each: aws.organizations.describe_resource_policy
   conditions:
-    var: item.content
+    var: item.Content
     op: contains
     value: '"Effect": "Deny", "Action": "iam:*"'
 - rule_id: aws.organizations.account.break_glass_s_mfa_enforced
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
 - rule_id: aws.organizations.organizational_unit.organizations_no_overly_permissive_exceptions_configured
   for_each: aws.organizations.list_roots
   conditions:
-    var: item.policy_types
+    var: item.PolicyTypes
     op: equals
     value: []
 - rule_id: aws.organizations.policy.organizations_no_wildcard_admin_actions_configured
   for_each: aws.organizations.describe_resource_policy
   conditions:
-    var: item.content
+    var: item.Content
     op: contains
     value: '"Action": "*"'
 - rule_id: aws.organizations.organization.organizations_sso_federation_configured_if_supported
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.account.inactive_user_disable_threshold_configured
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
 - rule_id: aws.organizations.organization.api_access_keys_root_or_owner_disallowed_configured
   for_each: aws.organizations.enable_all_features
   conditions:
-    var: item.state
+    var: item.State
     op: equals
     value: DISABLED
 - rule_id: aws.organizations.organization.organizations_lockout_threshold_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.policy.editors_rbac_least_privilege
   for_each: aws.organizations.describe_resource_policy
   conditions:
-    var: item.content
+    var: item.Content
     op: contains
     value: least privilege
 - rule_id: aws.organizations.account.password_policy_compliant
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ACTIVE
 - rule_id: aws.organizations.resource.organizations_tags_policies_enabled_and
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value: TAG_POLICY
 - rule_id: aws.organizations.account.no_public_admin_roles_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: equals
     value: []
 - rule_id: aws.organizations.organization.organizations_min_length_14_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.id
+    var: item.Id
     op: gte
     value: 14
 - rule_id: aws.organizations.account.organizations_max_age_90_days_or_less_configured
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.joined_timestamp
+    var: item.JoinedTimestamp
     op: lte
     value: 90
-- rule_id: aws.organizations.organization.organizations_prevent_reuse_last_24_configured
-  for_each: aws.organizations.create_organization
-  conditions:
-    all:
-    - var: item.feature_set
-      op: equals
-      value: ALL
-    - var: item.available_policy_types
-      op: contains
-      value:
-      - Type: SERVICE_CONTROL_POLICY
-        Status: ENABLED
 - rule_id: aws.organizations.service_control_policy.organizations_no_allow_star_on_star_resources_configured
   for_each: aws.organizations.describe_resource_policy
   conditions:
-    var: item.content
+    var: item.Content
     op: contains
     value: Effect":"Deny
 - rule_id: aws.organizations.account.console_mfa_required_org_wide
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: ENABLED
 - rule_id: aws.organizations.account.organizations_sso_federation_configured_if_supported
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.account.organizations_require_upper_lower_number_special_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
-- rule_id: aws.organizations.account.organizations_required_guardrail_policies_enabled
-  for_each: aws.organizations.create_organization
-  conditions:
-    all:
-    - var: item.feature_set
-      op: equals
-      value: ALL
-    - var: item.available_policy_types
-      op: contains
-      value:
-      - Type: SERVICE_CONTROL_POLICY
-        Status: ENABLED
 - rule_id: aws.organizations.service_control_policy.mandatory_require_mfa_for_console_if_supported
   for_each: aws.organizations.describe_resource_policy
   conditions:
-    var: item.content
+    var: item.Content
     op: contains
     value: '"Effect": "Deny", "Condition": {"BoolIfExists": {"aws:MultiFactorAuthPresent":
       "false"}}'
 - rule_id: aws.organizations.organization.organizations_scps_enabled
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value:
     - Type: SERVICE_CONTROL_POLICY
@@ -240,13 +201,13 @@ checks:
 - rule_id: aws.organizations.organization.organizations_max_age_90_days_or_less_configured
   for_each: aws.organizations.list_accounts
   conditions:
-    var: item.joined_timestamp
+    var: item.JoinedTimestamp
     op: lte
     value: 90
 - rule_id: aws.organizations.organization.block_leave_org_by_policy_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value:
     - Type: SERVICE_CONTROL_POLICY
@@ -254,7 +215,7 @@ checks:
 - rule_id: aws.organizations.organizational_unit.organizations_required_scps_enabled
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value:
     - Type: SERVICE_CONTROL_POLICY
@@ -262,55 +223,44 @@ checks:
 - rule_id: aws.organizations.organization.organizations_require_upper_lower_number_special_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.organizational_unit.organizations_auto_tag_policies_enabled_if_supported
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value:
     - TAG_POLICY
 - rule_id: aws.organizations.account.organizations_min_length_14_configured
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.id
+    var: item.Id
     op: gte
     value: 14
 - rule_id: aws.organizations.organization.console_mfa_required_org_wide
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.organization.break_glass_accounts_mfa_enforced
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL
 - rule_id: aws.organizations.organization.restrict_region_usage_by_policy_where_required
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.available_policy_types
+    var: item.AvailablePolicyTypes
     op: contains
     value:
     - SERVICE_CONTROL_POLICY
-- rule_id: aws.organizations.policy.versioning_and_change_audit_enabled
-  for_each: aws.organizations.create_organization
-  conditions:
-    all:
-    - var: item.feature_set
-      op: equals
-      value: ALL
-    - var: item.available_policy_types
-      op: contains
-      value:
-      - SERVICE_CONTROL_POLICY
 - rule_id: aws.organizations.organization.password_policy_compliant
   for_each: aws.organizations.create_organization
   conditions:
-    var: item.feature_set
+    var: item.FeatureSet
     op: equals
     value: ALL

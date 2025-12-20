@@ -63,6 +63,72 @@ class GCPAPIFieldEnricher:
             'type': 'string',
             'description': 'Entity tag for optimistic concurrency',
             'compliance_category': 'general'
+        },
+        'type': {
+            'type': 'string',
+            'description': 'Resource type or category',
+            'compliance_category': 'identity',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'status': {
+            'type': 'string',
+            'description': 'Resource status',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'state': {
+            'type': 'string',
+            'description': 'Resource state',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'category': {
+            'type': 'string',
+            'description': 'Resource category',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'level': {
+            'type': 'string',
+            'description': 'Level or severity',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'mode': {
+            'type': 'string',
+            'description': 'Mode or configuration',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'format': {
+            'type': 'string',
+            'description': 'Format or encoding',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'role': {
+            'type': 'string',
+            'description': 'Role or permission',
+            'compliance_category': 'identity',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'class': {
+            'type': 'string',
+            'description': 'Class or tier',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'tier': {
+            'type': 'string',
+            'description': 'Tier or level',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
+        },
+        'language': {
+            'type': 'string',
+            'description': 'Language or locale',
+            'compliance_category': 'general',
+            'operators': ['equals', 'not_equals', 'in', 'not_in']
         }
     }
     

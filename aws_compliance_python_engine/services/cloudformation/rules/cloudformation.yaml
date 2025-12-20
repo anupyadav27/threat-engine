@@ -1,45 +1,53 @@
 version: '1.0'
 provider: aws
 service: cloudformation
+services:
+  client: cloudformation
+  module: boto3.client
 discovery:
 - discovery_id: aws.cloudformation.describe_stacks
   calls:
   - action: describe_stacks
-    save_as: describe_stacks_response
+    save_as: response
   emit:
-    items_for: '{{ describe_stacks_response.Stacks }}'
-    as: resource
     item:
-      stack_id: '{{ resource.StackId }}'
-      stack_name: '{{ resource.StackName }}'
-      change_set_id: '{{ resource.ChangeSetId }}'
-      description: '{{ resource.Description }}'
-      parameters: '{{ resource.Parameters }}'
-      creation_time: '{{ resource.CreationTime }}'
-      deletion_time: '{{ resource.DeletionTime }}'
-      last_updated_time: '{{ resource.LastUpdatedTime }}'
-      rollback_configuration: '{{ resource.RollbackConfiguration }}'
-      stack_status: '{{ resource.StackStatus }}'
+      StackId: '{{ response.Stacks.StackId }}'
+      StackName: '{{ response.Stacks.StackName }}'
+      ChangeSetId: '{{ response.Stacks.ChangeSetId }}'
+      Description: '{{ response.Stacks.Description }}'
+      Parameters: '{{ response.Stacks.Parameters }}'
+      CreationTime: '{{ response.Stacks.CreationTime }}'
+      DeletionTime: '{{ response.Stacks.DeletionTime }}'
+      LastUpdatedTime: '{{ response.Stacks.LastUpdatedTime }}'
+      RollbackConfiguration: '{{ response.Stacks.RollbackConfiguration }}'
+      StackStatus: '{{ response.Stacks.StackStatus }}'
+      StackStatusReason: '{{ response.Stacks.StackStatusReason }}'
+      DisableRollback: '{{ response.Stacks.DisableRollback }}'
+      NotificationARNs: '{{ response.Stacks.NotificationARNs }}'
+      TimeoutInMinutes: '{{ response.Stacks.TimeoutInMinutes }}'
+      Capabilities: '{{ response.Stacks.Capabilities }}'
+      Outputs: '{{ response.Stacks.Outputs }}'
+      RoleARN: '{{ response.Stacks.RoleARN }}'
+      Tags: '{{ response.Stacks.Tags }}'
+      EnableTerminationProtection: '{{ response.Stacks.EnableTerminationProtection
+        }}'
+      ParentId: '{{ response.Stacks.ParentId }}'
+      RootId: '{{ response.Stacks.RootId }}'
+      DriftInformation: '{{ response.Stacks.DriftInformation }}'
+      RetainExceptOnCreate: '{{ response.Stacks.RetainExceptOnCreate }}'
+      DeletionMode: '{{ response.Stacks.DeletionMode }}'
+      DetailedStatus: '{{ response.Stacks.DetailedStatus }}'
+      LastOperations: '{{ response.Stacks.LastOperations }}'
 checks:
 - rule_id: aws.cloudformation.stack.cloudformation_approvals_required_for_changes
   for_each: aws.cloudformation.describe_stacks
   conditions:
-    var: item.stack_status
+    var: item.StackStatus
     op: equals
     value: REVIEW_IN_PROGRESS
-- rule_id: aws.cloudformation.stack.cloudformation_storage_encrypted_and_private
-  for_each: aws.cloudformation.describe_stacks
-  conditions:
-    all:
-    - var: item.stack_status
-      op: equals
-      value: CREATE_COMPLETE
-    - var: item.capabilities
-      op: contains
-      value: CAPABILITY_AUTO_EXPAND
 - rule_id: aws.cloudformation.stack.change_audit_logging_enabled
   for_each: aws.cloudformation.describe_stacks
   conditions:
-    var: item.stack_status
+    var: item.StackStatus
     op: equals
     value: ENABLED

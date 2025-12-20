@@ -1,255 +1,264 @@
 version: '1.0'
 provider: aws
 service: wafv2
+services:
+  client: wafv2
+  module: boto3.client
 discovery:
 - discovery_id: aws.wafv2.get_rule_group
   calls:
   - action: get_rule_group
-    save_as: get_rule_group_response
+    save_as: response
   emit:
-    items_for: '{{ get_rule_group_response.RuleGroup }}'
-    as: resource
     item:
-      name: '{{ resource.Name }}'
-      id: '{{ resource.Id }}'
-      capacity: '{{ resource.Capacity }}'
-      arn: '{{ resource.ARN }}'
-      description: '{{ resource.Description }}'
-      rules: '{{ resource.Rules }}'
-      visibility_config: '{{ resource.VisibilityConfig }}'
-      label_namespace: '{{ resource.LabelNamespace }}'
-      custom_response_bodies: '{{ resource.CustomResponseBodies }}'
-      available_labels: '{{ resource.AvailableLabels }}'
+      Name: '{{ response.RuleGroup.Name }}'
+      Id: '{{ response.RuleGroup.Id }}'
+      Capacity: '{{ response.RuleGroup.Capacity }}'
+      ARN: '{{ response.RuleGroup.ARN }}'
+      Description: '{{ response.RuleGroup.Description }}'
+      Rules: '{{ response.RuleGroup.Rules }}'
+      VisibilityConfig: '{{ response.RuleGroup.VisibilityConfig }}'
+      LabelNamespace: '{{ response.RuleGroup.LabelNamespace }}'
+      CustomResponseBodies: '{{ response.RuleGroup.CustomResponseBodies }}'
+      AvailableLabels: '{{ response.RuleGroup.AvailableLabels }}'
+      ConsumedLabels: '{{ response.RuleGroup.ConsumedLabels }}'
 - discovery_id: aws.wafv2.get_web_acl
   calls:
   - action: get_web_acl
-    save_as: get_web_acl_response
-  emit:
-    items_for: '{{ get_web_acl_response.WebACL }}'
-    as: resource
-    item:
-      name: '{{ resource.Name }}'
-      id: '{{ resource.Id }}'
-      arn: '{{ resource.ARN }}'
-      default_action: '{{ resource.DefaultAction }}'
-      description: '{{ resource.Description }}'
-      rules: '{{ resource.Rules }}'
-      visibility_config: '{{ resource.VisibilityConfig }}'
-      data_protection_config: '{{ resource.DataProtectionConfig }}'
-      capacity: '{{ resource.Capacity }}'
-      pre_process_firewall_manager_rule_groups: '{{ resource.PreProcessFirewallManagerRuleGroups
-        }}'
-- discovery_id: aws.wafv2.get_ip_set
-  calls:
-  - action: get_ip_set
-    save_as: get_ip_set_response
-    params:
-      Name: '{{ item.Name }}'
-      Scope: '{{ item.api_id }}'
-      Id: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.wafv2.get_rule_group
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      name: '{{ get_ip_set_response.IPSet.Name }}'
-      id: '{{ get_ip_set_response.IPSet.Id }}'
-      arn: '{{ get_ip_set_response.IPSet.ARN }}'
-      description: '{{ get_ip_set_response.IPSet.Description }}'
-      ip_address_version: '{{ get_ip_set_response.IPSet.IPAddressVersion }}'
-- discovery_id: aws.wafv2.get_logging_configuration
-  calls:
-  - action: get_logging_configuration
-    save_as: get_logging_configuration_response
-    params:
-      ResourceArn: '{{ item.arn }}'
-    on_error: continue
-  for_each: aws.wafv2.get_rule_group
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      resource_arn: '{{ get_logging_configuration_response.LoggingConfiguration.ResourceArn
+      Name: '{{ response.WebACL.Name }}'
+      Id: '{{ response.WebACL.Id }}'
+      ARN: '{{ response.WebACL.ARN }}'
+      DefaultAction: '{{ response.WebACL.DefaultAction }}'
+      Description: '{{ response.WebACL.Description }}'
+      Rules: '{{ response.WebACL.Rules }}'
+      VisibilityConfig: '{{ response.WebACL.VisibilityConfig }}'
+      DataProtectionConfig: '{{ response.WebACL.DataProtectionConfig }}'
+      Capacity: '{{ response.WebACL.Capacity }}'
+      PreProcessFirewallManagerRuleGroups: '{{ response.WebACL.PreProcessFirewallManagerRuleGroups
         }}'
-      log_destination_configs: '{{ get_logging_configuration_response.LoggingConfiguration.LogDestinationConfigs
+      PostProcessFirewallManagerRuleGroups: '{{ response.WebACL.PostProcessFirewallManagerRuleGroups
         }}'
-      redacted_fields: '{{ get_logging_configuration_response.LoggingConfiguration.RedactedFields
+      ManagedByFirewallManager: '{{ response.WebACL.ManagedByFirewallManager }}'
+      LabelNamespace: '{{ response.WebACL.LabelNamespace }}'
+      CustomResponseBodies: '{{ response.WebACL.CustomResponseBodies }}'
+      CaptchaConfig: '{{ response.WebACL.CaptchaConfig }}'
+      ChallengeConfig: '{{ response.WebACL.ChallengeConfig }}'
+      TokenDomains: '{{ response.WebACL.TokenDomains }}'
+      AssociationConfig: '{{ response.WebACL.AssociationConfig }}'
+      RetrofittedByFirewallManager: '{{ response.WebACL.RetrofittedByFirewallManager
         }}'
-      managed_by_firewall_manager: '{{ get_logging_configuration_response.LoggingConfiguration.ManagedByFirewallManager
+      OnSourceDDoSProtectionConfig: '{{ response.WebACL.OnSourceDDoSProtectionConfig
         }}'
-      logging_filter: '{{ get_logging_configuration_response.LoggingConfiguration.LoggingFilter
-        }}'
-- discovery_id: aws.wafv2.get_regex_pattern_set
-  calls:
-  - action: get_regex_pattern_set
-    save_as: get_regex_pattern_set_response
-    params:
-      Name: '{{ item.Name }}'
-      Scope: '{{ item.api_id }}'
-      Id: '{{ item.api_id }}'
-    on_error: continue
-  for_each: aws.wafv2.get_rule_group
-  emit:
-    item:
-      resource_id: '{{ item.resource_id }}'
-      name: '{{ get_regex_pattern_set_response.RegexPatternSet.Name }}'
-      id: '{{ get_regex_pattern_set_response.RegexPatternSet.Id }}'
-      arn: '{{ get_regex_pattern_set_response.RegexPatternSet.ARN }}'
-      description: '{{ get_regex_pattern_set_response.RegexPatternSet.Description
-        }}'
-      regular_expression_list: '{{ get_regex_pattern_set_response.RegexPatternSet.RegularExpressionList
-        }}'
+      ApplicationConfig: '{{ response.WebACL.ApplicationConfig }}'
 - discovery_id: aws.wafv2.describe_managed_rule_group
   calls:
   - action: describe_managed_rule_group
-    save_as: describe_managed_rule_group_response
+    save_as: response
     params:
-      VendorName: '{{ item.Name }}'
+      VendorName: '{{ item.VendorName }}'
       Name: '{{ item.Name }}'
-      Scope: '{{ item.api_id }}'
-    on_error: continue
+  on_error: continue
+  for_each: aws.wafv2.list_available_managed_rule_groups
+  emit:
+    item:
+      Name: '{{ response.Rules.Name }}'
+      Action: '{{ response.Rules.Action }}'
+- discovery_id: aws.wafv2.get_ip_set
+  calls:
+  - action: get_ip_set
+    save_as: response
+    params:
+      Name: '{{ item.Name }}'
+      Id: '{{ item.Id }}'
+  on_error: continue
   for_each: aws.wafv2.get_rule_group
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      name: '{{ describe_managed_rule_group_response.Rules.Name }}'
-      action: '{{ describe_managed_rule_group_response.Rules.Action }}'
+      Name: '{{ response.IPSet.Name }}'
+      Id: '{{ response.IPSet.Id }}'
+      ARN: '{{ response.IPSet.ARN }}'
+      Description: '{{ response.IPSet.Description }}'
+      IPAddressVersion: '{{ response.IPSet.IPAddressVersion }}'
+      Addresses: '{{ response.IPSet.Addresses }}'
+- discovery_id: aws.wafv2.get_logging_configuration
+  calls:
+  - action: get_logging_configuration
+    save_as: response
+    params:
+      ResourceArn: '{{ item.ResourceArn }}'
+  on_error: continue
+  for_each: aws.wafv2.list_logging_configurations
+  emit:
+    item:
+      ResourceArn: '{{ response.LoggingConfiguration.ResourceArn }}'
+      LogDestinationConfigs: '{{ response.LoggingConfiguration.LogDestinationConfigs
+        }}'
+      RedactedFields: '{{ response.LoggingConfiguration.RedactedFields }}'
+      ManagedByFirewallManager: '{{ response.LoggingConfiguration.ManagedByFirewallManager
+        }}'
+      LoggingFilter: '{{ response.LoggingConfiguration.LoggingFilter }}'
+      LogType: '{{ response.LoggingConfiguration.LogType }}'
+      LogScope: '{{ response.LoggingConfiguration.LogScope }}'
+- discovery_id: aws.wafv2.get_regex_pattern_set
+  calls:
+  - action: get_regex_pattern_set
+    save_as: response
+    params:
+      Name: '{{ item.Name }}'
+      Id: '{{ item.Id }}'
+  on_error: continue
+  for_each: aws.wafv2.get_rule_group
+  emit:
+    item:
+      Name: '{{ response.RegexPatternSet.Name }}'
+      Id: '{{ response.RegexPatternSet.Id }}'
+      ARN: '{{ response.RegexPatternSet.ARN }}'
+      Description: '{{ response.RegexPatternSet.Description }}'
+      RegularExpressionList: '{{ response.RegexPatternSet.RegularExpressionList }}'
+- discovery_id: aws.wafv2.list_available_managed_rule_groups
+  calls:
+  - action: list_available_managed_rule_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.ManagedRuleGroups }}'
+    as: resource
+    item:
+      VendorName: '{{ resource.VendorName }}'
+      Name: '{{ resource.Name }}'
+      VersioningSupported: '{{ resource.VersioningSupported }}'
+      Description: '{{ resource.Description }}'
+- discovery_id: aws.wafv2.list_logging_configurations
+  calls:
+  - action: list_logging_configurations
+    save_as: response
+  emit:
+    items_for: '{{ response.LoggingConfigurations }}'
+    as: resource
+    item:
+      ResourceArn: '{{ resource.ResourceArn }}'
+      LogDestinationConfigs: '{{ resource.LogDestinationConfigs }}'
+      RedactedFields: '{{ resource.RedactedFields }}'
+      ManagedByFirewallManager: '{{ resource.ManagedByFirewallManager }}'
+      LoggingFilter: '{{ resource.LoggingFilter }}'
+      LogType: '{{ resource.LogType }}'
+      LogScope: '{{ resource.LogScope }}'
 - discovery_id: aws.wafv2.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
-    save_as: list_tags_for_resource_response
-    params:
-      ResourceARN: '{{ item.arn }}'
-    on_error: continue
-  for_each: aws.wafv2.get_rule_group
+    save_as: response
   emit:
+    items_for: '{{ response.TagInfoForResource }}'
+    as: resource
     item:
-      resource_id: '{{ item.resource_id }}'
-      resource_arn: '{{ list_tags_for_resource_response.TagInfoForResource.ResourceARN
-        }}'
-      tag_list: '{{ list_tags_for_resource_response.TagInfoForResource.TagList }}'
+      ResourceARN: '{{ resource.ResourceARN }}'
+      TagList: '{{ resource.TagList }}'
 checks:
-- rule_id: aws.wafv2.rule.wafv2_references_valid_ip_or_regex_sets_only_configured
-  for_each: aws.wafv2.get_rule_group
-  conditions:
-    any:
-    - var: item.rules
-      op: contains
-      value: IPSetReferenceStatement
-    - var: item.rules
-      op: contains
-      value: RegexPatternSetReferenceStatement
 - rule_id: aws.wafv2.rulegroup.wafv2_unique_priorities_configured
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists
 - rule_id: aws.wafv2.rulegroup.wafv2_no_permit_all_rule_configured
   for_each: aws.wafv2.get_web_acl
   conditions:
-    var: item.default_action
+    var: item.DefaultAction
     op: not_equals
     value: ALLOW
 - rule_id: aws.wafv2.rulegroup.wafv2_references_only_approved_managed_sets_where_used_configured
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.name
+    var: item.Name
     op: contains
     value:
     - AWSManagedRules
 - rule_id: aws.wafv2.ipset.wafv2_not_empty_configured
   for_each: aws.wafv2.get_ip_set
   conditions:
-    var: item.addresses
+    var: item.Addresses
     op: not_equals
     value: []
 - rule_id: aws.wafv2.webacl.wafv2_attached_to_cdn_configured
   for_each: aws.wafv2.get_web_acl
   conditions:
-    var: item.managed_by_firewall_manager
+    var: item.ManagedByFirewallManager
     op: equals
     value: true
 - rule_id: aws.wafv2.ipset.wafv2_used_by_at_least_one_rule_configured
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists
 - rule_id: aws.wafv2.resource.webacl_logging_enabled
   for_each: aws.wafv2.get_logging_configuration
   conditions:
-    var: item.log_destination_configs
+    var: item.LogDestinationConfigs
     op: not_equals
     value: []
 - rule_id: aws.wafv2.resource.webacl_rule_logging_enabled
   for_each: aws.wafv2.get_logging_configuration
   conditions:
-    var: item.log_destination_configs
+    var: item.LogDestinationConfigs
     op: exists
 - rule_id: aws.wafv2.webacl.wafv2_ip_rate_limit_rules_configured_if_supported
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists
 - rule_id: aws.wafv2.regexpatternset.wafv2_no_overly_broad_patterns_configured
   for_each: aws.wafv2.get_regex_pattern_set
   conditions:
-    var: item.regular_expression_list
+    var: item.RegularExpressionList
     op: equals
     value: []
 - rule_id: aws.wafv2.rulegroup.wafv2_visibility_config_enabled
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.visibility_config
+    var: item.VisibilityConfig
     op: exists
 - rule_id: aws.wafv2.rule.wafv2_has_effective_action_not_count_only_configured
   for_each: aws.wafv2.describe_managed_rule_group
   conditions:
-    var: item.action
+    var: item.Action
     op: not_equals
     value: COUNT
 - rule_id: aws.wafv2.webacl.wafv2_managed_rule_sets_enabled
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists
 - rule_id: aws.wafv2.rule.wafv2_priority_unique_within_web_acl_configured
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists
 - rule_id: aws.wafv2.regexpatternset.wafv2_not_empty_configured
   for_each: aws.wafv2.get_regex_pattern_set
   conditions:
-    var: item.regular_expression_list
+    var: item.RegularExpressionList
     op: not_equals
     value: []
 - rule_id: aws.wafv2.ipset.wafv2_cross_account_sharing_restricted
   for_each: aws.wafv2.list_tags_for_resource
   conditions:
-    var: item.resource_arn
+    var: item.ResourceARN
     op: exists
 - rule_id: aws.wafv2.webacl.wafv2_block_actions_not_count_only_configured
   for_each: aws.wafv2.get_web_acl
   conditions:
-    var: item.default_action
+    var: item.DefaultAction
     op: not_equals
     value: COUNT
-- rule_id: aws.wafv2.ipset.wafv2_cidrs_valid_and_minimized_configured
-  for_each: aws.wafv2.get_ip_set
-  conditions:
-    all:
-    - var: item.addresses
-      op: exists
-    - var: item.ip_address_version
-      op: equals
-      value: IPV4
 - rule_id: aws.wafv2.webacl.logging_enabled
   for_each: aws.wafv2.get_logging_configuration
   conditions:
-    var: item.log_destination_configs
+    var: item.LogDestinationConfigs
     op: not_equals
     value: []
 - rule_id: aws.wafv2.regexpatternset.wafv2_used_by_at_least_one_rule_configured
   for_each: aws.wafv2.get_rule_group
   conditions:
-    var: item.rules
+    var: item.Rules
     op: exists

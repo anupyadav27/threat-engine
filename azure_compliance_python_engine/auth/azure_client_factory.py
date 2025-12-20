@@ -23,8 +23,10 @@ class AzureClientFactory:
         'resource': ('azure.mgmt.resource', 'ResourceManagementClient', {}),
         'subscription': ('azure.mgmt.subscription', 'SubscriptionClient', {}),
         'managementgroup': ('azure.mgmt.managementgroups', 'ManagementGroupsAPI', {}),
+        'managementgroups': ('azure.mgmt.managementgroups', 'ManagementGroupsAPI', {}),
         'policy': ('azure.mgmt.resource.policy', 'PolicyClient', {}),
         'rbac': ('azure.mgmt.authorization', 'AuthorizationManagementClient', {}),
+        'authorization': ('azure.mgmt.authorization', 'AuthorizationManagementClient', {}),
         
         # Compute & Containers
         'compute': ('azure.mgmt.compute', 'ComputeManagementClient', {}),
@@ -33,11 +35,13 @@ class AzureClientFactory:
         'disk': ('azure.mgmt.compute', 'ComputeManagementClient', {}),
         'aks': ('azure.mgmt.containerservice', 'ContainerServiceClient', {}),
         'kubernetes': ('azure.mgmt.containerservice', 'ContainerServiceClient', {}),
+        'containerservice': ('azure.mgmt.containerservice', 'ContainerServiceClient', {}),
         'container': ('azure.mgmt.containerinstance', 'ContainerInstanceManagementClient', {}),
         'containerregistry': ('azure.mgmt.containerregistry', 'ContainerRegistryManagementClient', {}),
         
         # Storage
         'storage': ('azure.mgmt.storage', 'StorageManagementClient', {}),
+        'storageaccount': ('azure.mgmt.storage', 'StorageManagementClient', {}),
         'blob': ('azure.storage.blob', 'BlobServiceClient', {'connection_string_based': True}),
         'files': ('azure.storage.fileshare', 'ShareServiceClient', {'connection_string_based': True}),
         
@@ -90,6 +94,7 @@ class AzureClientFactory:
         'app': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
         'appservice': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
         'webapp': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
+        'web': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
         'function': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
         'functionapp': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
         'functions': ('azure.mgmt.web', 'WebSiteManagementClient', {}),
@@ -109,6 +114,7 @@ class AzureClientFactory:
         # Backup & Recovery
         'backup': ('azure.mgmt.recoveryservices', 'RecoveryServicesClient', {}),
         'recoveryservices': ('azure.mgmt.recoveryservices', 'RecoveryServicesClient', {}),
+        'recoveryservicesbackup': ('azure.mgmt.recoveryservices', 'RecoveryServicesClient', {}),
         'dataprotection': ('azure.mgmt.dataprotection', 'DataProtectionClient', {}),
         
         # Other Services
@@ -118,12 +124,22 @@ class AzureClientFactory:
         'billing': ('azure.mgmt.billing', 'BillingManagementClient', {}),
         'cost': ('azure.mgmt.costmanagement', 'CostManagementClient', {}),
         'event': ('azure.mgmt.eventgrid', 'EventGridManagementClient', {}),
+        'eventhub': ('azure.mgmt.eventhub', 'EventHubManagementClient', {}),
+        'eventhubs': ('azure.mgmt.eventhub', 'EventHubManagementClient', {}),
         'iot': ('azure.mgmt.iothub', 'IotHubClient', {}),
         'notification': ('azure.mgmt.notificationhubs', 'NotificationHubsManagementClient', {}),
         'power': ('azure.mgmt.powerbiembedded', 'PowerBIEmbeddedManagementClient', {}),
         'netappfiles': ('azure.mgmt.netapp', 'NetAppManagementClient', {}),
         'elastic': ('azure.mgmt.elastic', 'ElasticManagementClient', {}),
         'machine': ('azure.mgmt.machinelearningservices', 'MachineLearningServicesManagementClient', {}),
+        
+        # Additional services
+        'kusto': ('azure.mgmt.kusto', 'KustoManagementClient', {}),
+        'loganalytics': ('azure.mgmt.loganalytics', 'LogAnalyticsManagementClient', {}),
+        'managedidentity': ('azure.mgmt.msi', 'ManagedServiceIdentityClient', {}),
+        'servicebus': ('azure.mgmt.servicebus', 'ServiceBusManagementClient', {}),
+        'signalr': ('azure.mgmt.signalr', 'SignalRManagementClient', {}),
+        'streamanalytics': ('azure.mgmt.streamanalytics', 'StreamAnalyticsManagementClient', {}),
     }
     
     def __init__(self, subscription_id: Optional[str] = None, credential: Optional[Any] = None):

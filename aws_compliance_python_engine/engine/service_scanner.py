@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.reporting_manager import save_reporting_bundle
 from auth.aws_auth import get_boto3_session, get_session_for_account
+from engine.discovery_helper import get_boto3_client_name
 import threading
 import re
 
@@ -20,30 +21,6 @@ import re
 # This allows each scan to have its own log file
 logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('compliance-boto3')
-
-# Service name mapping: YAML service name -> boto3 client name
-SERVICE_TO_BOTO3_CLIENT = {
-    'cognito': 'cognito-idp',
-    'vpc': 'ec2',
-    'vpcflowlogs': 'ec2',
-    'workflows': 'stepfunctions',
-    'parameterstore': 'ssm',
-    'elastic': 'es',
-    'eip': 'ec2',
-    'eventbridge': 'events',
-    'fargate': 'ecs',
-    'kinesisfirehose': 'firehose',
-    'costexplorer': 'ce',
-    'directoryservice': 'ds',
-    'identitycenter': 'sso',
-    'macie': 'macie2',
-    'networkfirewall': 'network-firewall',
-}
-
-
-def get_boto3_client_name(service_name: str) -> str:
-    """Map YAML service name to boto3 client name"""
-    return SERVICE_TO_BOTO3_CLIENT.get(service_name, service_name)
 
 # Retry/backoff settings
 MAX_RETRIES = int(os.getenv('COMPLIANCE_MAX_RETRIES', '5'))
@@ -236,7 +213,54 @@ def load_enabled_services_with_scope():
     return [(s["name"], s.get("scope", "regional")) for s in data["services"] if s.get("enabled")]
 
 def load_service_rules(service_name):
-    rules_path = os.path.join(os.path.dirname(__file__), "..", "services", service_name, "rules", f"{service_name}.yaml")
+    """
+    Load service rules YAML file.
+    Handles service name mapping from config names to folder names.
+    Each service has its own folder and YAML file.
+    The boto3 client mapping (SERVICE_TO_BOTO3_CLIENT) handles SDK client selection.
+    """
+    base_path = os.path.join(os.path.dirname(__file__), "..", "services")
+    
+    # Original logic - load from service folder
+    # Try multiple name variations
+    possible_names = [
+        service_name,  # Exact match
+        service_name.replace('_', ''),  # Remove underscores (api_gateway -> apigateway)
+    ]
+    
+    # Also try with common variations
+    if '_' in service_name:
+        # Try with different underscore positions
+        parts = service_name.split('_')
+        possible_names.append(''.join(parts))  # api_gateway -> apigateway
+        if len(parts) == 2:
+            possible_names.append(parts[0] + parts[1].capitalize())  # api_gateway -> apiGateway
+    
+    # Try each possible name
+    rules_path = None
+    for name in possible_names:
+        test_path = os.path.join(base_path, name, "rules", f"{name}.yaml")
+        if os.path.exists(test_path):
+            rules_path = test_path
+            break
+    
+    # If still not found, try to find by scanning folders
+    if not rules_path:
+        service_norm = service_name.replace('_', '').lower()
+        if os.path.exists(base_path):
+            for folder_name in os.listdir(base_path):
+                folder_path = os.path.join(base_path, folder_name)
+                if os.path.isdir(folder_path):
+                    folder_norm = folder_name.replace('_', '').lower()
+                    if folder_norm == service_norm:
+                        test_path = os.path.join(folder_path, "rules", f"{folder_name}.yaml")
+                        if os.path.exists(test_path):
+                            rules_path = test_path
+                            break
+    
+    if not rules_path:
+        raise FileNotFoundError(f"Service rules not found for '{service_name}'. Tried: {possible_names}")
+    
     with open(rules_path) as f:
         rules = yaml.safe_load(f)
     

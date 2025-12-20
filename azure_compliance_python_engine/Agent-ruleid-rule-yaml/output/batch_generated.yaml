@@ -1,0 +1,60 @@
+version: '1.0'
+provider: azure
+service: batch
+discovery:
+- discovery_id: azure.batch.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      identity: '{{ item.identity }}'
+      account_endpoint: '{{ item.account_endpoint }}'
+      node_management_endpoint: '{{ item.node_management_endpoint }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      pool_allocation_mode: '{{ item.pool_allocation_mode }}'
+      key_vault_reference: '{{ item.key_vault_reference }}'
+      public_network_access: '{{ item.public_network_access }}'
+      network_profile: '{{ item.network_profile }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      auto_storage: '{{ item.auto_storage }}'
+      encryption: '{{ item.encryption }}'
+      dedicated_core_quota: '{{ item.dedicated_core_quota }}'
+      low_priority_core_quota: '{{ item.low_priority_core_quota }}'
+      dedicated_core_quota_per_vm_family: '{{ item.dedicated_core_quota_per_vm_family
+        }}'
+      dedicated_core_quota_per_vm_family_enforced: '{{ item.dedicated_core_quota_per_vm_family_enforced
+        }}'
+checks:
+- rule_id: azure.batch.account.public.network.access.check.disabled
+  for_each: azure.batch.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.batch.account.private.endpoint.approved
+  for_each: azure.batch.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.batch.account.authentication.modes.check
+  for_each: azure.batch.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.batch.private.endpoint.dns.zone.validation
+  for_each: azure.batch.list
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: azure.batch.account.diagnostics.settings.logs.enabled
+  for_each: azure.batch.list
+  conditions:
+    var: item.id
+    op: exists
