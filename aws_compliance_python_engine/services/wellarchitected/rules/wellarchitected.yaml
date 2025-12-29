@@ -5,28 +5,24 @@ services:
   client: wellarchitected
   module: boto3.client
 discovery:
-- discovery_id: aws.wellarchitected.list_workloads
+- discovery_id: aws.wellarchitected.get_global_settings
   calls:
-  - action: list_workloads
+  - action: get_global_settings
     save_as: response
   emit:
-    items_for: '{{ response.WorkloadSummaries }}'
-    as: resource
     item:
-      WorkloadId: '{{ resource.WorkloadId }}'
-      WorkloadArn: '{{ resource.WorkloadArn }}'
-      WorkloadName: '{{ resource.WorkloadName }}'
-      Owner: '{{ resource.Owner }}'
-      UpdatedAt: '{{ resource.UpdatedAt }}'
-      Lenses: '{{ resource.Lenses }}'
-      RiskCounts: '{{ resource.RiskCounts }}'
-      ImprovementStatus: '{{ resource.ImprovementStatus }}'
-      Profiles: '{{ resource.Profiles }}'
-      PrioritizedRiskCounts: '{{ resource.PrioritizedRiskCounts }}'
+      IntegrationStatus: '{{ response.JiraConfiguration.IntegrationStatus }}'
+      IssueManagementStatus: '{{ response.JiraConfiguration.IssueManagementStatus
+        }}'
+      IssueManagementType: '{{ response.JiraConfiguration.IssueManagementType }}'
+      Subdomain: '{{ response.JiraConfiguration.Subdomain }}'
+      JiraProjectKey: '{{ response.JiraConfiguration.JiraProjectKey }}'
+      StatusMessage: '{{ response.JiraConfiguration.StatusMessage }}'
+      Status: '{{ resource.Status }}'
 checks:
 - rule_id: aws.wellarchitected.workload.wellarchitected_no_high_or_medium_risks_configured
-  for_each: aws.wellarchitected.list_workloads
+  for_each: aws.wellarchitected.get_global_settings
   conditions:
-    var: item.PrioritizedRiskCounts
-    op: exists
-    value: null
+    var: item.Status
+    op: not_equals
+    value: 'null'

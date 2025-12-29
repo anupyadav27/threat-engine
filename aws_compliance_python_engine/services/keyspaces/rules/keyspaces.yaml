@@ -17,9 +17,47 @@ discovery:
       resourceArn: '{{ resource.resourceArn }}'
       replicationStrategy: '{{ resource.replicationStrategy }}'
       replicationRegions: '{{ resource.replicationRegions }}'
-checks:
-- rule_id: aws.keyspaces.resource.keyspace_encryption_at_rest_and_in_transit_configured
+- discovery_id: aws.keyspaces.list_tables
+  calls:
+  - action: list_tables
+    save_as: response
+    params:
+      keyspaceName: '{{ item.keyspaceName }}'
   for_each: aws.keyspaces.list_keyspaces
+  on_error: continue
+  emit:
+    items_for: '{{ response.tables }}'
+    as: resource
+    item:
+      keyspaceName: '{{ resource.keyspaceName }}'
+      tableName: '{{ resource.tableName }}'
+      resourceArn: '{{ resource.resourceArn }}'
+- discovery_id: aws.keyspaces.get_table
+  calls:
+  - action: get_table
+    save_as: response
+    params:
+      keyspaceName: '{{ item.keyspaceName }}'
+      tableName: '{{ item.tableName }}'
+  for_each: aws.keyspaces.list_tables
+  on_error: continue
+  emit:
+    item:
+      region: '{{ response.replicaSpecifications.region }}'
+      status: '{{ response.replicaSpecifications.status }}'
+      capacitySpecification: '{{ response.replicaSpecifications.capacitySpecification
+        }}'
+      encryptionSpecification: '{{ resource.encryptionSpecification }}'
+checks:
+- rule_id: aws.keyspaces.resource.keyspace_security_configuration_configured
+  for_each: aws.keyspaces.get_table
   conditions:
-    var: item.resourceArn
-    op: exists
+    var: item.encryptionSpecification
+    op: not_equals
+    value: 'null'
+- rule_id: aws.keyspaces.resource.keyspace_encryption_at_rest_and_in_transit_configured
+  for_each: aws.keyspaces.get_table
+  conditions:
+    var: item.encryptionSpecification
+    op: equals
+    value: 'true'

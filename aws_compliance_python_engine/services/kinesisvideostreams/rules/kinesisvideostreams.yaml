@@ -1,53 +1,42 @@
-# KINESISVIDEO Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/kinesisvideo_metadata.yaml
-
 version: '1.0'
 provider: aws
-service: kinesisvideo
+service: kinesisvideostreams
+services:
+  client: kinesisvideostreams
+  module: boto3.client
 discovery:
-- discovery_id: aws.kinesisvideostreams.streams
+- discovery_id: aws.kinesisvideostreams.describe_image_generation_configuration
   calls:
-  - action: list_streams
-    fields:
-    - Kinesisvideostreamss
-  emit:
-    items_for: list_streams_response[]
-    item:
-      id: '{{ stream.Id }}'
-      name: '{{ stream.Name }}'
-- discovery_id: aws.kinesisvideostreams.stream_encryption
-  for_each: aws.kinesisvideostreams.streams
-  calls:
-  - action: list_streams
-    params:
-      StreamId: '{{ item.id }}'
+  - action: describe_image_generation_configuration
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_streams_response.Encrypted if list_streams_response.Encrypted
-        is defined else false }}'
+      Status: '{{ response.ImageGenerationConfiguration.Status }}'
+      ImageSelectorType: '{{ response.ImageGenerationConfiguration.ImageSelectorType
+        }}'
+      DestinationConfig: '{{ response.ImageGenerationConfiguration.DestinationConfig
+        }}'
+      SamplingInterval: '{{ response.ImageGenerationConfiguration.SamplingInterval
+        }}'
+      Format: '{{ response.ImageGenerationConfiguration.Format }}'
+      FormatConfig: '{{ response.ImageGenerationConfiguration.FormatConfig }}'
+      WidthPixels: '{{ response.ImageGenerationConfiguration.WidthPixels }}'
+      HeightPixels: '{{ response.ImageGenerationConfiguration.HeightPixels }}'
 checks:
-- title: 'KINESISVIDEOSTREAMS stream: Encryption In Transit Required'
-  severity: high
-  rule_id: aws.kinesisvideostreams.stream.encryption_in_transit_required
-  for_each: aws.kinesisvideostreams.stream_encryption
+- rule_id: aws.kinesisvideostreams.stream.encryption_in_transit_required
+  for_each: aws.kinesisvideostreams.describe_image_generation_configuration
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
-- title: 'KINESISVIDEOSTREAMS stream: Retention Days Minimum Configured'
-  severity: low
-  rule_id: aws.kinesisvideostreams.stream.retention_days_minimum_configured
-  for_each: aws.kinesisvideostreams.streams
+    var: item.Status
+    op: not_equals
+    value: DISABLED
+- rule_id: aws.kinesisvideostreams.stream.encryption_at_rest_enabled
+  for_each: aws.kinesisvideostreams.describe_image_generation_configuration
   conditions:
-    var: item.compliant
+    var: item.Status
     op: equals
-    value: true
-- title: 'KINESISVIDEOSTREAMS stream: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.kinesisvideostreams.stream.encryption_at_rest_enabled
-  for_each: aws.kinesisvideostreams.stream_encryption
+    value: ENABLED
+- rule_id: aws.kinesisvideostreams.stream.retention_days_minimum_configured
+  for_each: aws.kinesisvideostreams.describe_image_generation_configuration
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.Status
+    op: exists

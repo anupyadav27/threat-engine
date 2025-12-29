@@ -604,13 +604,38 @@ def save_reporting_bundle(results: List[Dict[str, Any]], account_id: str | None 
                 else:
                     item["resource_arn"] = f"arn:aws:{service}:{region}:{acct}:{service}"
 
+            # Get checked fields from the record (if stored)
+            checked_fields = set(item.get('_checked_fields', []))
+            # Remove the metadata field
+            if '_checked_fields' in item:
+                del item['_checked_fields']
+            
+            # Context fields that are always useful (ARN, ID, name, identifier, etc.)
+            context_field_patterns = ['arn', 'id', 'name', 'identifier', 'arn']
+            
             # Group evidence fields into a clean evidence dictionary
             evidence_fields = []
             for key, value in item.items():
-                # Skip standard check fields and group evidence fields
-                if key not in ["rule_id", "title", "severity", "assertion_id", "result", "region", 
-                              "service", "account", "resource_arn", "reporting_result", "skip_meta", 
-                              "actions", "timestamp", "message"]:
+                # Skip standard check fields
+                if key in ["rule_id", "title", "severity", "assertion_id", "result", "region", 
+                          "service", "account", "resource_arn", "reporting_result", "skip_meta", 
+                          "actions", "timestamp", "message"]:
+                    continue
+                
+                # Include if:
+                # 1. It's a checked field (the var being evaluated)
+                # 2. It's a context field (ARN, ID, name, etc.)
+                key_lower = key.lower()
+                is_checked_field = key in checked_fields
+                is_context_field = any(key_lower.endswith(pattern) for pattern in context_field_patterns)
+                
+                # If we have checked fields, only include checked + context
+                # If no checked fields (backward compat), include all
+                if checked_fields:
+                    if is_checked_field or is_context_field:
+                        evidence_fields.append((key, value))
+                else:
+                    # Backward compatibility: include all if no checked fields specified
                     evidence_fields.append((key, value))
             
             # Create clean evidence dictionary

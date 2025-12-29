@@ -5,70 +5,41 @@ services:
   client: iam
   module: boto3.client
 discovery:
-- discovery_id: aws.iam.get_account_authorization_details
-  calls:
-  - action: get_account_authorization_details
-    save_as: response
-  emit:
-    item:
-      path: '{{ resource.Path }}'
-      user_name: '{{ resource.UserName }}'
-      user_id: '{{ resource.UserId }}'
-      arn: '{{ resource.Arn }}'
-      create_date: '{{ resource.CreateDate }}'
-      user_policy_list: '{{ resource.UserPolicyList }}'
-      group_list: '{{ resource.GroupList }}'
-      attached_managed_policies: '{{ resource.AttachedManagedPolicies }}'
-      permissions_boundary: '{{ resource.PermissionsBoundary }}'
-      tags: '{{ resource.Tags }}'
-    items_for: '{{ response.UserDetailList }}'
-    as: resource
 - discovery_id: aws.iam.get_account_password_policy
   calls:
   - action: get_account_password_policy
     save_as: response
   emit:
     item:
-      minimum_password_length: '{{ response.PasswordPolicy.MinimumPasswordLength }}'
-      require_symbols: '{{ response.PasswordPolicy.RequireSymbols }}'
-      require_numbers: '{{ response.PasswordPolicy.RequireNumbers }}'
-      require_uppercase_characters: '{{ response.PasswordPolicy.RequireUppercaseCharacters
+      MinimumPasswordLength: '{{ response.PasswordPolicy.MinimumPasswordLength }}'
+      RequireSymbols: '{{ response.PasswordPolicy.RequireSymbols }}'
+      RequireNumbers: '{{ response.PasswordPolicy.RequireNumbers }}'
+      RequireUppercaseCharacters: '{{ response.PasswordPolicy.RequireUppercaseCharacters
         }}'
-      require_lowercase_characters: '{{ response.PasswordPolicy.RequireLowercaseCharacters
+      RequireLowercaseCharacters: '{{ response.PasswordPolicy.RequireLowercaseCharacters
         }}'
-      allow_users_to_change_password: '{{ response.PasswordPolicy.AllowUsersToChangePassword
+      AllowUsersToChangePassword: '{{ response.PasswordPolicy.AllowUsersToChangePassword
         }}'
-      expire_passwords: '{{ response.PasswordPolicy.ExpirePasswords }}'
-      max_password_age: '{{ response.PasswordPolicy.MaxPasswordAge }}'
-      password_reuse_prevention: '{{ response.PasswordPolicy.PasswordReusePrevention
+      ExpirePasswords: '{{ response.PasswordPolicy.ExpirePasswords }}'
+      MaxPasswordAge: '{{ response.PasswordPolicy.MaxPasswordAge }}'
+      PasswordReusePrevention: '{{ response.PasswordPolicy.PasswordReusePrevention
         }}'
-      hard_expiry: '{{ response.PasswordPolicy.HardExpiry }}'
-- discovery_id: aws.iam.get_user
+      HardExpiry: '{{ response.PasswordPolicy.HardExpiry }}'
+      PasswordPolicy: '{{ resource.PasswordPolicy }}'
+- discovery_id: aws.iam.create_instance_profile
   calls:
-  - action: get_user
+  - action: create_instance_profile
     save_as: response
   emit:
     item:
-      path: '{{ response.User.Path }}'
-      user_name: '{{ response.User.UserName }}'
-      user_id: '{{ response.User.UserId }}'
-      arn: '{{ response.User.Arn }}'
-      create_date: '{{ response.User.CreateDate }}'
-      password_last_used: '{{ response.User.PasswordLastUsed }}'
-      permissions_boundary: '{{ response.User.PermissionsBoundary }}'
-      tags: '{{ response.User.Tags }}'
-- discovery_id: aws.iam.list_access_keys
-  calls:
-  - action: list_access_keys
-    save_as: response
-  emit:
-    items_for: '{{ response.AccessKeyMetadata }}'
-    as: resource
-    item:
-      user_name: '{{ resource.UserName }}'
-      access_key_id: '{{ resource.AccessKeyId }}'
-      status: '{{ resource.Status }}'
-      create_date: '{{ resource.CreateDate }}'
+      Path: '{{ response.InstanceProfile.Path }}'
+      InstanceProfileName: '{{ response.InstanceProfile.InstanceProfileName }}'
+      InstanceProfileId: '{{ response.InstanceProfile.InstanceProfileId }}'
+      Arn: '{{ response.InstanceProfile.Arn }}'
+      CreateDate: '{{ response.InstanceProfile.CreateDate }}'
+      Roles: '{{ response.InstanceProfile.Roles }}'
+      Tags: '{{ response.InstanceProfile.Tags }}'
+      InstanceProfile: '{{ resource.InstanceProfile }}'
 - discovery_id: aws.iam.list_delegation_requests
   calls:
   - action: list_delegation_requests
@@ -77,73 +48,25 @@ discovery:
     items_for: '{{ response.DelegationRequests }}'
     as: resource
     item:
-      delegation_request_id: '{{ resource.DelegationRequestId }}'
-      owner_account_id: '{{ resource.OwnerAccountId }}'
-      description: '{{ resource.Description }}'
-      request_message: '{{ resource.RequestMessage }}'
-      permissions: '{{ resource.Permissions }}'
-      permission_policy: '{{ resource.PermissionPolicy }}'
-      role_permission_restriction_arns: '{{ resource.RolePermissionRestrictionArns
-        }}'
-      owner_id: '{{ resource.OwnerId }}'
-      approver_id: '{{ resource.ApproverId }}'
-      state: '{{ resource.State }}'
-      requestor_id: '{{ resource.RequestorId }}'
-      requestor_name: '{{ resource.RequestorName }}'
-      create_date: '{{ resource.CreateDate }}'
-      session_duration: '{{ resource.SessionDuration }}'
-      redirect_url: '{{ resource.RedirectUrl }}'
-      notes: '{{ resource.Notes }}'
-      rejection_reason: '{{ resource.RejectionReason }}'
-      only_send_by_owner: '{{ resource.OnlySendByOwner }}'
-      updated_time: '{{ resource.UpdatedTime }}'
-- discovery_id: aws.iam.list_instance_profiles
-  calls:
-  - action: list_instance_profiles
-    save_as: response
-  emit:
-    items_for: '{{ response.InstanceProfiles }}'
-    as: resource
-    item:
-      path: '{{ resource.Path }}'
-      instance_profile_name: '{{ resource.InstanceProfileName }}'
-      instance_profile_id: '{{ resource.InstanceProfileId }}'
-      arn: '{{ resource.Arn }}'
-      create_date: '{{ resource.CreateDate }}'
-      roles: '{{ resource.Roles }}'
-      tags: '{{ resource.Tags }}'
-- discovery_id: aws.iam.list_mfa_devices
-  calls:
-  - action: list_mfa_devices
-    save_as: response
-  emit:
-    items_for: '{{ response.MFADevices }}'
-    as: resource
-    item:
-      user_name: '{{ resource.UserName }}'
-      serial_number: '{{ resource.SerialNumber }}'
-      enable_date: '{{ resource.EnableDate }}'
-- discovery_id: aws.iam.list_policies
-  calls:
-  - action: list_policies
-    save_as: response
-  emit:
-    items_for: '{{ response.Policies }}'
-    as: resource
-    item:
-      policy_name: '{{ resource.PolicyName }}'
-      policy_id: '{{ resource.PolicyId }}'
-      arn: '{{ resource.Arn }}'
-      path: '{{ resource.Path }}'
-      default_version_id: '{{ resource.DefaultVersionId }}'
-      attachment_count: '{{ resource.AttachmentCount }}'
-      permissions_boundary_usage_count: '{{ resource.PermissionsBoundaryUsageCount
-        }}'
-      is_attachable: '{{ resource.IsAttachable }}'
-      description: '{{ resource.Description }}'
-      create_date: '{{ resource.CreateDate }}'
-      update_date: '{{ resource.UpdateDate }}'
-      tags: '{{ resource.Tags }}'
+      DelegationRequestId: '{{ resource.DelegationRequestId }}'
+      OwnerAccountId: '{{ resource.OwnerAccountId }}'
+      Description: '{{ resource.Description }}'
+      RequestMessage: '{{ resource.RequestMessage }}'
+      Permissions: '{{ resource.Permissions }}'
+      PermissionPolicy: '{{ resource.PermissionPolicy }}'
+      RolePermissionRestrictionArns: '{{ resource.RolePermissionRestrictionArns }}'
+      OwnerId: '{{ resource.OwnerId }}'
+      ApproverId: '{{ resource.ApproverId }}'
+      State: '{{ resource.State }}'
+      RequestorId: '{{ resource.RequestorId }}'
+      RequestorName: '{{ resource.RequestorName }}'
+      CreateDate: '{{ resource.CreateDate }}'
+      SessionDuration: '{{ resource.SessionDuration }}'
+      RedirectUrl: '{{ resource.RedirectUrl }}'
+      Notes: '{{ resource.Notes }}'
+      RejectionReason: '{{ resource.RejectionReason }}'
+      OnlySendByOwner: '{{ resource.OnlySendByOwner }}'
+      UpdatedTime: '{{ resource.UpdatedTime }}'
 - discovery_id: aws.iam.list_roles
   calls:
   - action: list_roles
@@ -152,28 +75,140 @@ discovery:
     items_for: '{{ response.Roles }}'
     as: resource
     item:
-      path: '{{ resource.Path }}'
-      role_name: '{{ resource.RoleName }}'
-      role_id: '{{ resource.RoleId }}'
-      arn: '{{ resource.Arn }}'
-      create_date: '{{ resource.CreateDate }}'
-      assume_role_policy_document: '{{ resource.AssumeRolePolicyDocument }}'
-      description: '{{ resource.Description }}'
-      max_session_duration: '{{ resource.MaxSessionDuration }}'
-      permissions_boundary: '{{ resource.PermissionsBoundary }}'
-      tags: '{{ resource.Tags }}'
-      role_last_used: '{{ resource.RoleLastUsed }}'
-- discovery_id: aws.iam.list_saml_providers
+      Path: '{{ resource.Path }}'
+      RoleName: '{{ resource.RoleName }}'
+      RoleId: '{{ resource.RoleId }}'
+      Arn: '{{ resource.Arn }}'
+      CreateDate: '{{ resource.CreateDate }}'
+      AssumeRolePolicyDocument: '{{ resource.AssumeRolePolicyDocument }}'
+      Description: '{{ resource.Description }}'
+      MaxSessionDuration: '{{ resource.MaxSessionDuration }}'
+      PermissionsBoundary: '{{ resource.PermissionsBoundary }}'
+      Tags: '{{ resource.Tags }}'
+      RoleLastUsed: '{{ resource.RoleLastUsed }}'
+- discovery_id: aws.iam.list_access_keys
   calls:
-  - action: list_saml_providers
+  - action: list_access_keys
     save_as: response
   emit:
-    items_for: '{{ response.SAMLProviderList }}'
+    items_for: '{{ response.AccessKeyMetadata }}'
     as: resource
     item:
-      arn: '{{ resource.Arn }}'
-      valid_until: '{{ resource.ValidUntil }}'
-      create_date: '{{ resource.CreateDate }}'
+      UserName: '{{ resource.UserName }}'
+      AccessKeyId: '{{ resource.AccessKeyId }}'
+      Status: '{{ resource.Status }}'
+      CreateDate: '{{ resource.CreateDate }}'
+      Key: '{{ resource.Key }}'
+- discovery_id: aws.iam.get_group_policy
+  calls:
+  - action: get_group_policy
+    save_as: response
+  emit:
+    item:
+      PolicyDocument: '{{ response.PolicyDocument }}'
+- discovery_id: aws.iam.get_account_authorization_details
+  calls:
+  - action: get_account_authorization_details
+    save_as: response
+  emit:
+    item:
+      Path: '{{ response.UserDetailList.Path }}'
+      UserName: '{{ response.UserDetailList.UserName }}'
+      UserId: '{{ response.UserDetailList.UserId }}'
+      Arn: '{{ response.UserDetailList.Arn }}'
+      CreateDate: '{{ response.UserDetailList.CreateDate }}'
+      UserPolicyList: '{{ response.UserDetailList.UserPolicyList }}'
+      GroupList: '{{ response.UserDetailList.GroupList }}'
+      AttachedManagedPolicies: '{{ response.UserDetailList.AttachedManagedPolicies
+        }}'
+      PermissionsBoundary: '{{ response.UserDetailList.PermissionsBoundary }}'
+      Tags: '{{ response.UserDetailList.Tags }}'
+      GroupDetailList: '{{ resource.GroupDetailList }}'
+      RoleDetailList: '{{ resource.RoleDetailList }}'
+      UserDetailList: '{{ resource.UserDetailList }}'
+- discovery_id: aws.iam.list_policies
+  calls:
+  - action: list_policies
+    save_as: response
+  emit:
+    items_for: '{{ response.Policies }}'
+    as: resource
+    item:
+      PolicyName: '{{ resource.PolicyName }}'
+      PolicyId: '{{ resource.PolicyId }}'
+      Arn: '{{ resource.Arn }}'
+      Path: '{{ resource.Path }}'
+      DefaultVersionId: '{{ resource.DefaultVersionId }}'
+      AttachmentCount: '{{ resource.AttachmentCount }}'
+      PermissionsBoundaryUsageCount: '{{ resource.PermissionsBoundaryUsageCount }}'
+      IsAttachable: '{{ resource.IsAttachable }}'
+      Description: '{{ resource.Description }}'
+      CreateDate: '{{ resource.CreateDate }}'
+      UpdateDate: '{{ resource.UpdateDate }}'
+      Tags: '{{ resource.Tags }}'
+- discovery_id: aws.iam.get_policy_version
+  calls:
+  - action: get_policy_version
+    save_as: response
+    params:
+      PolicyArn: '{{ item.Arn }}'
+  for_each: aws.iam.list_policies
+  on_error: continue
+  emit:
+    item:
+      Document: '{{ response.PolicyVersion.Document }}'
+      VersionId: '{{ response.PolicyVersion.VersionId }}'
+      IsDefaultVersion: '{{ response.PolicyVersion.IsDefaultVersion }}'
+      CreateDate: '{{ response.PolicyVersion.CreateDate }}'
+      PolicyVersion: '{{ resource.PolicyVersion }}'
+- discovery_id: aws.iam.get_policy
+  calls:
+  - action: get_policy
+    save_as: response
+    params:
+      PolicyArn: '{{ item.Arn }}'
+  for_each: aws.iam.list_policies
+  on_error: continue
+  emit:
+    item:
+      PolicyName: '{{ response.Policy.PolicyName }}'
+      PolicyId: '{{ response.Policy.PolicyId }}'
+      Arn: '{{ response.Policy.Arn }}'
+      Path: '{{ response.Policy.Path }}'
+      DefaultVersionId: '{{ response.Policy.DefaultVersionId }}'
+      AttachmentCount: '{{ response.Policy.AttachmentCount }}'
+      PermissionsBoundaryUsageCount: '{{ response.Policy.PermissionsBoundaryUsageCount
+        }}'
+      IsAttachable: '{{ response.Policy.IsAttachable }}'
+      Description: '{{ response.Policy.Description }}'
+      CreateDate: '{{ response.Policy.CreateDate }}'
+      UpdateDate: '{{ response.Policy.UpdateDate }}'
+      Tags: '{{ response.Policy.Tags }}'
+      Policy: '{{ resource.Policy }}'
+- discovery_id: aws.iam.list_virtual_m_f_a_devices
+  calls:
+  - action: list_virtual_mfa_devices
+    save_as: response
+  emit:
+    items_for: '{{ response.VirtualMFADevices }}'
+    as: resource
+    item:
+      SerialNumber: '{{ resource.SerialNumber }}'
+      Base32StringSeed: '{{ resource.Base32StringSeed }}'
+      QRCodePNG: '{{ resource.QRCodePNG }}'
+      User: '{{ resource.User }}'
+      EnableDate: '{{ resource.EnableDate }}'
+      Tags: '{{ resource.Tags }}'
+- discovery_id: aws.iam.get_s_a_m_l_provider
+  calls:
+  - action: get_saml_provider
+    save_as: response
+  emit:
+    item:
+      KeyId: '{{ response.PrivateKeyList.KeyId }}'
+      Timestamp: '{{ response.PrivateKeyList.Timestamp }}'
+      AssertionEncryptionMode: '{{ resource.AssertionEncryptionMode }}'
+      SAMLMetadataDocument: '{{ resource.SAMLMetadataDocument }}'
 - discovery_id: aws.iam.list_server_certificates
   calls:
   - action: list_server_certificates
@@ -182,431 +217,739 @@ discovery:
     items_for: '{{ response.ServerCertificateMetadataList }}'
     as: resource
     item:
-      path: '{{ resource.Path }}'
-      server_certificate_name: '{{ resource.ServerCertificateName }}'
-      server_certificate_id: '{{ resource.ServerCertificateId }}'
-      arn: '{{ resource.Arn }}'
-      upload_date: '{{ resource.UploadDate }}'
-      expiration: '{{ resource.Expiration }}'
+      Path: '{{ resource.Path }}'
+      ServerCertificateName: '{{ resource.ServerCertificateName }}'
+      ServerCertificateId: '{{ resource.ServerCertificateId }}'
+      Arn: '{{ resource.Arn }}'
+      UploadDate: '{{ resource.UploadDate }}'
+      Expiration: '{{ resource.Expiration }}'
 - discovery_id: aws.iam.get_access_key_last_used
   calls:
   - action: get_access_key_last_used
     save_as: response
-    params:
-      AccessKeyId: '{{ item.AccessKeyId }}'
-  on_error: continue
-  for_each: aws.iam.list_access_keys
   emit:
     item:
-      user_name: '{{ response.UserName }}'
-      last_used_date: '{{ response.AccessKeyLastUsed.LastUsedDate }}'
-      service_name: '{{ response.AccessKeyLastUsed.ServiceName }}'
-      region: '{{ response.AccessKeyLastUsed.Region }}'
-- discovery_id: aws.iam.get_saml_provider
+      LastUsedDate: '{{ response.AccessKeyLastUsed.LastUsedDate }}'
+      ServiceName: '{{ response.AccessKeyLastUsed.ServiceName }}'
+      Region: '{{ response.AccessKeyLastUsed.Region }}'
+      AccessKeyLastUsed: '{{ resource.AccessKeyLastUsed }}'
+- discovery_id: aws.iam.get_outbound_web_identity_federation_info
   calls:
-  - action: get_saml_provider
+  - action: get_outbound_web_identity_federation_info
+    save_as: response
+  emit:
+    item:
+      IssuerIdentifier: '{{ response.IssuerIdentifier }}'
+      JwtVendingEnabled: '{{ response.JwtVendingEnabled }}'
+- discovery_id: aws.iam.list_users
+  calls:
+  - action: list_users
+    save_as: response
+  emit:
+    items_for: '{{ response.Users }}'
+    as: resource
+    item:
+      Path: '{{ resource.Path }}'
+      UserName: '{{ resource.UserName }}'
+      UserId: '{{ resource.UserId }}'
+      Arn: '{{ resource.Arn }}'
+      CreateDate: '{{ resource.CreateDate }}'
+      PasswordLastUsed: '{{ resource.PasswordLastUsed }}'
+      PermissionsBoundary: '{{ resource.PermissionsBoundary }}'
+      Tags: '{{ resource.Tags }}'
+      AccessKeyLastUsed: '{{ resource.AccessKeyLastUsed }}'
+      Users: '{{ resource.Users }}'
+- discovery_id: aws.iam.get_role
+  calls:
+  - action: get_role
     save_as: response
     params:
-      SAMLProviderArn: '{{ item.arn }}'
+      RoleName: '{{ item.RoleName }}'
+  for_each: aws.iam.list_roles
+  on_error: continue
   emit:
     item:
-      saml_metadata_document: '{{ response.SAMLMetadataDocument }}'
-      create_date: '{{ response.CreateDate }}'
-      valid_until: '{{ response.ValidUntil }}'
-    items_for: '{{ response.Tags }}'
+      Path: '{{ response.Role.Path }}'
+      RoleName: '{{ response.Role.RoleName }}'
+      RoleId: '{{ response.Role.RoleId }}'
+      Arn: '{{ response.Role.Arn }}'
+      CreateDate: '{{ response.Role.CreateDate }}'
+      AssumeRolePolicyDocument: '{{ response.Role.AssumeRolePolicyDocument }}'
+      Description: '{{ response.Role.Description }}'
+      MaxSessionDuration: '{{ response.Role.MaxSessionDuration }}'
+      PermissionsBoundary: '{{ response.Role.PermissionsBoundary }}'
+      Tags: '{{ response.Role.Tags }}'
+      RoleLastUsed: '{{ response.Role.RoleLastUsed }}'
+      Role: '{{ resource.Role }}'
+- discovery_id: aws.iam.list_attached_user_policies
+  calls:
+  - action: list_attached_user_policies
+    save_as: response
+    params:
+      UserName: '{{ item.UserName }}'
+  for_each: aws.iam.list_access_keys
+  on_error: continue
+  emit:
+    items_for: '{{ response.AttachedPolicies }}'
     as: resource
-  for_each: aws.iam.list_saml_providers
+    item:
+      PolicyName: '{{ resource.PolicyName }}'
+      PolicyArn: '{{ resource.PolicyArn }}'
+      Policies: '{{ resource.Policies }}'
+- discovery_id: aws.iam.list_signing_certificates
+  calls:
+  - action: list_signing_certificates
+    save_as: response
+  emit:
+    items_for: '{{ response.Certificates }}'
+    as: resource
+    item:
+      UserName: '{{ resource.UserName }}'
+      CertificateId: '{{ resource.CertificateId }}'
+      CertificateBody: '{{ resource.CertificateBody }}'
+      Status: '{{ resource.Status }}'
+      UploadDate: '{{ resource.UploadDate }}'
+- discovery_id: aws.iam.get_login_profile
+  calls:
+  - action: get_login_profile
+    save_as: response
+  emit:
+    item:
+      UserName: '{{ response.LoginProfile.UserName }}'
+      CreateDate: '{{ response.LoginProfile.CreateDate }}'
+      PasswordResetRequired: '{{ response.LoginProfile.PasswordResetRequired }}'
+- discovery_id: aws.iam.get_open_i_d_connect_provider
+  calls:
+  - action: get_open_id_connect_provider
+    save_as: response
+  emit:
+    item:
+      ClientIDList: '{{ response.ClientIDList }}'
 checks:
 - rule_id: aws.iam.password.policy_lowercase_configured
-  conditions:
-    var: item.require_lowercase_characters
-    op: equals
-    value: true
   for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.RequireLowercaseCharacters
+    op: equals
+    value: 'true'
 - rule_id: aws.iam.instanceprofile.no_instance_profile_with_admin_star_configured
+  for_each: aws.iam.create_instance_profile
   conditions:
-    var: item.roles
-    op: contains
-    value: Admin
-  for_each: aws.iam.list_instance_profiles
-- rule_id: aws.iam.password.policy_minimum_length_14_configured
-  conditions:
-    var: item.minimum_password_length
-    op: gte
-    value: 14
-  for_each: aws.iam.get_account_password_policy
-- rule_id: aws.iam.role.session_duration_reasonable_if_applicable_configured
-  conditions:
-    var: item.max_session_duration
-    op: lte
-    value: 3600
-  for_each: aws.iam.list_roles
-- rule_id: aws.iam.user.inactive_90_days_disabled
-  conditions:
-    var: item.password_last_used
-    op: lte
-    value: 90 days ago
-  for_each: aws.iam.get_user
-- rule_id: aws.iam.policy.conditions_used_if_applicable_configured
-  conditions:
-    var: item.document
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.user.no_inline_policies_enabled
-  conditions:
-    var: item.user_policy_list
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.policy.no_full_access_to_cloudtrail_configured
-  conditions:
-    var: item.policy_name
-    op: contains
-    value: FullAccess
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.policy.reuse_24_configured
-  conditions:
-    var: item.password_reuse_prevention
-    op: gte
-    value: 24
-  for_each: aws.iam.get_account_password_policy
-- rule_id: aws.iam.user.console_access_unused_configured
-  conditions:
-    var: item.password_last_used
-    op: exists
-  for_each: aws.iam.get_user
-- rule_id: aws.iam.role.attached_policies_not_admin_star_configured
-  conditions:
-    var: item.attached_managed_policies
-    op: not_contains
-    value: arn:aws:iam::aws:policy/AdministratorAccess
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.samlprovider.idp_metadata_signed_configured
-  conditions:
-    var: item.key_id
-    op: exists
-  for_each: aws.iam.get_saml_provider
-- rule_id: aws.iam.policy.no_wildcard_admin_actions_configured
-  conditions:
-    var: item.document
-    op: contains
+    var: item.InstanceProfile
+    op: not_equals
     value: '*'
+- rule_id: aws.iam.policy.security_check_full_admin_privileges_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.PermissionPolicy
+    op: contains
+    value: AdministratorAccess
+- rule_id: aws.iam.password.policy_minimum_length_14_configured
+  for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.MinimumPasswordLength
+    op: equals
+    value: '14'
+- rule_id: aws.iam.role.session_duration_reasonable_if_applicable_configured
+  for_each: aws.iam.list_roles
+  conditions:
+    var: item.MaxSessionDuration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.inactive_90_days_disabled
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.Status
+    op: equals
+    value: Inactive
+- rule_id: aws.iam.policy.conditions_used_if_applicable_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.instanceprofile.role_policies_least_privilege
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.no_inline_policies_enabled
   for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserPolicyList
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.role.scopes_or_s_least_privilege
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: '*'
+- rule_id: aws.iam.policy.no_full_access_to_cloudtrail_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.versioning_and_change_audit_enabled
+  for_each: aws.iam.get_policy_version
+  conditions:
+    var: item.PolicyVersion
+    op: equals
+    value: v1
+- rule_id: aws.iam.policy.reuse_24_configured
+  for_each: aws.iam.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.console_access_unused_configured
+  for_each: aws.iam.list_virtual_m_f_a_devices
+  conditions:
+    var: item.User
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.role.attached_policies_not_admin_star_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.AttachedManagedPolicies
+    op: not_equals
+    value: '*'
+- rule_id: aws.iam.samlprovider.idp_metadata_signed_configured
+  for_each: aws.iam.get_s_a_m_l_provider
+  conditions:
+    var: item.SAMLMetadataDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.no_wildcard_admin_actions_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.PermissionPolicy
+    op: not_equals
+    value: '*'
 - rule_id: aws.iam.resource.access_analyzer_external_all_regions_configured
+  for_each: aws.iam.list_delegation_requests
   conditions:
-    var: item.region
-    op: exists
-  for_each: aws.iam.get_access_key_last_used
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.least_privilege_audit_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: Audit
+- rule_id: aws.iam.certificate.expired_removal_monitored
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.Status
+    op: equals
+    value: Expired
 - rule_id: aws.iam.customer.attached_policy_no_administrative_privileges_configured
-  conditions:
-    var: item.attached_managed_policies
-    op: equals
-    value: []
   for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.AttachedManagedPolicies
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.password.policy_reuse_24_configured
-  conditions:
-    var: item.password_reuse_prevention
-    op: equals
-    value: 24
   for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.PasswordReusePrevention
+    op: equals
+    value: '24'
+- rule_id: aws.iam.policy.no_action_star_on_resource_star_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: '*"Action": "*"*'
 - rule_id: aws.iam.policy.attached_only_to_group_or_roles_configured
+  for_each: aws.iam.get_policy
   conditions:
-    var: item.attachment_count
-    op: equals
-    value: 0
-  for_each: aws.iam.list_policies
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.certificate.expiration_removal_monitored
-  conditions:
-    var: item.expiration
-    op: exists
   for_each: aws.iam.list_server_certificates
+  conditions:
+    var: item.Expiration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.managedpolicy.editors_rbac_least_privilege
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: '*'
 - rule_id: aws.iam.user.access_keys_rotated_90_days_or_less_when_present
+  for_each: aws.iam.get_access_key_last_used
   conditions:
-    var: item.create_date
-    op: lte
-    value: 90
+    var: item.AccessKeyLastUsed
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.support.role_created_configured
   for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.RoleDetailList
+    op: exists
 - rule_id: aws.iam.user.single_active_access_key_audit_configured
+  for_each: aws.iam.list_access_keys
   conditions:
-    var: item.status
-    op: equals
-    value: ACTIVE
-  for_each: aws.iam.get_account_authorization_details
+    var: item.AccessKeyId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.allows_privilege_escalation_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: Allow:*
 - rule_id: aws.iam.resource.root_mfa_enabled
+  for_each: aws.iam.get_outbound_web_identity_federation_info
   conditions:
-    var: item.status
+    var: item.JwtVendingEnabled
     op: equals
-    value: ENABLED
-  for_each: aws.iam.get_account_authorization_details
+    value: 'true'
 - rule_id: aws.iam.no.root_access_key_configured
+  for_each: aws.iam.list_access_keys
   conditions:
-    var: item.status
-    op: equals
-    value: INACTIVE
+    var: item.AccessKeyId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.policy_elastic_disaster_recovery_configured
   for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserPolicyList
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.rotate.access_key_90_days_configured
+  for_each: aws.iam.get_access_key_last_used
   conditions:
-    var: item.create_date
-    op: lte
-    value: 90
-  for_each: aws.iam.get_account_authorization_details
+    var: item.AccessKeyLastUsed
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.policy.no_full_admin_privileges_enabled
+  for_each: aws.iam.get_policy
   conditions:
-    var: item.attached_managed_policies
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.no_administrative_privileges_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.PermissionPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.group.has_users_configured
+  for_each: aws.iam.list_users
   conditions:
-    var: item.group_list
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
+    var: item.Users
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.policy.minimum_length_14_configured
+  for_each: aws.iam.get_policy
   conditions:
-    var: item.minimum_password_length
-    op: gte
-    value: 14
-  for_each: aws.iam.get_account_password_policy
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.password.policy_uppercase_configured
-  conditions:
-    var: item.require_uppercase_characters
-    op: equals
-    value: true
   for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.RequireUppercaseCharacters
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.user.centralization_monitored
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.accesskey_unused_configured
+  for_each: aws.iam.get_access_key_last_used
+  conditions:
+    var: item.AccessKeyLastUsed
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.instanceprofile.role_enabled
+  for_each: aws.iam.get_role
   conditions:
-    var: item.roles
-    op: exists
-  for_each: aws.iam.list_instance_profiles
+    var: item.Role
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.password_policy_complex_configured
+  for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.PasswordPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.role.no_user_managed_long_lived_keys_configured
+  for_each: aws.iam.list_access_keys
   conditions:
-    var: item.status
-    op: equals
-    value: INACTIVE
-  for_each: aws.iam.get_account_authorization_details
+    var: item.AccessKeyId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.execution_roles_least_privilege
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.PermissionPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.samlprovider.assertion_lifetime_configured
+  for_each: aws.iam.get_s_a_m_l_provider
   conditions:
-    var: item.valid_until
-    op: exists
-  for_each: aws.iam.list_saml_providers
+    var: item.AssertionEncryptionMode
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.monitored
+  for_each: aws.iam.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.access_analyzer_active_status_all_regions.access_analyzer_active_status_all_regions_configured
+  for_each: aws.iam.list_access_keys
   conditions:
-    var: item.status
-    op: equals
-    value: ACTIVE
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.managedpolicy.no_policy_allows_without_constraints_configured
-  conditions:
-    var: item.attachment_count
-    op: equals
-    value: 0
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.user.single_active_access_key_configured
-  conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: Active
-  for_each: aws.iam.get_account_authorization_details
+- rule_id: aws.iam.managedpolicy.no_policy_allows_without_constraints_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.awscloudshell_full_access_restriction_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: awscloudshell
+- rule_id: aws.iam.user.single_active_access_key_configured
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.AccessKeyId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.iam.role.no_inline_policies_configured
+  for_each: aws.iam.list_attached_user_policies
   conditions:
-    var: item.user_policy_list
+    var: item.Policies
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.managedpolicy.versioning_and_change_audit_enabled
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.Status
     op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
+    value: Active
 - rule_id: aws.iam.managedpolicy.policy_no_wildcard_admin_actions_configured
+  for_each: aws.iam.get_group_policy
   conditions:
-    var: item.document
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.oidcprovider.certificate_issuer_https_and_matches_discovery_verified
+  for_each: aws.iam.get_outbound_web_identity_federation_info
+  conditions:
+    var: item.IssuerIdentifier
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.user.mfa_enabled_console_access
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserDetailList
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.group.attached_policies_not_admin_star_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.AttachedManagedPolicies
+    op: not_equals
+    value: arn:aws:iam::aws:policy/AdministratorAccess
+- rule_id: aws.iam.key.rotation_90_days_configured
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.Key
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.root.hardware_mfa_enabled
+  for_each: aws.iam.get_outbound_web_identity_federation_info
+  conditions:
+    var: item.JwtVendingEnabled
+    op: equals
+    value: true
+- rule_id: aws.iam.resource.root_hardware_mfa_enabled
+  for_each: aws.iam.get_outbound_web_identity_federation_info
+  conditions:
+    var: item.JwtVendingEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.resource.console_mfa_enabled
+  for_each: aws.iam.get_outbound_web_identity_federation_info
+  conditions:
+    var: item.JwtVendingEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.managedpolicy.policy_no_action_star_on_resource_star_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.PermissionPolicy
+    op: contains
+    value: '*:*'
+- rule_id: aws.iam.aws.attached_policy_no_administrative_privileges_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.AttachedManagedPolicies
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.group.external_sharing_restricted_if_supported
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.oidcprovider.token_lifetime_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.timestream_access_control_and_mfa_enforcement.timestream_access_control_mfa_enforcement_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.samlprovider.certificates_certificate_valid
+  for_each: aws.iam.list_signing_certificates
+  conditions:
+    var: item.CertificateBody
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.managedpolicy.policy_conditions_used_if_applicable_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: Condition
+- rule_id: aws.iam.role.awssupport_access_policy_attachment_configured
+  for_each: aws.iam.list_attached_user_policies
+  conditions:
+    var: item.PolicyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.password.policy_number_configured
+  for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.PasswordPolicy
+    op: exists
+- rule_id: aws.iam.oidcprovider.thumbprints_or_jwks_pinning_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.role.least_privilege
+  for_each: aws.iam.list_users
+  conditions:
+    var: item.PermissionsBoundary
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.workflow_storage_encrypted
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.no_guest_accounts_with_permissions.no_guest_accounts_with_permissions_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.key.monitored
+  for_each: aws.iam.list_access_keys
+  conditions:
+    var: item.Key
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.policy_enabled
+  for_each: aws.iam.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.console_password_present_only_if_required
+  for_each: aws.iam.get_login_profile
+  conditions:
+    var: item.PasswordResetRequired
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.managedpolicy.policy_resource_constraints_present
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.mfa_required
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserDetailList
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.avoidrootusage.avoid_root_usage_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.group.membership_review_enabled_if_supported
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.GroupDetailList
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.root.mfa_enabled
+  for_each: aws.iam.get_outbound_web_identity_federation_info
+  conditions:
+    var: item.JwtVendingEnabled
+    op: equals
+    value: true
+- rule_id: aws.iam.policy.resource_constraints_present
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.password.policy_symbol_configured
+  for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.PasswordPolicy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.role.workload_identity_federation_used_if_supported
+  for_each: aws.iam.list_roles
+  conditions:
+    var: item.AssumeRolePolicyDocument
+    op: contains
+    value: WorkloadIdentityFederation
+- rule_id: aws.iam.samlprovider.audience_restriction_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.inline.policy_no_administrative_privileges_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: '*'
+- rule_id: aws.iam.role.trust_external_id_or_audience_required
+  for_each: aws.iam.list_roles
+  conditions:
+    var: item.AssumeRolePolicyDocument
+    op: contains
+    value: external_id
+- rule_id: aws.iam.group.no_inline_policies_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.GroupDetailList
+    op: equals
+    value: false
+- rule_id: aws.iam.policy.expires_passwords_within_90_days_or_less_configured
+  for_each: aws.iam.get_account_password_policy
+  conditions:
+    var: item.ExpirePasswords
+    op: equals
+    value: 'true'
+- rule_id: aws.iam.role.max_session_duration_configured
+  for_each: aws.iam.list_roles
+  conditions:
+    var: item.MaxSessionDuration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.overly_permissive_configured
+  for_each: aws.iam.get_group_policy
+  conditions:
+    var: item.PolicyDocument
+    op: contains
+    value: '*"Effect":"Allow"*'
+- rule_id: aws.iam.user.hardware_mfa_enabled
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserDetailList
+    op: equals
+    value: 'false'
+- rule_id: aws.iam.policy.awscloudshellfullaccess_attachment_configured
+  for_each: aws.iam.get_policy
+  conditions:
+    var: item.Policy
+    op: contains
+    value: awscloudshellfullaccess
+- rule_id: aws.iam.oidcprovider.allowed_client_ids_audiences_restricted
+  for_each: aws.iam.get_open_i_d_connect_provider
+  conditions:
+    var: item.ClientIDList
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.policy.editors_rbac_least_privilege
+  for_each: aws.iam.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.credentials_unused_45_days_disabled
+  for_each: aws.iam.get_access_key_last_used
+  conditions:
+    var: item.AccessKeyLastUsed
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.management_centralization_configured
+  for_each: aws.iam.list_delegation_requests
+  conditions:
+    var: item.Permissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.no_inline_policies_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.UserPolicyList
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.user.in_group_configured
+  for_each: aws.iam.get_account_authorization_details
+  conditions:
+    var: item.GroupList
+    op: equals
+    value: 'false'
+- rule_id: aws.iam.role.trust_principals_allowlist_only_configured
+  for_each: aws.iam.list_roles
+  conditions:
+    var: item.AssumeRolePolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.instanceprofile.no_admin_star_policies_configured
+  for_each: aws.iam.list_attached_user_policies
+  conditions:
+    var: item.Policies
     op: contains
     value: '*'
+- rule_id: aws.iam.role.creation_monitored
   for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.oidcprovider.certificate_issuer_https_and_matches_discovery_verified
   conditions:
-    var: item.arn
-    op: contains
-    value: https://
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.group.attached_policies_not_admin_star_configured
-  conditions:
-    var: item.policy_name
-    op: not_contains
-    value:
-    - AdministratorAccess
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.key.rotation_90_days_configured
-  conditions:
-    var: item.create_date
-    op: lte
-    value: 90
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.root.hardware_mfa_enabled
-  conditions:
-    var: item.status
+    var: item.RoleDetailList
     op: equals
-    value: ENABLED
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.resource.root_hardware_mfa_enabled
-  conditions:
-    var: item.serial_number
-    op: exists
-  for_each: aws.iam.list_mfa_devices
-- rule_id: aws.iam.aws.attached_policy_no_administrative_privileges_configured
-  conditions:
-    var: item.attached_managed_policies
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.group.external_sharing_restricted_if_supported
-  conditions:
-    var: item.policy_name
-    op: exists
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.oidcprovider.token_lifetime_configured
-  conditions:
-    var: item.session_duration
-    op: lte
-    value: 3600
-  for_each: aws.iam.list_delegation_requests
-- rule_id: aws.iam.timestream_access_control_and_mfa_enforcement.timestream_access_control_mfa_enforcement_configured
-  conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.samlprovider.certificates_certificate_valid
-  conditions:
-    var: item.valid_until
-    op: gt
-    value: '2023-10-01T00:00:00Z'
-  for_each: aws.iam.list_saml_providers
-- rule_id: aws.iam.managedpolicy.policy_conditions_used_if_applicable_configured
-  conditions:
-    var: item.permissions_boundary
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.role.awssupport_access_policy_attachment_configured
-  conditions:
-    var: item.attached_managed_policies
-    op: contains
-    value:
-    - PolicyName: AWSSupportAccess
-      PolicyArn: arn:aws:iam::aws:policy/AWSSupportAccess
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.policy.workflow_storage_encrypted
-  conditions:
-    var: item.attachment_count
-    op: gt
-    value: 0
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.key.monitored
-  conditions:
-    var: item.status
-    op: equals
-    value: ACTIVE
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.policy.policy_enabled
-  conditions:
-    var: item.is_attachable
-    op: equals
-    value: true
-  for_each: aws.iam.list_policies
-- rule_id: aws.iam.user.console_password_present_only_if_required
-  conditions:
-    var: item.password_last_used
-    op: exists
-  for_each: aws.iam.get_user
-- rule_id: aws.iam.managedpolicy.policy_resource_constraints_present
-  conditions:
-    var: item.permissions_boundary
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.group.membership_review_enabled_if_supported
-  conditions:
-    var: item.group_list
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.root.mfa_enabled
-  conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.policy.resource_constraints_present
-  conditions:
-    var: item.permissions_boundary
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.password.policy_symbol_configured
-  conditions:
-    var: item.require_symbols
-    op: equals
-    value: true
-  for_each: aws.iam.get_account_password_policy
-- rule_id: aws.iam.samlprovider.audience_restriction_configured
-  conditions:
-    var: item.arn
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.inline.policy_no_administrative_privileges_configured
-  conditions:
-    var: item.user_policy_list
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.role.trust_external_id_or_audience_required
-  conditions:
-    var: item.assume_role_policy_document
-    op: exists
-  for_each: aws.iam.list_roles
-- rule_id: aws.iam.group.no_inline_policies_configured
-  conditions:
-    var: item.user_policy_list
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.role.max_session_duration_configured
-  conditions:
-    var: item.max_session_duration
-    op: lte
-    value: 3600
-  for_each: aws.iam.list_roles
-- rule_id: aws.iam.user.hardware_mfa_enabled
-  conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.oidcprovider.allowed_client_ids_audiences_restricted
-  conditions:
-    var: item.arn
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.user.no_inline_policies_configured
-  conditions:
-    var: item.user_policy_list
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.user.in_group_configured
-  conditions:
-    var: item.group_list
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
-- rule_id: aws.iam.role.trust_principals_allowlist_only_configured
-  conditions:
-    var: item.assume_role_policy_document
-    op: contains
-    value:
-    - AllowlistPrincipalArn1
-    - AllowlistPrincipalArn2
-  for_each: aws.iam.list_roles
-- rule_id: aws.iam.instanceprofile.no_admin_star_policies_configured
-  conditions:
-    var: item.attached_managed_policies
-    op: equals
-    value: []
-  for_each: aws.iam.get_account_authorization_details
+    value: 'true'
 - rule_id: aws.iam.policy.no_policies_without_constraints_configured
+  for_each: aws.iam.get_group_policy
   conditions:
-    var: item.permissions_boundary
-    op: exists
-  for_each: aws.iam.get_account_authorization_details
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.iam.role.keys_not_used_or_rotated_90_days_or_less_configured
+  for_each: aws.iam.list_users
+  conditions:
+    var: item.AccessKeyLastUsed
+    op: lte

@@ -5,35 +5,20 @@ services:
   client: firehose
   module: boto3.client
 discovery:
-- discovery_id: aws.firehose.describe_delivery_stream
+- discovery_id: aws.firehose.list_delivery_streams
   calls:
-  - action: describe_delivery_stream
+  - action: list_delivery_streams
     save_as: response
   emit:
+    items_for: '{{ response.DeliveryStreamNames }}'
+    as: resource
     item:
-      DeliveryStreamName: '{{ response.DeliveryStreamDescription.DeliveryStreamName
-        }}'
-      DeliveryStreamARN: '{{ response.DeliveryStreamDescription.DeliveryStreamARN
-        }}'
-      DeliveryStreamStatus: '{{ response.DeliveryStreamDescription.DeliveryStreamStatus
-        }}'
-      FailureDescription: '{{ response.DeliveryStreamDescription.FailureDescription
-        }}'
-      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamDescription.DeliveryStreamEncryptionConfiguration
-        }}'
-      DeliveryStreamType: '{{ response.DeliveryStreamDescription.DeliveryStreamType
-        }}'
-      VersionId: '{{ response.DeliveryStreamDescription.VersionId }}'
-      CreateTimestamp: '{{ response.DeliveryStreamDescription.CreateTimestamp }}'
-      LastUpdateTimestamp: '{{ response.DeliveryStreamDescription.LastUpdateTimestamp
-        }}'
-      Source: '{{ response.DeliveryStreamDescription.Source }}'
-      Destinations: '{{ response.DeliveryStreamDescription.Destinations }}'
-      HasMoreDestinations: '{{ response.DeliveryStreamDescription.HasMoreDestinations
-        }}'
+      DeliveryStreamName: '{{ resource }}'
+      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamEncryptionConfiguration }}'
 checks:
 - rule_id: aws.firehose.resource.stream_encrypted_at_rest
-  for_each: aws.firehose.describe_delivery_stream
+  for_each: aws.firehose.list_delivery_streams
   conditions:
     var: item.DeliveryStreamEncryptionConfiguration
-    op: exists
+    op: equals
+    value: 'null'

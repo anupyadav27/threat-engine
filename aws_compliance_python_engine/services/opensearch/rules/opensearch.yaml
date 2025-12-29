@@ -15,14 +15,14 @@ discovery:
     item:
       DomainName: '{{ resource.DomainName }}'
       EngineType: '{{ resource.EngineType }}'
-- discovery_id: aws.opensearch.create_domain
+- discovery_id: aws.opensearch.describe_domain
   calls:
-  - action: create_domain
+  - action: describe_domain
     save_as: response
     params:
       DomainName: '{{ item.DomainName }}'
-  on_error: continue
   for_each: aws.opensearch.list_domain_names
+  on_error: continue
   emit:
     item:
       DomainId: '{{ response.DomainStatus.DomainId }}'
@@ -61,53 +61,68 @@ discovery:
       DomainProcessingStatus: '{{ response.DomainStatus.DomainProcessingStatus }}'
       ModifyingProperties: '{{ response.DomainStatus.ModifyingProperties }}'
       AIMLOptions: '{{ response.DomainStatus.AIMLOptions }}'
+      AdvancedSecurityEnabled: '{{ resource.AdvancedSecurityEnabled }}'
+      DataNodeCount: '{{ resource.DataNodeCount }}'
+      DedicatedMaster: '{{ resource.DedicatedMaster }}'
+      EncryptionEnabled: '{{ resource.EncryptionEnabled }}'
 checks:
 - rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
-  for_each: aws.opensearch.create_domain
+  for_each: aws.opensearch.describe_domain
   conditions:
-    var: item.EncryptionAtRestOptions
+    var: item.EncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
-  for_each: aws.opensearch.create_domain
+  for_each: aws.opensearch.describe_domain
   conditions:
-    var: item.DomainEndpointOptions
+    var: item.AdvancedSecurityEnabled
     op: equals
-    value:
-      EnforceHTTPS: true
+    value: 'true'
 - rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
-  for_each: aws.opensearch.create_domain
+  for_each: aws.opensearch.describe_domain
   conditions:
     var: item.NodeToNodeEncryptionOptions
     op: equals
-    value: true
-- rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
-  for_each: aws.opensearch.create_domain
-  conditions:
-    var: item.ClusterConfig
-    op: exists
-- rule_id: aws.opensearch.service.domains_audit_logging_enabled
-  for_each: aws.opensearch.create_domain
-  conditions:
-    var: item.LogPublishingOptions
-    op: exists
-- rule_id: aws.opensearch.service.domains_access_control_enabled
-  for_each: aws.opensearch.create_domain
+    value: 'true'
+- rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
+  for_each: aws.opensearch.describe_domain
   conditions:
     var: item.AccessPolicies
-    op: exists
-- rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
-  for_each: aws.opensearch.create_domain
+    op: not_equals
+    value: 'null'
+- rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.DataNodeCount
+    op: greater_than
+    value: '1'
+- rule_id: aws.opensearch.service.domains_audit_logging_enabled
+  for_each: aws.opensearch.describe_domain
   conditions:
     var: item.LogPublishingOptions
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.opensearch.service.domains_access_control_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.AccessPolicies
+    op: not_equals
+    value: 'null'
+- rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.LogPublishingOptions
+    op: not_equals
+    value: 'null'
 - rule_id: aws.opensearch.service.domains_internal_user_database_enabled
-  for_each: aws.opensearch.create_domain
+  for_each: aws.opensearch.describe_domain
   conditions:
-    var: item.AdvancedSecurityOptions
-    op: exists
+    var: item.AdvancedSecurityEnabled
+    op: equals
+    value: 'true'
 - rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
-  for_each: aws.opensearch.create_domain
+  for_each: aws.opensearch.describe_domain
   conditions:
-    var: item.ClusterConfig
-    op: exists
+    var: item.DedicatedMaster
+    op: equals
+    value: 'true'

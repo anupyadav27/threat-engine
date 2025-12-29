@@ -5,14 +5,69 @@ services:
   client: inspector
   module: boto3.client
 discovery:
-- discovery_id: aws.inspector.list_assessment_runs
+- discovery_id: aws.inspector.describe_rules_packages
   calls:
-  - action: list_assessment_runs
+  - action: describe_rules_packages
     save_as: response
-- discovery_id: aws.inspector.list_assessment_targets
+  emit:
+    item:
+      arn: '{{ response.rulesPackages.arn }}'
+      name: '{{ response.rulesPackages.name }}'
+      version: '{{ response.rulesPackages.version }}'
+      provider: '{{ response.rulesPackages.provider }}'
+      description: '{{ response.rulesPackages.description }}'
+      rulesPackages: '{{ resource.rulesPackages }}'
+- discovery_id: aws.inspector.describe_cross_account_access_role
   calls:
-  - action: list_assessment_targets
+  - action: describe_cross_account_access_role
     save_as: response
+  emit:
+    item:
+      roleArn: '{{ response.roleArn }}'
+      valid: '{{ response.valid }}'
+- discovery_id: aws.inspector.describe_findings
+  calls:
+  - action: describe_findings
+    save_as: response
+  emit:
+    item:
+      arn: '{{ response.findings.arn }}'
+      schemaVersion: '{{ response.findings.schemaVersion }}'
+      service: '{{ response.findings.service }}'
+      serviceAttributes: '{{ response.findings.serviceAttributes }}'
+      assetType: '{{ response.findings.assetType }}'
+      assetAttributes: '{{ response.findings.assetAttributes }}'
+      id: '{{ response.findings.id }}'
+      title: '{{ response.findings.title }}'
+      description: '{{ response.findings.description }}'
+      recommendation: '{{ response.findings.recommendation }}'
+      severity: '{{ response.findings.severity }}'
+      numericSeverity: '{{ response.findings.numericSeverity }}'
+      confidence: '{{ response.findings.confidence }}'
+      indicatorOfCompromise: '{{ response.findings.indicatorOfCompromise }}'
+      attributes: '{{ response.findings.attributes }}'
+      userAttributes: '{{ response.findings.userAttributes }}'
+      createdAt: '{{ response.findings.createdAt }}'
+      updatedAt: '{{ response.findings.updatedAt }}'
+      findings: '{{ resource.findings }}'
+- discovery_id: aws.inspector.describe_assessment_templates
+  calls:
+  - action: describe_assessment_templates
+    save_as: response
+  emit:
+    item:
+      arn: '{{ response.assessmentTemplates.arn }}'
+      name: '{{ response.assessmentTemplates.name }}'
+      assessmentTargetArn: '{{ response.assessmentTemplates.assessmentTargetArn }}'
+      durationInSeconds: '{{ response.assessmentTemplates.durationInSeconds }}'
+      rulesPackageArns: '{{ response.assessmentTemplates.rulesPackageArns }}'
+      userAttributesForFindings: '{{ response.assessmentTemplates.userAttributesForFindings
+        }}'
+      lastAssessmentRunArn: '{{ response.assessmentTemplates.lastAssessmentRunArn
+        }}'
+      assessmentRunCount: '{{ response.assessmentTemplates.assessmentRunCount }}'
+      createdAt: '{{ response.assessmentTemplates.createdAt }}'
+      assessmentTemplates: '{{ resource.assessmentTemplates }}'
 - discovery_id: aws.inspector.list_event_subscriptions
   calls:
   - action: list_event_subscriptions
@@ -24,67 +79,73 @@ discovery:
       resourceArn: '{{ resource.resourceArn }}'
       topicArn: '{{ resource.topicArn }}'
       eventSubscriptions: '{{ resource.eventSubscriptions }}'
-- discovery_id: aws.inspector.describe_assessment_runs
+- discovery_id: aws.inspector.list_assessment_run_agents
   calls:
-  - action: describe_assessment_runs
+  - action: list_assessment_run_agents
     save_as: response
-    params:
-      assessmentRunArns: '{{ item.assessmentRunArns }}'
-  on_error: continue
-  for_each: aws.inspector.list_assessment_runs
   emit:
+    items_for: '{{ response.assessmentRunAgents }}'
+    as: resource
     item:
-      arn: '{{ response.assessmentRuns.arn }}'
-      name: '{{ response.assessmentRuns.name }}'
-      assessmentTemplateArn: '{{ response.assessmentRuns.assessmentTemplateArn }}'
-      state: '{{ response.assessmentRuns.state }}'
-      durationInSeconds: '{{ response.assessmentRuns.durationInSeconds }}'
-      rulesPackageArns: '{{ response.assessmentRuns.rulesPackageArns }}'
-      userAttributesForFindings: '{{ response.assessmentRuns.userAttributesForFindings
-        }}'
-      createdAt: '{{ response.assessmentRuns.createdAt }}'
-      startedAt: '{{ response.assessmentRuns.startedAt }}'
-      completedAt: '{{ response.assessmentRuns.completedAt }}'
-      stateChangedAt: '{{ response.assessmentRuns.stateChangedAt }}'
-      dataCollected: '{{ response.assessmentRuns.dataCollected }}'
-      stateChanges: '{{ response.assessmentRuns.stateChanges }}'
-      notifications: '{{ response.assessmentRuns.notifications }}'
-      findingCounts: '{{ response.assessmentRuns.findingCounts }}'
-- discovery_id: aws.inspector.describe_assessment_targets
-  calls:
-  - action: describe_assessment_targets
-    save_as: response
-    params:
-      assessmentTargetArns: '{{ item.assessmentTargetArns }}'
-  on_error: continue
-  for_each: aws.inspector.list_assessment_targets
-  emit:
-    item:
-      arn: '{{ response.assessmentTargets.arn }}'
-      name: '{{ response.assessmentTargets.name }}'
-      resourceGroupArn: '{{ response.assessmentTargets.resourceGroupArn }}'
-      createdAt: '{{ response.assessmentTargets.createdAt }}'
-      updatedAt: '{{ response.assessmentTargets.updatedAt }}'
+      agentId: '{{ resource.agentId }}'
+      assessmentRunArn: '{{ resource.assessmentRunArn }}'
+      agentHealth: '{{ resource.agentHealth }}'
+      agentHealthCode: '{{ resource.agentHealthCode }}'
+      agentHealthDetails: '{{ resource.agentHealthDetails }}'
+      autoScalingGroup: '{{ resource.autoScalingGroup }}'
+      telemetryMetadata: '{{ resource.telemetryMetadata }}'
 checks:
+- rule_id: aws.inspector.finding.inspector_suppression_rules_documented_and_scoped_configured
+  for_each: aws.inspector.describe_rules_packages
+  conditions:
+    var: item.rulesPackages
+    op: not_equals
+    value: 'null'
 - rule_id: aws.inspector.resource.inspector_is_enabled
-  for_each: aws.inspector.describe_assessment_runs
+  for_each: aws.inspector.describe_cross_account_access_role
   conditions:
-    var: item.state
+    var: item.valid
     op: equals
-    value: ENABLED
+    value: 'true'
+- rule_id: aws.inspector.finding.inspector_archival_export_encrypted
+  for_each: aws.inspector.describe_findings
+  conditions:
+    var: item.findings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.inspector.assessment.policy_store_encrypted
-  for_each: aws.inspector.describe_assessment_runs
+  for_each: aws.inspector.describe_assessment_templates
   conditions:
-    var: item.state
-    op: equals
-    value: ENABLED
+    var: item.assessmentTemplates
+    op: not_equals
+    value: 'null'
+- rule_id: aws.inspector.assessment.role_least_privilege
+  for_each: aws.inspector.describe_cross_account_access_role
+  conditions:
+    var: item.roleArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.inspector.assessment.scope_includes_all_asset_groups_configured
-  for_each: aws.inspector.describe_assessment_targets
+  for_each: aws.inspector.describe_assessment_templates
   conditions:
-    var: item.resourceGroupArn
-    op: exists
+    var: item.assessmentTemplates
+    op: not_equals
+    value: 'null'
 - rule_id: aws.inspector.finding.alert_destinations_configured
   for_each: aws.inspector.list_event_subscriptions
   conditions:
-    var: item.topicArn
-    op: exists
+    var: item.eventSubscriptions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.inspector.assessment.inspector_results_export_destination_encrypted
+  for_each: aws.inspector.describe_assessment_templates
+  conditions:
+    var: item.assessmentTemplates
+    op: not_equals
+    value: 'null'
+- rule_id: aws.inspector.assessment.inspector_agents_or_scanners_deployed_configured
+  for_each: aws.inspector.list_assessment_run_agents
+  conditions:
+    var: item.agentHealth
+    op: equals
+    value: Healthy

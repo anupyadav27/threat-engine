@@ -57,63 +57,72 @@ discovery:
       debugSession: '{{ response.build.debugSession }}'
       buildBatchArn: '{{ response.build.buildBatchArn }}'
       autoRetryConfig: '{{ response.build.autoRetryConfig }}'
-- discovery_id: aws.codebuild.batch_get_fleets
+- discovery_id: aws.codebuild.batch_get_command_executions
   calls:
-  - action: batch_get_fleets
+  - action: batch_get_command_executions
     save_as: response
   emit:
     item:
-      arn: '{{ response.fleets.arn }}'
-      name: '{{ response.fleets.name }}'
-      id: '{{ response.fleets.id }}'
-      created: '{{ response.fleets.created }}'
-      lastModified: '{{ response.fleets.lastModified }}'
-      status: '{{ response.fleets.status }}'
-      baseCapacity: '{{ response.fleets.baseCapacity }}'
-      environmentType: '{{ response.fleets.environmentType }}'
-      computeType: '{{ response.fleets.computeType }}'
-      computeConfiguration: '{{ response.fleets.computeConfiguration }}'
-      scalingConfiguration: '{{ response.fleets.scalingConfiguration }}'
-      overflowBehavior: '{{ response.fleets.overflowBehavior }}'
-      vpcConfig: '{{ response.fleets.vpcConfig }}'
-      proxyConfiguration: '{{ response.fleets.proxyConfiguration }}'
-      imageId: '{{ response.fleets.imageId }}'
-      fleetServiceRole: '{{ response.fleets.fleetServiceRole }}'
-      tags: '{{ response.fleets.tags }}'
+      id: '{{ response.commandExecutions.id }}'
+      sandboxId: '{{ response.commandExecutions.sandboxId }}'
+      submitTime: '{{ response.commandExecutions.submitTime }}'
+      startTime: '{{ response.commandExecutions.startTime }}'
+      endTime: '{{ response.commandExecutions.endTime }}'
+      status: '{{ response.commandExecutions.status }}'
+      command: '{{ response.commandExecutions.command }}'
+      type: '{{ response.commandExecutions.type }}'
+      exitCode: '{{ response.commandExecutions.exitCode }}'
+      standardOutputContent: '{{ response.commandExecutions.standardOutputContent
+        }}'
+      standardErrContent: '{{ response.commandExecutions.standardErrContent }}'
+      logs: '{{ response.commandExecutions.logs }}'
+      sandboxArn: '{{ response.commandExecutions.sandboxArn }}'
 checks:
 - rule_id: aws.codebuild.resource.codebuild_project_envvar_awscred_configured
-  for_each: aws.codebuild.retry_build
+  for_each: aws.codebuild.list_source_credentials
   conditions:
-    var: item.environment
-    op: exists
+    var: item.authType
+    op: equals
+    value: SECRETS_MANAGER
+- rule_id: aws.codebuild.user.codebuild_controlled_buildspec_configured
+  for_each: aws.codebuild.list_source_credentials
+  conditions:
+    var: item.authType
+    op: equals
+    value: CODECONNECTIONS
 - rule_id: aws.codebuild.resource.project_logging_enabled
   for_each: aws.codebuild.retry_build
   conditions:
     var: item.logs
-    op: exists
-- rule_id: aws.codebuild.group.codebuild_export_encrypted
-  for_each: aws.codebuild.retry_build
-  conditions:
-    var: item.encryptionKey
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.codebuild.resource.codebuild_project_s3_logs_encrypted
-  for_each: aws.codebuild.retry_build
+  for_each: aws.codebuild.list_source_credentials
   conditions:
-    var: item.encryptionKey
-    op: exists
+    var: item.resource
+    op: not_equals
+    value: 'null'
 - rule_id: aws.codebuild.project.codebuild_older_90_days_configured
-  for_each: aws.codebuild.batch_get_fleets
+  for_each: aws.codebuild.batch_get_command_executions
   conditions:
-    var: item.lastModified
-    op: lte
-    value: '2023-07-01T00:00:00Z'
+    var: item.submitTime
+    op: less_than
+    value: 90 days ago
 - rule_id: aws.codebuild.resource.codebuild_project_source_repo_url_configured
-  for_each: aws.codebuild.retry_build
+  for_each: aws.codebuild.list_source_credentials
   conditions:
-    var: item.resolvedSourceVersion
-    op: exists
+    var: item.resource
+    op: not_equals
+    value: 'null'
 - rule_id: aws.codebuild.projectartifact.encryption_enabled
-  for_each: aws.codebuild.retry_build
+  for_each: aws.codebuild.list_source_credentials
   conditions:
-    var: item.encryptionKey
-    op: exists
+    var: item.resource
+    op: not_equals
+    value: 'null'
+- rule_id: aws.codebuild.group.codebuild_export_encrypted
+  for_each: aws.codebuild.list_source_credentials
+  conditions:
+    var: item.resource
+    op: not_equals
+    value: 'null'

@@ -5,13 +5,6 @@ services:
   client: ecr
   module: boto3.client
 discovery:
-- discovery_id: aws.ecr.delete_signing_configuration
-  calls:
-  - action: delete_signing_configuration
-    save_as: response
-  emit:
-    item:
-      rules: '{{ response.signingConfiguration.rules }}'
 - discovery_id: aws.ecr.describe_repositories
   calls:
   - action: describe_repositories
@@ -51,92 +44,100 @@ discovery:
       customRoleArn: '{{ response.repositoryCreationTemplates.customRoleArn }}'
       createdAt: '{{ response.repositoryCreationTemplates.createdAt }}'
       updatedAt: '{{ response.repositoryCreationTemplates.updatedAt }}'
-- discovery_id: aws.ecr.batch_get_repository_scanning_configuration
-  calls:
-  - action: batch_get_repository_scanning_configuration
-    save_as: response
-  emit:
-    item:
-      repositoryArn: '{{ response.scanningConfigurations.repositoryArn }}'
-      repositoryName: '{{ response.scanningConfigurations.repositoryName }}'
-      scanOnPush: '{{ response.scanningConfigurations.scanOnPush }}'
-      scanFrequency: '{{ response.scanningConfigurations.scanFrequency }}'
-      appliedScanFilters: '{{ response.scanningConfigurations.appliedScanFilters }}'
 checks:
 - rule_id: aws.ecr.imagescan.ecr_results_export_destination_encrypted
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.encryptionConfiguration
-    op: exists
-- rule_id: aws.ecr.resource.ecr_image_scan_on_push_enabled
-  for_each: aws.ecr.batch_get_repository_scanning_configuration
-  conditions:
-    var: item.scanOnPush
     op: equals
-    value: true
+    value: ENCRYPTED
+- rule_id: aws.ecr.resource.ecr_image_scan_on_push_enabled
+  for_each: aws.ecr.describe_repositories
+  conditions:
+    var: item.imageScanningConfiguration
+    op: equals
+    value: ENABLED
+- rule_id: aws.ecr.imagescan.ecr_agents_or_scanners_deployed_configured
+  for_each: aws.ecr.describe_repositories
+  conditions:
+    var: item.imageScanningConfiguration
+    op: equals
+    value: ENABLED
 - rule_id: aws.ecr.resource.repository_encryption_enabled
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.encryptionConfiguration
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.replication_configuration.ecr_cross_region_encrypted
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.encryptionConfiguration
-    op: exists
-- rule_id: aws.ecr.resource.ecr_repository_scan_on_push_enabled
-  for_each: aws.ecr.batch_get_repository_scanning_configuration
-  conditions:
-    var: item.scanOnPush
     op: equals
-    value: true
+    value: ENABLED
+- rule_id: aws.ecr.resource.ecr_repository_scan_on_push_enabled
+  for_each: aws.ecr.describe_repositories
+  conditions:
+    var: item.imageScanningConfiguration
+    op: equals
+    value: ENABLED
+- rule_id: aws.ecr.repository.repo_private_or_access_restricted
+  for_each: aws.ecr.describe_repository_creation_templates
+  conditions:
+    var: item.repositoryPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.repositories_not_publicly_accessible.repositories_not_publicly_accessible_configured
   for_each: aws.ecr.describe_repository_creation_templates
   conditions:
     var: item.repositoryPolicy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.lifecyclepolicy.policy_storage_encrypted
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.encryptionConfiguration
-    op: exists
+    op: equals
+    value: 'true'
 - rule_id: aws.ecr.repository_policy.no_public_pull_push_configured
   for_each: aws.ecr.describe_repository_creation_templates
   conditions:
     var: item.repositoryPolicy
-    op: equals
-    value: []
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.lifecyclepolicy.ecr_unused_or_old_tags_expire_configured
   for_each: aws.ecr.describe_repository_creation_templates
   conditions:
     var: item.lifecyclePolicy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.repository_policy.ecr_no_wildcard_admin_configured
   for_each: aws.ecr.describe_repository_creation_templates
   conditions:
     var: item.repositoryPolicy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.repository.immutable_tags_or_signing_enforced
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.imageTagMutability
-    op: equals
+    op: contains
     value: IMMUTABLE
 - rule_id: aws.ecr.imagescan.scope_includes_all_asset_groups_configured
-  for_each: aws.ecr.batch_get_repository_scanning_configuration
+  for_each: aws.ecr.describe_repositories
   conditions:
-    var: item.scanOnPush
-    op: equals
-    value: true
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecr.repository.ecr_image_scanning_enabled
   for_each: aws.ecr.describe_repositories
   conditions:
     var: item.imageScanningConfiguration
     op: equals
-    value:
-      scanOnPush: true
+    value: ENABLED
 - rule_id: aws.ecr.replication_configuration.ecr_destinations_least_privilege
-  for_each: aws.ecr.delete_signing_configuration
+  for_each: aws.ecr.describe_repository_creation_templates
   conditions:
-    var: item.rules
-    op: exists
+    var: item.repositoryPolicy
+    op: not_equals
+    value: 'null'

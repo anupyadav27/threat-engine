@@ -5,73 +5,112 @@ services:
   client: glacier
   module: boto3.client
 discovery:
-- discovery_id: aws.glacier.get_vault_access_policy
+- discovery_id: aws.glacier.get_data_retrieval_policy
   calls:
-  - action: get_vault_access_policy
+  - action: get_data_retrieval_policy
     save_as: response
   emit:
     item:
-      Policy: '{{ response.policy.Policy }}'
-- discovery_id: aws.glacier.list_provisioned_capacity
+      Rules: '{{ response.Policy.Rules }}'
+      Policy: '{{ resource.Policy }}'
+- discovery_id: aws.glacier.list_vaults
   calls:
-  - action: list_provisioned_capacity
+  - action: list_vaults
     save_as: response
   emit:
-    items_for: '{{ response.ProvisionedCapacityList }}'
+    items_for: '{{ response.VaultList }}'
     as: resource
     item:
-      CapacityId: '{{ resource.CapacityId }}'
-      StartDate: '{{ resource.StartDate }}'
-      ExpirationDate: '{{ resource.ExpirationDate }}'
+      VaultARN: '{{ resource.VaultARN }}'
+      VaultName: '{{ resource.VaultName }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      LastInventoryDate: '{{ resource.LastInventoryDate }}'
+      NumberOfArchives: '{{ resource.NumberOfArchives }}'
+      SizeInBytes: '{{ resource.SizeInBytes }}'
+- discovery_id: aws.glacier.get_job_output
+  calls:
+  - action: get_job_output
+    save_as: response
+  emit:
+    item:
+      status: '{{ response.status }}'
+      body: '{{ response.body }}'
 checks:
 - rule_id: aws.glacier.vault.cmk_cmek_key_configured
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.encryption_at_rest_enabled
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.list_vaults
   conditions:
-    var: item.Policy
-    op: exists
+    var: item.VaultARN
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.key_policy_least_privilege
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.encryption_in_transit_tls_min_1_2_configured
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.list_vaults
   conditions:
-    var: item.Policy
-    op: exists
+    var: item.VaultARN
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.certificate_expiration_rules_configured
-  for_each: aws.glacier.list_provisioned_capacity
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
-    var: item.ExpirationDate
-    op: exists
+    var: item.Rules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.immutable_retention_locked_where_required
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.policy.public_access_configured
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: equals
-    value: []
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.key_rotation_enabled
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.glacier.vault.backup_policies_configured
+  for_each: aws.glacier.get_data_retrieval_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.glacier.vault.backup_storage_immutability_enabled
+  for_each: aws.glacier.get_data_retrieval_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.glacier.vault.backup_enforced_on_sensitive_datasets_configured
+  for_each: aws.glacier.list_vaults
+  conditions:
+    var: item.VaultName
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.protected_from_public_override_configured
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_data_retrieval_policy
   conditions:
     var: item.Policy
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.glacier.vault.versioning_enabled_if_supported
-  for_each: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.get_job_output
   conditions:
-    var: item.Policy
-    op: exists
+    var: item.status
+    op: equals
+    value: Enabled

@@ -17,6 +17,35 @@ discovery:
       Recipients: '{{ response.Rules.Recipients }}'
       Actions: '{{ response.Rules.Actions }}'
       ScanEnabled: '{{ response.Rules.ScanEnabled }}'
+- discovery_id: aws.ses.describe_configuration_set
+  calls:
+  - action: describe_configuration_set
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.EventDestinations.Name }}'
+      Enabled: '{{ response.EventDestinations.Enabled }}'
+      MatchingEventTypes: '{{ response.EventDestinations.MatchingEventTypes }}'
+      KinesisFirehoseDestination: '{{ response.EventDestinations.KinesisFirehoseDestination
+        }}'
+      CloudWatchDestination: '{{ response.EventDestinations.CloudWatchDestination
+        }}'
+      SNSDestination: '{{ response.EventDestinations.SNSDestination }}'
+      EventDestinations: '{{ resource.EventDestinations }}'
+- discovery_id: aws.ses.get_identity_policies
+  calls:
+  - action: get_identity_policies
+    save_as: response
+  emit:
+    item:
+      Policies: '{{ response.Policies }}'
+- discovery_id: aws.ses.get_identity_verification_attributes
+  calls:
+  - action: get_identity_verification_attributes
+    save_as: response
+  emit:
+    item:
+      VerificationAttributes: '{{ response.VerificationAttributes }}'
 checks:
 - rule_id: aws.ses.email.message_encryption_in_transit_configured
   for_each: aws.ses.describe_active_receipt_rule_set
@@ -24,15 +53,57 @@ checks:
     var: item.TlsPolicy
     op: equals
     value: Require
+- rule_id: aws.ses.email.ses_channels_configured
+  for_each: aws.ses.describe_configuration_set
+  conditions:
+    var: item.EventDestinations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ses.email.ses_destinations_configured
+  for_each: aws.ses.describe_configuration_set
+  conditions:
+    var: item.EventDestinations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ses.email.endpoints_authenticated_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  conditions:
+    var: item.TlsPolicy
+    op: equals
+    value: Require
+- rule_id: aws.ses.email.no_public_webhooks_without_auth_configured
+  for_each: aws.ses.describe_configuration_set
+  conditions:
+    var: item.EventDestinations
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ses.email.change_audit_logging_enabled
   for_each: aws.ses.describe_active_receipt_rule_set
   conditions:
     var: item.Enabled
     op: equals
     value: true
-- rule_id: aws.ses.email.no_public_webhooks_configured
-  for_each: aws.ses.describe_active_receipt_rule_set
+- rule_id: aws.ses.email.policy_exists_for_critical_severity_configured
+  for_each: aws.ses.get_identity_policies
   conditions:
-    var: item.Actions
-    op: equals
-    value: []
+    var: item.Policies
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ses.email.destinations_access_least_privilege
+  for_each: aws.ses.get_identity_policies
+  conditions:
+    var: item.Policies
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ses.email.no_public_webhooks_configured
+  for_each: aws.ses.describe_configuration_set
+  conditions:
+    var: item.EventDestinations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ses.email.oncall_contacts_verified
+  for_each: aws.ses.get_identity_verification_attributes
+  conditions:
+    var: item.VerificationAttributes
+    op: not_equals
+    value: 'null'

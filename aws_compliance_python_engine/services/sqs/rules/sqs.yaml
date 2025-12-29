@@ -5,67 +5,53 @@ services:
   client: sqs
   module: boto3.client
 discovery:
-- discovery_id: aws.sqs.get_queue_url
+- discovery_id: aws.sqs.list_queues
   calls:
-  - action: get_queue_url
+  - action: list_queues
     save_as: response
-- discovery_id: aws.sqs.list_message_move_tasks
+- discovery_id: aws.sqs.get_queue_attributes
   calls:
-  - action: list_message_move_tasks
+  - action: get_queue_attributes
     save_as: response
-  emit:
-    items_for: '{{ response.Results }}'
-    as: resource
-    item:
-      TaskHandle: '{{ resource.TaskHandle }}'
-      Status: '{{ resource.Status }}'
-      SourceArn: '{{ resource.SourceArn }}'
-      DestinationArn: '{{ resource.DestinationArn }}'
-      MaxNumberOfMessagesPerSecond: '{{ resource.MaxNumberOfMessagesPerSecond }}'
-      ApproximateNumberOfMessagesMoved: '{{ resource.ApproximateNumberOfMessagesMoved
-        }}'
-      ApproximateNumberOfMessagesToMove: '{{ resource.ApproximateNumberOfMessagesToMove
-        }}'
-      FailureReason: '{{ resource.FailureReason }}'
-      StartedTimestamp: '{{ resource.StartedTimestamp }}'
-- discovery_id: aws.sqs.receive_message
-  calls:
-  - action: receive_message
-    save_as: response
-    params:
-      QueueUrl: '{{ item.QueueUrl }}'
+  for_each: aws.sqs.list_queues
   on_error: continue
-  for_each: aws.sqs.get_queue_url
   emit:
     item:
-      MessageId: '{{ response.Messages.MessageId }}'
-      ReceiptHandle: '{{ response.Messages.ReceiptHandle }}'
-      MD5OfBody: '{{ response.Messages.MD5OfBody }}'
-      Body: '{{ response.Messages.Body }}'
-      Attributes: '{{ response.Messages.Attributes }}'
-      MD5OfMessageAttributes: '{{ response.Messages.MD5OfMessageAttributes }}'
-      MessageAttributes: '{{ response.Messages.MessageAttributes }}'
+      Attributes: '{{ response.Attributes }}'
 checks:
 - rule_id: aws.sqs.queue.private_network_only_if_supported
-  for_each: aws.sqs.list_message_move_tasks
+  for_each: aws.sqs.get_queue_attributes
   conditions:
-    var: item.Status
-    op: equals
-    value: ACTIVE
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sqs.queue.cross_account_send_receive_restricted
+  for_each: aws.sqs.get_queue_attributes
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sqs.queues_not_publicly_accessible.queues_not_publicly_accessible_configured
-  for_each: aws.sqs.receive_message
+  for_each: aws.sqs.get_queue_attributes
   conditions:
     var: item.Attributes
-    op: contains
-    value: Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sqs.queue.encryption_at_rest_enabled
+  for_each: aws.sqs.get_queue_attributes
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sqs.queue.auth_required
-  for_each: aws.sqs.receive_message
+  for_each: aws.sqs.get_queue_attributes
   conditions:
     var: item.Attributes
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sqs.resource.queues_server_side_encryption_enabled
-  for_each: aws.sqs.receive_message
+  for_each: aws.sqs.get_queue_attributes
   conditions:
     var: item.Attributes
-    op: contains
-    value: SqsManagedSseEnabled
+    op: not_equals
+    value: 'null'

@@ -21,84 +21,80 @@ discovery:
         }}'
       videoDataDeliveryEnabled: '{{ response.loggingConfig.videoDataDeliveryEnabled
         }}'
-- discovery_id: aws.bedrock.list_custom_model_deployments
+      loggingConfig: '{{ resource.loggingConfig }}'
+- discovery_id: aws.bedrock.get_custom_model
   calls:
-  - action: list_custom_model_deployments
+  - action: get_custom_model
     save_as: response
-  emit:
-    items_for: '{{ response.modelDeploymentSummaries }}'
-    as: resource
-    item:
-      customModelDeploymentArn: '{{ resource.customModelDeploymentArn }}'
-      customModelDeploymentName: '{{ resource.customModelDeploymentName }}'
-      modelArn: '{{ resource.modelArn }}'
-      createdAt: '{{ resource.createdAt }}'
-      status: '{{ resource.status }}'
-      lastUpdatedAt: '{{ resource.lastUpdatedAt }}'
-      failureMessage: '{{ resource.failureMessage }}'
-- discovery_id: aws.bedrock.list_model_copy_jobs
-  calls:
-  - action: list_model_copy_jobs
-    save_as: response
-  emit:
-    items_for: '{{ response.modelCopyJobSummaries }}'
-    as: resource
-    item:
-      jobArn: '{{ resource.jobArn }}'
-      status: '{{ resource.status }}'
-      creationTime: '{{ resource.creationTime }}'
-      targetModelArn: '{{ resource.targetModelArn }}'
-      targetModelName: '{{ resource.targetModelName }}'
-      sourceAccountId: '{{ resource.sourceAccountId }}'
-      sourceModelArn: '{{ resource.sourceModelArn }}'
-      targetModelKmsKeyArn: '{{ resource.targetModelKmsKeyArn }}'
-      targetModelTags: '{{ resource.targetModelTags }}'
-      failureMessage: '{{ resource.failureMessage }}'
-      sourceModelName: '{{ resource.sourceModelName }}'
-- discovery_id: aws.bedrock.batch_delete_evaluation_job
-  calls:
-  - action: batch_delete_evaluation_job
-    save_as: response
-  emit:
-    item:
-      jobIdentifier: '{{ response.errors.jobIdentifier }}'
-      code: '{{ response.errors.code }}'
-      message: '{{ response.errors.message }}'
-- discovery_id: aws.bedrock.get_guardrail
-  calls:
-  - action: get_guardrail
-    save_as: response
-- discovery_id: aws.bedrock.get_model_customization_job
-  calls:
-  - action: get_model_customization_job
-    save_as: response
-    params:
-      jobIdentifier: '{{ item.jobIdentifier }}'
-  on_error: continue
-  for_each: aws.bedrock.batch_delete_evaluation_job
   emit:
     item:
       validationLoss: '{{ response.validationMetrics.validationLoss }}'
+      modelKmsKeyArn: '{{ resource.modelKmsKeyArn }}'
+- discovery_id: aws.bedrock.list_provisioned_model_throughputs
+  calls:
+  - action: list_provisioned_model_throughputs
+    save_as: response
+  emit:
+    items_for: '{{ response.provisionedModelSummaries }}'
+    as: resource
+    item:
+      provisionedModelName: '{{ resource.provisionedModelName }}'
+      provisionedModelArn: '{{ resource.provisionedModelArn }}'
+      modelArn: '{{ resource.modelArn }}'
+      desiredModelArn: '{{ resource.desiredModelArn }}'
+      foundationModelArn: '{{ resource.foundationModelArn }}'
+      modelUnits: '{{ resource.modelUnits }}'
+      desiredModelUnits: '{{ resource.desiredModelUnits }}'
+      status: '{{ resource.status }}'
+      commitmentDuration: '{{ resource.commitmentDuration }}'
+      commitmentExpirationTime: '{{ resource.commitmentExpirationTime }}'
+      creationTime: '{{ resource.creationTime }}'
+      lastModifiedTime: '{{ resource.lastModifiedTime }}'
 checks:
-- rule_id: aws.bedrock.model.bedrock_artifact_encrypted_at_rest
-  for_each: aws.bedrock.list_custom_model_deployments
-  conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-- rule_id: aws.bedrock.model.bedrock_kms_cmk_used_configured
-  for_each: aws.bedrock.list_model_copy_jobs
-  conditions:
-    var: item.targetModelKmsKeyArn
-    op: exists
-- rule_id: aws.bedrock.model.bedrock_image_scan_passed_configured
+- rule_id: aws.bedrock.resource.model_invocation_logging_enabled
   for_each: aws.bedrock.get_model_invocation_logging_configuration
   conditions:
-    var: item.imageDataDeliveryEnabled
-    op: equals
-    value: true
-- rule_id: aws.bedrock.model.kms_encryption_enabled
-  for_each: aws.bedrock.list_model_copy_jobs
+    var: item.loggingConfig
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.model.bedrock_artifact_encrypted_at_rest
+  for_each: aws.bedrock.get_custom_model
   conditions:
-    var: item.targetModelKmsKeyArn
+    var: item.modelKmsKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.model.bedrock_package_approved_configured
+  for_each: aws.bedrock.list_provisioned_model_throughputs
+  conditions:
+    var: item.provisionedModelArn
     op: exists
+- rule_id: aws.bedrock.model.execution_role_least_privilege
+  for_each: aws.bedrock.list_provisioned_model_throughputs
+  conditions:
+    var: item.provisionedModelArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.model.bedrock_kms_cmk_used_configured
+  for_each: aws.bedrock.get_custom_model
+  conditions:
+    var: item.modelKmsKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.model.bedrock_image_scan_passed_configured
+  for_each: aws.bedrock.get_custom_model
+  conditions:
+    var: item.modelKmsKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.resource.model_invocation_logs_encryption_enabled
+  for_each: aws.bedrock.get_custom_model
+  conditions:
+    var: item.modelKmsKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.bedrock.model.kms_encryption_enabled
+  for_each: aws.bedrock.get_custom_model
+  conditions:
+    var: item.modelKmsKeyArn
+    op: not_equals
+    value: 'null'

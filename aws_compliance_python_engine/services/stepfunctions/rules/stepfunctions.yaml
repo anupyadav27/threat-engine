@@ -5,6 +5,30 @@ services:
   client: stepfunctions
   module: boto3.client
 discovery:
+- discovery_id: aws.stepfunctions.describe_state_machine
+  calls:
+  - action: describe_state_machine
+    save_as: response
+  emit:
+    item:
+      level: '{{ response.loggingConfiguration.level }}'
+      includeExecutionData: '{{ response.loggingConfiguration.includeExecutionData
+        }}'
+      destinations: '{{ response.loggingConfiguration.destinations }}'
+      tracingConfiguration: '{{ resource.tracingConfiguration }}'
+      loggingConfiguration: '{{ resource.loggingConfiguration }}'
+- discovery_id: aws.stepfunctions.list_state_machines
+  calls:
+  - action: list_state_machines
+    save_as: response
+  emit:
+    items_for: '{{ response.stateMachines }}'
+    as: resource
+    item:
+      stateMachineArn: '{{ resource.stateMachineArn }}'
+      name: '{{ resource.name }}'
+      type: '{{ resource.type }}'
+      creationDate: '{{ resource.creationDate }}'
 - discovery_id: aws.stepfunctions.list_activities
   calls:
   - action: list_activities
@@ -16,6 +40,32 @@ discovery:
       activityArn: '{{ resource.activityArn }}'
       name: '{{ resource.name }}'
       creationDate: '{{ resource.creationDate }}'
+- discovery_id: aws.stepfunctions.describe_activity
+  calls:
+  - action: describe_activity
+    save_as: response
+    params:
+      activityArn: '{{ item.activityArn }}'
+  for_each: aws.stepfunctions.list_activities
+  on_error: continue
+  emit:
+    item:
+      kmsKeyId: '{{ response.encryptionConfiguration.kmsKeyId }}'
+      kmsDataKeyReusePeriodSeconds: '{{ response.encryptionConfiguration.kmsDataKeyReusePeriodSeconds
+        }}'
+      type: '{{ response.encryptionConfiguration.type }}'
+      encryptionConfiguration: '{{ resource.encryptionConfiguration }}'
+      id: '{{ resource.id }}'
+- discovery_id: aws.stepfunctions.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+  emit:
+    items_for: '{{ response.tags }}'
+    as: resource
+    item:
+      key: '{{ resource.key }}'
+      value: '{{ resource.value }}'
 - discovery_id: aws.stepfunctions.list_executions
   calls:
   - action: list_executions
@@ -36,181 +86,225 @@ discovery:
       stateMachineAliasArn: '{{ resource.stateMachineAliasArn }}'
       redriveCount: '{{ resource.redriveCount }}'
       redriveDate: '{{ resource.redriveDate }}'
-- discovery_id: aws.stepfunctions.list_state_machines
-  calls:
-  - action: list_state_machines
-    save_as: response
-  emit:
-    items_for: '{{ response.stateMachines }}'
-    as: resource
-    item:
-      stateMachineArn: '{{ resource.stateMachineArn }}'
-      name: '{{ resource.name }}'
-      type: '{{ resource.type }}'
-      creationDate: '{{ resource.creationDate }}'
-- discovery_id: aws.stepfunctions.describe_activity
-  calls:
-  - action: describe_activity
-    save_as: response
-    params:
-      activityArn: '{{ item.activityArn }}'
-  on_error: continue
-  for_each: aws.stepfunctions.list_activities
-  emit:
-    item:
-      kmsKeyId: '{{ response.encryptionConfiguration.kmsKeyId }}'
-      kmsDataKeyReusePeriodSeconds: '{{ response.encryptionConfiguration.kmsDataKeyReusePeriodSeconds
-        }}'
-      type: '{{ response.encryptionConfiguration.type }}'
-- discovery_id: aws.stepfunctions.describe_state_machine
-  calls:
-  - action: describe_state_machine
-    save_as: response
-    params:
-      stateMachineArn: '{{ item.stateMachineArn }}'
-  on_error: continue
-  for_each: aws.stepfunctions.list_executions
-  emit:
-    item:
-      level: '{{ response.loggingConfiguration.level }}'
-      includeExecutionData: '{{ response.loggingConfiguration.includeExecutionData
-        }}'
-      destinations: '{{ response.loggingConfiguration.destinations }}'
-- discovery_id: aws.stepfunctions.list_tags_for_resource
-  calls:
-  - action: list_tags_for_resource
-    save_as: response
-  emit:
-    items_for: '{{ response.tags }}'
-    as: resource
-    item:
-      key: '{{ resource.key }}'
-      value: '{{ resource.value }}'
 checks:
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_allowlist_defined_when_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.destinations
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_max_length_defined_if_applicable_configured
-  for_each: aws.stepfunctions.describe_state_machine
+  for_each: aws.stepfunctions.list_state_machines
   conditions:
-    var: item.level
-    op: exists
+    var: item.type
+    op: equals
+    value: STANDARD
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_min_length_defined_when_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_sensitive_params_not_logged_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.includeExecutionData
-    op: equals
-    value: false
-- rule_id: aws.stepfunctions.statemachine.stepfunctions_value_from_secrets_manager_when_sensitive_configured
-  for_each: aws.stepfunctions.describe_state_machine
-  conditions:
-    var: item.destinations
-    op: exists
-- rule_id: aws.stepfunctions.statemachine.stepfunctions_environment_no_plaintext_secrets_configured
-  for_each: aws.stepfunctions.describe_state_machine
-  conditions:
-    var: item.includeExecutionData
-    op: equals
-    value: false
-- rule_id: aws.stepfunctions.statemachine.sensitive_keys_require_secret_type_configured
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_artifacts_private_and_encrypted
   for_each: aws.stepfunctions.describe_activity
   conditions:
-    var: item.kmsKeyId
-    op: exists
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_approval_steps_required_for_destructive_actions
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.iam_role_least_privileged_configured
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.id
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_value_from_secrets_manager_when_sensitive_configured
+  for_each: aws.stepfunctions.list_tags_for_resource
+  conditions:
+    var: item.value
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_environment_no_plaintext_secrets_configured
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.logging_enabled
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_pattern_defined_if_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.execution_role_least_privilege
-  for_each: aws.stepfunctions.describe_state_machine
+  for_each: aws.stepfunctions.list_state_machines
   conditions:
-    var: item.level
-    op: equals
-    value: least_privilege
+    var: item.type
+    op: not_equals
+    value: STANDARD
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_max_length_defined_when_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.private_networking_enforced
-  for_each: aws.stepfunctions.describe_state_machine
+  for_each: aws.stepfunctions.list_state_machines
   conditions:
-    var: item.destinations
-    op: equals
-    value: []
+    var: item.type
+    op: not_equals
+    value: STANDARD
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_min_length_defined_if_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.kms_encryption_enabled
   for_each: aws.stepfunctions.describe_activity
   conditions:
-    var: item.kmsKeyId
-    op: exists
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_signed_and_verified
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: equals
-    value: SIGNED_AND_VERIFIED
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_type_configured
   for_each: aws.stepfunctions.list_state_machines
   conditions:
     var: item.type
     op: equals
     value: STANDARD
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_allowed_values_defined_if_applicable_configured
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_storage_private_configured
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.execution_roles_least_privilege
+  for_each: aws.stepfunctions.list_state_machines
+  conditions:
+    var: item.type
+    op: equals
+    value: STANDARD
+- rule_id: aws.stepfunctions.resource.statemachine_logging_enabled
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: equals
-    value: least_privilege
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_only_expected_params_bound_configured
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_secret_refs_resolved_at_runtime_configured
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.tracingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.network_private_only_configured
+  for_each: aws.stepfunctions.list_executions
+  conditions:
+    var: item.status
+    op: not_equals
+    value: RUNNING
+- rule_id: aws.stepfunctions.statemachine.disallowed_attribute_keys_blocked
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.destinations
-    op: equals
-    value: []
-- rule_id: aws.stepfunctions.statemachine.disallowed_attribute_keys_blocked
-  for_each: aws.stepfunctions.list_tags_for_resource
-  conditions:
-    var: item.key
-    op: not_contains
-    value:
-    - disallowedKey1
-    - disallowedKey2
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_pattern_defined_when_applicable_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.level
-    op: exists
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_values_not_plaintext_secret_configured
   for_each: aws.stepfunctions.describe_activity
   conditions:
-    var: item.kmsKeyId
-    op: exists
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_integrations_least_privilege
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.id
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_artifacts_encrypted_and_private
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.encryptionConfiguration
+    op: equals
+    value: 'true'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_attributes_no_plaintext_secrets_configured
+  for_each: aws.stepfunctions.describe_activity
+  conditions:
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_default_not_sensitive_configured
   for_each: aws.stepfunctions.describe_state_machine
   conditions:
-    var: item.includeExecutionData
-    op: equals
-    value: false
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.change_audit_logging_enabled
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.stepfunctions.statemachine.stepfunctions_logs_and_metrics_enabled
+  for_each: aws.stepfunctions.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_version_immutability_enforced
   for_each: aws.stepfunctions.list_executions
   conditions:
     var: item.stateMachineVersionArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.stepfunctions.statemachine.stepfunctions_storage_encrypted
   for_each: aws.stepfunctions.describe_activity
   conditions:
-    var: item.kmsKeyId
-    op: exists
+    var: item.encryptionConfiguration
+    op: equals
+    value: 'true'
+- rule_id: aws.stepfunctions.statemachine.sensitive_keys_require_secret_type_configured
+  for_each: aws.stepfunctions.list_state_machines
+  conditions:
+    var: item.type
+    op: not_equals

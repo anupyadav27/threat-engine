@@ -27,16 +27,23 @@ discovery:
         }}'
       AuthorizedSessionTagValueList: '{{ response.DataLakeSettings.AuthorizedSessionTagValueList
         }}'
+      DataLakeSettings: '{{ resource.DataLakeSettings }}'
 checks:
+- rule_id: aws.lakeformation.data_lake_settings.rbac_least_privilege
+  for_each: aws.lakeformation.get_data_lake_settings
+  conditions:
+    var: item.DataLakeSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.lakeformation.data_lake_settings.change_audit_logging_enabled
   for_each: aws.lakeformation.get_data_lake_settings
   conditions:
-    var: item.AllowExternalDataFiltering
+    var: item.DataLakeSettings
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.lakeformation.data_lake_settings.mfa_required
   for_each: aws.lakeformation.get_data_lake_settings
   conditions:
-    var: item.Parameters
+    var: item.DataLakeSettings
     op: contains
-    value: MFA_REQUIRED
+    value: MFA

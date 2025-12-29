@@ -13,430 +13,522 @@ discovery:
     items_for: '{{ response.Buckets }}'
     as: resource
     item:
-      name: '{{ resource.Name }}'
-      creation_date: '{{ resource.CreationDate }}'
+      Name: '{{ resource.Name }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      BucketRegion: '{{ resource.BucketRegion }}'
+      BucketArn: '{{ resource.BucketArn }}'
 - discovery_id: aws.s3.get_bucket_abac
   calls:
   - action: get_bucket_abac
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
     item:
-      status: '{{ resource.AbacStatus }}'
-    items_for: '{{ response.AbacStatus }}'
-    as: resource
-- discovery_id: aws.s3.get_bucket_encryption
+      Status: '{{ response.AbacStatus.Status }}'
+- discovery_id: aws.s3.complete_multipart_upload
   calls:
-  - action: get_bucket_encryption
+  - action: complete_multipart_upload
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
     item:
-      rules: '{{ response.ServerSideEncryptionConfiguration.Rules }}'
-- discovery_id: aws.s3.get_bucket_inventory_configuration
+      BucketKeyEnabled: '{{ response.BucketKeyEnabled }}'
+      SSEKMSKeyId: '{{ response.SSEKMSKeyId }}'
+      ServerSideEncryption: '{{ response.ServerSideEncryption }}'
+- discovery_id: aws.s3.get_public_access_block
   calls:
-  - action: get_bucket_inventory_configuration
+  - action: get_public_access_block
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-      Id: '{{ item.id }}'
-  on_error: continue
-  for_each: aws.s3.list_bucket_inventory_configurations
   emit:
     item:
-      destination: '{{ response.InventoryConfiguration.Destination }}'
-      is_enabled: '{{ response.InventoryConfiguration.IsEnabled }}'
-      filter: '{{ response.InventoryConfiguration.Filter }}'
-      id: '{{ response.InventoryConfiguration.Id }}'
-      included_object_versions: '{{ response.InventoryConfiguration.IncludedObjectVersions
+      BlockPublicAcls: '{{ response.PublicAccessBlockConfiguration.BlockPublicAcls
         }}'
-      optional_fields: '{{ response.InventoryConfiguration.OptionalFields }}'
-      schedule: '{{ response.InventoryConfiguration.Schedule }}'
-- discovery_id: aws.s3.get_bucket_logging
-  calls:
-  - action: get_bucket_logging
-    save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
-  emit:
-    item:
-      target_bucket: '{{ response.LoggingEnabled.TargetBucket }}'
-      target_grants: '{{ response.LoggingEnabled.TargetGrants }}'
-      target_prefix: '{{ response.LoggingEnabled.TargetPrefix }}'
-      target_object_key_format: '{{ response.LoggingEnabled.TargetObjectKeyFormat
+      IgnorePublicAcls: '{{ response.PublicAccessBlockConfiguration.IgnorePublicAcls
         }}'
-- discovery_id: aws.s3.get_bucket_notification
-  calls:
-  - action: get_bucket_notification
-    save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
-  emit:
-    item:
-      topic_configuration: '{{ response.TopicConfiguration }}'
-      queue_configuration: '{{ response.QueueConfiguration }}'
-      cloud_function_configuration: '{{ response.CloudFunctionConfiguration }}'
+      BlockPublicPolicy: '{{ response.PublicAccessBlockConfiguration.BlockPublicPolicy
+        }}'
+      RestrictPublicBuckets: '{{ response.PublicAccessBlockConfiguration.RestrictPublicBuckets
+        }}'
+      PublicAccessBlockConfiguration: '{{ resource.PublicAccessBlockConfiguration
+        }}'
 - discovery_id: aws.s3.get_bucket_policy
   calls:
   - action: get_bucket_policy
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
+- discovery_id: aws.s3.get_bucket_logging
+  calls:
+  - action: get_bucket_logging
+    save_as: response
+  emit:
+    item:
+      TargetBucket: '{{ response.LoggingEnabled.TargetBucket }}'
+      TargetGrants: '{{ response.LoggingEnabled.TargetGrants }}'
+      TargetPrefix: '{{ response.LoggingEnabled.TargetPrefix }}'
+      TargetObjectKeyFormat: '{{ response.LoggingEnabled.TargetObjectKeyFormat }}'
+      LoggingEnabled: '{{ resource.LoggingEnabled }}'
+- discovery_id: aws.s3.get_object_lock_configuration
+  calls:
+  - action: get_object_lock_configuration
+    save_as: response
+  emit:
+    item:
+      ObjectLockEnabled: '{{ response.ObjectLockConfiguration.ObjectLockEnabled }}'
+      Rule: '{{ response.ObjectLockConfiguration.Rule }}'
+      ObjectLockConfiguration: '{{ resource.ObjectLockConfiguration }}'
+- discovery_id: aws.s3.get_bucket_inventory_configuration
+  calls:
+  - action: get_bucket_inventory_configuration
+    save_as: response
+  emit:
+    item:
+      Destination: '{{ response.InventoryConfiguration.Destination }}'
+      IsEnabled: '{{ response.InventoryConfiguration.IsEnabled }}'
+      Filter: '{{ response.InventoryConfiguration.Filter }}'
+      Id: '{{ response.InventoryConfiguration.Id }}'
+      IncludedObjectVersions: '{{ response.InventoryConfiguration.IncludedObjectVersions
+        }}'
+      OptionalFields: '{{ response.InventoryConfiguration.OptionalFields }}'
+      Schedule: '{{ response.InventoryConfiguration.Schedule }}'
 - discovery_id: aws.s3.get_bucket_replication
   calls:
   - action: get_bucket_replication
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
     item:
-      role: '{{ response.ReplicationConfiguration.Role }}'
-      rules: '{{ response.ReplicationConfiguration.Rules }}'
-- discovery_id: aws.s3.get_bucket_website
+      Role: '{{ response.ReplicationConfiguration.Role }}'
+      Rules: '{{ response.ReplicationConfiguration.Rules }}'
+      ReplicationConfiguration: '{{ resource.ReplicationConfiguration }}'
+- discovery_id: aws.s3.get_bucket_metrics_configuration
   calls:
-  - action: get_bucket_website
+  - action: get_bucket_metrics_configuration
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
     item:
-      condition: '{{ resource.RoutingRules }}'
-      redirect: '{{ resource.RoutingRules }}'
-    items_for: '{{ response.RoutingRules }}'
-    as: resource
+      Id: '{{ response.MetricsConfiguration.Id }}'
+      Filter: '{{ response.MetricsConfiguration.Filter }}'
+      MetricsConfiguration: '{{ resource.MetricsConfiguration }}'
 - discovery_id: aws.s3.get_object
   calls:
   - action: get_object
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-      Key: '{{ item.key }}'
-  on_error: continue
-  for_each: aws.s3.list_objects_v2
   emit:
     item:
-      content_type: '{{ response.ContentType }}'
-      content_length: '{{ response.ContentLength }}'
-      last_modified: '{{ response.LastModified }}'
-      etag: '{{ response.ETag }}'
-      metadata: '{{ response.Metadata }}'
-- discovery_id: aws.s3.list_bucket_intelligent_tiering_configurations
+      ReplicationStatus: '{{ response.ReplicationStatus }}'
+- discovery_id: aws.s3.get_bucket_intelligent_tiering_configuration
   calls:
-  - action: list_bucket_intelligent_tiering_configurations
+  - action: get_bucket_intelligent_tiering_configuration
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
-    items_for: '{{ response.IntelligentTieringConfigurationList }}'
-    as: resource
     item:
-      id: '{{ resource.Id }}'
-      filter: '{{ resource.Filter }}'
-      status: '{{ resource.Status }}'
-      tierings: '{{ resource.Tierings }}'
-- discovery_id: aws.s3.list_objects_v2
+      Id: '{{ response.IntelligentTieringConfiguration.Id }}'
+      Filter: '{{ response.IntelligentTieringConfiguration.Filter }}'
+      Status: '{{ response.IntelligentTieringConfiguration.Status }}'
+      Tierings: '{{ response.IntelligentTieringConfiguration.Tierings }}'
+      IntelligentTieringConfiguration: '{{ resource.IntelligentTieringConfiguration
+        }}'
+- discovery_id: aws.s3.get_bucket_policy_status
   calls:
-  - action: list_objects_v2
+  - action: get_bucket_policy_status
     save_as: response
-    params:
-      Bucket: '{{ item.name }}'
-  on_error: continue
-  for_each: aws.s3.list_buckets
   emit:
-    items_for: '{{ response.Contents }}'
-    as: resource
     item:
-      key: '{{ resource.Key }}'
-      last_modified: '{{ resource.LastModified }}'
-      e_tag: '{{ resource.ETag }}'
-      checksum_algorithm: '{{ resource.ChecksumAlgorithm }}'
-      checksum_type: '{{ resource.ChecksumType }}'
-      size: '{{ resource.Size }}'
-      storage_class: '{{ resource.StorageClass }}'
-      owner: '{{ resource.Owner }}'
-      restore_status: '{{ resource.RestoreStatus }}'
+      IsPublic: '{{ response.PolicyStatus.IsPublic }}'
+- discovery_id: aws.s3.get_bucket_cors
+  calls:
+  - action: get_bucket_cors
+    save_as: response
+  emit:
+    item:
+      ID: '{{ response.CORSRules.ID }}'
+      AllowedHeaders: '{{ response.CORSRules.AllowedHeaders }}'
+      AllowedMethods: '{{ response.CORSRules.AllowedMethods }}'
+      AllowedOrigins: '{{ response.CORSRules.AllowedOrigins }}'
+      ExposeHeaders: '{{ response.CORSRules.ExposeHeaders }}'
+      MaxAgeSeconds: '{{ response.CORSRules.MaxAgeSeconds }}'
+      Rule: '{{ resource.Rule }}'
+      Rules: '{{ resource.Rules }}'
 checks:
 - rule_id: aws.s3.macie_classification_jobs_status.macie_classification_jobs_status_configured
-  conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
   for_each: aws.s3.get_bucket_abac
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled
 - rule_id: aws.s3.bucket.encryption_enabled
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES-256
 - rule_id: aws.s3.bucket.object_versioning_configured
+  for_each: aws.s3.get_bucket_abac
   conditions:
-    var: item.status
+    var: item.Status
     op: equals
     value: Enabled
-  for_each: aws.s3.get_bucket_abac
+- rule_id: aws.s3.bucket.destination_private_only_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
+    op: equals
+    value: 'true'
 - rule_id: aws.s3.bucket.key_rotation_enabled
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.BucketKeyEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket_notification.bucket_destination_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.object_level_write_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.LoggingEnabled
+    op: equals
+    value: 'true'
 - rule_id: aws.s3.bucket_notification.bucket_destination_encrypted
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
 - rule_id: aws.s3.bucket.cmk_cmek_key_configured
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.SSEKMSKeyId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.website_https_only.website_https_only_configured
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.redirect
-    op: exists
-  for_each: aws.s3.get_bucket_website
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucketpolicy.no_public_principals_configured
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.is_public
+    var: item.BlockPublicPolicy
     op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    value: 'false'
 - rule_id: aws.s3.bucket.require_tls_in_transit_configured
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucketpolicy.bucket_deny_insecure_transport_configured
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.is_public
+    var: item.ServerSideEncryption
     op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    value: AES-256
 - rule_id: aws.s3.bucket.s3_encrypted_at_rest
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
 - rule_id: aws.s3.bucketpolicy.bucket_deny_unencrypted_puts
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.BucketKeyEnabled
+    op: equals
+    value: 'false'
+- rule_id: aws.s3.bucket.block_public_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.BlockPublicAcls
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.object.lock_or_immutability_enabled_if_supported
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: 'true'
 - rule_id: aws.s3.bucket.schedule_defined_min_frequency_configured
-  conditions:
-    var: item.schedule
-    op: equals
-    value: Daily
   for_each: aws.s3.get_bucket_inventory_configuration
+  conditions:
+    var: item.Schedule
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.account.level_public_access_blocks_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.BlockPublicAcls
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket.policy_public_write_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.storage_encrypted_and_private
+  for_each: aws.s3.complete_multipart_upload
+  conditions:
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
+- rule_id: aws.s3.bucket.public_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.lifecycle_enabled
-  conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
-  conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
-- rule_id: aws.s3.replication.encryption_in_transit_tls_required
-  conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
-- rule_id: aws.s3.lifecycle_configuration.bucket_enforced_on_sensitive_datasets_configured
-  conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.lifecycle_configuration.versioning_enabled_if_supported
-  conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.bucket.metrics_enabled
-  conditions:
-    var: item.is_enabled
-    op: equals
-    value: true
   for_each: aws.s3.get_bucket_inventory_configuration
-- rule_id: aws.s3.bucket.immutable_or_worm_enabled_if_supported
   conditions:
-    var: item.object_lock_enabled
+    var: item.IsEnabled
     op: equals
-    value: Enabled
-  for_each: aws.s3.list_buckets
-- rule_id: aws.s3.bucket.versioning_enabled
+    value: 'true'
+- rule_id: aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.status
+    var: item.ServerSideEncryption
     op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.bucket.access_logging_enabled
+    value: aws:kms
+- rule_id: aws.s3.bucket.block_public_access_enabled
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.target_bucket
-    op: exists
-  for_each: aws.s3.get_bucket_logging
-- rule_id: aws.s3.bucket.retention_days_minimum
-  conditions:
-    var: item.expiration
-    op: gte
-    value: 1
-  for_each: aws.s3.list_buckets
-- rule_id: aws.s3.lifecycle_configuration.policies_configured
-  conditions:
-    var: item.status
+    var: item.BlockPublicAcls
     op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.bucket.server_access_logging_enabled
+    value: 'true'
+- rule_id: aws.s3.replication.encryption_in_transit_tls_required
+  for_each: aws.s3.get_bucket_policy
   conditions:
-    var: item.target_bucket
-    op: exists
-  for_each: aws.s3.get_bucket_logging
-- rule_id: aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
+    var: item.Policy
+    op: contains
+    value: '{"Condition":{"Bool":{"aws:SecureTransport":"false"}}}'
+- rule_id: aws.s3.bucket.rbac_least_privilege
+  for_each: aws.s3.get_bucket_policy
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
-- rule_id: aws.s3.bucket.key_policy_least_privilege
-  conditions:
-    var: item.is_public
-    op: equals
-    value: false
-  for_each: aws.s3.list_buckets
-- rule_id: aws.s3.bucket.encryption_at_rest_enabled
-  conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
-- rule_id: aws.s3.bucket.default_encryption_configured
-  conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
-- rule_id: aws.s3.intelligent_tiering.protected_from_public_override_configured
-  conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-  for_each: aws.s3.get_bucket_abac
-- rule_id: aws.s3.replication.auth_roles_least_privilege
-  conditions:
-    var: item.role
-    op: exists
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.lifecycle_configuration.bucket_enforced_on_sensitive_datasets_configured
   for_each: aws.s3.get_bucket_replication
+  conditions:
+    var: item.ReplicationConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.lifecycle_configuration.versioning_enabled_if_supported
+  for_each: aws.s3.get_bucket_inventory_configuration
+  conditions:
+    var: item.IsEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket.metrics_enabled
+  for_each: aws.s3.get_bucket_metrics_configuration
+  conditions:
+    var: item.MetricsConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.lifecycle_configuration.immutable_retention_locked_where_required
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.immutable_or_worm_enabled_if_supported
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket.versioning_enabled
+  for_each: aws.s3.get_bucket_inventory_configuration
+  conditions:
+    var: item.IsEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket.access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.LoggingEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.lifecycle_configuration.policies_configured
+  for_each: aws.s3.get_bucket_replication
+  conditions:
+    var: item.ReplicationConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.server_access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.LoggingEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
+  for_each: aws.s3.complete_multipart_upload
+  conditions:
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
+- rule_id: aws.s3.bucket.key_policy_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.encryption_at_rest_enabled
+  for_each: aws.s3.complete_multipart_upload
+  conditions:
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
+- rule_id: aws.s3.bucket.default_encryption_configured
+  for_each: aws.s3.complete_multipart_upload
+  conditions:
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES256
+- rule_id: aws.s3.bucket.public_write_prohibited_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.intelligent_tiering.protected_from_public_override_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
+    op: equals
+    value: 'null'
+- rule_id: aws.s3.replication.auth_roles_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.bucket.policy_denies_public_and_insecure_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.BlockPublicAcls
+    op: equals
+    value: 'false'
 - rule_id: aws.s3.replication.lag_monitoring_alerts_enabled
+  for_each: aws.s3.get_object
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ReplicationStatus
+    op: equals
+    value: Enabled
 - rule_id: aws.s3.object.encryption_at_rest_enabled
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: AES-256
 - rule_id: aws.s3.intelligent_tiering.policies_configured
+  for_each: aws.s3.get_bucket_intelligent_tiering_configuration
   conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-  for_each: aws.s3.get_bucket_abac
+    var: item.IntelligentTieringConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.cmk_cmek_configured
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: aws:kms
 - rule_id: aws.s3.bucket.kms_encryption_configured
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.ServerSideEncryption
+    op: equals
+    value: aws:kms
 - rule_id: aws.s3.bucketpolicy.bucket_no_wildcards_on_actions_or_principals_configured
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.immutability_or_object_lock_if_supported
+  for_each: aws.s3.get_object_lock_configuration
   conditions:
-    var: item.object_lock_enabled
+    var: item.ObjectLockEnabled
     op: equals
-    value: Enabled
-  for_each: aws.s3.list_buckets
+    value: 'true'
 - rule_id: aws.s3.intelligent_tiering.bucket_enforced_on_sensitive_datasets_configured
+  for_each: aws.s3.get_bucket_intelligent_tiering_configuration
   conditions:
-    var: item.status
+    var: item.IntelligentTieringConfiguration
     op: equals
-    value: ENABLED
-  for_each: aws.s3.get_bucket_abac
+    value: 'true'
 - rule_id: aws.s3.object.not_publicly_readable_configured
+  for_each: aws.s3.get_bucket_policy_status
   conditions:
-    var: item.is_public
+    var: item.IsPublic
     op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    value: 'false'
 - rule_id: aws.s3.bucket.public_read_prohibited_configured
+  for_each: aws.s3.get_public_access_block
   conditions:
-    var: item.is_public
+    var: item.PublicAccessBlockConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.s3.lifecycle_configuration.protected_from_public_override_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    var: item.PublicAccessBlockConfiguration
     op: equals
-    value: false
-  for_each: aws.s3.list_buckets
+    value: 'null'
 - rule_id: aws.s3.lifecycle_configuration.certificate_expiration_rules_configured
+  for_each: aws.s3.get_bucket_cors
   conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
+    var: item.Rules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.lifecycle_policy_configured
+  for_each: aws.s3.get_bucket_cors
   conditions:
-    var: item.status
-    op: equals
-    value: Enabled
-  for_each: aws.s3.get_bucket_abac
+    var: item.Rule
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.secure_transport_policy_configured
+  for_each: aws.s3.get_bucket_policy
   conditions:
-    var: item.status
+    var: item.Policy
+    op: contains
+    value: SecureTransport
+- rule_id: aws.s3.bucket.backup_storage_immutability_enabled
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
     op: equals
-    value: ENABLED
-  for_each: aws.s3.get_bucket_abac
+    value: 'true'
 - rule_id: aws.s3.bucket_notification.bucket_cross_account_destinations_restricted
+  for_each: aws.s3.get_bucket_logging
   conditions:
-    var: item.topic_arn
-    op: exists
-  for_each: aws.s3.list_buckets
+    var: item.TargetBucket
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.replication_enabled
+  for_each: aws.s3.get_bucket_replication
   conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-  for_each: aws.s3.get_bucket_abac
+    var: item.ReplicationConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.s3.bucket.encryption_in_transit_tls_min_1_2_configured
+  for_each: aws.s3.get_bucket_policy
   conditions:
-    var: item.rules
-    op: exists
-  for_each: aws.s3.get_bucket_encryption
+    var: item.Policy
+    op: contains
+    value: '{"Effect":"Deny","Principal":"*","Action":"s3:*","Condition":{"Bool":{"aws:SecureTransport":"false"}}}'
 - rule_id: aws.s3.bucket.encryption_at_rest_cmek_configured
+  for_each: aws.s3.complete_multipart_upload
   conditions:
-    var: item.rules
+    var: item.ServerSideEncryption
+    op: equals
+    value: aws:kms
+- rule_id: aws.s3.bucket.retention_days_minimum
+  for_each: aws.s3.list_buckets
+  conditions:
+    var: item.Name
     op: exists
-  for_each: aws.s3.get_bucket_encryption

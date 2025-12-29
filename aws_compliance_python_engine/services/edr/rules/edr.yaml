@@ -1,24 +1,27 @@
-# EDR Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/edr_metadata.yaml
-
 version: '1.0'
 provider: aws
 service: edr
+services:
+  client: edr
+  module: boto3.client
 discovery:
-- discovery_id: aws.edr.resources
+- discovery_id: aws.edr.list_memberships
   calls:
-  - action: list_edrs
-    fields:
-    - Edrs
+  - action: list_memberships
+    save_as: response
   emit:
-    items_for: list_edrs_response[]
+    items_for: '{{ response.items }}'
+    as: resource
     item:
-      id: '{{ resource.Id }}'
-      name: '{{ resource.Name }}'
+      membershipId: '{{ resource.membershipId }}'
+      accountId: '{{ resource.accountId }}'
+      region: '{{ resource.region }}'
+      membershipArn: '{{ resource.membershipArn }}'
+      membershipStatus: '{{ resource.membershipStatus }}'
 checks:
 - rule_id: aws.edr.resource.edr_operational_readiness_configured
-  for_each: aws.edr.resources
+  for_each: aws.edr.list_memberships
   conditions:
-    var: item.compliant
+    var: item.membershipStatus
     op: equals
-    value: true
+    value: Active

@@ -5,22 +5,33 @@ services:
   client: backup
   module: boto3.client
 discovery:
-- discovery_id: aws.backup.list_backup_job_summaries
+- discovery_id: aws.backup.list_backup_plans
   calls:
-  - action: list_backup_job_summaries
+  - action: list_backup_plans
     save_as: response
   emit:
-    items_for: '{{ response.BackupJobSummaries }}'
+    items_for: '{{ response.BackupPlansList }}'
     as: resource
     item:
-      Region: '{{ resource.Region }}'
-      AccountId: '{{ resource.AccountId }}'
-      State: '{{ resource.State }}'
-      ResourceType: '{{ resource.ResourceType }}'
-      MessageCategory: '{{ resource.MessageCategory }}'
-      Count: '{{ resource.Count }}'
-      StartTime: '{{ resource.StartTime }}'
-      EndTime: '{{ resource.EndTime }}'
+      BackupPlanArn: '{{ resource.BackupPlanArn }}'
+      BackupPlanId: '{{ resource.BackupPlanId }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      DeletionDate: '{{ resource.DeletionDate }}'
+      VersionId: '{{ resource.VersionId }}'
+      BackupPlanName: '{{ resource.BackupPlanName }}'
+      CreatorRequestId: '{{ resource.CreatorRequestId }}'
+      LastExecutionDate: '{{ resource.LastExecutionDate }}'
+      AdvancedBackupSettings: '{{ resource.AdvancedBackupSettings }}'
+      LastBackupTime: '{{ resource.LastBackupTime }}'
+- discovery_id: aws.backup.get_backup_plan
+  calls:
+  - action: get_backup_plan
+    save_as: response
+  emit:
+    item:
+      ResourceType: '{{ response.AdvancedBackupSettings.ResourceType }}'
+      BackupOptions: '{{ response.AdvancedBackupSettings.BackupOptions }}'
+      BackupPlan: '{{ resource.BackupPlan }}'
 - discovery_id: aws.backup.list_backup_jobs
   calls:
   - action: list_backup_jobs
@@ -59,23 +70,6 @@ discovery:
       ResourceName: '{{ resource.ResourceName }}'
       InitiationDate: '{{ resource.InitiationDate }}'
       MessageCategory: '{{ resource.MessageCategory }}'
-- discovery_id: aws.backup.list_backup_plans
-  calls:
-  - action: list_backup_plans
-    save_as: response
-  emit:
-    items_for: '{{ response.BackupPlansList }}'
-    as: resource
-    item:
-      BackupPlanArn: '{{ resource.BackupPlanArn }}'
-      BackupPlanId: '{{ resource.BackupPlanId }}'
-      CreationDate: '{{ resource.CreationDate }}'
-      DeletionDate: '{{ resource.DeletionDate }}'
-      VersionId: '{{ resource.VersionId }}'
-      BackupPlanName: '{{ resource.BackupPlanName }}'
-      CreatorRequestId: '{{ resource.CreatorRequestId }}'
-      LastExecutionDate: '{{ resource.LastExecutionDate }}'
-      AdvancedBackupSettings: '{{ resource.AdvancedBackupSettings }}'
 - discovery_id: aws.backup.list_backup_vaults
   calls:
   - action: list_backup_vaults
@@ -97,206 +91,477 @@ discovery:
       MaxRetentionDays: '{{ resource.MaxRetentionDays }}'
       LockDate: '{{ resource.LockDate }}'
       EncryptionKeyType: '{{ resource.EncryptionKeyType }}'
-- discovery_id: aws.backup.list_report_jobs
+- discovery_id: aws.backup.get_backup_vault_notifications
   calls:
-  - action: list_report_jobs
+  - action: get_backup_vault_notifications
     save_as: response
   emit:
-    items_for: '{{ response.ReportJobs }}'
-    as: resource
     item:
-      ReportJobId: '{{ resource.ReportJobId }}'
-      ReportPlanArn: '{{ resource.ReportPlanArn }}'
-      ReportTemplate: '{{ resource.ReportTemplate }}'
-      CreationTime: '{{ resource.CreationTime }}'
-      CompletionTime: '{{ resource.CompletionTime }}'
-      Status: '{{ resource.Status }}'
-      StatusMessage: '{{ resource.StatusMessage }}'
-      ReportDestination: '{{ resource.ReportDestination }}'
-- discovery_id: aws.backup.list_scan_jobs
+      BackupVaultEvents: '{{ response.BackupVaultEvents }}'
+- discovery_id: aws.backup.describe_report_plan
   calls:
-  - action: list_scan_jobs
+  - action: describe_report_plan
     save_as: response
   emit:
-    items_for: '{{ response.ScanJobs }}'
+    item:
+      ReportPlanArn: '{{ response.ReportPlan.ReportPlanArn }}'
+      ReportPlanName: '{{ response.ReportPlan.ReportPlanName }}'
+      ReportPlanDescription: '{{ response.ReportPlan.ReportPlanDescription }}'
+      ReportSetting: '{{ response.ReportPlan.ReportSetting }}'
+      ReportDeliveryChannel: '{{ response.ReportPlan.ReportDeliveryChannel }}'
+      DeploymentStatus: '{{ response.ReportPlan.DeploymentStatus }}'
+      CreationTime: '{{ response.ReportPlan.CreationTime }}'
+      LastAttemptedExecutionTime: '{{ response.ReportPlan.LastAttemptedExecutionTime
+        }}'
+      LastSuccessfulExecutionTime: '{{ response.ReportPlan.LastSuccessfulExecutionTime
+        }}'
+      ReportPlan: '{{ resource.ReportPlan }}'
+- discovery_id: aws.backup.list_copy_jobs
+  calls:
+  - action: list_copy_jobs
+    save_as: response
+  emit:
+    items_for: '{{ response.CopyJobs }}'
     as: resource
     item:
       AccountId: '{{ resource.AccountId }}'
-      BackupVaultArn: '{{ resource.BackupVaultArn }}'
-      BackupVaultName: '{{ resource.BackupVaultName }}'
-      CompletionDate: '{{ resource.CompletionDate }}'
-      CreatedBy: '{{ resource.CreatedBy }}'
-      CreationDate: '{{ resource.CreationDate }}'
-      IamRoleArn: '{{ resource.IamRoleArn }}'
-      MalwareScanner: '{{ resource.MalwareScanner }}'
-      RecoveryPointArn: '{{ resource.RecoveryPointArn }}'
+      CopyJobId: '{{ resource.CopyJobId }}'
+      SourceBackupVaultArn: '{{ resource.SourceBackupVaultArn }}'
+      SourceRecoveryPointArn: '{{ resource.SourceRecoveryPointArn }}'
+      DestinationBackupVaultArn: '{{ resource.DestinationBackupVaultArn }}'
+      DestinationVaultType: '{{ resource.DestinationVaultType }}'
+      DestinationVaultLockState: '{{ resource.DestinationVaultLockState }}'
+      DestinationRecoveryPointArn: '{{ resource.DestinationRecoveryPointArn }}'
+      DestinationEncryptionKeyArn: '{{ resource.DestinationEncryptionKeyArn }}'
+      DestinationRecoveryPointLifecycle: '{{ resource.DestinationRecoveryPointLifecycle
+        }}'
       ResourceArn: '{{ resource.ResourceArn }}'
-      ResourceName: '{{ resource.ResourceName }}'
-      ResourceType: '{{ resource.ResourceType }}'
-      ScanBaseRecoveryPointArn: '{{ resource.ScanBaseRecoveryPointArn }}'
-      ScanId: '{{ resource.ScanId }}'
-      ScanJobId: '{{ resource.ScanJobId }}'
-      ScanMode: '{{ resource.ScanMode }}'
-      ScanResult: '{{ resource.ScanResult }}'
-      ScannerRoleArn: '{{ resource.ScannerRoleArn }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      CompletionDate: '{{ resource.CompletionDate }}'
       State: '{{ resource.State }}'
       StatusMessage: '{{ resource.StatusMessage }}'
-- discovery_id: aws.backup.describe_backup_vault
+      BackupSizeInBytes: '{{ resource.BackupSizeInBytes }}'
+      IamRoleArn: '{{ resource.IamRoleArn }}'
+      CreatedBy: '{{ resource.CreatedBy }}'
+      CreatedByBackupJobId: '{{ resource.CreatedByBackupJobId }}'
+      ResourceType: '{{ resource.ResourceType }}'
+      ParentJobId: '{{ resource.ParentJobId }}'
+      IsParent: '{{ resource.IsParent }}'
+      CompositeMemberIdentifier: '{{ resource.CompositeMemberIdentifier }}'
+      NumberOfChildJobs: '{{ resource.NumberOfChildJobs }}'
+      ChildJobsInState: '{{ resource.ChildJobsInState }}'
+      ResourceName: '{{ resource.ResourceName }}'
+      MessageCategory: '{{ resource.MessageCategory }}'
+- discovery_id: aws.backup.get_backup_plan_from_j_s_o_n
   calls:
-  - action: describe_backup_vault
+  - action: get_backup_plan_from_json
     save_as: response
-    params:
-      BackupVaultName: '{{ item.BackupVaultName }}'
-  on_error: continue
-  for_each: aws.backup.list_scan_jobs
   emit:
     item:
-      MpaSessionArn: '{{ response.LatestMpaApprovalTeamUpdate.MpaSessionArn }}'
-      Status: '{{ response.LatestMpaApprovalTeamUpdate.Status }}'
-      StatusMessage: '{{ response.LatestMpaApprovalTeamUpdate.StatusMessage }}'
-      InitiationDate: '{{ response.LatestMpaApprovalTeamUpdate.InitiationDate }}'
-      ExpiryDate: '{{ response.LatestMpaApprovalTeamUpdate.ExpiryDate }}'
+      BackupPlanName: '{{ response.BackupPlan.BackupPlanName }}'
+      Rules: '{{ response.BackupPlan.Rules }}'
+      AdvancedBackupSettings: '{{ response.BackupPlan.AdvancedBackupSettings }}'
+      ScanSettings: '{{ response.BackupPlan.ScanSettings }}'
+- discovery_id: aws.backup.get_backup_vault_access_policy
+  calls:
+  - action: get_backup_vault_access_policy
+    save_as: response
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
 checks:
-- rule_id: aws.backup.backupplan.failed_jobs_alerting_enabled
-  for_each: aws.backup.list_backup_job_summaries
+- rule_id: aws.backup.reportplan.backup_plans_configured
+  for_each: aws.backup.list_backup_plans
   conditions:
-    var: item.State
-    op: equals
-    value: FAILED
+    var: item.BackupPlanId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.failed_jobs_alerting_enabled
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.restorejob.role_least_privilege
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IamRoleArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.resource.vault_encryption_enabled
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.backup.restorejob.backup_logs_and_artifacts_encrypted
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.backup.backupplan.lag_monitoring_alerts_enabled
-  for_each: aws.backup.list_backup_plans
+  for_each: aws.backup.get_backup_plan
   conditions:
-    var: item.AdvancedBackupSettings
-    op: exists
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.backup_keys_access_least_privilege
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupplan.backup_cross_region_replication_encrypted
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.backup.recoverypoint.encryption_at_rest_cmek_if_supported
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.IsEncrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.backup.backupvault.backup_vaults_exist_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.backup_approvals_required_for_changes
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.recoverypoint.backup_point_encrypted
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.IsEncrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.backup.backupvault.backup_schedule_defined_min_frequency_configured
+  for_each: aws.backup.list_backup_vaults
+  conditions:
+    var: item.MinRetentionDays
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.restorejob.from_encrypted_backups_only
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.backup.backupplan.backup_plan_configured
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupvault.backup_vault_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.alerts_for_backup_failures_configured
+  for_each: aws.backup.get_backup_vault_notifications
+  conditions:
+    var: item.BackupVaultEvents
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.backup_vault_rbac_least_privilege
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.reportplan.backup_report_plan_configured
+  for_each: aws.backup.describe_report_plan
+  conditions:
+    var: item.ReportPlan
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupplan.backup_retention_minimum_configured
   for_each: aws.backup.list_backup_vaults
   conditions:
     var: item.MinRetentionDays
-    op: gte
-    value: 1
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupjob.alert_destinations_configured
-  for_each: aws.backup.list_report_jobs
+  for_each: aws.backup.list_copy_jobs
   conditions:
-    var: item.ReportDestination
-    op: exists
+    var: item.DestinationBackupVaultArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupvault.backup_immutable_or_worm_enabled_if_supported
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.alerts_for_rpo_rto_breach_configured
+  for_each: aws.backup.get_backup_vault_notifications
+  conditions:
+    var: item.BackupVaultEvents
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupvault.key_rotation_enabled
-  for_each: aws.backup.list_backup_vaults
+  for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.EncryptionKeyType
+    var: item.BackupVaultName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.change_audit_logging_enabled
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.logging_enabled
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupOptions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupvault.backup_destination_private_only_configured
+  for_each: aws.backup.list_copy_jobs
+  conditions:
+    var: item.DestinationVaultType
     op: equals
-    value: ENABLED
+    value: not_in
+- rule_id: aws.backup.backupjob.alerts_for_replication_lag_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupOptions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.role_least_privilege
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.IamRoleArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.recoverypoint.security_groups_restrictive_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.backup_ec2_resources_included_configured
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.resource.backup_replication_enabled
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupplan.no_public_access_to_backup_vault_configured
   for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.VaultLockState
-    op: equals
-    value: LOCKED
+    var: item.BackupVaultArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.resource.backup_vaults_encrypted
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.backup.backupvault.backup_cross_region_replication_enabled
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.unprotected_assets_alerting_enabled
   for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.VaultType
+    var: item.IsEncrypted
     op: equals
-    value: CROSS_REGION
-- rule_id: aws.backup.backupplan.unprotected_assets_alerting_enabled
-  for_each: aws.backup.list_backup_plans
+    value: 'true'
+- rule_id: aws.backup.backupplan.backup_storage_encrypted_and_private
+  for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.AdvancedBackupSettings
-    op: exists
+    var: item.IsEncrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.backup.backupplan.backup_admins_mfa_required
-  for_each: aws.backup.describe_backup_vault
+  for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.MpaSessionArn
-    op: exists
+    var: item.BackupOptions
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.resource.backup_recovery_point_encrypted
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.backup.backupjob.alert_rules_for_job_failures_configured
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.recoverypoint.private_network_only_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.alert_rules_for_sla_breach_configured
+  for_each: aws.backup.get_backup_plan_from_j_s_o_n
+  conditions:
+    var: item.Rules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.recoverypoint.backup_volumes_encrypted
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.backup.backupplan.policy_assignment_complete
-  for_each: aws.backup.list_backup_plans
+  for_each: aws.backup.get_backup_plan
   conditions:
-    var: item.AdvancedBackupSettings
-    op: exists
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupplan.retention_days_minimum
   for_each: aws.backup.list_backup_vaults
   conditions:
     var: item.MinRetentionDays
-    op: gte
-    value: 1
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.restorejob.cross_account_restore_blocked_by_policy_configured
+  for_each: aws.backup.get_backup_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupvault.encryption_at_rest_enabled
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.backup.backupvault.key_policy_least_privilege
+  for_each: aws.backup.get_backup_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.recoverypoint.recovery_point_retention_configured
+  for_each: aws.backup.list_backup_vaults
+  conditions:
+    var: item.MaxRetentionDays
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.recoverypoint.backup_min_telemtry_required_no_pii
+  for_each: aws.backup.list_backup_vaults
+  conditions:
+    var: item.MinRetentionDays
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupplan.backup_job_success_rate_minimum
+  for_each: aws.backup.list_backup_vaults
+  conditions:
+    var: item.NumberOfRecoveryPoints
+    op: greater_than
+    value: '0'
+- rule_id: aws.backup.resource.backup_enabled_for_ec2
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupOptions
+    op: equals
+    value: Enabled
+- rule_id: aws.backup.backupplan.auth_roles_least_privilege
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.backup_metrics_export_enabled
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupOptions
+    op: equals
+    value: BackupMetricsExportEnabled
 - rule_id: aws.backup.recoverypoint.agent_to_service_tls_required
   for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.IsEncrypted
-    op: equals
-    value: true
+    var: item.BackupOptions
+    op: contains
+    value: TLS
 - rule_id: aws.backup.resource.encryption_enabled
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.backup.backupvault.encryption_in_transit_tls_min_1_2_configured
-  for_each: aws.backup.list_backup_vaults
+  for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.EncryptionKeyType
+    var: item.IsEncrypted
     op: equals
-    value: KMS
+    value: 'true'
+- rule_id: aws.backup.backupplan.backup_plans_configured
+  for_each: aws.backup.get_backup_plan
+  conditions:
+    var: item.BackupPlan
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.execution_roles_least_privilege
+  for_each: aws.backup.list_backup_plans
+  conditions:
+    var: item.BackupPlanArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupvault.backup_storage_immutability_enabled
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupVaultArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.backup.backupvault.cmk_cmek_key_configured
   for_each: aws.backup.list_backup_jobs
   conditions:
-    var: item.EncryptionKeyArn
-    op: exists
+    var: item.IsEncrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.backup.backupplan.backup_resource_discovery_synced_configured
+  for_each: aws.backup.list_backup_vaults
+  conditions:
+    var: item.MaxRetentionDays
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.network_private_only_configured
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.BackupOptions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.backup.backupjob.backup_results_storage_encrypted_and_private
+  for_each: aws.backup.list_backup_jobs
+  conditions:
+    var: item.IsEncrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.backup.backupplan.encryption_in_transit_tls_required
   for_each: aws.backup.list_backup_jobs
   conditions:
     var: item.IsEncrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.backup.backupplan.last_backup_recency_within_days
+  for_each: aws.backup.list_backup_plans
+  conditions:
+    var: item.LastBackupTime
+    op: gte

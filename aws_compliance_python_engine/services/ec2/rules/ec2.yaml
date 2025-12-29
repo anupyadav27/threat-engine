@@ -5,9 +5,25 @@ services:
   client: ec2
   module: boto3.client
 discovery:
-- discovery_id: aws.ec2.authorize_security_group_ingress
+- discovery_id: aws.ec2.describe_security_groups
   calls:
-  - action: authorize_security_group_ingress
+  - action: describe_security_groups
+    save_as: response
+  emit:
+    item:
+      GroupId: '{{ response.SecurityGroups.GroupId }}'
+      IpPermissionsEgress: '{{ response.SecurityGroups.IpPermissionsEgress }}'
+      Tags: '{{ response.SecurityGroups.Tags }}'
+      VpcId: '{{ response.SecurityGroups.VpcId }}'
+      SecurityGroupArn: '{{ response.SecurityGroups.SecurityGroupArn }}'
+      OwnerId: '{{ response.SecurityGroups.OwnerId }}'
+      GroupName: '{{ response.SecurityGroups.GroupName }}'
+      Description: '{{ response.SecurityGroups.Description }}'
+      IpPermissions: '{{ response.SecurityGroups.IpPermissions }}'
+      SecurityGroups: '{{ resource.SecurityGroups }}'
+- discovery_id: aws.ec2.describe_security_group_rules
+  calls:
+  - action: describe_security_group_rules
     save_as: response
   emit:
     item:
@@ -25,159 +41,242 @@ discovery:
       Description: '{{ response.SecurityGroupRules.Description }}'
       Tags: '{{ response.SecurityGroupRules.Tags }}'
       SecurityGroupRuleArn: '{{ response.SecurityGroupRules.SecurityGroupRuleArn }}'
-- discovery_id: aws.ec2.create_default_subnet
+      SecurityGroupRules: '{{ resource.SecurityGroupRules }}'
+- discovery_id: aws.ec2.get_ebs_encryption_by_default
   calls:
-  - action: create_default_subnet
+  - action: get_ebs_encryption_by_default
     save_as: response
   emit:
     item:
-      AvailabilityZoneId: '{{ response.Subnet.AvailabilityZoneId }}'
-      EnableLniAtDeviceIndex: '{{ response.Subnet.EnableLniAtDeviceIndex }}'
-      MapCustomerOwnedIpOnLaunch: '{{ response.Subnet.MapCustomerOwnedIpOnLaunch }}'
-      CustomerOwnedIpv4Pool: '{{ response.Subnet.CustomerOwnedIpv4Pool }}'
-      OwnerId: '{{ response.Subnet.OwnerId }}'
-      AssignIpv6AddressOnCreation: '{{ response.Subnet.AssignIpv6AddressOnCreation
-        }}'
-      Ipv6CidrBlockAssociationSet: '{{ response.Subnet.Ipv6CidrBlockAssociationSet
-        }}'
-      Tags: '{{ response.Subnet.Tags }}'
-      SubnetArn: '{{ response.Subnet.SubnetArn }}'
-      OutpostArn: '{{ response.Subnet.OutpostArn }}'
-      EnableDns64: '{{ response.Subnet.EnableDns64 }}'
-      Ipv6Native: '{{ response.Subnet.Ipv6Native }}'
-      PrivateDnsNameOptionsOnLaunch: '{{ response.Subnet.PrivateDnsNameOptionsOnLaunch
-        }}'
-      BlockPublicAccessStates: '{{ response.Subnet.BlockPublicAccessStates }}'
-      Type: '{{ response.Subnet.Type }}'
-      SubnetId: '{{ response.Subnet.SubnetId }}'
-      State: '{{ response.Subnet.State }}'
-      VpcId: '{{ response.Subnet.VpcId }}'
-      CidrBlock: '{{ response.Subnet.CidrBlock }}'
-      AvailableIpAddressCount: '{{ response.Subnet.AvailableIpAddressCount }}'
-      AvailabilityZone: '{{ response.Subnet.AvailabilityZone }}'
-      DefaultForAz: '{{ response.Subnet.DefaultForAz }}'
-      MapPublicIpOnLaunch: '{{ response.Subnet.MapPublicIpOnLaunch }}'
-- discovery_id: aws.ec2.create_default_vpc
+      EbsEncryptionByDefault: '{{ response.EbsEncryptionByDefault }}'
+- discovery_id: aws.ec2.get_instance_metadata_defaults
   calls:
-  - action: create_default_vpc
+  - action: get_instance_metadata_defaults
     save_as: response
   emit:
     item:
-      OwnerId: '{{ response.Vpc.OwnerId }}'
-      InstanceTenancy: '{{ response.Vpc.InstanceTenancy }}'
-      Ipv6CidrBlockAssociationSet: '{{ response.Vpc.Ipv6CidrBlockAssociationSet }}'
-      CidrBlockAssociationSet: '{{ response.Vpc.CidrBlockAssociationSet }}'
-      IsDefault: '{{ response.Vpc.IsDefault }}'
-      EncryptionControl: '{{ response.Vpc.EncryptionControl }}'
-      Tags: '{{ response.Vpc.Tags }}'
-      BlockPublicAccessStates: '{{ response.Vpc.BlockPublicAccessStates }}'
-      VpcId: '{{ response.Vpc.VpcId }}'
-      State: '{{ response.Vpc.State }}'
-      CidrBlock: '{{ response.Vpc.CidrBlock }}'
-      DhcpOptionsId: '{{ response.Vpc.DhcpOptionsId }}'
-- discovery_id: aws.ec2.create_nat_gateway
+      HttpTokens: '{{ response.AccountLevel.HttpTokens }}'
+      HttpPutResponseHopLimit: '{{ response.AccountLevel.HttpPutResponseHopLimit }}'
+      HttpEndpoint: '{{ response.AccountLevel.HttpEndpoint }}'
+      InstanceMetadataTags: '{{ response.AccountLevel.InstanceMetadataTags }}'
+      ManagedBy: '{{ response.AccountLevel.ManagedBy }}'
+      ManagedExceptionMessage: '{{ response.AccountLevel.ManagedExceptionMessage }}'
+      LaunchTime: '{{ response.LaunchTime }}'
+- discovery_id: aws.ec2.describe_instance_attribute
   calls:
-  - action: create_nat_gateway
+  - action: describe_instance_attribute
     save_as: response
   emit:
     item:
-      CreateTime: '{{ response.NatGateway.CreateTime }}'
-      DeleteTime: '{{ response.NatGateway.DeleteTime }}'
-      FailureCode: '{{ response.NatGateway.FailureCode }}'
-      FailureMessage: '{{ response.NatGateway.FailureMessage }}'
-      NatGatewayAddresses: '{{ response.NatGateway.NatGatewayAddresses }}'
-      NatGatewayId: '{{ response.NatGateway.NatGatewayId }}'
-      ProvisionedBandwidth: '{{ response.NatGateway.ProvisionedBandwidth }}'
-      State: '{{ response.NatGateway.State }}'
-      SubnetId: '{{ response.NatGateway.SubnetId }}'
-      VpcId: '{{ response.NatGateway.VpcId }}'
-      Tags: '{{ response.NatGateway.Tags }}'
-      ConnectivityType: '{{ response.NatGateway.ConnectivityType }}'
-      AvailabilityMode: '{{ response.NatGateway.AvailabilityMode }}'
-      AutoScalingIps: '{{ response.NatGateway.AutoScalingIps }}'
-      AutoProvisionZones: '{{ response.NatGateway.AutoProvisionZones }}'
-      AttachedAppliances: '{{ response.NatGateway.AttachedAppliances }}'
-      RouteTableId: '{{ response.NatGateway.RouteTableId }}'
-- discovery_id: aws.ec2.create_traffic_mirror_target
+      DeviceName: '{{ response.BlockDeviceMappings.DeviceName }}'
+      Ebs: '{{ response.BlockDeviceMappings.Ebs }}'
+      UserData: '{{ resource.UserData }}'
+- discovery_id: aws.ec2.describe_iam_instance_profile_associations
   calls:
-  - action: create_traffic_mirror_target
+  - action: describe_iam_instance_profile_associations
     save_as: response
   emit:
     item:
-      TrafficMirrorTargetId: '{{ response.TrafficMirrorTarget.TrafficMirrorTargetId
+      AssociationId: '{{ response.IamInstanceProfileAssociations.AssociationId }}'
+      InstanceId: '{{ response.IamInstanceProfileAssociations.InstanceId }}'
+      IamInstanceProfile: '{{ response.IamInstanceProfileAssociations.IamInstanceProfile
         }}'
-      NetworkInterfaceId: '{{ response.TrafficMirrorTarget.NetworkInterfaceId }}'
-      NetworkLoadBalancerArn: '{{ response.TrafficMirrorTarget.NetworkLoadBalancerArn
-        }}'
-      Type: '{{ response.TrafficMirrorTarget.Type }}'
-      Description: '{{ response.TrafficMirrorTarget.Description }}'
-      OwnerId: '{{ response.TrafficMirrorTarget.OwnerId }}'
-      Tags: '{{ response.TrafficMirrorTarget.Tags }}'
-      GatewayLoadBalancerEndpointId: '{{ response.TrafficMirrorTarget.GatewayLoadBalancerEndpointId
-        }}'
-- discovery_id: aws.ec2.create_verified_access_instance
+      State: '{{ response.IamInstanceProfileAssociations.State }}'
+      Timestamp: '{{ response.IamInstanceProfileAssociations.Timestamp }}'
+- discovery_id: aws.ec2.describe_network_interface_attribute
   calls:
-  - action: create_verified_access_instance
+  - action: describe_network_interface_attribute
     save_as: response
   emit:
     item:
-      VerifiedAccessInstanceId: '{{ response.VerifiedAccessInstance.VerifiedAccessInstanceId
-        }}'
-      Description: '{{ response.VerifiedAccessInstance.Description }}'
-      VerifiedAccessTrustProviders: '{{ response.VerifiedAccessInstance.VerifiedAccessTrustProviders
-        }}'
-      CreationTime: '{{ response.VerifiedAccessInstance.CreationTime }}'
-      LastUpdatedTime: '{{ response.VerifiedAccessInstance.LastUpdatedTime }}'
-      Tags: '{{ response.VerifiedAccessInstance.Tags }}'
-      FipsEnabled: '{{ response.VerifiedAccessInstance.FipsEnabled }}'
-      CidrEndpointsCustomSubDomain: '{{ response.VerifiedAccessInstance.CidrEndpointsCustomSubDomain
-        }}'
-- discovery_id: aws.ec2.describe_address_transfers
+      GroupId: '{{ response.Groups.GroupId }}'
+      GroupName: '{{ response.Groups.GroupName }}'
+      AssociatePublicIpAddress: '{{ resource.AssociatePublicIpAddress }}'
+- discovery_id: aws.ec2.describe_launch_template_versions
   calls:
-  - action: describe_address_transfers
+  - action: describe_launch_template_versions
     save_as: response
   emit:
     item:
-      PublicIp: '{{ response.AddressTransfers.PublicIp }}'
-      AllocationId: '{{ response.AddressTransfers.AllocationId }}'
-      TransferAccountId: '{{ response.AddressTransfers.TransferAccountId }}'
-      TransferOfferExpirationTimestamp: '{{ response.AddressTransfers.TransferOfferExpirationTimestamp
-        }}'
-      TransferOfferAcceptedTimestamp: '{{ response.AddressTransfers.TransferOfferAcceptedTimestamp
-        }}'
-      AddressTransferStatus: '{{ response.AddressTransfers.AddressTransferStatus }}'
-- discovery_id: aws.ec2.describe_addresses
+      LaunchTemplateId: '{{ response.LaunchTemplateVersions.LaunchTemplateId }}'
+      LaunchTemplateName: '{{ response.LaunchTemplateVersions.LaunchTemplateName }}'
+      VersionNumber: '{{ response.LaunchTemplateVersions.VersionNumber }}'
+      VersionDescription: '{{ response.LaunchTemplateVersions.VersionDescription }}'
+      CreateTime: '{{ response.LaunchTemplateVersions.CreateTime }}'
+      CreatedBy: '{{ response.LaunchTemplateVersions.CreatedBy }}'
+      DefaultVersion: '{{ response.LaunchTemplateVersions.DefaultVersion }}'
+      LaunchTemplateData: '{{ response.LaunchTemplateVersions.LaunchTemplateData }}'
+      Operator: '{{ response.LaunchTemplateVersions.Operator }}'
+- discovery_id: aws.ec2.describe_fpga_images
   calls:
-  - action: describe_addresses
+  - action: describe_fpga_images
     save_as: response
   emit:
     item:
-      AllocationId: '{{ response.Addresses.AllocationId }}'
-      AssociationId: '{{ response.Addresses.AssociationId }}'
-      Domain: '{{ response.Addresses.Domain }}'
-      NetworkInterfaceId: '{{ response.Addresses.NetworkInterfaceId }}'
-      NetworkInterfaceOwnerId: '{{ response.Addresses.NetworkInterfaceOwnerId }}'
-      PrivateIpAddress: '{{ response.Addresses.PrivateIpAddress }}'
-      Tags: '{{ response.Addresses.Tags }}'
-      PublicIpv4Pool: '{{ response.Addresses.PublicIpv4Pool }}'
-      NetworkBorderGroup: '{{ response.Addresses.NetworkBorderGroup }}'
-      CustomerOwnedIp: '{{ response.Addresses.CustomerOwnedIp }}'
-      CustomerOwnedIpv4Pool: '{{ response.Addresses.CustomerOwnedIpv4Pool }}'
-      CarrierIp: '{{ response.Addresses.CarrierIp }}'
-      SubnetId: '{{ response.Addresses.SubnetId }}'
-      ServiceManaged: '{{ response.Addresses.ServiceManaged }}'
-      InstanceId: '{{ response.Addresses.InstanceId }}'
-      PublicIp: '{{ response.Addresses.PublicIp }}'
-- discovery_id: aws.ec2.describe_classic_link_instances
+      FpgaImageId: '{{ response.FpgaImages.FpgaImageId }}'
+      FpgaImageGlobalId: '{{ response.FpgaImages.FpgaImageGlobalId }}'
+      Name: '{{ response.FpgaImages.Name }}'
+      Description: '{{ response.FpgaImages.Description }}'
+      ShellVersion: '{{ response.FpgaImages.ShellVersion }}'
+      PciId: '{{ response.FpgaImages.PciId }}'
+      State: '{{ response.FpgaImages.State }}'
+      CreateTime: '{{ response.FpgaImages.CreateTime }}'
+      UpdateTime: '{{ response.FpgaImages.UpdateTime }}'
+      OwnerId: '{{ response.FpgaImages.OwnerId }}'
+      OwnerAlias: '{{ response.FpgaImages.OwnerAlias }}'
+      ProductCodes: '{{ response.FpgaImages.ProductCodes }}'
+      Tags: '{{ response.FpgaImages.Tags }}'
+      Public: '{{ response.FpgaImages.Public }}'
+      DataRetentionSupport: '{{ response.FpgaImages.DataRetentionSupport }}'
+      InstanceTypes: '{{ response.FpgaImages.InstanceTypes }}'
+- discovery_id: aws.ec2.get_image_block_public_access_state
   calls:
-  - action: describe_classic_link_instances
+  - action: get_image_block_public_access_state
     save_as: response
   emit:
     item:
-      Groups: '{{ response.Instances.Groups }}'
-      InstanceId: '{{ response.Instances.InstanceId }}'
-      Tags: '{{ response.Instances.Tags }}'
-      VpcId: '{{ response.Instances.VpcId }}'
+      ImageBlockPublicAccessState: '{{ response.ImageBlockPublicAccessState }}'
+- discovery_id: aws.ec2.describe_traffic_mirror_filters
+  calls:
+  - action: describe_traffic_mirror_filters
+    save_as: response
+  emit:
+    item:
+      TrafficMirrorFilterId: '{{ response.TrafficMirrorFilters.TrafficMirrorFilterId
+        }}'
+      IngressFilterRules: '{{ response.TrafficMirrorFilters.IngressFilterRules }}'
+      EgressFilterRules: '{{ response.TrafficMirrorFilters.EgressFilterRules }}'
+      NetworkServices: '{{ response.TrafficMirrorFilters.NetworkServices }}'
+      Description: '{{ response.TrafficMirrorFilters.Description }}'
+      Tags: '{{ response.TrafficMirrorFilters.Tags }}'
+- discovery_id: aws.ec2.get_serial_console_access_status
+  calls:
+  - action: get_serial_console_access_status
+    save_as: response
+  emit:
+    item:
+      SerialConsoleAccessEnabled: '{{ response.SerialConsoleAccessEnabled }}'
+- discovery_id: aws.ec2.describe_vpc_endpoints
+  calls:
+  - action: describe_vpc_endpoints
+    save_as: response
+  emit:
+    item:
+      VpcEndpointId: '{{ response.VpcEndpoints.VpcEndpointId }}'
+      VpcEndpointType: '{{ response.VpcEndpoints.VpcEndpointType }}'
+      VpcId: '{{ response.VpcEndpoints.VpcId }}'
+      ServiceName: '{{ response.VpcEndpoints.ServiceName }}'
+      State: '{{ response.VpcEndpoints.State }}'
+      PolicyDocument: '{{ response.VpcEndpoints.PolicyDocument }}'
+      RouteTableIds: '{{ response.VpcEndpoints.RouteTableIds }}'
+      SubnetIds: '{{ response.VpcEndpoints.SubnetIds }}'
+      Groups: '{{ response.VpcEndpoints.Groups }}'
+      IpAddressType: '{{ response.VpcEndpoints.IpAddressType }}'
+      DnsOptions: '{{ response.VpcEndpoints.DnsOptions }}'
+      PrivateDnsEnabled: '{{ response.VpcEndpoints.PrivateDnsEnabled }}'
+      RequesterManaged: '{{ response.VpcEndpoints.RequesterManaged }}'
+      NetworkInterfaceIds: '{{ response.VpcEndpoints.NetworkInterfaceIds }}'
+      DnsEntries: '{{ response.VpcEndpoints.DnsEntries }}'
+      CreationTimestamp: '{{ response.VpcEndpoints.CreationTimestamp }}'
+      Tags: '{{ response.VpcEndpoints.Tags }}'
+      OwnerId: '{{ response.VpcEndpoints.OwnerId }}'
+      LastError: '{{ response.VpcEndpoints.LastError }}'
+      Ipv4Prefixes: '{{ response.VpcEndpoints.Ipv4Prefixes }}'
+      Ipv6Prefixes: '{{ response.VpcEndpoints.Ipv6Prefixes }}'
+      FailureReason: '{{ response.VpcEndpoints.FailureReason }}'
+      ServiceNetworkArn: '{{ response.VpcEndpoints.ServiceNetworkArn }}'
+      ResourceConfigurationArn: '{{ response.VpcEndpoints.ResourceConfigurationArn
+        }}'
+      ServiceRegion: '{{ response.VpcEndpoints.ServiceRegion }}'
+      VpcEndpoints: '{{ resource.VpcEndpoints }}'
+- discovery_id: aws.ec2.describe_vpc_endpoint_service_configurations
+  calls:
+  - action: describe_vpc_endpoint_service_configurations
+    save_as: response
+  emit:
+    item:
+      ServiceType: '{{ response.ServiceConfigurations.ServiceType }}'
+      ServiceId: '{{ response.ServiceConfigurations.ServiceId }}'
+      ServiceName: '{{ response.ServiceConfigurations.ServiceName }}'
+      ServiceState: '{{ response.ServiceConfigurations.ServiceState }}'
+      AvailabilityZoneIds: '{{ response.ServiceConfigurations.AvailabilityZoneIds
+        }}'
+      AvailabilityZones: '{{ response.ServiceConfigurations.AvailabilityZones }}'
+      AcceptanceRequired: '{{ response.ServiceConfigurations.AcceptanceRequired }}'
+      ManagesVpcEndpoints: '{{ response.ServiceConfigurations.ManagesVpcEndpoints
+        }}'
+      NetworkLoadBalancerArns: '{{ response.ServiceConfigurations.NetworkLoadBalancerArns
+        }}'
+      GatewayLoadBalancerArns: '{{ response.ServiceConfigurations.GatewayLoadBalancerArns
+        }}'
+      SupportedIpAddressTypes: '{{ response.ServiceConfigurations.SupportedIpAddressTypes
+        }}'
+      BaseEndpointDnsNames: '{{ response.ServiceConfigurations.BaseEndpointDnsNames
+        }}'
+      PrivateDnsName: '{{ response.ServiceConfigurations.PrivateDnsName }}'
+      PrivateDnsNameConfiguration: '{{ response.ServiceConfigurations.PrivateDnsNameConfiguration
+        }}'
+      PayerResponsibility: '{{ response.ServiceConfigurations.PayerResponsibility
+        }}'
+      Tags: '{{ response.ServiceConfigurations.Tags }}'
+      SupportedRegions: '{{ response.ServiceConfigurations.SupportedRegions }}'
+      RemoteAccessEnabled: '{{ response.ServiceConfigurations.RemoteAccessEnabled
+        }}'
+- discovery_id: aws.ec2.describe_subnets
+  calls:
+  - action: describe_subnets
+    save_as: response
+  emit:
+    item:
+      AvailabilityZoneId: '{{ response.Subnets.AvailabilityZoneId }}'
+      EnableLniAtDeviceIndex: '{{ response.Subnets.EnableLniAtDeviceIndex }}'
+      MapCustomerOwnedIpOnLaunch: '{{ response.Subnets.MapCustomerOwnedIpOnLaunch
+        }}'
+      CustomerOwnedIpv4Pool: '{{ response.Subnets.CustomerOwnedIpv4Pool }}'
+      OwnerId: '{{ response.Subnets.OwnerId }}'
+      AssignIpv6AddressOnCreation: '{{ response.Subnets.AssignIpv6AddressOnCreation
+        }}'
+      Ipv6CidrBlockAssociationSet: '{{ response.Subnets.Ipv6CidrBlockAssociationSet
+        }}'
+      Tags: '{{ response.Subnets.Tags }}'
+      SubnetArn: '{{ response.Subnets.SubnetArn }}'
+      OutpostArn: '{{ response.Subnets.OutpostArn }}'
+      EnableDns64: '{{ response.Subnets.EnableDns64 }}'
+      Ipv6Native: '{{ response.Subnets.Ipv6Native }}'
+      PrivateDnsNameOptionsOnLaunch: '{{ response.Subnets.PrivateDnsNameOptionsOnLaunch
+        }}'
+      BlockPublicAccessStates: '{{ response.Subnets.BlockPublicAccessStates }}'
+      Type: '{{ response.Subnets.Type }}'
+      SubnetId: '{{ response.Subnets.SubnetId }}'
+      State: '{{ response.Subnets.State }}'
+      VpcId: '{{ response.Subnets.VpcId }}'
+      CidrBlock: '{{ response.Subnets.CidrBlock }}'
+      AvailableIpAddressCount: '{{ response.Subnets.AvailableIpAddressCount }}'
+      AvailabilityZone: '{{ response.Subnets.AvailabilityZone }}'
+      DefaultForAz: '{{ response.Subnets.DefaultForAz }}'
+      MapPublicIpOnLaunch: '{{ response.Subnets.MapPublicIpOnLaunch }}'
+- discovery_id: aws.ec2.describe_network_insights_paths
+  calls:
+  - action: describe_network_insights_paths
+    save_as: response
+  emit:
+    item:
+      NetworkInsightsPathId: '{{ response.NetworkInsightsPaths.NetworkInsightsPathId
+        }}'
+      NetworkInsightsPathArn: '{{ response.NetworkInsightsPaths.NetworkInsightsPathArn
+        }}'
+      CreatedDate: '{{ response.NetworkInsightsPaths.CreatedDate }}'
+      Source: '{{ response.NetworkInsightsPaths.Source }}'
+      Destination: '{{ response.NetworkInsightsPaths.Destination }}'
+      SourceArn: '{{ response.NetworkInsightsPaths.SourceArn }}'
+      DestinationArn: '{{ response.NetworkInsightsPaths.DestinationArn }}'
+      SourceIp: '{{ response.NetworkInsightsPaths.SourceIp }}'
+      DestinationIp: '{{ response.NetworkInsightsPaths.DestinationIp }}'
+      Protocol: '{{ response.NetworkInsightsPaths.Protocol }}'
+      DestinationPort: '{{ response.NetworkInsightsPaths.DestinationPort }}'
+      Tags: '{{ response.NetworkInsightsPaths.Tags }}'
+      FilterAtSource: '{{ response.NetworkInsightsPaths.FilterAtSource }}'
+      FilterAtDestination: '{{ response.NetworkInsightsPaths.FilterAtDestination }}'
 - discovery_id: aws.ec2.describe_client_vpn_endpoints
   calls:
   - action: describe_client_vpn_endpoints
@@ -217,39 +316,187 @@ discovery:
       EndpointIpAddressType: '{{ response.ClientVpnEndpoints.EndpointIpAddressType
         }}'
       TrafficIpAddressType: '{{ response.ClientVpnEndpoints.TrafficIpAddressType }}'
-- discovery_id: aws.ec2.describe_export_image_tasks
+- discovery_id: aws.ec2.describe_network_acls
   calls:
-  - action: describe_export_image_tasks
+  - action: describe_network_acls
     save_as: response
   emit:
     item:
-      Description: '{{ response.ExportImageTasks.Description }}'
-      ExportImageTaskId: '{{ response.ExportImageTasks.ExportImageTaskId }}'
-      ImageId: '{{ response.ExportImageTasks.ImageId }}'
-      Progress: '{{ response.ExportImageTasks.Progress }}'
-      S3ExportLocation: '{{ response.ExportImageTasks.S3ExportLocation }}'
-      Status: '{{ response.ExportImageTasks.Status }}'
-      StatusMessage: '{{ response.ExportImageTasks.StatusMessage }}'
-      Tags: '{{ response.ExportImageTasks.Tags }}'
-- discovery_id: aws.ec2.describe_fast_snapshot_restores
+      Associations: '{{ response.NetworkAcls.Associations }}'
+      Entries: '{{ response.NetworkAcls.Entries }}'
+      IsDefault: '{{ response.NetworkAcls.IsDefault }}'
+      NetworkAclId: '{{ response.NetworkAcls.NetworkAclId }}'
+      Tags: '{{ response.NetworkAcls.Tags }}'
+      VpcId: '{{ response.NetworkAcls.VpcId }}'
+      OwnerId: '{{ response.NetworkAcls.OwnerId }}'
+      NetworkAcls: '{{ resource.NetworkAcls }}'
+- discovery_id: aws.ec2.describe_vpc_block_public_access_options
   calls:
-  - action: describe_fast_snapshot_restores
+  - action: describe_vpc_block_public_access_options
     save_as: response
   emit:
     item:
-      SnapshotId: '{{ response.FastSnapshotRestores.SnapshotId }}'
-      AvailabilityZone: '{{ response.FastSnapshotRestores.AvailabilityZone }}'
-      AvailabilityZoneId: '{{ response.FastSnapshotRestores.AvailabilityZoneId }}'
-      State: '{{ response.FastSnapshotRestores.State }}'
-      StateTransitionReason: '{{ response.FastSnapshotRestores.StateTransitionReason
+      AwsAccountId: '{{ response.VpcBlockPublicAccessOptions.AwsAccountId }}'
+      AwsRegion: '{{ response.VpcBlockPublicAccessOptions.AwsRegion }}'
+      State: '{{ response.VpcBlockPublicAccessOptions.State }}'
+      InternetGatewayBlockMode: '{{ response.VpcBlockPublicAccessOptions.InternetGatewayBlockMode
         }}'
-      OwnerId: '{{ response.FastSnapshotRestores.OwnerId }}'
-      OwnerAlias: '{{ response.FastSnapshotRestores.OwnerAlias }}'
-      EnablingTime: '{{ response.FastSnapshotRestores.EnablingTime }}'
-      OptimizingTime: '{{ response.FastSnapshotRestores.OptimizingTime }}'
-      EnabledTime: '{{ response.FastSnapshotRestores.EnabledTime }}'
-      DisablingTime: '{{ response.FastSnapshotRestores.DisablingTime }}'
-      DisabledTime: '{{ response.FastSnapshotRestores.DisabledTime }}'
+      Reason: '{{ response.VpcBlockPublicAccessOptions.Reason }}'
+      LastUpdateTimestamp: '{{ response.VpcBlockPublicAccessOptions.LastUpdateTimestamp
+        }}'
+      ManagedBy: '{{ response.VpcBlockPublicAccessOptions.ManagedBy }}'
+      ExclusionsAllowed: '{{ response.VpcBlockPublicAccessOptions.ExclusionsAllowed
+        }}'
+      VpcBlockPublicAccessOptions: '{{ resource.VpcBlockPublicAccessOptions }}'
+- discovery_id: aws.ec2.describe_carrier_gateways
+  calls:
+  - action: describe_carrier_gateways
+    save_as: response
+  emit:
+    item:
+      CarrierGatewayId: '{{ response.CarrierGateways.CarrierGatewayId }}'
+      VpcId: '{{ response.CarrierGateways.VpcId }}'
+      State: '{{ response.CarrierGateways.State }}'
+      OwnerId: '{{ response.CarrierGateways.OwnerId }}'
+      Tags: '{{ response.CarrierGateways.Tags }}'
+- discovery_id: aws.ec2.describe_vpc_attribute
+  calls:
+  - action: describe_vpc_attribute
+    save_as: response
+    params:
+      VpcId: '{{ item.VpcId }}'
+  for_each: aws.ec2.describe_carrier_gateways
+  on_error: continue
+  emit:
+    item:
+      Value: '{{ response.EnableDnsHostnames.Value }}'
+      EnableDnsHostnames: '{{ resource.EnableDnsHostnames }}'
+- discovery_id: aws.ec2.describe_import_image_tasks
+  calls:
+  - action: describe_import_image_tasks
+    save_as: response
+  emit:
+    item:
+      Architecture: '{{ response.ImportImageTasks.Architecture }}'
+      Description: '{{ response.ImportImageTasks.Description }}'
+      Encrypted: '{{ response.ImportImageTasks.Encrypted }}'
+      Hypervisor: '{{ response.ImportImageTasks.Hypervisor }}'
+      ImageId: '{{ response.ImportImageTasks.ImageId }}'
+      ImportTaskId: '{{ response.ImportImageTasks.ImportTaskId }}'
+      KmsKeyId: '{{ response.ImportImageTasks.KmsKeyId }}'
+      LicenseType: '{{ response.ImportImageTasks.LicenseType }}'
+      Platform: '{{ response.ImportImageTasks.Platform }}'
+      Progress: '{{ response.ImportImageTasks.Progress }}'
+      SnapshotDetails: '{{ response.ImportImageTasks.SnapshotDetails }}'
+      Status: '{{ response.ImportImageTasks.Status }}'
+      StatusMessage: '{{ response.ImportImageTasks.StatusMessage }}'
+      Tags: '{{ response.ImportImageTasks.Tags }}'
+      LicenseSpecifications: '{{ response.ImportImageTasks.LicenseSpecifications }}'
+      UsageOperation: '{{ response.ImportImageTasks.UsageOperation }}'
+      BootMode: '{{ response.ImportImageTasks.BootMode }}'
+- discovery_id: aws.ec2.describe_local_gateway_virtual_interface_groups
+  calls:
+  - action: describe_local_gateway_virtual_interface_groups
+    save_as: response
+  emit:
+    item:
+      LocalGatewayVirtualInterfaceGroupId: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalGatewayVirtualInterfaceGroupId
+        }}'
+      LocalGatewayVirtualInterfaceIds: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalGatewayVirtualInterfaceIds
+        }}'
+      LocalGatewayId: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalGatewayId
+        }}'
+      OwnerId: '{{ response.LocalGatewayVirtualInterfaceGroups.OwnerId }}'
+      LocalBgpAsn: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalBgpAsn }}'
+      LocalBgpAsnExtended: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalBgpAsnExtended
+        }}'
+      LocalGatewayVirtualInterfaceGroupArn: '{{ response.LocalGatewayVirtualInterfaceGroups.LocalGatewayVirtualInterfaceGroupArn
+        }}'
+      Tags: '{{ response.LocalGatewayVirtualInterfaceGroups.Tags }}'
+      ConfigurationState: '{{ response.LocalGatewayVirtualInterfaceGroups.ConfigurationState
+        }}'
+- discovery_id: aws.ec2.get_ipam_address_history
+  calls:
+  - action: get_ipam_address_history
+    save_as: response
+  emit:
+    item:
+      ResourceOwnerId: '{{ response.HistoryRecords.ResourceOwnerId }}'
+      ResourceRegion: '{{ response.HistoryRecords.ResourceRegion }}'
+      ResourceType: '{{ response.HistoryRecords.ResourceType }}'
+      ResourceId: '{{ response.HistoryRecords.ResourceId }}'
+      ResourceCidr: '{{ response.HistoryRecords.ResourceCidr }}'
+      ResourceName: '{{ response.HistoryRecords.ResourceName }}'
+      ResourceComplianceStatus: '{{ response.HistoryRecords.ResourceComplianceStatus
+        }}'
+      ResourceOverlapStatus: '{{ response.HistoryRecords.ResourceOverlapStatus }}'
+      VpcId: '{{ response.HistoryRecords.VpcId }}'
+      SampledStartTime: '{{ response.HistoryRecords.SampledStartTime }}'
+      SampledEndTime: '{{ response.HistoryRecords.SampledEndTime }}'
+- discovery_id: aws.ec2.describe_network_insights_access_scope_analyses
+  calls:
+  - action: describe_network_insights_access_scope_analyses
+    save_as: response
+  emit:
+    item:
+      NetworkInsightsAccessScopeAnalysisId: '{{ response.NetworkInsightsAccessScopeAnalyses.NetworkInsightsAccessScopeAnalysisId
+        }}'
+      NetworkInsightsAccessScopeAnalysisArn: '{{ response.NetworkInsightsAccessScopeAnalyses.NetworkInsightsAccessScopeAnalysisArn
+        }}'
+      NetworkInsightsAccessScopeId: '{{ response.NetworkInsightsAccessScopeAnalyses.NetworkInsightsAccessScopeId
+        }}'
+      Status: '{{ response.NetworkInsightsAccessScopeAnalyses.Status }}'
+      StatusMessage: '{{ response.NetworkInsightsAccessScopeAnalyses.StatusMessage
+        }}'
+      WarningMessage: '{{ response.NetworkInsightsAccessScopeAnalyses.WarningMessage
+        }}'
+      StartDate: '{{ response.NetworkInsightsAccessScopeAnalyses.StartDate }}'
+      EndDate: '{{ response.NetworkInsightsAccessScopeAnalyses.EndDate }}'
+      FindingsFound: '{{ response.NetworkInsightsAccessScopeAnalyses.FindingsFound
+        }}'
+      AnalyzedEniCount: '{{ response.NetworkInsightsAccessScopeAnalyses.AnalyzedEniCount
+        }}'
+      Tags: '{{ response.NetworkInsightsAccessScopeAnalyses.Tags }}'
+- discovery_id: aws.ec2.describe_scheduled_instance_availability
+  calls:
+  - action: describe_scheduled_instance_availability
+    save_as: response
+  emit:
+    item:
+      AvailabilityZone: '{{ response.ScheduledInstanceAvailabilitySet.AvailabilityZone
+        }}'
+      AvailableInstanceCount: '{{ response.ScheduledInstanceAvailabilitySet.AvailableInstanceCount
+        }}'
+      FirstSlotStartTime: '{{ response.ScheduledInstanceAvailabilitySet.FirstSlotStartTime
+        }}'
+      HourlyPrice: '{{ response.ScheduledInstanceAvailabilitySet.HourlyPrice }}'
+      InstanceType: '{{ response.ScheduledInstanceAvailabilitySet.InstanceType }}'
+      MaxTermDurationInDays: '{{ response.ScheduledInstanceAvailabilitySet.MaxTermDurationInDays
+        }}'
+      MinTermDurationInDays: '{{ response.ScheduledInstanceAvailabilitySet.MinTermDurationInDays
+        }}'
+      NetworkPlatform: '{{ response.ScheduledInstanceAvailabilitySet.NetworkPlatform
+        }}'
+      Platform: '{{ response.ScheduledInstanceAvailabilitySet.Platform }}'
+      PurchaseToken: '{{ response.ScheduledInstanceAvailabilitySet.PurchaseToken }}'
+      Recurrence: '{{ response.ScheduledInstanceAvailabilitySet.Recurrence }}'
+      SlotDurationInHours: '{{ response.ScheduledInstanceAvailabilitySet.SlotDurationInHours
+        }}'
+      TotalScheduledInstanceHours: '{{ response.ScheduledInstanceAvailabilitySet.TotalScheduledInstanceHours
+        }}'
+- discovery_id: aws.ec2.describe_security_group_vpc_associations
+  calls:
+  - action: describe_security_group_vpc_associations
+    save_as: response
+  emit:
+    item:
+      GroupId: '{{ response.SecurityGroupVpcAssociations.GroupId }}'
+      VpcId: '{{ response.SecurityGroupVpcAssociations.VpcId }}'
+      VpcOwnerId: '{{ response.SecurityGroupVpcAssociations.VpcOwnerId }}'
+      State: '{{ response.SecurityGroupVpcAssociations.State }}'
+      StateReason: '{{ response.SecurityGroupVpcAssociations.StateReason }}'
+      GroupOwnerId: '{{ response.SecurityGroupVpcAssociations.GroupOwnerId }}'
+      SecurityGroupVpcAssociations: '{{ resource.SecurityGroupVpcAssociations }}'
 - discovery_id: aws.ec2.describe_flow_logs
   calls:
   - action: describe_flow_logs
@@ -272,28 +519,80 @@ discovery:
       Tags: '{{ response.FlowLogs.Tags }}'
       MaxAggregationInterval: '{{ response.FlowLogs.MaxAggregationInterval }}'
       DestinationOptions: '{{ response.FlowLogs.DestinationOptions }}'
-- discovery_id: aws.ec2.describe_fpga_images
+      FlowLogs: '{{ resource.FlowLogs }}'
+- discovery_id: aws.ec2.describe_address_transfers
   calls:
-  - action: describe_fpga_images
+  - action: describe_address_transfers
     save_as: response
   emit:
     item:
-      FpgaImageId: '{{ response.FpgaImages.FpgaImageId }}'
-      FpgaImageGlobalId: '{{ response.FpgaImages.FpgaImageGlobalId }}'
-      Name: '{{ response.FpgaImages.Name }}'
-      Description: '{{ response.FpgaImages.Description }}'
-      ShellVersion: '{{ response.FpgaImages.ShellVersion }}'
-      PciId: '{{ response.FpgaImages.PciId }}'
-      State: '{{ response.FpgaImages.State }}'
-      CreateTime: '{{ response.FpgaImages.CreateTime }}'
-      UpdateTime: '{{ response.FpgaImages.UpdateTime }}'
-      OwnerId: '{{ response.FpgaImages.OwnerId }}'
-      OwnerAlias: '{{ response.FpgaImages.OwnerAlias }}'
-      ProductCodes: '{{ response.FpgaImages.ProductCodes }}'
-      Tags: '{{ response.FpgaImages.Tags }}'
-      Public: '{{ response.FpgaImages.Public }}'
-      DataRetentionSupport: '{{ response.FpgaImages.DataRetentionSupport }}'
-      InstanceTypes: '{{ response.FpgaImages.InstanceTypes }}'
+      PublicIp: '{{ response.AddressTransfers.PublicIp }}'
+      AllocationId: '{{ response.AddressTransfers.AllocationId }}'
+      TransferAccountId: '{{ response.AddressTransfers.TransferAccountId }}'
+      TransferOfferExpirationTimestamp: '{{ response.AddressTransfers.TransferOfferExpirationTimestamp
+        }}'
+      TransferOfferAcceptedTimestamp: '{{ response.AddressTransfers.TransferOfferAcceptedTimestamp
+        }}'
+      AddressTransferStatus: '{{ response.AddressTransfers.AddressTransferStatus }}'
+- discovery_id: aws.ec2.describe_fleets
+  calls:
+  - action: describe_fleets
+    save_as: response
+  emit:
+    item:
+      ActivityStatus: '{{ response.Fleets.ActivityStatus }}'
+      CreateTime: '{{ response.Fleets.CreateTime }}'
+      FleetId: '{{ response.Fleets.FleetId }}'
+      FleetState: '{{ response.Fleets.FleetState }}'
+      ClientToken: '{{ response.Fleets.ClientToken }}'
+      ExcessCapacityTerminationPolicy: '{{ response.Fleets.ExcessCapacityTerminationPolicy
+        }}'
+      FulfilledCapacity: '{{ response.Fleets.FulfilledCapacity }}'
+      FulfilledOnDemandCapacity: '{{ response.Fleets.FulfilledOnDemandCapacity }}'
+      LaunchTemplateConfigs: '{{ response.Fleets.LaunchTemplateConfigs }}'
+      TargetCapacitySpecification: '{{ response.Fleets.TargetCapacitySpecification
+        }}'
+      TerminateInstancesWithExpiration: '{{ response.Fleets.TerminateInstancesWithExpiration
+        }}'
+      Type: '{{ response.Fleets.Type }}'
+      ValidFrom: '{{ response.Fleets.ValidFrom }}'
+      ValidUntil: '{{ response.Fleets.ValidUntil }}'
+      ReplaceUnhealthyInstances: '{{ response.Fleets.ReplaceUnhealthyInstances }}'
+      SpotOptions: '{{ response.Fleets.SpotOptions }}'
+      OnDemandOptions: '{{ response.Fleets.OnDemandOptions }}'
+      Tags: '{{ response.Fleets.Tags }}'
+      Errors: '{{ response.Fleets.Errors }}'
+      Instances: '{{ response.Fleets.Instances }}'
+      Context: '{{ response.Fleets.Context }}'
+- discovery_id: aws.ec2.list_snapshots_in_recycle_bin
+  calls:
+  - action: list_snapshots_in_recycle_bin
+    save_as: response
+  emit:
+    items_for: '{{ response.Snapshots }}'
+    as: resource
+    item:
+      SnapshotId: '{{ resource.SnapshotId }}'
+      RecycleBinEnterTime: '{{ resource.RecycleBinEnterTime }}'
+      RecycleBinExitTime: '{{ resource.RecycleBinExitTime }}'
+      Description: '{{ resource.Description }}'
+      VolumeId: '{{ resource.VolumeId }}'
+      Snapshots: '{{ resource.Snapshots }}'
+- discovery_id: aws.ec2.describe_fast_launch_images
+  calls:
+  - action: describe_fast_launch_images
+    save_as: response
+  emit:
+    item:
+      ImageId: '{{ response.FastLaunchImages.ImageId }}'
+      ResourceType: '{{ response.FastLaunchImages.ResourceType }}'
+      SnapshotConfiguration: '{{ response.FastLaunchImages.SnapshotConfiguration }}'
+      LaunchTemplate: '{{ response.FastLaunchImages.LaunchTemplate }}'
+      MaxParallelLaunches: '{{ response.FastLaunchImages.MaxParallelLaunches }}'
+      OwnerId: '{{ response.FastLaunchImages.OwnerId }}'
+      State: '{{ response.FastLaunchImages.State }}'
+      StateTransitionReason: '{{ response.FastLaunchImages.StateTransitionReason }}'
+      StateTransitionTime: '{{ response.FastLaunchImages.StateTransitionTime }}'
 - discovery_id: aws.ec2.describe_hosts
   calls:
   - action: describe_hosts
@@ -322,6 +621,19 @@ discovery:
       OutpostArn: '{{ response.Hosts.OutpostArn }}'
       HostMaintenance: '{{ response.Hosts.HostMaintenance }}'
       AssetId: '{{ response.Hosts.AssetId }}'
+- discovery_id: aws.ec2.describe_key_pairs
+  calls:
+  - action: describe_key_pairs
+    save_as: response
+  emit:
+    item:
+      KeyPairId: '{{ response.KeyPairs.KeyPairId }}'
+      KeyType: '{{ response.KeyPairs.KeyType }}'
+      Tags: '{{ response.KeyPairs.Tags }}'
+      PublicKey: '{{ response.KeyPairs.PublicKey }}'
+      CreateTime: '{{ response.KeyPairs.CreateTime }}'
+      KeyName: '{{ response.KeyPairs.KeyName }}'
+      KeyFingerprint: '{{ response.KeyPairs.KeyFingerprint }}'
 - discovery_id: aws.ec2.describe_images
   calls:
   - action: describe_images
@@ -365,184 +677,10 @@ discovery:
       KernelId: '{{ response.Images.KernelId }}'
       RamdiskId: '{{ response.Images.RamdiskId }}'
       Platform: '{{ response.Images.Platform }}'
-- discovery_id: aws.ec2.describe_import_image_tasks
-  calls:
-  - action: describe_import_image_tasks
-    save_as: response
-  emit:
-    item:
-      Architecture: '{{ response.ImportImageTasks.Architecture }}'
-      Description: '{{ response.ImportImageTasks.Description }}'
-      Encrypted: '{{ response.ImportImageTasks.Encrypted }}'
-      Hypervisor: '{{ response.ImportImageTasks.Hypervisor }}'
-      ImageId: '{{ response.ImportImageTasks.ImageId }}'
-      ImportTaskId: '{{ response.ImportImageTasks.ImportTaskId }}'
-      KmsKeyId: '{{ response.ImportImageTasks.KmsKeyId }}'
-      LicenseType: '{{ response.ImportImageTasks.LicenseType }}'
-      Platform: '{{ response.ImportImageTasks.Platform }}'
-      Progress: '{{ response.ImportImageTasks.Progress }}'
-      SnapshotDetails: '{{ response.ImportImageTasks.SnapshotDetails }}'
-      Status: '{{ response.ImportImageTasks.Status }}'
-      StatusMessage: '{{ response.ImportImageTasks.StatusMessage }}'
-      Tags: '{{ response.ImportImageTasks.Tags }}'
-      LicenseSpecifications: '{{ response.ImportImageTasks.LicenseSpecifications }}'
-      UsageOperation: '{{ response.ImportImageTasks.UsageOperation }}'
-      BootMode: '{{ response.ImportImageTasks.BootMode }}'
-- discovery_id: aws.ec2.describe_key_pairs
-  calls:
-  - action: describe_key_pairs
-    save_as: response
-  emit:
-    item:
-      KeyPairId: '{{ response.KeyPairs.KeyPairId }}'
-      KeyType: '{{ response.KeyPairs.KeyType }}'
-      Tags: '{{ response.KeyPairs.Tags }}'
-      PublicKey: '{{ response.KeyPairs.PublicKey }}'
-      CreateTime: '{{ response.KeyPairs.CreateTime }}'
-      KeyName: '{{ response.KeyPairs.KeyName }}'
-      KeyFingerprint: '{{ response.KeyPairs.KeyFingerprint }}'
-- discovery_id: aws.ec2.describe_launch_template_versions
-  calls:
-  - action: describe_launch_template_versions
-    save_as: response
-  emit:
-    item:
-      LaunchTemplateId: '{{ response.LaunchTemplateVersions.LaunchTemplateId }}'
-      LaunchTemplateName: '{{ response.LaunchTemplateVersions.LaunchTemplateName }}'
-      VersionNumber: '{{ response.LaunchTemplateVersions.VersionNumber }}'
-      VersionDescription: '{{ response.LaunchTemplateVersions.VersionDescription }}'
-      CreateTime: '{{ response.LaunchTemplateVersions.CreateTime }}'
-      CreatedBy: '{{ response.LaunchTemplateVersions.CreatedBy }}'
-      DefaultVersion: '{{ response.LaunchTemplateVersions.DefaultVersion }}'
-      LaunchTemplateData: '{{ response.LaunchTemplateVersions.LaunchTemplateData }}'
-      Operator: '{{ response.LaunchTemplateVersions.Operator }}'
-- discovery_id: aws.ec2.describe_network_acls
-  calls:
-  - action: describe_network_acls
-    save_as: response
-  emit:
-    item:
-      Associations: '{{ response.NetworkAcls.Associations }}'
-      Entries: '{{ response.NetworkAcls.Entries }}'
-      IsDefault: '{{ response.NetworkAcls.IsDefault }}'
-      NetworkAclId: '{{ response.NetworkAcls.NetworkAclId }}'
-      Tags: '{{ response.NetworkAcls.Tags }}'
-      VpcId: '{{ response.NetworkAcls.VpcId }}'
-      OwnerId: '{{ response.NetworkAcls.OwnerId }}'
-- discovery_id: aws.ec2.describe_security_groups
-  calls:
-  - action: describe_security_groups
-    save_as: response
-  emit:
-    item:
-      GroupId: '{{ response.SecurityGroups.GroupId }}'
-      IpPermissionsEgress: '{{ response.SecurityGroups.IpPermissionsEgress }}'
-      Tags: '{{ response.SecurityGroups.Tags }}'
-      VpcId: '{{ response.SecurityGroups.VpcId }}'
-      SecurityGroupArn: '{{ response.SecurityGroups.SecurityGroupArn }}'
-      OwnerId: '{{ response.SecurityGroups.OwnerId }}'
-      GroupName: '{{ response.SecurityGroups.GroupName }}'
-      Description: '{{ response.SecurityGroups.Description }}'
-      IpPermissions: '{{ response.SecurityGroups.IpPermissions }}'
-- discovery_id: aws.ec2.describe_snapshots
-  calls:
-  - action: describe_snapshots
-    save_as: response
-  emit:
-    item:
-      OwnerAlias: '{{ response.Snapshots.OwnerAlias }}'
-      OutpostArn: '{{ response.Snapshots.OutpostArn }}'
-      Tags: '{{ response.Snapshots.Tags }}'
-      StorageTier: '{{ response.Snapshots.StorageTier }}'
-      RestoreExpiryTime: '{{ response.Snapshots.RestoreExpiryTime }}'
-      SseType: '{{ response.Snapshots.SseType }}'
-      AvailabilityZone: '{{ response.Snapshots.AvailabilityZone }}'
-      TransferType: '{{ response.Snapshots.TransferType }}'
-      CompletionDurationMinutes: '{{ response.Snapshots.CompletionDurationMinutes
-        }}'
-      CompletionTime: '{{ response.Snapshots.CompletionTime }}'
-      FullSnapshotSizeInBytes: '{{ response.Snapshots.FullSnapshotSizeInBytes }}'
-      SnapshotId: '{{ response.Snapshots.SnapshotId }}'
-      VolumeId: '{{ response.Snapshots.VolumeId }}'
-      State: '{{ response.Snapshots.State }}'
-      StateMessage: '{{ response.Snapshots.StateMessage }}'
-      StartTime: '{{ response.Snapshots.StartTime }}'
-      Progress: '{{ response.Snapshots.Progress }}'
-      OwnerId: '{{ response.Snapshots.OwnerId }}'
-      Description: '{{ response.Snapshots.Description }}'
-      VolumeSize: '{{ response.Snapshots.VolumeSize }}'
-      Encrypted: '{{ response.Snapshots.Encrypted }}'
-      KmsKeyId: '{{ response.Snapshots.KmsKeyId }}'
-      DataEncryptionKeyId: '{{ response.Snapshots.DataEncryptionKeyId }}'
-- discovery_id: aws.ec2.describe_vpc_block_public_access_options
-  calls:
-  - action: describe_vpc_block_public_access_options
-    save_as: response
-  emit:
-    item:
-      AwsAccountId: '{{ response.VpcBlockPublicAccessOptions.AwsAccountId }}'
-      AwsRegion: '{{ response.VpcBlockPublicAccessOptions.AwsRegion }}'
-      State: '{{ response.VpcBlockPublicAccessOptions.State }}'
-      InternetGatewayBlockMode: '{{ response.VpcBlockPublicAccessOptions.InternetGatewayBlockMode
-        }}'
-      Reason: '{{ response.VpcBlockPublicAccessOptions.Reason }}'
-      LastUpdateTimestamp: '{{ response.VpcBlockPublicAccessOptions.LastUpdateTimestamp
-        }}'
-      ManagedBy: '{{ response.VpcBlockPublicAccessOptions.ManagedBy }}'
-      ExclusionsAllowed: '{{ response.VpcBlockPublicAccessOptions.ExclusionsAllowed
-        }}'
-- discovery_id: aws.ec2.describe_vpc_endpoints
-  calls:
-  - action: describe_vpc_endpoints
-    save_as: response
-  emit:
-    item:
-      VpcEndpointId: '{{ response.VpcEndpoints.VpcEndpointId }}'
-      VpcEndpointType: '{{ response.VpcEndpoints.VpcEndpointType }}'
-      VpcId: '{{ response.VpcEndpoints.VpcId }}'
-      ServiceName: '{{ response.VpcEndpoints.ServiceName }}'
-      State: '{{ response.VpcEndpoints.State }}'
-      PolicyDocument: '{{ response.VpcEndpoints.PolicyDocument }}'
-      RouteTableIds: '{{ response.VpcEndpoints.RouteTableIds }}'
-      SubnetIds: '{{ response.VpcEndpoints.SubnetIds }}'
-      Groups: '{{ response.VpcEndpoints.Groups }}'
-      IpAddressType: '{{ response.VpcEndpoints.IpAddressType }}'
-      DnsOptions: '{{ response.VpcEndpoints.DnsOptions }}'
-      PrivateDnsEnabled: '{{ response.VpcEndpoints.PrivateDnsEnabled }}'
-      RequesterManaged: '{{ response.VpcEndpoints.RequesterManaged }}'
-      NetworkInterfaceIds: '{{ response.VpcEndpoints.NetworkInterfaceIds }}'
-      DnsEntries: '{{ response.VpcEndpoints.DnsEntries }}'
-      CreationTimestamp: '{{ response.VpcEndpoints.CreationTimestamp }}'
-      Tags: '{{ response.VpcEndpoints.Tags }}'
-      OwnerId: '{{ response.VpcEndpoints.OwnerId }}'
-      LastError: '{{ response.VpcEndpoints.LastError }}'
-      Ipv4Prefixes: '{{ response.VpcEndpoints.Ipv4Prefixes }}'
-      Ipv6Prefixes: '{{ response.VpcEndpoints.Ipv6Prefixes }}'
-      FailureReason: '{{ response.VpcEndpoints.FailureReason }}'
-      ServiceNetworkArn: '{{ response.VpcEndpoints.ServiceNetworkArn }}'
-      ResourceConfigurationArn: '{{ response.VpcEndpoints.ResourceConfigurationArn
-        }}'
-      ServiceRegion: '{{ response.VpcEndpoints.ServiceRegion }}'
-- discovery_id: aws.ec2.get_instance_metadata_defaults
-  calls:
-  - action: get_instance_metadata_defaults
-    save_as: response
-  emit:
-    item:
-      HttpTokens: '{{ response.AccountLevel.HttpTokens }}'
-      HttpPutResponseHopLimit: '{{ response.AccountLevel.HttpPutResponseHopLimit }}'
-      HttpEndpoint: '{{ response.AccountLevel.HttpEndpoint }}'
-      InstanceMetadataTags: '{{ response.AccountLevel.InstanceMetadataTags }}'
-      ManagedBy: '{{ response.AccountLevel.ManagedBy }}'
-      ManagedExceptionMessage: '{{ response.AccountLevel.ManagedExceptionMessage }}'
 - discovery_id: aws.ec2.get_launch_template_data
   calls:
   - action: get_launch_template_data
     save_as: response
-    params:
-      InstanceId: '{{ item.InstanceId }}'
-  on_error: continue
-  for_each: aws.ec2.describe_classic_link_instances
   emit:
     item:
       KernelId: '{{ response.LaunchTemplateData.KernelId }}'
@@ -587,291 +725,763 @@ discovery:
       Operator: '{{ response.LaunchTemplateData.Operator }}'
       NetworkPerformanceOptions: '{{ response.LaunchTemplateData.NetworkPerformanceOptions
         }}'
+- discovery_id: aws.ec2.describe_network_interfaces
+  calls:
+  - action: describe_network_interfaces
+    save_as: response
+  emit:
+    item:
+      Association: '{{ response.NetworkInterfaces.Association }}'
+      Attachment: '{{ response.NetworkInterfaces.Attachment }}'
+      AvailabilityZone: '{{ response.NetworkInterfaces.AvailabilityZone }}'
+      ConnectionTrackingConfiguration: '{{ response.NetworkInterfaces.ConnectionTrackingConfiguration
+        }}'
+      Description: '{{ response.NetworkInterfaces.Description }}'
+      Groups: '{{ response.NetworkInterfaces.Groups }}'
+      InterfaceType: '{{ response.NetworkInterfaces.InterfaceType }}'
+      Ipv6Addresses: '{{ response.NetworkInterfaces.Ipv6Addresses }}'
+      MacAddress: '{{ response.NetworkInterfaces.MacAddress }}'
+      NetworkInterfaceId: '{{ response.NetworkInterfaces.NetworkInterfaceId }}'
+      OutpostArn: '{{ response.NetworkInterfaces.OutpostArn }}'
+      OwnerId: '{{ response.NetworkInterfaces.OwnerId }}'
+      PrivateDnsName: '{{ response.NetworkInterfaces.PrivateDnsName }}'
+      PublicDnsName: '{{ response.NetworkInterfaces.PublicDnsName }}'
+      PublicIpDnsNameOptions: '{{ response.NetworkInterfaces.PublicIpDnsNameOptions
+        }}'
+      PrivateIpAddress: '{{ response.NetworkInterfaces.PrivateIpAddress }}'
+      PrivateIpAddresses: '{{ response.NetworkInterfaces.PrivateIpAddresses }}'
+      Ipv4Prefixes: '{{ response.NetworkInterfaces.Ipv4Prefixes }}'
+      Ipv6Prefixes: '{{ response.NetworkInterfaces.Ipv6Prefixes }}'
+      RequesterId: '{{ response.NetworkInterfaces.RequesterId }}'
+      RequesterManaged: '{{ response.NetworkInterfaces.RequesterManaged }}'
+      SourceDestCheck: '{{ response.NetworkInterfaces.SourceDestCheck }}'
+      Status: '{{ response.NetworkInterfaces.Status }}'
+      SubnetId: '{{ response.NetworkInterfaces.SubnetId }}'
+      TagSet: '{{ response.NetworkInterfaces.TagSet }}'
+      VpcId: '{{ response.NetworkInterfaces.VpcId }}'
+      DenyAllIgwTraffic: '{{ response.NetworkInterfaces.DenyAllIgwTraffic }}'
+      Ipv6Native: '{{ response.NetworkInterfaces.Ipv6Native }}'
+      Ipv6Address: '{{ response.NetworkInterfaces.Ipv6Address }}'
+      Operator: '{{ response.NetworkInterfaces.Operator }}'
+      AssociatedSubnets: '{{ response.NetworkInterfaces.AssociatedSubnets }}'
+      AvailabilityZoneId: '{{ response.NetworkInterfaces.AvailabilityZoneId }}'
+- discovery_id: aws.ec2.get_ipam_resource_cidrs
+  calls:
+  - action: get_ipam_resource_cidrs
+    save_as: response
+  emit:
+    item:
+      IpamId: '{{ response.IpamResourceCidrs.IpamId }}'
+      IpamScopeId: '{{ response.IpamResourceCidrs.IpamScopeId }}'
+      IpamPoolId: '{{ response.IpamResourceCidrs.IpamPoolId }}'
+      ResourceRegion: '{{ response.IpamResourceCidrs.ResourceRegion }}'
+      ResourceOwnerId: '{{ response.IpamResourceCidrs.ResourceOwnerId }}'
+      ResourceId: '{{ response.IpamResourceCidrs.ResourceId }}'
+      ResourceName: '{{ response.IpamResourceCidrs.ResourceName }}'
+      ResourceCidr: '{{ response.IpamResourceCidrs.ResourceCidr }}'
+      ResourceType: '{{ response.IpamResourceCidrs.ResourceType }}'
+      ResourceTags: '{{ response.IpamResourceCidrs.ResourceTags }}'
+      IpUsage: '{{ response.IpamResourceCidrs.IpUsage }}'
+      ComplianceStatus: '{{ response.IpamResourceCidrs.ComplianceStatus }}'
+      ManagementState: '{{ response.IpamResourceCidrs.ManagementState }}'
+      OverlapStatus: '{{ response.IpamResourceCidrs.OverlapStatus }}'
+      VpcId: '{{ response.IpamResourceCidrs.VpcId }}'
+      AvailabilityZoneId: '{{ response.IpamResourceCidrs.AvailabilityZoneId }}'
+- discovery_id: aws.ec2.describe_addresses
+  calls:
+  - action: describe_addresses
+    save_as: response
+  emit:
+    item:
+      AllocationId: '{{ response.Addresses.AllocationId }}'
+      AssociationId: '{{ response.Addresses.AssociationId }}'
+      Domain: '{{ response.Addresses.Domain }}'
+      NetworkInterfaceId: '{{ response.Addresses.NetworkInterfaceId }}'
+      NetworkInterfaceOwnerId: '{{ response.Addresses.NetworkInterfaceOwnerId }}'
+      PrivateIpAddress: '{{ response.Addresses.PrivateIpAddress }}'
+      Tags: '{{ response.Addresses.Tags }}'
+      PublicIpv4Pool: '{{ response.Addresses.PublicIpv4Pool }}'
+      NetworkBorderGroup: '{{ response.Addresses.NetworkBorderGroup }}'
+      CustomerOwnedIp: '{{ response.Addresses.CustomerOwnedIp }}'
+      CustomerOwnedIpv4Pool: '{{ response.Addresses.CustomerOwnedIpv4Pool }}'
+      CarrierIp: '{{ response.Addresses.CarrierIp }}'
+      SubnetId: '{{ response.Addresses.SubnetId }}'
+      ServiceManaged: '{{ response.Addresses.ServiceManaged }}'
+      InstanceId: '{{ response.Addresses.InstanceId }}'
+      PublicIp: '{{ response.Addresses.PublicIp }}'
+- discovery_id: aws.ec2.describe_volume_status
+  calls:
+  - action: describe_volume_status
+    save_as: response
+  emit:
+    item:
+      Actions: '{{ response.VolumeStatuses.Actions }}'
+      AvailabilityZone: '{{ response.VolumeStatuses.AvailabilityZone }}'
+      OutpostArn: '{{ response.VolumeStatuses.OutpostArn }}'
+      Events: '{{ response.VolumeStatuses.Events }}'
+      VolumeId: '{{ response.VolumeStatuses.VolumeId }}'
+      VolumeStatus: '{{ response.VolumeStatuses.VolumeStatus }}'
+      AttachmentStatuses: '{{ response.VolumeStatuses.AttachmentStatuses }}'
+      InitializationStatusDetails: '{{ response.VolumeStatuses.InitializationStatusDetails
+        }}'
+      AvailabilityZoneId: '{{ response.VolumeStatuses.AvailabilityZoneId }}'
+- discovery_id: aws.ec2.describe_route_tables
+  calls:
+  - action: describe_route_tables
+    save_as: response
+  emit:
+    item:
+      Associations: '{{ response.RouteTables.Associations }}'
+      PropagatingVgws: '{{ response.RouteTables.PropagatingVgws }}'
+      RouteTableId: '{{ response.RouteTables.RouteTableId }}'
+      Routes: '{{ response.RouteTables.Routes }}'
+      Tags: '{{ response.RouteTables.Tags }}'
+      VpcId: '{{ response.RouteTables.VpcId }}'
+      OwnerId: '{{ response.RouteTables.OwnerId }}'
+      RouteTables: '{{ resource.RouteTables }}'
+- discovery_id: aws.ec2.describe_ipam_pools
+  calls:
+  - action: describe_ipam_pools
+    save_as: response
+  emit:
+    item:
+      OwnerId: '{{ response.IpamPools.OwnerId }}'
+      IpamPoolId: '{{ response.IpamPools.IpamPoolId }}'
+      SourceIpamPoolId: '{{ response.IpamPools.SourceIpamPoolId }}'
+      IpamPoolArn: '{{ response.IpamPools.IpamPoolArn }}'
+      IpamScopeArn: '{{ response.IpamPools.IpamScopeArn }}'
+      IpamScopeType: '{{ response.IpamPools.IpamScopeType }}'
+      IpamArn: '{{ response.IpamPools.IpamArn }}'
+      IpamRegion: '{{ response.IpamPools.IpamRegion }}'
+      Locale: '{{ response.IpamPools.Locale }}'
+      PoolDepth: '{{ response.IpamPools.PoolDepth }}'
+      State: '{{ response.IpamPools.State }}'
+      StateMessage: '{{ response.IpamPools.StateMessage }}'
+      Description: '{{ response.IpamPools.Description }}'
+      AutoImport: '{{ response.IpamPools.AutoImport }}'
+      PubliclyAdvertisable: '{{ response.IpamPools.PubliclyAdvertisable }}'
+      AddressFamily: '{{ response.IpamPools.AddressFamily }}'
+      AllocationMinNetmaskLength: '{{ response.IpamPools.AllocationMinNetmaskLength
+        }}'
+      AllocationMaxNetmaskLength: '{{ response.IpamPools.AllocationMaxNetmaskLength
+        }}'
+      AllocationDefaultNetmaskLength: '{{ response.IpamPools.AllocationDefaultNetmaskLength
+        }}'
+      AllocationResourceTags: '{{ response.IpamPools.AllocationResourceTags }}'
+      Tags: '{{ response.IpamPools.Tags }}'
+      AwsService: '{{ response.IpamPools.AwsService }}'
+      PublicIpSource: '{{ response.IpamPools.PublicIpSource }}'
+      SourceResource: '{{ response.IpamPools.SourceResource }}'
+- discovery_id: aws.ec2.describe_vpc_endpoint_associations
+  calls:
+  - action: describe_vpc_endpoint_associations
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.VpcEndpointAssociations.Id }}'
+      VpcEndpointId: '{{ response.VpcEndpointAssociations.VpcEndpointId }}'
+      ServiceNetworkArn: '{{ response.VpcEndpointAssociations.ServiceNetworkArn }}'
+      ServiceNetworkName: '{{ response.VpcEndpointAssociations.ServiceNetworkName
+        }}'
+      AssociatedResourceAccessibility: '{{ response.VpcEndpointAssociations.AssociatedResourceAccessibility
+        }}'
+      FailureReason: '{{ response.VpcEndpointAssociations.FailureReason }}'
+      FailureCode: '{{ response.VpcEndpointAssociations.FailureCode }}'
+      DnsEntry: '{{ response.VpcEndpointAssociations.DnsEntry }}'
+      PrivateDnsEntry: '{{ response.VpcEndpointAssociations.PrivateDnsEntry }}'
+      AssociatedResourceArn: '{{ response.VpcEndpointAssociations.AssociatedResourceArn
+        }}'
+      ResourceConfigurationGroupArn: '{{ response.VpcEndpointAssociations.ResourceConfigurationGroupArn
+        }}'
+      Tags: '{{ response.VpcEndpointAssociations.Tags }}'
+      VpcEndpointAssociations: '{{ resource.VpcEndpointAssociations }}'
+- discovery_id: aws.ec2.describe_vpn_connections
+  calls:
+  - action: describe_vpn_connections
+    save_as: response
+  emit:
+    item:
+      Category: '{{ response.VpnConnections.Category }}'
+      TransitGatewayId: '{{ response.VpnConnections.TransitGatewayId }}'
+      VpnConcentratorId: '{{ response.VpnConnections.VpnConcentratorId }}'
+      CoreNetworkArn: '{{ response.VpnConnections.CoreNetworkArn }}'
+      CoreNetworkAttachmentArn: '{{ response.VpnConnections.CoreNetworkAttachmentArn
+        }}'
+      GatewayAssociationState: '{{ response.VpnConnections.GatewayAssociationState
+        }}'
+      Options: '{{ response.VpnConnections.Options }}'
+      Routes: '{{ response.VpnConnections.Routes }}'
+      Tags: '{{ response.VpnConnections.Tags }}'
+      VgwTelemetry: '{{ response.VpnConnections.VgwTelemetry }}'
+      PreSharedKeyArn: '{{ response.VpnConnections.PreSharedKeyArn }}'
+      VpnConnectionId: '{{ response.VpnConnections.VpnConnectionId }}'
+      State: '{{ response.VpnConnections.State }}'
+      CustomerGatewayConfiguration: '{{ response.VpnConnections.CustomerGatewayConfiguration
+        }}'
+      Type: '{{ response.VpnConnections.Type }}'
+      CustomerGatewayId: '{{ response.VpnConnections.CustomerGatewayId }}'
+      VpnGatewayId: '{{ response.VpnConnections.VpnGatewayId }}'
+- discovery_id: aws.ec2.describe_instance_status
+  calls:
+  - action: describe_instance_status
+    save_as: response
+  emit:
+    item:
+      AvailabilityZone: '{{ response.InstanceStatuses.AvailabilityZone }}'
+      AvailabilityZoneId: '{{ response.InstanceStatuses.AvailabilityZoneId }}'
+      OutpostArn: '{{ response.InstanceStatuses.OutpostArn }}'
+      Operator: '{{ response.InstanceStatuses.Operator }}'
+      Events: '{{ response.InstanceStatuses.Events }}'
+      InstanceId: '{{ response.InstanceStatuses.InstanceId }}'
+      InstanceState: '{{ response.InstanceStatuses.InstanceState }}'
+      InstanceStatus: '{{ response.InstanceStatuses.InstanceStatus }}'
+      SystemStatus: '{{ response.InstanceStatuses.SystemStatus }}'
+      AttachedEbsStatus: '{{ response.InstanceStatuses.AttachedEbsStatus }}'
+- discovery_id: aws.ec2.get_associated_enclave_certificate_iam_roles
+  calls:
+  - action: get_associated_enclave_certificate_iam_roles
+    save_as: response
+  for_each: aws.ec2.describe_client_vpn_endpoints
+  on_error: continue
+  emit:
+    item:
+      AssociatedRoleArn: '{{ response.AssociatedRoles.AssociatedRoleArn }}'
+      CertificateS3BucketName: '{{ response.AssociatedRoles.CertificateS3BucketName
+        }}'
+      CertificateS3ObjectKey: '{{ response.AssociatedRoles.CertificateS3ObjectKey
+        }}'
+      EncryptionKmsKeyId: '{{ response.AssociatedRoles.EncryptionKmsKeyId }}'
+- discovery_id: aws.ec2.get_ipam_discovered_public_addresses
+  calls:
+  - action: get_ipam_discovered_public_addresses
+    save_as: response
+  emit:
+    item:
+      IpamResourceDiscoveryId: '{{ response.IpamDiscoveredPublicAddresses.IpamResourceDiscoveryId
+        }}'
+      AddressRegion: '{{ response.IpamDiscoveredPublicAddresses.AddressRegion }}'
+      Address: '{{ response.IpamDiscoveredPublicAddresses.Address }}'
+      AddressOwnerId: '{{ response.IpamDiscoveredPublicAddresses.AddressOwnerId }}'
+      AddressAllocationId: '{{ response.IpamDiscoveredPublicAddresses.AddressAllocationId
+        }}'
+      AssociationStatus: '{{ response.IpamDiscoveredPublicAddresses.AssociationStatus
+        }}'
+      AddressType: '{{ response.IpamDiscoveredPublicAddresses.AddressType }}'
+      Service: '{{ response.IpamDiscoveredPublicAddresses.Service }}'
+      ServiceResource: '{{ response.IpamDiscoveredPublicAddresses.ServiceResource
+        }}'
+      VpcId: '{{ response.IpamDiscoveredPublicAddresses.VpcId }}'
+      SubnetId: '{{ response.IpamDiscoveredPublicAddresses.SubnetId }}'
+      PublicIpv4PoolId: '{{ response.IpamDiscoveredPublicAddresses.PublicIpv4PoolId
+        }}'
+      NetworkInterfaceId: '{{ response.IpamDiscoveredPublicAddresses.NetworkInterfaceId
+        }}'
+      NetworkInterfaceDescription: '{{ response.IpamDiscoveredPublicAddresses.NetworkInterfaceDescription
+        }}'
+      InstanceId: '{{ response.IpamDiscoveredPublicAddresses.InstanceId }}'
+      Tags: '{{ response.IpamDiscoveredPublicAddresses.Tags }}'
+      NetworkBorderGroup: '{{ response.IpamDiscoveredPublicAddresses.NetworkBorderGroup
+        }}'
+      SecurityGroups: '{{ response.IpamDiscoveredPublicAddresses.SecurityGroups }}'
+      SampleTime: '{{ response.IpamDiscoveredPublicAddresses.SampleTime }}'
+- discovery_id: aws.ec2.describe_instance_image_metadata
+  calls:
+  - action: describeinstanceimagemetadata
+    save_as: response
+  emit:
+    item:
+      InstanceId: '{{ response.InstanceImageMetadata.InstanceId }}'
+      InstanceType: '{{ response.InstanceImageMetadata.InstanceType }}'
+      LaunchTime: '{{ response.InstanceImageMetadata.LaunchTime }}'
+      AvailabilityZone: '{{ response.InstanceImageMetadata.AvailabilityZone }}'
+      ZoneId: '{{ response.InstanceImageMetadata.ZoneId }}'
+      State: '{{ response.InstanceImageMetadata.State }}'
+      OwnerId: '{{ response.InstanceImageMetadata.OwnerId }}'
+      Tags: '{{ response.InstanceImageMetadata.Tags }}'
+      ImageMetadata: '{{ response.InstanceImageMetadata.ImageMetadata }}'
+      Operator: '{{ response.InstanceImageMetadata.Operator }}'
 checks:
-- rule_id: aws.ec2.resource.ebs_encryption_by_default_enabled
-  for_each: aws.ec2.create_default_vpc
-  conditions:
-    var: item.EncryptionControl
-    op: equals
-    value: ENABLED
-- rule_id: aws.ec2.instance.vtpm_enabled
-  for_each: aws.ec2.create_verified_access_instance
-  conditions:
-    var: item.FipsEnabled
-    op: equals
-    value: true
-- rule_id: aws.ec2.instance.user_data_no_secrets_configured
-  for_each: aws.ec2.get_launch_template_data
-  conditions:
-    var: item.UserData
-    op: equals
-- rule_id: aws.ec2.security_group.default_deny_between_network_tiers_enforced
+- rule_id: aws.ec2.group.cifs_access_restriction_tcp_port_445_configured
   for_each: aws.ec2.describe_security_groups
   conditions:
     var: item.IpPermissions
+    op: contains
+    value: tcp
+- rule_id: aws.ec2.instance.port_ldap_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: '389'
+- rule_id: aws.ec2.resource.ebs_encryption_by_default_enabled
+  for_each: aws.ec2.get_ebs_encryption_by_default
+  conditions:
+    var: item.EbsEncryptionByDefault
     op: equals
-    value: []
+    value: 'true'
+- rule_id: aws.ec2.instance.vtpm_enabled
+  for_each: aws.ec2.get_instance_metadata_defaults
+  conditions:
+    var: item.InstanceMetadataTags
+    op: equals
+    value: enabled
+- rule_id: aws.ec2.instance.user_data_no_secrets_configured
+  for_each: aws.ec2.describe_instance_attribute
+  conditions:
+    var: item.UserData
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.default_deny_between_network_tiers_enforced
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.autoscalinggroup.instance_profile_least_privilege
+  for_each: aws.ec2.describe_iam_instance_profile_associations
+  conditions:
+    var: item.IamInstanceProfile
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.launchtemplate.no_public_ip_default_configured
-  for_each: aws.ec2.describe_address_transfers
+  for_each: aws.ec2.describe_network_interface_attribute
   conditions:
-    var: item.PublicIp
-    op: exists
-- rule_id: aws.ec2.networkacl.network_egress_restricted
-  for_each: aws.ec2.describe_network_acls
-  conditions:
-    var: item.Entries
+    var: item.AssociatePublicIpAddress
     op: equals
-    value: []
+    value: 'false'
+- rule_id: aws.ec2.security_group_internet_ingress_mysql_3306.port_mysql_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.networkacl.network_egress_restricted
+  for_each: aws.ec2.describe_security_groups
+  conditions:
+    var: item.IpPermissionsEgress
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.launch_template_no_secrets.launch_template_no_secrets_configured
   for_each: aws.ec2.describe_launch_template_versions
   conditions:
     var: item.LaunchTemplateData
-    op: equals
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.resource.backup_enabled
-  for_each: aws.ec2.create_default_subnet
-  conditions:
-    var: item.State
-    op: equals
-    value: ENABLED
-- rule_id: aws.ec2.ami.not_publicly_shared_configured
   for_each: aws.ec2.describe_fpga_images
   conditions:
-    var: item.Public
+    var: item.DataRetentionSupport
     op: equals
-    value: false
+    value: enabled
+- rule_id: aws.ec2.ami.not_publicly_shared_configured
+  for_each: aws.ec2.get_image_block_public_access_state
+  conditions:
+    var: item.ImageBlockPublicAccessState
+    op: equals
+    value: unblocked
 - rule_id: aws.ec2.networkacl.network_no_allow_all_rules_configured
-  for_each: aws.ec2.describe_network_acls
+  for_each: aws.ec2.describe_traffic_mirror_filters
   conditions:
-    var: item.Entries
-    op: equals
-    value: []
+    var: item.IngressFilterRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.serial_console_access_restricted
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_serial_console_access_status
   conditions:
-    var: item.State
+    var: item.SerialConsoleAccessEnabled
     op: equals
-    value: DISABLED
+    value: 'false'
+- rule_id: aws.ec2.instance.port_mysql_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: mysql
+- rule_id: aws.ec2.vpcendpoint.policy_least_privilege
+  for_each: aws.ec2.describe_vpc_endpoints
+  conditions:
+    var: item.PolicyDocument
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpc.exception_approvals_required
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    var: item.AcceptanceRequired
+    op: equals
+    value: 'true'
+- rule_id: aws.ec2.resource.vpc_peering_route_table_least_access_configured
+  for_each: aws.ec2.describe_subnets
+  conditions:
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.security_group_internet_ingress_all_ports.internet_ingress_all_ports_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group_ssh_restricted.ssh_access_restricted
   for_each: aws.ec2.describe_security_groups
   conditions:
     var: item.IpPermissions
-    op: equals
-    value: []
-- rule_id: aws.ec2.security_group_ssh_restricted.ssh_access_restricted
-  for_each: aws.ec2.authorize_security_group_ingress
-  conditions:
-    var: item.CidrIpv4
-    op: equals
-    value: 0.0.0.0/0
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.ebs.public_snapshot_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_subnets
   conditions:
-    var: item.State
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.port_elasticsearch_kibana_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: elasticsearch
+- rule_id: aws.ec2.instance.port_kerberos_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
     op: equals
-    value: available
-- rule_id: aws.ec2.instance.older_than_specific_days_configured
-  for_each: aws.ec2.create_nat_gateway
-  conditions:
-    var: item.CreateTime
-    op: lt
-    value: '2023-10-01T00:00:00Z'
+    value: '88'
 - rule_id: aws.ec2.resource.client_vpn_endpoint_connection_logging_enabled
   for_each: aws.ec2.describe_client_vpn_endpoints
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.ConnectionLogOptions
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.amipublic.ami_public_configured
-  for_each: aws.ec2.describe_fpga_images
+  for_each: aws.ec2.get_image_block_public_access_state
   conditions:
-    var: item.Public
+    var: item.ImageBlockPublicAccessState
     op: equals
-    value: false
+    value: unblocked
+- rule_id: aws.ec2.instance.port_redis_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '6379'
 - rule_id: aws.ec2.networkacl.ingress_restrict_all_traffic
   for_each: aws.ec2.describe_network_acls
   conditions:
-    var: item.Entries
+    var: item.NetworkAcls
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpc.quarantine_network_configured
+  for_each: aws.ec2.describe_vpc_block_public_access_options
+  conditions:
+    var: item.VpcBlockPublicAccessOptions
     op: equals
-    value: []
+    value: 'false'
 - rule_id: aws.ec2.subnet.public_s_use_nacl_restrictions_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_subnets
   conditions:
     var: item.BlockPublicAccessStates
-    op: equals
-    value:
-    - RESTRICTED
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.vpcendpoint.private_dns_enabled_if_supported
   for_each: aws.ec2.describe_vpc_endpoints
   conditions:
     var: item.PrivateDnsEnabled
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.ec2.vpc.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_vpc_attribute
+  conditions:
+    var: item.EnableDnsHostnames
+    op: equals
+    value: 'true'
 - rule_id: aws.ec2.subnet.route_table_association_present
-  for_each: aws.ec2.describe_network_acls
+  for_each: aws.ec2.describe_vpc_endpoints
   conditions:
-    var: item.Associations
-    op: exists
+    var: item.RouteTableIds
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.port_ftp_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: ftp
 - rule_id: aws.ec2.subnet.quarantine_network_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_carrier_gateways
   conditions:
-    var: item.BlockPublicAccessStates
-    op: equals
-    value:
-    - BLOCKED
+    var: item.VpcId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.port_memcached_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: memcached
 - rule_id: aws.ec2.resource.ami_public_visibility_configured
-  for_each: aws.ec2.describe_fpga_images
+  for_each: aws.ec2.get_image_block_public_access_state
   conditions:
-    var: item.Public
+    var: item.ImageBlockPublicAccessState
     op: equals
-    value: false
+    value: unblocked
 - rule_id: aws.ec2.resource.ebs_snapshots_encrypted
-  for_each: aws.ec2.describe_snapshots
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.SseType
+    var: item.Encrypted
     op: equals
-    value: ENCRYPTED
+    value: 'true'
 - rule_id: aws.ec2.launchtemplate.no_public_ip_assigned_configured
-  for_each: aws.ec2.describe_address_transfers
+  for_each: aws.ec2.describe_network_interface_attribute
   conditions:
-    var: item.PublicIp
-    op: exists
+    var: item.AssociatePublicIpAddress
+    op: equals
+    value: 'false'
 - rule_id: aws.ec2.networkacl.unused_network_acl_configured
   for_each: aws.ec2.describe_network_acls
   conditions:
-    var: item.Associations
-    op: equals
-    value: []
+    var: item.NetworkAclId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.network_policies_configured
+  for_each: aws.ec2.describe_security_groups
+  conditions:
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.eip.not_in_use
-  for_each: aws.ec2.describe_addresses
+  for_each: aws.ec2.describe_local_gateway_virtual_interface_groups
   conditions:
-    var: item.InstanceId
-    op: equals
+    var: item.ConfigurationState
+    op: not_equals
+    value: available
 - rule_id: aws.ec2.subnet.automated_isolation_supported_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_ipam_address_history
   conditions:
-    var: item.BlockPublicAccessStates
+    var: item.ResourceComplianceStatus
     op: equals
-    value: []
+    value: compliant
 - rule_id: aws.ec2.instance.uses_single_eni_configured
-  for_each: aws.ec2.create_traffic_mirror_target
+  for_each: aws.ec2.describe_network_insights_access_scope_analyses
   conditions:
-    var: item.NetworkInterfaceId
-    op: exists
+    var: item.AnalyzedEniCount
+    op: equals
+    value: 1
 - rule_id: aws.ec2.keypair.key_max_age_days_configured
-  for_each: aws.ec2.create_nat_gateway
+  for_each: aws.ec2.describe_scheduled_instance_availability
   conditions:
-    var: item.CreateTime
-    op: lte
-    value: '30'
+    var: item.MaxTermDurationInDays
+    op: greater_than
+    value: '0'
 - rule_id: aws.ec2.subnet.public_subnets_use_nacl_restrictions_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_subnets
   conditions:
     var: item.BlockPublicAccessStates
-    op: equals
+    op: not_in
     value:
-    - RESTRICTED
-- rule_id: aws.ec2.volume.encryption_at_rest_enabled
-  for_each: aws.ec2.describe_snapshots
+    - 'null'
+- rule_id: aws.ec2.security_group.exception_approvals_required
+  for_each: aws.ec2.describe_security_group_vpc_associations
   conditions:
-    var: item.SseType
+    var: item.SecurityGroupVpcAssociations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.volume.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
     op: equals
-    value: aws:kms
+    value: 'true'
 - rule_id: aws.ec2.resource.vpc_flow_logging_reject_enabled
   for_each: aws.ec2.describe_flow_logs
   conditions:
-    var: item.FlowLogStatus
+    var: item.FlowLogs
     op: equals
-    value: ACTIVE
+    value: enabled
 - rule_id: aws.ec2.spotinstance.no_public_ip_assigned_configured
   for_each: aws.ec2.describe_address_transfers
   conditions:
     var: item.PublicIp
-    op: exists
-- rule_id: aws.ec2.network_interface.security_groups_present
-  for_each: aws.ec2.describe_classic_link_instances
+    op: equals
+    value: 'false'
+- rule_id: aws.ec2.subnet.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.Groups
-    op: exists
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.network_interface.security_groups_present
+  for_each: aws.ec2.describe_client_vpn_endpoints
+  conditions:
+    var: item.SecurityGroupIds
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_security_group_vpc_associations
+  conditions:
+    var: item.SecurityGroupVpcAssociations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.networkacl.endpoint_policies_applied_configured
+  for_each: aws.ec2.describe_network_acls
+  conditions:
+    var: item.NetworkAclId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.public_ip_configured
   for_each: aws.ec2.describe_address_transfers
   conditions:
     var: item.PublicIp
-    op: exists
+    op: equals
+    value: 'true'
 - rule_id: aws.ec2.ebs.volume_encryption_configured
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.EncryptionControl
+    var: item.Encrypted
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.ec2.security_group_rdp_restricted.rdp_access_restricted
-  for_each: aws.ec2.authorize_security_group_ingress
+  for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.CidrIpv4
+    var: item.IpPermissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.port_kafka_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
     op: equals
-    value: 0.0.0.0/0
+    value: '9092'
+- rule_id: aws.ec2.autoscalinggroup.uses_approved_launch_template_configured
+  for_each: aws.ec2.describe_fleets
+  conditions:
+    var: item.LaunchTemplateConfigs
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.only_required_ports_allowed
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.customergateway.no_public_management_interfaces_exposed_configured
+  for_each: aws.ec2.describe_fpga_images
+  conditions:
+    var: item.Public
+    op: equals
+    value: not_equals
+- rule_id: aws.ec2.security_group_internet_ingress_mongodb_27017_27018.port_mongodb_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group_internet_ingress_sql_server_1433_1434.port_sql_server_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.security_group_not_used.unused_security_groups_removed
-  for_each: aws.ec2.authorize_security_group_ingress
+  for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.GroupId
-    op: equals
-    value: []
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.volume.snapshots_exists_configured
-  for_each: aws.ec2.describe_fast_snapshot_restores
+  for_each: aws.ec2.list_snapshots_in_recycle_bin
   conditions:
-    var: item.SnapshotId
-    op: exists
+    var: item.Snapshots
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.zero_cidr_ingress_rules_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.volume.protected_by_backup_plan_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_fpga_images
   conditions:
-    var: item.State
+    var: item.DataRetentionSupport
     op: equals
-    value: ENABLED
+    value: 'true'
+- rule_id: aws.ec2.launchtemplate.instance_profile_least_privilege
+  for_each: aws.ec2.describe_iam_instance_profile_associations
+  conditions:
+    var: item.IamInstanceProfile
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpc.automated_isolation_supported_configured
+  for_each: aws.ec2.describe_vpc_block_public_access_options
+  conditions:
+    var: item.VpcBlockPublicAccessOptions
+    op: equals
+    value: 'false'
+- rule_id: aws.ec2.spotinstance.instance_uses_approved_launch_template_configured
+  for_each: aws.ec2.describe_fast_launch_images
+  conditions:
+    var: item.LaunchTemplate
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.resource.launch_template_imdsv2_required
-  for_each: aws.ec2.get_instance_metadata_defaults
+  for_each: aws.ec2.describe_fast_launch_images
   conditions:
-    var: item.HttpTokens
-    op: equals
-    value: required
+    var: item.LaunchTemplate
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.dedicatedhost.host_sharing_restricted
   for_each: aws.ec2.describe_hosts
   conditions:
-    var: item.AllowsMultipleInstanceTypes
-    op: equals
-    value: false
+    var: item.HostProperties
+    op: contains
+    value: host-sharing-restricted
 - rule_id: aws.ec2.dedicatedhost.instance_auto_placement_controlled_configured
   for_each: aws.ec2.describe_hosts
   conditions:
     var: item.AutoPlacement
     op: equals
-    value: 'on'
+    value: 'off'
 - rule_id: aws.ec2.security_group.permit_all_egress_rules_blocked
   for_each: aws.ec2.describe_security_groups
   conditions:
     var: item.IpPermissionsEgress
-    op: equals
-    value: []
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.group.ingress_ipv6_restriction_configured
-  for_each: aws.ec2.authorize_security_group_ingress
+  for_each: aws.ec2.describe_traffic_mirror_filters
   conditions:
-    var: item.CidrIpv6
-    op: exists
+    var: item.IngressFilterRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.spotinstance.instance_profile_least_privilege
+  for_each: aws.ec2.describe_iam_instance_profile_associations
+  conditions:
+    var: item.IamInstanceProfile
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.security_group.policy_store_encrypted_configured
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.EncryptionControl
+    var: item.Encrypted
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.ec2.instance.ssh_key_based_auth_required
   for_each: aws.ec2.describe_key_pairs
   conditions:
     var: item.KeyName
-    op: exists
-- rule_id: aws.ec2.instance.data_volumes_encrypted_cmek
-  for_each: aws.ec2.describe_snapshots
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpc.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.SseType
+    var: item.SecurityGroups
+    op: contains
+    value: 'null'
+- rule_id: aws.ec2.instance.data_volumes_encrypted_cmek
+  for_each: aws.ec2.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
     op: equals
-    value: aws:kms
+    value: 'true'
 - rule_id: aws.ec2.instance.paravirtual_type_configured
   for_each: aws.ec2.describe_images
   conditions:
@@ -879,97 +1489,155 @@ checks:
     op: equals
     value: paravirtual
 - rule_id: aws.ec2.keypair.disable_unused_keys_configured
-  for_each: aws.ec2.describe_key_pairs
+  for_each: aws.ec2.get_ipam_address_history
   conditions:
-    var: item.KeyPairId
-    op: exists
+    var: item.ResourceComplianceStatus
+    op: equals
+    value: compliant
 - rule_id: aws.ec2.instance.managed_by_ssm_configured
   for_each: aws.ec2.describe_vpc_block_public_access_options
   conditions:
     var: item.ManagedBy
     op: equals
-    value: true
+    value: account
 - rule_id: aws.ec2.vpnconnection.tunnel_health_monitoring_enabled
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_launch_template_data
   conditions:
-    var: item.State
+    var: item.Monitoring
     op: equals
-    value: AVAILABLE
+    value: enabled
 - rule_id: aws.ec2.security_group.identity_aware_network_policies_enabled
-  for_each: aws.ec2.authorize_security_group_ingress
-  conditions:
-    var: item.IsEgress
-    op: equals
-    value: false
-- rule_id: aws.ec2.autoscalinggroup.no_public_ip_assigned_configured
-  for_each: aws.ec2.describe_address_transfers
-  conditions:
-    var: item.PublicIp
-    op: exists
-- rule_id: aws.ec2.eip.shodan_exposure_detected
-  for_each: aws.ec2.create_default_subnet
-  conditions:
-    var: item.State
-    op: equals
-    value: EXPOSED
-- rule_id: aws.ec2.reserved_instance.instance_approval_workflow_required
-  for_each: aws.ec2.create_default_subnet
-  conditions:
-    var: item.State
-    op: equals
-    value: ENABLED
-- rule_id: aws.ec2.instance.secrets_user_data_configured
-  for_each: aws.ec2.get_launch_template_data
-  conditions:
-    var: item.UserData
-    op: exists
-- rule_id: aws.ec2.security_group.egress_access_restricted
-  for_each: aws.ec2.describe_security_groups
-  conditions:
-    var: item.IpPermissionsEgress
-    op: equals
-    value: []
-- rule_id: aws.ec2.launchtemplate.user_data_no_secrets_configured
-  for_each: aws.ec2.get_launch_template_data
-  conditions:
-    var: item.UserData
-    op: equals
-- rule_id: aws.ec2.networkacl.unrestricted_ingress_blocked
-  for_each: aws.ec2.describe_network_acls
-  conditions:
-    var: item.Entries
-    op: equals
-    value: []
-- rule_id: aws.ec2.subnet.default_deny_between_tiers_configured
-  for_each: aws.ec2.create_default_subnet
-  conditions:
-    var: item.BlockPublicAccessStates
-    op: equals
-    value: []
-- rule_id: aws.ec2.reserved_instance.purchase_permissions_restricted
-  for_each: aws.ec2.create_default_subnet
-  conditions:
-    var: item.State
-    op: equals
-    value: RESTRICTED
-- rule_id: aws.ec2.routetable.no_0_from_private_subnets_configured
-  for_each: aws.ec2.describe_network_acls
-  conditions:
-    var: item.Associations
-    op: equals
-    value: []
-- rule_id: aws.ec2.vpc.flow_logging_enabled
   for_each: aws.ec2.describe_flow_logs
   conditions:
     var: item.FlowLogStatus
     op: equals
-    value: ACTIVE
-- rule_id: aws.ec2.snapshot.encryption_at_rest_enabled
-  for_each: aws.ec2.describe_snapshots
+    value: enabled
+- rule_id: aws.ec2.security_group_from_launch_wizard.launch_wizard_created_configured
+  for_each: aws.ec2.describe_security_group_vpc_associations
   conditions:
-    var: item.SseType
+    var: item.SecurityGroupVpcAssociations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.autoscalinggroup.no_public_ip_assigned_configured
+  for_each: aws.ec2.describe_network_interface_attribute
+  conditions:
+    var: item.AssociatePublicIpAddress
     op: equals
-    value: aws:kms
+    value: 'false'
+- rule_id: aws.ec2.instance.port_cassandra_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '9042'
+- rule_id: aws.ec2.security_group.allow_ingress_from_internet_to_tcp_port_22_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: tcp
+- rule_id: aws.ec2.instance.port_sqlserver_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '1433'
+- rule_id: aws.ec2.security_group_internet_ingress_oracle_1521_2483.port_oracle_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.eip.shodan_exposure_detected
+  for_each: aws.ec2.get_ipam_address_history
+  conditions:
+    var: item.ResourceComplianceStatus
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.reserved_instance.instance_approval_workflow_required
+  for_each: aws.ec2.describe_local_gateway_virtual_interface_groups
+  conditions:
+    var: item.ConfigurationState
+    op: equals
+    value: available
+- rule_id: aws.ec2.instance.secrets_user_data_configured
+  for_each: aws.ec2.describe_instance_attribute
+  conditions:
+    var: item.UserData
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group.egress_access_restricted
+  for_each: aws.ec2.describe_security_groups
+  conditions:
+    var: item.IpPermissionsEgress
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.launchtemplate.user_data_no_secrets_configured
+  for_each: aws.ec2.describe_instance_attribute
+  conditions:
+    var: item.UserData
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.networkacl.unrestricted_ingress_blocked
+  for_each: aws.ec2.describe_network_acls
+  conditions:
+    var: item.NetworkAcls
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.subnet.default_deny_between_tiers_configured
+  for_each: aws.ec2.describe_network_interfaces
+  conditions:
+    var: item.DenyAllIgwTraffic
+    op: equals
+    value: 'true'
+- rule_id: aws.ec2.networkacl.ssh_port_22_restricted
+  for_each: aws.ec2.describe_network_acls
+  conditions:
+    var: item.NetworkAcls
+    op: contains
+    value: '22'
+- rule_id: aws.ec2.reserved_instance.purchase_permissions_restricted
+  for_each: aws.ec2.describe_fpga_images
+  conditions:
+    var: item.Public
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.routetable.no_0_from_private_subnets_configured
+  for_each: aws.ec2.describe_network_interfaces
+  conditions:
+    var: item.AssociatedSubnets
+    op: not_equals
+    value: 0.0.0.0/0
+- rule_id: aws.ec2.instance.port_mongodb_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '27017'
+- rule_id: aws.ec2.security_group_default_restrict_traffic.default_deny_all_traffic_enforced
+  for_each: aws.ec2.describe_network_interfaces
+  conditions:
+    var: item.DenyAllIgwTraffic
+    op: equals
+    value: 'true'
+- rule_id: aws.ec2.vpc.flow_logging_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    var: item.FlowLogs
+    op: equals
+    value: enabled
+- rule_id: aws.ec2.snapshot.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.ec2.instance.port_rdp_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: RDP
 - rule_id: aws.ec2.instance.detailed_monitoring_enabled
   for_each: aws.ec2.get_launch_template_data
   conditions:
@@ -981,210 +1649,406 @@ checks:
   conditions:
     var: item.Encrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.ec2.routetable.vpc_endpoints_used_for_saas_if_supported
+  for_each: aws.ec2.describe_vpc_endpoints
+  conditions:
+    var: item.VpcEndpoints
+    op: contains
+    value: SaaS
+- rule_id: aws.ec2.ami.image_signed_and_verified
+  for_each: aws.ec2.get_image_block_public_access_state
+  conditions:
+    var: item.ImageBlockPublicAccessState
+    op: equals
+    value: unblocked
 - rule_id: aws.ec2.networkacl.network_no_unrestricted_ingress_configured
   for_each: aws.ec2.describe_network_acls
   conditions:
-    var: item.Entries
-    op: equals
-    value: []
-- rule_id: aws.ec2.launchtemplate.imds_hardened_configured
-  for_each: aws.ec2.get_instance_metadata_defaults
+    var: item.NetworkAcls
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpc.default_deny_between_tiers_configured
+  for_each: aws.ec2.describe_network_interfaces
   conditions:
-    var: item.HttpTokens
+    var: item.DenyAllIgwTraffic
     op: equals
-    value: required
+    value: 'true'
+- rule_id: aws.ec2.security_group_internet_ingress_cassandra_7199_9160_8888.port_cassandra_7199_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.launchtemplate.imds_hardened_configured
+  for_each: aws.ec2.describe_images
+  conditions:
+    var: item.ImdsSupport
+    op: equals
+    value: v2.0
+- rule_id: aws.ec2.security_group_common_ports_restricted.common_ports_ingress_restricted
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.launchtemplate.uses_approved_configured
+  for_each: aws.ec2.describe_fast_launch_images
+  conditions:
+    var: item.LaunchTemplate
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.snapshot.cross_region_copy_encrypted
   for_each: aws.ec2.describe_import_image_tasks
   conditions:
     var: item.Encrypted
     op: equals
-    value: true
-- rule_id: aws.ec2.autoscalinggroup.volumes_encrypted
-  for_each: aws.ec2.create_default_vpc
+    value: 'true'
+- rule_id: aws.ec2.security_group_internet_ingress_ftp_20_21.port_ftp_blocked
+  for_each: aws.ec2.describe_network_insights_paths
   conditions:
-    var: item.EncryptionControl
+    var: item.DestinationPort
+    op: not_equals
+    value: '20'
+- rule_id: aws.ec2.launchtemplate.security_groups_restrictive_configured
+  for_each: aws.ec2.describe_client_vpn_endpoints
+  conditions:
+    var: item.SecurityGroupIds
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.imds_hardened_configured
+  for_each: aws.ec2.describe_images
+  conditions:
+    var: item.ImdsSupport
     op: equals
-    value: ENABLED
+    value: v2.0
+- rule_id: aws.ec2.security_group_internet_ingress_high_risk_ports.internet_ingress_high_risk_ports_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.ami.vuln_scanned_no_critical_configured
+  for_each: aws.ec2.get_ipam_resource_cidrs
+  conditions:
+    var: item.ComplianceStatus
+    op: equals
+    value: not_compliant
+- rule_id: aws.ec2.autoscalinggroup.volumes_encrypted
+  for_each: aws.ec2.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.ec2.instance.secure_boot_enabled
   for_each: aws.ec2.describe_images
   conditions:
     var: item.BootMode
     op: equals
-    value: UEFI
+    value: uefi
+- rule_id: aws.ec2.customergateway.api_ip_addresses_valid_and_owned_configured
+  for_each: aws.ec2.describe_addresses
+  conditions:
+    var: item.CustomerOwnedIp
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.snapshot.not_public_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_subnets
   conditions:
-    var: item.State
-    op: equals
-    value: private
+    var: item.BlockPublicAccessStates
+    op: not_in
+    value:
+    - unblocked
 - rule_id: aws.ec2.volume.cmk_cmek_configured
-  for_each: aws.ec2.describe_snapshots
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.SseType
+    var: item.Encrypted
     op: equals
-    value: aws:kms
+    value: 'true'
+- rule_id: aws.ec2.instance.port_telnet_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: telnet
 - rule_id: aws.ec2.instance.security_group_inbound_restricted
   for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.IpPermissions
-    op: equals
-    value: []
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.volume.in_use_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_volume_status
   conditions:
-    var: item.State
+    var: item.VolumeStatus
     op: equals
-    value: in-use
+    value: available
+- rule_id: aws.ec2.vpc.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_route_tables
+  conditions:
+    var: item.RouteTables
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.imdsv2_enabled
   for_each: aws.ec2.get_instance_metadata_defaults
   conditions:
-    var: item.HttpTokens
+    var: item.InstanceMetadataTags
     op: equals
-    value: required
+    value: enabled
+- rule_id: aws.ec2.security_group_internet_ingress_elasticsearch_kibana_9200_9300_5601.port_elasticsearch_kibana_9200_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.transitgateway.auto_cross_account_attachment_disabled
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_ipam_pools
   conditions:
-    var: item.State
-    op: equals
-    value: DISABLED
+    var: item.AutoImport
+    op: not_equals
+    value: enabled
 - rule_id: aws.ec2.volume.snapshots_encrypted
-  for_each: aws.ec2.describe_snapshots
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.SseType
+    var: item.Encrypted
     op: equals
-    value: ENCRYPTED
+    value: 'true'
 - rule_id: aws.ec2.group.cifs_unrestricted_access_configured
-  for_each: aws.ec2.authorize_security_group_ingress
+  for_each: aws.ec2.describe_security_groups
   conditions:
-    var: item.CidrIpv4
+    var: item.IpPermissions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.vpnconnection.ike_phase_encryption_strong_configured
+  for_each: aws.ec2.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
     op: equals
-    value: 0.0.0.0/0
+    value: 'true'
 - rule_id: aws.ec2.networkacl.network_allow_ingress_any_port_configured
   for_each: aws.ec2.describe_network_acls
   conditions:
-    var: item.Entries
-    op: exists
+    var: item.NetworkAcls
+    op: contains
+    value: ingress
 - rule_id: aws.ec2.launch_template_no_public_ip.launch_template_no_public_ip_configured
-  for_each: aws.ec2.describe_address_transfers
+  for_each: aws.ec2.describe_network_interface_attribute
   conditions:
-    var: item.PublicIp
+    var: item.AssociatePublicIpAddress
     op: equals
-    value: false
+    value: 'false'
+- rule_id: aws.ec2.instance.port_ssh_exposed_to_internet_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: contains
+    value: '22'
+- rule_id: aws.ec2.security_group_with_many_ingress_egress_rules.ingress_egress_rules_limited_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.port_oracle_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '1521'
 - rule_id: aws.ec2.launchtemplate.root_volume_encrypted_by_default
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.EncryptionControl
+    var: item.Encrypted
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.ec2.instance.no_public_ip_assigned_configured
   for_each: aws.ec2.describe_address_transfers
   conditions:
     var: item.PublicIp
-    op: exists
+    op: equals
+    value: 'false'
+- rule_id: aws.ec2.instance.port_postgresql_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '5432'
 - rule_id: aws.ec2.ami.approved_image_allowlist_enforced
-  for_each: aws.ec2.describe_export_image_tasks
+  for_each: aws.ec2.describe_images
   conditions:
-    var: item.ImageId
-    op: contains
-    value:
-    - ami-12345678
-    - ami-87654321
+    var: item.ImageAllowed
+    op: equals
+    value: approved
 - rule_id: aws.ec2.ebs.default_encryption_configured
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.get_ebs_encryption_by_default
   conditions:
-    var: item.EncryptionControl
+    var: item.EbsEncryptionByDefault
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.ec2.security_group.vpc_endpoint_policies_applied
-  for_each: aws.ec2.describe_vpc_endpoints
+  for_each: aws.ec2.describe_vpc_endpoint_associations
   conditions:
-    var: item.PolicyDocument
-    op: exists
+    var: item.VpcEndpointAssociations
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.root_volume_encrypted_cmek
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.EncryptionControl
+    var: item.Encrypted
     op: equals
-    value: ENABLED
+    value: 'true'
+- rule_id: aws.ec2.instance.internet_facing_with_instance_profile_configured
+  for_each: aws.ec2.describe_iam_instance_profile_associations
+  conditions:
+    var: item.IamInstanceProfile
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.networkacl.network_identity_aware_policies_enabled
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_flow_logs
   conditions:
-    var: item.IsDefault
+    var: item.FlowLogStatus
     op: equals
-    value: false
+    value: enabled
+- rule_id: aws.ec2.instance.port_cifs_exposed_to_internet_configured
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: equals
+    value: '445'
+- rule_id: aws.ec2.networkacl.rdp_port_3389_restricted
+  for_each: aws.ec2.describe_network_acls
+  conditions:
+    var: item.NetworkAcls
+    op: contains
+    value: '3389'
 - rule_id: aws.ec2.instance.ssh_password_auth_disabled
-  for_each: aws.ec2.authorize_security_group_ingress
+  for_each: aws.ec2.get_instance_metadata_defaults
   conditions:
-    var: item.SecurityGroupRuleId
+    var: item.InstanceMetadataTags
     op: equals
-    value: []
+    value: disabled
+- rule_id: aws.ec2.vpnconnection.pre_shared_keys_key_rotation_policy_configured
+  for_each: aws.ec2.describe_vpn_connections
+  conditions:
+    var: item.PreSharedKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.subnet.exception_approvals_required
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    var: item.AcceptanceRequired
+    op: equals
+    value: 'true'
 - rule_id: aws.ec2.launchtemplate.volumes_encrypted
-  for_each: aws.ec2.create_default_vpc
+  for_each: aws.ec2.describe_import_image_tasks
   conditions:
-    var: item.EncryptionControl
+    var: item.Encrypted
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.ec2.instance.patch_compliance_status_check
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_ipam_resource_cidrs
   conditions:
-    var: item.State
+    var: item.ComplianceStatus
     op: equals
-    value: COMPLIANT
+    value: fulfilled
 - rule_id: aws.ec2.instance.ssh_key_authentication_configured
   for_each: aws.ec2.describe_key_pairs
   conditions:
     var: item.KeyName
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group_internet_ingress_telnet_23.port_telnet_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.ToPort
+    op: not_equals
+    value: '23'
 - rule_id: aws.ec2.reserved_instance.billing_admins_mfa_required
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_client_vpn_endpoints
   conditions:
-    var: item.State
-    op: equals
-    value: ENABLED
+    var: item.AuthenticationOptions
+    op: contains
+    value: MFA
+- rule_id: aws.ec2.security_group_internet_ingress_postgres_5432.port_postgres_blocked
+  for_each: aws.ec2.describe_network_insights_paths
+  conditions:
+    var: item.DestinationPort
+    op: not_equals
+    value: '5432'
 - rule_id: aws.ec2.instance.stopped_instances_removed
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_instance_status
   conditions:
-    var: item.State
-    op: equals
+    var: item.InstanceState
+    op: not_in
     value: stopped
 - rule_id: aws.ec2.instance.iam_role_compliance_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_associated_enclave_certificate_iam_roles
   conditions:
-    var: item.State
-    op: equals
-    value: ASSOCIATED
+    var: item.AssociatedRoleArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group_internet_ingress_memcached_11211.port_memcached_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.security_group_internet_ingress_redis_6379.port_redis_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.ssm_association_compliant
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_ipam_discovered_public_addresses
   conditions:
-    var: item.State
+    var: item.AssociationStatus
     op: equals
-    value: COMPLIANT
+    value: available
+- rule_id: aws.ec2.security_group_internet_ingress_kafka_9092.port_kafka_blocked
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    var: item.SecurityGroupRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ec2.instance.no_public_ip_configured
   for_each: aws.ec2.describe_address_transfers
   conditions:
     var: item.PublicIp
-    op: exists
+    op: equals
+    value: false
 - rule_id: aws.ec2.subnet.private_s_no_igw_route_configured
-  for_each: aws.ec2.create_nat_gateway
+  for_each: aws.ec2.describe_network_interfaces
   conditions:
-    var: item.RouteTableId
-    op: exists
+    var: item.DenyAllIgwTraffic
+    op: equals
+    value: 'true'
 - rule_id: aws.ec2.account.block_public_access_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_vpc_block_public_access_options
   conditions:
-    var: item.BlockPublicAccessStates
+    var: item.VpcBlockPublicAccessOptions
     op: equals
-    value: []
+    value: false
 - rule_id: aws.ec2.ebs_public_snapshot.ebs_public_snapshot_configured
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.get_image_block_public_access_state
   conditions:
-    var: item.State
+    var: item.ImageBlockPublicAccessState
     op: equals
-    value: private
+    value: unblocked
 - rule_id: aws.ec2.instance.profile_enabled
-  for_each: aws.ec2.create_default_subnet
+  for_each: aws.ec2.describe_iam_instance_profile_associations
   conditions:
-    var: item.State
-    op: equals
-    value: ASSOCIATED
+    var: item.IamInstanceProfile
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.network_interface.security_groups_restrictive_configured
+  for_each: aws.ec2.describe_client_vpn_endpoints
+  conditions:
+    var: item.SecurityGroupIds
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ec2.instance.older_than_specific_days_configured
+  for_each: aws.ec2.get_instance_metadata_defaults
+  conditions:
+    var: item.LaunchTime
+    op: lte

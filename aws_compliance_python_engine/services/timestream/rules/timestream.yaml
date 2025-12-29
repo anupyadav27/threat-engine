@@ -1,216 +1,142 @@
-# TIMESTREAM-QUERY Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/timestream-query_metadata.yaml
-
 version: '1.0'
 provider: aws
-service: timestream-query
+service: timestream
+services:
+  client: timestream
+  module: boto3.client
 discovery:
-- discovery_id: aws.timestream.databases
+- discovery_id: aws.timestream.describe_endpoints
   calls:
-  - action: list_timestreams
-    fields:
-    - Timestreams
-  emit:
-    items_for: list_timestreams_response[]
-    item:
-      id: '{{ database.Id }}'
-      name: '{{ database.Name }}'
-- discovery_id: aws.timestream.database_encryption
-  for_each: aws.timestream.databases
-  calls:
-  - action: list_timestreams
-    params:
-      DatabaseId: '{{ item.id }}'
+  - action: describe_endpoints
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_timestreams_response.Encrypted if list_timestreams_response.Encrypted
-        is defined else false }}'
-- discovery_id: aws.timestream.database_logging
-  for_each: aws.timestream.databases
+      Address: '{{ response.Endpoints.Address }}'
+      CachePeriodInMinutes: '{{ response.Endpoints.CachePeriodInMinutes }}'
+      Endpoints: '{{ resource.Endpoints }}'
+- discovery_id: aws.timestream.list_scheduled_queries
   calls:
-  - action: describe_database_logging
-    params:
-      DatabaseId: '{{ item.id }}'
+  - action: list_scheduled_queries
+    save_as: response
   emit:
+    items_for: '{{ response.ScheduledQueries }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_database_logging_response.LoggingEnabled is defined
-        if describe_database_logging_response else false }}'
-- discovery_id: aws.timestream.resource_logging
-  calls:
-  - action: describe_load_balancers
-  emit:
-    items_for: describe_load_balancers_response[]
-    item:
-      id: '{{ describe_load_balancers_response.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.timestream.resources
-  for_each: aws.timestream.resource
-  calls:
-  - action: describe_resources
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.timestream.tables
-  for_each: aws.timestream.table
-  calls:
-  - action: list_tables
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.timestream.table_encryption
-  calls:
-  - action: describe_table
-  emit:
-    items_for: describe_table_response[]
-    item:
-      id: '{{ describe_table_response.Id }}'
-      compliant: '{{ true }}'
+      Arn: '{{ resource.Arn }}'
+      Name: '{{ resource.Name }}'
+      CreationTime: '{{ resource.CreationTime }}'
+      State: '{{ resource.State }}'
+      PreviousInvocationTime: '{{ resource.PreviousInvocationTime }}'
+      NextInvocationTime: '{{ resource.NextInvocationTime }}'
+      ErrorReportConfiguration: '{{ resource.ErrorReportConfiguration }}'
+      TargetDestination: '{{ resource.TargetDestination }}'
+      LastRunStatus: '{{ resource.LastRunStatus }}'
 checks:
-- title: 'TIMESTREAM resource: Timestream Ingestion Secure Protocol Configured'
-  severity: medium
-  rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
-  for_each: aws.timestream.resources
+- rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
+  for_each: aws.timestream.describe_endpoints
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'TIMESTREAM database: Check Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.timestream.database.check_encryption_at_rest_enabled
-  for_each: aws.timestream.database_encryption
+    var: item.Endpoints
+    op: not_equals
+    value: 'null'
+- rule_id: aws.timestream.database.check_encryption_at_rest_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: encryption.encryption_enabled
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM resource: Security Configuration Compliance Configured'
-  severity: medium
-  rule_id: aws.timestream.resource.security_configuration_compliance_configured
-  for_each: aws.timestream.resources
+    value: ENABLED
+- rule_id: aws.timestream.resource.security_configuration_compliance_configured
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.compliant
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM resource: Cloudwatch Monitoring And Alerting Enabled'
-  severity: medium
-  rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
-  for_each: aws.timestream.resource_logging
+    value: ENABLED
+- rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: logging.logging_enabled
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM database: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.timestream.database.encryption_at_rest_enabled
-  for_each: aws.timestream.database_encryption
+    value: ENABLED
+- rule_id: aws.timestream.database.encryption_at_rest_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: encryption.encryption_enabled
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM table: Require Tls In Transit Configured'
-  severity: high
-  rule_id: aws.timestream.table.require_tls_in_transit_configured
-  for_each: aws.timestream.tables
+    value: ENABLED
+- rule_id: aws.timestream.table.require_tls_in_transit_configured
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.in_vpc
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM database: Require Tls In Transit Configured'
-  severity: high
-  rule_id: aws.timestream.database.require_tls_in_transit_configured
-  for_each: aws.timestream.databases
+    value: ENABLED
+- rule_id: aws.timestream.database.require_tls_in_transit_configured
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.in_vpc
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM table: Deletion Protection Enabled'
-  severity: medium
-  rule_id: aws.timestream.table.deletion_protection_enabled
-  for_each: aws.timestream.tables
+    value: ENABLED
+- rule_id: aws.timestream.table.deletion_protection_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.compliant
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM database: Iam Or Managed Identity Auth Enabled If Supported'
-  severity: high
-  rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
-  for_each: aws.timestream.databases
+    value: ENABLED
+- rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
+    var: item.State
     op: equals
-    value: false
-- title: 'TIMESTREAM table: Private Network Only If Supported'
-  severity: high
-  rule_id: aws.timestream.table.private_network_only_if_supported
-  for_each: aws.timestream.tables
+    value: ENABLED
+- rule_id: aws.timestream.table.private_network_only_if_supported
+  for_each: aws.timestream.describe_endpoints
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'TIMESTREAM table: Iam Or Managed Identity Auth Enabled If Supported'
-  severity: high
-  rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
-  for_each: aws.timestream.tables
+    var: item.Endpoints
+    op: not_equals
+    value: 'null'
+- rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
+    var: item.State
     op: equals
-    value: false
-- title: 'TIMESTREAM resource: Iam Fine Grained Access Control Enabled'
-  severity: high
-  rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
-  for_each: aws.timestream.resources
+    value: ENABLED
+- rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
+    var: item.State
     op: equals
-    value: false
-- title: 'TIMESTREAM table: Public Access Disabled'
-  severity: high
-  rule_id: aws.timestream.table.public_access_disabled
-  for_each: aws.timestream.tables
+    value: ENABLED
+- rule_id: aws.timestream.table.public_access_disabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'TIMESTREAM database: Public Access Disabled'
-  severity: high
-  rule_id: aws.timestream.database.public_access_disabled
-  for_each: aws.timestream.databases
+    var: item.State
+    op: not_equals
+    value: ENABLED
+- rule_id: aws.timestream.database.public_access_disabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
+    var: item.State
     op: equals
-    value: false
-- title: 'TIMESTREAM resource: Cloudtrail Management And Data Logging Enabled'
-  severity: medium
-  rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
-  for_each: aws.timestream.resource_logging
+    value: DISABLED
+- rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: logging.logging_enabled
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM database: Deletion Protection Enabled'
-  severity: medium
-  rule_id: aws.timestream.database.deletion_protection_enabled
-  for_each: aws.timestream.databases
+    value: ENABLED
+- rule_id: aws.timestream.database.deletion_protection_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.compliant
+    var: item.State
     op: equals
-    value: true
-- title: 'TIMESTREAM table: Rbac Least Privilege'
-  severity: high
-  rule_id: aws.timestream.table.rbac_least_privilege
-  for_each: aws.timestream.tables
+    value: ENABLED
+- rule_id: aws.timestream.table.rbac_least_privilege
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'TIMESTREAM table: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.timestream.table.encryption_at_rest_enabled
-  for_each: aws.timestream.table_encryption
+    var: item.State
+    op: not_equals
+    value: DISABLED
+- rule_id: aws.timestream.table.encryption_at_rest_enabled
+  for_each: aws.timestream.list_scheduled_queries
   conditions:
-    var: encryption.encryption_enabled
+    var: item.State
     op: equals
-    value: true
+    value: ENABLED

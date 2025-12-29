@@ -30,16 +30,22 @@ discovery:
       termDurationInSeconds: '{{ response.savingsPlans.termDurationInSeconds }}'
       tags: '{{ response.savingsPlans.tags }}'
       returnableUntil: '{{ response.savingsPlans.returnableUntil }}'
+      savingsPlans: '{{ resource.savingsPlans }}'
 checks:
 - rule_id: aws.savingsplans.savingsplan.savingsplans_approval_workflow_required
   for_each: aws.savingsplans.describe_savings_plans
   conditions:
-    var: item.state
-    op: equals
-    value: ACTIVE
+    var: item.savingsPlans
+    op: not_equals
+    value: 'null'
+- rule_id: aws.savingsplans.savingsplan.purchase_permissions_restricted
+  for_each: aws.savingsplans.describe_savings_plans
+  conditions:
+    var: item.savingsPlans
+    op: not_equals
+    value: 'null'
 - rule_id: aws.savingsplans.savingsplan.billing_admins_mfa_required
   for_each: aws.savingsplans.describe_savings_plans
   conditions:
-    var: item.state
-    op: equals
-    value: ACTIVE
+    var: item.tags
+    op: not_empty

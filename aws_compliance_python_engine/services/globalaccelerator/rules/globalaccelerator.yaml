@@ -24,106 +24,42 @@ discovery:
       LastModifiedTime: '{{ resource.LastModifiedTime }}'
       DualStackDnsName: '{{ resource.DualStackDnsName }}'
       Events: '{{ resource.Events }}'
-- discovery_id: aws.globalaccelerator.list_custom_routing_accelerators
+- discovery_id: aws.globalaccelerator.list_cross_account_attachments
   calls:
-  - action: list_custom_routing_accelerators
+  - action: list_cross_account_attachments
     save_as: response
   emit:
-    items_for: '{{ response.Accelerators }}'
+    items_for: '{{ response.CrossAccountAttachments }}'
     as: resource
     item:
-      AcceleratorArn: '{{ resource.AcceleratorArn }}'
+      AttachmentArn: '{{ resource.AttachmentArn }}'
       Name: '{{ resource.Name }}'
-      IpAddressType: '{{ resource.IpAddressType }}'
-      Enabled: '{{ resource.Enabled }}'
-      IpSets: '{{ resource.IpSets }}'
-      DnsName: '{{ resource.DnsName }}'
-      Status: '{{ resource.Status }}'
-      CreatedTime: '{{ resource.CreatedTime }}'
+      Principals: '{{ resource.Principals }}'
+      Resources: '{{ resource.Resources }}'
       LastModifiedTime: '{{ resource.LastModifiedTime }}'
-- discovery_id: aws.globalaccelerator.create_listener
-  calls:
-  - action: create_listener
-    save_as: response
-    params:
-      AcceleratorArn: '{{ item.AcceleratorArn }}'
-      PortRanges: '{{ item.PortRanges }}'
-      Protocol: '{{ item.Protocol }}'
-  on_error: continue
-  for_each: aws.globalaccelerator.list_custom_routing_accelerators
-  emit:
-    item:
-      ListenerArn: '{{ response.Listener.ListenerArn }}'
-      PortRanges: '{{ response.Listener.PortRanges }}'
-      Protocol: '{{ response.Listener.Protocol }}'
-      ClientAffinity: '{{ response.Listener.ClientAffinity }}'
-- discovery_id: aws.globalaccelerator.describe_accelerator
-  calls:
-  - action: describe_accelerator
-    save_as: response
-    params:
-      AcceleratorArn: '{{ item.AcceleratorArn }}'
-  on_error: continue
-  for_each: aws.globalaccelerator.list_custom_routing_accelerators
-  emit:
-    item:
-      AcceleratorArn: '{{ response.Accelerator.AcceleratorArn }}'
-      Name: '{{ response.Accelerator.Name }}'
-      IpAddressType: '{{ response.Accelerator.IpAddressType }}'
-      Enabled: '{{ response.Accelerator.Enabled }}'
-      IpSets: '{{ response.Accelerator.IpSets }}'
-      DnsName: '{{ response.Accelerator.DnsName }}'
-      Status: '{{ response.Accelerator.Status }}'
-      CreatedTime: '{{ response.Accelerator.CreatedTime }}'
-      LastModifiedTime: '{{ response.Accelerator.LastModifiedTime }}'
-      DualStackDnsName: '{{ response.Accelerator.DualStackDnsName }}'
-      Events: '{{ response.Accelerator.Events }}'
-- discovery_id: aws.globalaccelerator.list_custom_routing_listeners
-  calls:
-  - action: list_custom_routing_listeners
-    save_as: response
-    params:
-      AcceleratorArn: '{{ item.AcceleratorArn }}'
-  on_error: continue
-  for_each: aws.globalaccelerator.list_custom_routing_accelerators
-  emit:
-    items_for: '{{ response.Listeners }}'
-    as: resource
-    item:
-      ListenerArn: '{{ resource.ListenerArn }}'
-      PortRanges: '{{ resource.PortRanges }}'
-- discovery_id: aws.globalaccelerator.list_listeners
-  calls:
-  - action: list_listeners
-    save_as: response
-    params:
-      AcceleratorArn: '{{ item.AcceleratorArn }}'
-  on_error: continue
-  for_each: aws.globalaccelerator.list_custom_routing_accelerators
-  emit:
-    items_for: '{{ response.Listeners }}'
-    as: resource
-    item:
-      ListenerArn: '{{ resource.ListenerArn }}'
-      PortRanges: '{{ resource.PortRanges }}'
-      Protocol: '{{ resource.Protocol }}'
-      ClientAffinity: '{{ resource.ClientAffinity }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
 checks:
 - rule_id: aws.globalaccelerator.accelerator.access_logs_enabled
   for_each: aws.globalaccelerator.list_accelerators
   conditions:
-    var: item.flow_logs_enabled
+    var: item.Enabled
     op: equals
     value: true
 - rule_id: aws.globalaccelerator.accelerator.listener_tls_min_1_2_configured
-  for_each: aws.globalaccelerator.create_listener
+  for_each: aws.globalaccelerator.list_accelerators
   conditions:
-    var: item.Protocol
+    var: item.Enabled
     op: equals
-    value: TLS
+    value: 'true'
 - rule_id: aws.globalaccelerator.accelerator.valid_certificate_enabled
   for_each: aws.globalaccelerator.list_accelerators
   conditions:
-    var: item.Status
+    var: item.Enabled
     op: equals
-    value: ENABLED
+    value: true
+- rule_id: aws.globalaccelerator.accelerator.waf_attached_if_supported
+  for_each: aws.globalaccelerator.list_cross_account_attachments
+  conditions:
+    var: item.AttachmentArn
+    op: not_equals
+    value: 'null'

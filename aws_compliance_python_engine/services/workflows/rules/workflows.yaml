@@ -1,53 +1,113 @@
 version: '1.0'
 provider: aws
 service: workflows
+services:
+  client: workflows
+  module: boto3.client
 discovery:
+- discovery_id: aws.workflows.list_executions
+  calls:
+  - action: list_executions
+    save_as: response
+  emit:
+    items_for: '{{ response.executions }}'
+    as: resource
+    item:
+      executionArn: '{{ resource.executionArn }}'
+      stateMachineArn: '{{ resource.stateMachineArn }}'
+      name: '{{ resource.name }}'
+      status: '{{ resource.status }}'
+      startDate: '{{ resource.startDate }}'
+      stopDate: '{{ resource.stopDate }}'
+      mapRunArn: '{{ resource.mapRunArn }}'
+      itemCount: '{{ resource.itemCount }}'
+      stateMachineVersionArn: '{{ resource.stateMachineVersionArn }}'
+      stateMachineAliasArn: '{{ resource.stateMachineAliasArn }}'
+      redriveCount: '{{ resource.redriveCount }}'
+      redriveDate: '{{ resource.redriveDate }}'
+- discovery_id: aws.workflows.list_activities
+  calls:
+  - action: list_activities
+    save_as: response
+  emit:
+    items_for: '{{ response.activities }}'
+    as: resource
+    item:
+      activityArn: '{{ resource.activityArn }}'
+      name: '{{ resource.name }}'
+      creationDate: '{{ resource.creationDate }}'
 - discovery_id: aws.workflows.describe_activity
   calls:
   - action: describe_activity
-    save_as: describe_activity_response
+    save_as: response
     params:
-      activityArn: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.workflows.PARENT_DISCOVERY
+      activityArn: '{{ item.activityArn }}'
+  for_each: aws.workflows.list_activities
+  on_error: continue
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      kms_key_id: '{{ describe_activity_response.encryptionConfiguration.kmsKeyId
+      kmsKeyId: '{{ response.encryptionConfiguration.kmsKeyId }}'
+      kmsDataKeyReusePeriodSeconds: '{{ response.encryptionConfiguration.kmsDataKeyReusePeriodSeconds
         }}'
-      kms_data_key_reuse_period_seconds: '{{ describe_activity_response.encryptionConfiguration.kmsDataKeyReusePeriodSeconds
-        }}'
-      type: '{{ describe_activity_response.encryptionConfiguration.type }}'
-- discovery_id: aws.workflows.describe_execution
+      type: '{{ response.encryptionConfiguration.type }}'
+      encryptionConfiguration: '{{ resource.encryptionConfiguration }}'
+- discovery_id: aws.workflows.describe_state_machine
   calls:
-  - action: describe_execution
-    save_as: describe_execution_response
-    params:
-      executionArn: '{{ item.FIELD_NAME }}'
-    on_error: continue
-  for_each: aws.workflows.PARENT_DISCOVERY
+  - action: describe_state_machine
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.resource_id }}'
-      included: '{{ describe_execution_response.inputDetails.included }}'
+      level: '{{ response.loggingConfiguration.level }}'
+      includeExecutionData: '{{ response.loggingConfiguration.includeExecutionData
+        }}'
+      destinations: '{{ response.loggingConfiguration.destinations }}'
+      loggingConfiguration: '{{ resource.loggingConfiguration }}'
+- discovery_id: aws.workflows.list_state_machines
+  calls:
+  - action: list_state_machines
+    save_as: response
+  emit:
+    items_for: '{{ response.stateMachines }}'
+    as: resource
+    item:
+      stateMachineArn: '{{ resource.stateMachineArn }}'
+      name: '{{ resource.name }}'
+      type: '{{ resource.type }}'
+      creationDate: '{{ resource.creationDate }}'
 checks:
+- rule_id: aws.workflows.workflow.workflows_integrations_least_privilege
+  for_each: aws.workflows.list_executions
+  conditions:
+    var: item.status
+    op: not_equals
+    value: SUCCEEDED
 - rule_id: aws.workflows.workflow.kms_encryption_enabled
   for_each: aws.workflows.describe_activity
   conditions:
-    var: item.kms_key_id
-    op: exists
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.workflows.workflow.workflows_artifacts_encrypted_and_private
   for_each: aws.workflows.describe_activity
   conditions:
-    all:
-    - var: item.kms_key_id
-      op: exists
-    - var: item.kms_data_key_reuse_period_seconds
-      op: gt
-      value: 0
-- rule_id: aws.workflows.workflow.execution_roles_least_privilege
-  for_each: aws.workflows.describe_execution
+    var: item.encryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.workflows.workflow.workflows_approval_steps_required_for_destructive_actions
+  for_each: aws.workflows.describe_state_machine
   conditions:
-    var: item.included
-    op: equals
-    value: true
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.workflows.workflow.execution_roles_least_privilege
+  for_each: aws.workflows.list_state_machines
+  conditions:
+    var: item.type
+    op: not_equals
+    value: STANDARD
+- rule_id: aws.workflows.workflow.change_audit_logging_enabled
+  for_each: aws.workflows.describe_state_machine
+  conditions:
+    var: item.loggingConfiguration
+    op: not_equals
+    value: 'null'

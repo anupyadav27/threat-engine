@@ -31,6 +31,27 @@ discovery:
       VolumeUsageByDatasourcePackage: '{{ resource.VolumeUsageByDatasourcePackage
         }}'
       DatasourcePackageIngestStates: '{{ resource.DatasourcePackageIngestStates }}'
+- discovery_id: aws.detective.list_graphs
+  calls:
+  - action: list_graphs
+    save_as: response
+  emit:
+    items_for: '{{ response.GraphList }}'
+    as: resource
+    item:
+      Arn: '{{ resource.Arn }}'
+      CreatedTime: '{{ resource.CreatedTime }}'
+- discovery_id: aws.detective.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    params:
+      GraphArn: '{{ item.Arn }}'
+  for_each: aws.detective.list_graphs
+  on_error: continue
+  emit:
+    item:
+      AutoEnable: '{{ response.AutoEnable }}'
 checks:
 - rule_id: aws.detective.member.detective_enabled_in_all_regions
   for_each: aws.detective.list_invitations
@@ -42,13 +63,14 @@ checks:
   for_each: aws.detective.list_invitations
   conditions:
     var: item.GraphArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.detective.graph.detective_enabled_in_all_regions
-  for_each: aws.detective.list_invitations
+  for_each: aws.detective.describe_organization_configuration
   conditions:
-    var: item.Status
+    var: item.AutoEnable
     op: equals
-    value: ENABLED
+    value: 'true'
 - rule_id: aws.detective.member.detective_finding_export_encrypted_destination
   for_each: aws.detective.list_invitations
   conditions:

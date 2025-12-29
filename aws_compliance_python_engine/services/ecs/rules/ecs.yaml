@@ -5,62 +5,77 @@ services:
   client: ecs
   module: boto3.client
 discovery:
-- discovery_id: aws.ecs.create_cluster
+- discovery_id: aws.ecs.describe_clusters
   calls:
-  - action: create_cluster
+  - action: describe_clusters
     save_as: response
   emit:
     item:
-      clusterArn: '{{ response.cluster.clusterArn }}'
-      clusterName: '{{ response.cluster.clusterName }}'
-      configuration: '{{ response.cluster.configuration }}'
-      status: '{{ response.cluster.status }}'
-      registeredContainerInstancesCount: '{{ response.cluster.registeredContainerInstancesCount
+      clusterArn: '{{ response.clusters.clusterArn }}'
+      clusterName: '{{ response.clusters.clusterName }}'
+      configuration: '{{ response.clusters.configuration }}'
+      status: '{{ response.clusters.status }}'
+      registeredContainerInstancesCount: '{{ response.clusters.registeredContainerInstancesCount
         }}'
-      runningTasksCount: '{{ response.cluster.runningTasksCount }}'
-      pendingTasksCount: '{{ response.cluster.pendingTasksCount }}'
-      activeServicesCount: '{{ response.cluster.activeServicesCount }}'
-      statistics: '{{ response.cluster.statistics }}'
-      tags: '{{ response.cluster.tags }}'
-      settings: '{{ response.cluster.settings }}'
-      capacityProviders: '{{ response.cluster.capacityProviders }}'
-      defaultCapacityProviderStrategy: '{{ response.cluster.defaultCapacityProviderStrategy
+      runningTasksCount: '{{ response.clusters.runningTasksCount }}'
+      pendingTasksCount: '{{ response.clusters.pendingTasksCount }}'
+      activeServicesCount: '{{ response.clusters.activeServicesCount }}'
+      statistics: '{{ response.clusters.statistics }}'
+      tags: '{{ response.clusters.tags }}'
+      settings: '{{ response.clusters.settings }}'
+      capacityProviders: '{{ response.clusters.capacityProviders }}'
+      defaultCapacityProviderStrategy: '{{ response.clusters.defaultCapacityProviderStrategy
         }}'
-      attachments: '{{ response.cluster.attachments }}'
-      attachmentsStatus: '{{ response.cluster.attachmentsStatus }}'
-      serviceConnectDefaults: '{{ response.cluster.serviceConnectDefaults }}'
-- discovery_id: aws.ecs.register_container_instance
+      attachments: '{{ response.clusters.attachments }}'
+      attachmentsStatus: '{{ response.clusters.attachmentsStatus }}'
+      serviceConnectDefaults: '{{ response.clusters.serviceConnectDefaults }}'
+- discovery_id: aws.ecs.describe_tasks
   calls:
-  - action: register_container_instance
+  - action: describe_tasks
     save_as: response
   emit:
     item:
-      containerInstanceArn: '{{ response.containerInstance.containerInstanceArn }}'
-      ec2InstanceId: '{{ response.containerInstance.ec2InstanceId }}'
-      capacityProviderName: '{{ response.containerInstance.capacityProviderName }}'
-      version: '{{ response.containerInstance.version }}'
-      versionInfo: '{{ response.containerInstance.versionInfo }}'
-      remainingResources: '{{ response.containerInstance.remainingResources }}'
-      registeredResources: '{{ response.containerInstance.registeredResources }}'
-      status: '{{ response.containerInstance.status }}'
-      statusReason: '{{ response.containerInstance.statusReason }}'
-      agentConnected: '{{ response.containerInstance.agentConnected }}'
-      runningTasksCount: '{{ response.containerInstance.runningTasksCount }}'
-      pendingTasksCount: '{{ response.containerInstance.pendingTasksCount }}'
-      agentUpdateStatus: '{{ response.containerInstance.agentUpdateStatus }}'
-      attributes: '{{ response.containerInstance.attributes }}'
-      registeredAt: '{{ response.containerInstance.registeredAt }}'
-      attachments: '{{ response.containerInstance.attachments }}'
-      tags: '{{ response.containerInstance.tags }}'
-      healthStatus: '{{ response.containerInstance.healthStatus }}'
+      attachments: '{{ response.tasks.attachments }}'
+      attributes: '{{ response.tasks.attributes }}'
+      availabilityZone: '{{ response.tasks.availabilityZone }}'
+      capacityProviderName: '{{ response.tasks.capacityProviderName }}'
+      clusterArn: '{{ response.tasks.clusterArn }}'
+      connectivity: '{{ response.tasks.connectivity }}'
+      connectivityAt: '{{ response.tasks.connectivityAt }}'
+      containerInstanceArn: '{{ response.tasks.containerInstanceArn }}'
+      containers: '{{ response.tasks.containers }}'
+      cpu: '{{ response.tasks.cpu }}'
+      createdAt: '{{ response.tasks.createdAt }}'
+      desiredStatus: '{{ response.tasks.desiredStatus }}'
+      enableExecuteCommand: '{{ response.tasks.enableExecuteCommand }}'
+      executionStoppedAt: '{{ response.tasks.executionStoppedAt }}'
+      group: '{{ response.tasks.group }}'
+      healthStatus: '{{ response.tasks.healthStatus }}'
+      inferenceAccelerators: '{{ response.tasks.inferenceAccelerators }}'
+      lastStatus: '{{ response.tasks.lastStatus }}'
+      launchType: '{{ response.tasks.launchType }}'
+      memory: '{{ response.tasks.memory }}'
+      overrides: '{{ response.tasks.overrides }}'
+      platformVersion: '{{ response.tasks.platformVersion }}'
+      platformFamily: '{{ response.tasks.platformFamily }}'
+      pullStartedAt: '{{ response.tasks.pullStartedAt }}'
+      pullStoppedAt: '{{ response.tasks.pullStoppedAt }}'
+      startedAt: '{{ response.tasks.startedAt }}'
+      startedBy: '{{ response.tasks.startedBy }}'
+      stopCode: '{{ response.tasks.stopCode }}'
+      stoppedAt: '{{ response.tasks.stoppedAt }}'
+      stoppedReason: '{{ response.tasks.stoppedReason }}'
+      stoppingAt: '{{ response.tasks.stoppingAt }}'
+      tags: '{{ response.tasks.tags }}'
+      taskArn: '{{ response.tasks.taskArn }}'
+      taskDefinitionArn: '{{ response.tasks.taskDefinitionArn }}'
+      version: '{{ response.tasks.version }}'
+      ephemeralStorage: '{{ response.tasks.ephemeralStorage }}'
+      fargateEphemeralStorage: '{{ response.tasks.fargateEphemeralStorage }}'
 - discovery_id: aws.ecs.create_service
   calls:
   - action: create_service
     save_as: response
-    params:
-      serviceName: '{{ item.serviceName }}'
-  on_error: continue
-  for_each: aws.ecs.update_express_gateway_service
   emit:
     item:
       serviceArn: '{{ response.service.serviceArn }}'
@@ -100,72 +115,69 @@ discovery:
       availabilityZoneRebalancing: '{{ response.service.availabilityZoneRebalancing
         }}'
       resourceManagementType: '{{ response.service.resourceManagementType }}'
-- discovery_id: aws.ecs.update_express_gateway_service
+- discovery_id: aws.ecs.describe_capacity_providers
   calls:
-  - action: update_express_gateway_service
+  - action: describe_capacity_providers
     save_as: response
-    params:
-      serviceArn: '{{ item.serviceArn }}'
-  on_error: continue
-  for_each: aws.ecs.list_service_deployments
   emit:
     item:
-      serviceArn: '{{ response.service.serviceArn }}'
-      cluster: '{{ response.service.cluster }}'
-      serviceName: '{{ response.service.serviceName }}'
-      status: '{{ response.service.status }}'
-      targetConfiguration: '{{ response.service.targetConfiguration }}'
-      createdAt: '{{ response.service.createdAt }}'
-      updatedAt: '{{ response.service.updatedAt }}'
+      capacityProviderArn: '{{ response.capacityProviders.capacityProviderArn }}'
+      name: '{{ response.capacityProviders.name }}'
+      cluster: '{{ response.capacityProviders.cluster }}'
+      status: '{{ response.capacityProviders.status }}'
+      autoScalingGroupProvider: '{{ response.capacityProviders.autoScalingGroupProvider
+        }}'
+      managedInstancesProvider: '{{ response.capacityProviders.managedInstancesProvider
+        }}'
+      updateStatus: '{{ response.capacityProviders.updateStatus }}'
+      updateStatusReason: '{{ response.capacityProviders.updateStatusReason }}'
+      tags: '{{ response.capacityProviders.tags }}'
+      type: '{{ response.capacityProviders.type }}'
 checks:
 - rule_id: aws.ecs.container_instance.container_read_only_root_filesystem_configured
-  for_each: aws.ecs.register_container_instance
+  for_each: aws.ecs.describe_clusters
   conditions:
-    var: item.attributes
-    op: contains
-    value:
-      name: ecs.capability.docker.readonlyRootFilesystem
-      value: 'true'
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecs.container_instance.no_privileged_containers_configured
-  for_each: aws.ecs.register_container_instance
+  for_each: aws.ecs.describe_tasks
   conditions:
-    var: item.attributes
-    op: contains
-    value:
-      name: ecs.capability.privileged-container
-      value: 'false'
+    var: item.containers
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecs.task_definition_image_source_verification.task_ecs_task_definition_image_source_verification_configured
-  for_each: aws.ecs.create_cluster
+  for_each: aws.ecs.describe_clusters
   conditions:
-    var: item.status
-    op: equals
-    value: ACTIVE
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecs.resource.task_sets_assign_public_ip_disabled
   for_each: aws.ecs.create_service
   conditions:
-    var: item.launchType
-    op: equals
-    value: FARGATE
+    var: item.taskSets
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecs.resource.task_definition_logging_enabled
-  for_each: aws.ecs.create_service
+  for_each: aws.ecs.describe_capacity_providers
   conditions:
-    var: item.enableExecuteCommand
+    var: item.name
     op: equals
-    value: true
+    value: defaultLogDriverMode
 - rule_id: aws.ecs.container_instance.container_env_no_plaintext_secrets_configured
-  for_each: aws.ecs.register_container_instance
+  for_each: aws.ecs.describe_clusters
   conditions:
-    var: item.attributes
-    op: exists
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ecs.task_definitions_logging_block_mode.task_definitions_logging_block_mode_configured
-  for_each: aws.ecs.create_cluster
+  for_each: aws.ecs.describe_capacity_providers
   conditions:
-    var: item.status
+    var: item.name
     op: equals
-    value: ACTIVE
+    value: defaultLogDriverMode
 - rule_id: aws.ecs.resource.task_definitions_logging_enabled
-  for_each: aws.ecs.create_service
+  for_each: aws.ecs.describe_tasks
   conditions:
-    var: item.enableExecuteCommand
-    op: equals
-    value: true
+    var: item.containers
+    op: exists

@@ -5,6 +5,21 @@ services:
   client: controltower
   module: boto3.client
 discovery:
+- discovery_id: aws.controltower.get_enabled_control
+  calls:
+  - action: get_enabled_control
+    save_as: response
+  emit:
+    item:
+      arn: '{{ response.enabledControlDetails.arn }}'
+      controlIdentifier: '{{ response.enabledControlDetails.controlIdentifier }}'
+      targetIdentifier: '{{ response.enabledControlDetails.targetIdentifier }}'
+      statusSummary: '{{ response.enabledControlDetails.statusSummary }}'
+      driftStatusSummary: '{{ response.enabledControlDetails.driftStatusSummary }}'
+      parentIdentifier: '{{ response.enabledControlDetails.parentIdentifier }}'
+      targetRegions: '{{ response.enabledControlDetails.targetRegions }}'
+      parameters: '{{ response.enabledControlDetails.parameters }}'
+      enabledControlDetails: '{{ resource.enabledControlDetails }}'
 - discovery_id: aws.controltower.list_control_operations
   calls:
   - action: list_control_operations
@@ -22,43 +37,51 @@ discovery:
       controlIdentifier: '{{ resource.controlIdentifier }}'
       targetIdentifier: '{{ resource.targetIdentifier }}'
       enabledControlIdentifier: '{{ resource.enabledControlIdentifier }}'
-- discovery_id: aws.controltower.list_enabled_baselines
-  calls:
-  - action: list_enabled_baselines
-    save_as: response
-  emit:
-    items_for: '{{ response.enabledBaselines }}'
-    as: resource
-    item:
-      arn: '{{ resource.arn }}'
-      baselineIdentifier: '{{ resource.baselineIdentifier }}'
-      baselineVersion: '{{ resource.baselineVersion }}'
-      driftStatusSummary: '{{ resource.driftStatusSummary }}'
-      targetIdentifier: '{{ resource.targetIdentifier }}'
-      parentIdentifier: '{{ resource.parentIdentifier }}'
-      statusSummary: '{{ resource.statusSummary }}'
 checks:
 - rule_id: aws.controltower.landingzone.controltower_scps_enabled
-  for_each: aws.controltower.list_enabled_baselines
+  for_each: aws.controltower.get_enabled_control
   conditions:
-    var: item.statusSummary
-    op: equals
-    value: ENABLED
+    var: item.enabledControlDetails
+    op: not_equals
+    value: 'null'
 - rule_id: aws.controltower.enrollment.block_leave_org_by_policy_configured
-  for_each: aws.controltower.list_control_operations
+  for_each: aws.controltower.get_enabled_control
   conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
+    var: item.enabledControlDetails
+    op: not_equals
+    value: 'null'
+- rule_id: aws.controltower.landingzone.block_leave_org_by_policy_configured
+  for_each: aws.controltower.get_enabled_control
+  conditions:
+    var: item.enabledControlDetails
+    op: not_equals
+    value: 'null'
 - rule_id: aws.controltower.enrollment.controltower_all_accounts_enrolled_in_org_configured
   for_each: aws.controltower.list_control_operations
   conditions:
-    var: item.status
-    op: equals
-    value: ENABLED
-- rule_id: aws.controltower.enrollment.controltower_scps_enabled
-  for_each: aws.controltower.list_enabled_baselines
+    var: item.enabledControlIdentifier
+    op: exists
+- rule_id: aws.controltower.enrollment.restrict_region_usage_by_policy_where_required
+  for_each: aws.controltower.get_enabled_control
   conditions:
-    var: item.statusSummary
-    op: equals
-    value: ENABLED
+    var: item.targetRegions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.controltower.landingzone.restrict_region_usage_by_policy_where_required
+  for_each: aws.controltower.get_enabled_control
+  conditions:
+    var: item.targetRegions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.controltower.landingzone.controltower_all_accounts_enrolled_in_org_configured
+  for_each: aws.controltower.get_enabled_control
+  conditions:
+    var: item.enabledControlDetails
+    op: not_equals
+    value: 'null'
+- rule_id: aws.controltower.enrollment.controltower_scps_enabled
+  for_each: aws.controltower.get_enabled_control
+  conditions:
+    var: item.enabledControlDetails
+    op: not_equals
+    value: 'null'

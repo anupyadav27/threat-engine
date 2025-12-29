@@ -1,102 +1,211 @@
 version: '1.0'
 provider: aws
 service: fargate
+services:
+  client: fargate
+  module: boto3.client
 discovery:
-- discovery_id: aws.fargate.services
+- discovery_id: aws.fargate.describe_capacity_providers
   calls:
-  - action: list_fargates
-    fields:
-    - Fargates
-  emit:
-    items_for: list_fargates_response[]
-    item:
-      id: '{{ service.Id }}'
-      name: '{{ service.Name }}'
-- discovery_id: aws.fargate.service_logging
-  for_each: aws.fargate.services
-  calls:
-  - action: describe_service_logging
-    params:
-      ServiceId: '{{ item.id }}'
+  - action: describe_capacity_providers
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_service_logging_response.LoggingEnabled is defined if describe_service_logging_response
-        else false }}'
-- discovery_id: aws.fargate.task_logging
+      capacityProviderArn: '{{ response.capacityProviders.capacityProviderArn }}'
+      name: '{{ response.capacityProviders.name }}'
+      cluster: '{{ response.capacityProviders.cluster }}'
+      status: '{{ response.capacityProviders.status }}'
+      autoScalingGroupProvider: '{{ response.capacityProviders.autoScalingGroupProvider
+        }}'
+      managedInstancesProvider: '{{ response.capacityProviders.managedInstancesProvider
+        }}'
+      updateStatus: '{{ response.capacityProviders.updateStatus }}'
+      updateStatusReason: '{{ response.capacityProviders.updateStatusReason }}'
+      tags: '{{ response.capacityProviders.tags }}'
+      type: '{{ response.capacityProviders.type }}'
+- discovery_id: aws.fargate.create_express_gateway_service
   calls:
-  - action: list_task_logging
+  - action: create_express_gateway_service
+    save_as: response
   emit:
-    items_for: list_task_logging_response[]
     item:
-      id: '{{ list_task_logging_response.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.fargate.tasks
-  for_each: aws.fargate.task
+      cluster: '{{ response.service.cluster }}'
+      serviceName: '{{ response.service.serviceName }}'
+      serviceArn: '{{ response.service.serviceArn }}'
+      infrastructureRoleArn: '{{ response.service.infrastructureRoleArn }}'
+      status: '{{ response.service.status }}'
+      currentDeployment: '{{ response.service.currentDeployment }}'
+      activeConfigurations: '{{ response.service.activeConfigurations }}'
+      tags: '{{ response.service.tags }}'
+      createdAt: '{{ response.service.createdAt }}'
+      updatedAt: '{{ response.service.updatedAt }}'
+- discovery_id: aws.fargate.create_cluster
   calls:
-  - action: describe_task_execution
+  - action: create_cluster
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
+      clusterArn: '{{ response.cluster.clusterArn }}'
+      clusterName: '{{ response.cluster.clusterName }}'
+      configuration: '{{ response.cluster.configuration }}'
+      status: '{{ response.cluster.status }}'
+      registeredContainerInstancesCount: '{{ response.cluster.registeredContainerInstancesCount
+        }}'
+      runningTasksCount: '{{ response.cluster.runningTasksCount }}'
+      pendingTasksCount: '{{ response.cluster.pendingTasksCount }}'
+      activeServicesCount: '{{ response.cluster.activeServicesCount }}'
+      statistics: '{{ response.cluster.statistics }}'
+      tags: '{{ response.cluster.tags }}'
+      settings: '{{ response.cluster.settings }}'
+      capacityProviders: '{{ response.cluster.capacityProviders }}'
+      defaultCapacityProviderStrategy: '{{ response.cluster.defaultCapacityProviderStrategy
+        }}'
+      attachments: '{{ response.cluster.attachments }}'
+      attachmentsStatus: '{{ response.cluster.attachmentsStatus }}'
+      serviceConnectDefaults: '{{ response.cluster.serviceConnectDefaults }}'
+- discovery_id: aws.fargate.create_service
+  calls:
+  - action: createservice
+    save_as: response
+  emit:
+    item:
+      serviceArn: '{{ response.service.serviceArn }}'
+      serviceName: '{{ response.service.serviceName }}'
+      clusterArn: '{{ response.service.clusterArn }}'
+      loadBalancers: '{{ response.service.loadBalancers }}'
+      serviceRegistries: '{{ response.service.serviceRegistries }}'
+      status: '{{ response.service.status }}'
+      desiredCount: '{{ response.service.desiredCount }}'
+      runningCount: '{{ response.service.runningCount }}'
+      pendingCount: '{{ response.service.pendingCount }}'
+      launchType: '{{ response.service.launchType }}'
+      capacityProviderStrategy: '{{ response.service.capacityProviderStrategy }}'
+      platformVersion: '{{ response.service.platformVersion }}'
+      platformFamily: '{{ response.service.platformFamily }}'
+      taskDefinition: '{{ response.service.taskDefinition }}'
+      deploymentConfiguration: '{{ response.service.deploymentConfiguration }}'
+      taskSets: '{{ response.service.taskSets }}'
+      deployments: '{{ response.service.deployments }}'
+      roleArn: '{{ response.service.roleArn }}'
+      events: '{{ response.service.events }}'
+      createdAt: '{{ response.service.createdAt }}'
+      currentServiceDeployment: '{{ response.service.currentServiceDeployment }}'
+      currentServiceRevisions: '{{ response.service.currentServiceRevisions }}'
+      placementConstraints: '{{ response.service.placementConstraints }}'
+      placementStrategy: '{{ response.service.placementStrategy }}'
+      networkConfiguration: '{{ response.service.networkConfiguration }}'
+      healthCheckGracePeriodSeconds: '{{ response.service.healthCheckGracePeriodSeconds
+        }}'
+      schedulingStrategy: '{{ response.service.schedulingStrategy }}'
+      deploymentController: '{{ response.service.deploymentController }}'
+      tags: '{{ response.service.tags }}'
+      createdBy: '{{ response.service.createdBy }}'
+      enableECSManagedTags: '{{ response.service.enableECSManagedTags }}'
+      propagateTags: '{{ response.service.propagateTags }}'
+      enableExecuteCommand: '{{ response.service.enableExecuteCommand }}'
+      availabilityZoneRebalancing: '{{ response.service.availabilityZoneRebalancing
+        }}'
+      resourceManagementType: '{{ response.service.resourceManagementType }}'
+- discovery_id: aws.ecs.describe_tasks
+  calls:
+  - action: describe_tasks
+    save_as: response
+  emit:
+    item:
+      attachments: '{{ response.tasks.attachments }}'
+      attributes: '{{ response.tasks.attributes }}'
+      availabilityZone: '{{ response.tasks.availabilityZone }}'
+      capacityProviderName: '{{ response.tasks.capacityProviderName }}'
+      clusterArn: '{{ response.tasks.clusterArn }}'
+      connectivity: '{{ response.tasks.connectivity }}'
+      connectivityAt: '{{ response.tasks.connectivityAt }}'
+      containerInstanceArn: '{{ response.tasks.containerInstanceArn }}'
+      containers: '{{ response.tasks.containers }}'
+      cpu: '{{ response.tasks.cpu }}'
+      createdAt: '{{ response.tasks.createdAt }}'
+      desiredStatus: '{{ response.tasks.desiredStatus }}'
+      enableExecuteCommand: '{{ response.tasks.enableExecuteCommand }}'
+      executionStoppedAt: '{{ response.tasks.executionStoppedAt }}'
+      group: '{{ response.tasks.group }}'
+      healthStatus: '{{ response.tasks.healthStatus }}'
+      inferenceAccelerators: '{{ response.tasks.inferenceAccelerators }}'
+      lastStatus: '{{ response.tasks.lastStatus }}'
+      launchType: '{{ response.tasks.launchType }}'
+      memory: '{{ response.tasks.memory }}'
+      overrides: '{{ response.tasks.overrides }}'
+      platformVersion: '{{ response.tasks.platformVersion }}'
+      platformFamily: '{{ response.tasks.platformFamily }}'
+      pullStartedAt: '{{ response.tasks.pullStartedAt }}'
+      pullStoppedAt: '{{ response.tasks.pullStoppedAt }}'
+      startedAt: '{{ response.tasks.startedAt }}'
+      startedBy: '{{ response.tasks.startedBy }}'
+      stopCode: '{{ response.tasks.stopCode }}'
+      stoppedAt: '{{ response.tasks.stoppedAt }}'
+      stoppedReason: '{{ response.tasks.stoppedReason }}'
+      stoppingAt: '{{ response.tasks.stoppingAt }}'
+      tags: '{{ response.tasks.tags }}'
+      taskArn: '{{ response.tasks.taskArn }}'
+      taskDefinitionArn: '{{ response.tasks.taskDefinitionArn }}'
+      version: '{{ response.tasks.version }}'
+      ephemeralStorage: '{{ response.tasks.ephemeralStorage }}'
+      fargateEphemeralStorage: '{{ response.tasks.fargateEphemeralStorage }}'
 checks:
 - rule_id: aws.fargate.task.vpc_private_networking_enabled
-  for_each: aws.fargate.tasks
+  for_each: aws.fargate.describe_capacity_providers
   conditions:
-    var: item.is_public
+    var: item.type
     op: equals
-    value: false
-- rule_id: aws.fargate.task.logging_and_tracing_enabled
-  for_each: aws.fargate.task_logging
-  conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
+    value: FARGATE
 - rule_id: aws.fargate.service.role_least_privilege
-  for_each: aws.fargate.services
+  for_each: aws.fargate.create_express_gateway_service
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.infrastructureRoleArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.service.fargate_env_no_plaintext_secrets_configured
-  for_each: aws.fargate.services
+  for_each: aws.fargate.create_cluster
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.service.logging_and_tracing_enabled
-  for_each: aws.fargate.service_logging
+  for_each: aws.fargate.describe_capacity_providers
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
+    var: item.name
+    op: in
+    value: containerInsights
 - rule_id: aws.fargate.service.dead_letter_queue_configured
-  for_each: aws.fargate.services
+  for_each: aws.fargate.create_cluster
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.task.role_least_privilege
-  for_each: aws.fargate.tasks
+  for_each: aws.fargate.create_express_gateway_service
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.infrastructureRoleArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.task.dead_letter_queue_configured
-  for_each: aws.fargate.tasks
+  for_each: aws.fargate.create_cluster
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.task.fargate_env_no_plaintext_secrets_configured
-  for_each: aws.fargate.tasks
+  for_each: aws.fargate.create_cluster
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fargate.service.vpc_private_networking_enabled
-  for_each: aws.fargate.services
+  for_each: aws.fargate.describe_capacity_providers
   conditions:
-    var: item.is_public
+    var: item.type
     op: equals
-    value: false
+    value: FARGATE
+- rule_id: aws.fargate.task.logging_and_tracing_enabled
+  for_each: aws.ecs.describe_tasks
+  conditions:
+    var: item.enableExecuteCommand
+    op: exists

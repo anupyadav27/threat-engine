@@ -5,55 +5,29 @@ services:
   client: guardduty
   module: boto3.client
 discovery:
-- discovery_id: aws.guardduty.describe_organization_configuration
+- discovery_id: aws.guardduty.list_organization_admin_accounts
   calls:
-  - action: describe_organization_configuration
+  - action: list_organization_admin_accounts
     save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
   emit:
+    items_for: '{{ response.AdminAccounts }}'
+    as: resource
     item:
-      Name: '{{ response.Features.Name }}'
-      AutoEnable: '{{ response.Features.AutoEnable }}'
-      AdditionalConfiguration: '{{ response.Features.AdditionalConfiguration }}'
+      AdminAccountId: '{{ resource.AdminAccountId }}'
+      AdminStatus: '{{ resource.AdminStatus }}'
+      Status: '{{ resource.Status }}'
 - discovery_id: aws.guardduty.describe_publishing_destination
   calls:
   - action: describe_publishing_destination
     save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-      DestinationId: '{{ item.DestinationId }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
   emit:
     item:
       DestinationArn: '{{ response.DestinationProperties.DestinationArn }}'
       KmsKeyArn: '{{ response.DestinationProperties.KmsKeyArn }}'
-- discovery_id: aws.guardduty.get_detector
-  calls:
-  - action: get_detector
-    save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
-  emit:
-    item:
-      Name: '{{ response.Features.Name }}'
-      Status: '{{ response.Features.Status }}'
-      UpdatedAt: '{{ response.Features.UpdatedAt }}'
-      AdditionalConfiguration: '{{ response.Features.AdditionalConfiguration }}'
 - discovery_id: aws.guardduty.get_findings
   calls:
   - action: get_findings
     save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-      FindingIds: '{{ item.FindingIds }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
   emit:
     item:
       AccountId: '{{ response.Findings.AccountId }}'
@@ -73,145 +47,201 @@ discovery:
       UpdatedAt: '{{ response.Findings.UpdatedAt }}'
       AssociatedAttackSequenceArn: '{{ response.Findings.AssociatedAttackSequenceArn
         }}'
-- discovery_id: aws.guardduty.get_malware_scan
+      Findings: '{{ resource.Findings }}'
+- discovery_id: aws.guardduty.list_malware_scans
   calls:
-  - action: get_malware_scan
+  - action: list_malware_scans
     save_as: response
-    params:
-      ScanId: '{{ item.ScanId }}'
-  on_error: continue
-  for_each: aws.guardduty.list_malware_scans
   emit:
-    item:
-      ScannedResourceArn: '{{ response.ScannedResources.ScannedResourceArn }}'
-      ScannedResourceType: '{{ response.ScannedResources.ScannedResourceType }}'
-      ScannedResourceStatus: '{{ response.ScannedResources.ScannedResourceStatus }}'
-      ScanStatusReason: '{{ response.ScannedResources.ScanStatusReason }}'
-      ResourceDetails: '{{ response.ScannedResources.ResourceDetails }}'
-- discovery_id: aws.guardduty.list_findings
-  calls:
-  - action: list_findings
-    save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
-- discovery_id: aws.guardduty.list_publishing_destinations
-  calls:
-  - action: list_publishing_destinations
-    save_as: response
-    params:
-      DetectorId: '{{ item.DetectorId }}'
-  on_error: continue
-  for_each: aws.guardduty.get_malware_scan
-  emit:
-    items_for: '{{ response.Destinations }}'
+    items_for: '{{ response.Scans }}'
     as: resource
     item:
-      DestinationId: '{{ resource.DestinationId }}'
-      DestinationType: '{{ resource.DestinationType }}'
-      Status: '{{ resource.Status }}'
+      ResourceArn: '{{ resource.ResourceArn }}'
+      ResourceType: '{{ resource.ResourceType }}'
+      ScanId: '{{ resource.ScanId }}'
+      ScanStatus: '{{ resource.ScanStatus }}'
+      ScanResultStatus: '{{ resource.ScanResultStatus }}'
+      ScanType: '{{ resource.ScanType }}'
+      ScanStartedAt: '{{ resource.ScanStartedAt }}'
+      ScanCompletedAt: '{{ resource.ScanCompletedAt }}'
+- discovery_id: aws.guardduty.get_filter
+  calls:
+  - action: get_filter
+    save_as: response
+  emit:
+    item:
+      Criterion: '{{ response.FindingCriteria.Criterion }}'
+      FindingCriteria: '{{ resource.FindingCriteria }}'
+- discovery_id: aws.guardduty.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.Features.Name }}'
+      AutoEnable: '{{ response.Features.AutoEnable }}'
+      AdditionalConfiguration: '{{ response.Features.AdditionalConfiguration }}'
+- discovery_id: aws.guardduty.create_detector
+  calls:
+  - action: create_detector
+    save_as: response
+  emit:
+    item:
+      MalwareProtection: '{{ response.UnprocessedDataSources.MalwareProtection }}'
+      DetectorId: '{{ resource.DetectorId }}'
+- discovery_id: aws.guardduty.get_member_detectors
+  calls:
+  - action: get_member_detectors
+    save_as: response
+  emit:
+    item:
+      AccountId: '{{ response.MemberDataSourceConfigurations.AccountId }}'
+      DataSources: '{{ response.MemberDataSourceConfigurations.DataSources }}'
+      Features: '{{ response.MemberDataSourceConfigurations.Features }}'
+      MemberDataSourceConfigurations: '{{ resource.MemberDataSourceConfigurations
+        }}'
 checks:
 - rule_id: aws.guardduty.resource.security_center_enabled
-  for_each: aws.guardduty.describe_organization_configuration
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.AutoEnable
+    var: item.AdminStatus
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.guardduty.finding.guardduty_finding_archival_export_encrypted
   for_each: aws.guardduty.describe_publishing_destination
   conditions:
     var: item.KmsKeyArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.guardduty.no.guardduty_finding_high_severity_findings_configured
   for_each: aws.guardduty.get_findings
   conditions:
-    var: item.count_by_severity
-    op: gt
-    value: 0
+    var: item.Severity
+    op: equals
+    value: High
 - rule_id: aws.guardduty.resource.guardduty_vulnerability_assessment_enabled
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_malware_scans
   conditions:
-    var: item.Status
+    var: item.ScanStatus
     op: equals
-    value: ENABLED
+    value: COMPLETED
+- rule_id: aws.guardduty.finding.guardduty_finding_export_destinations_private_configured
+  for_each: aws.guardduty.get_filter
+  conditions:
+    var: item.FindingCriteria
+    op: not_equals
+    value: 'null'
 - rule_id: aws.guardduty.ipset.guardduty_storage_encrypted
-  for_each: aws.guardduty.describe_publishing_destination
-  conditions:
-    var: item.KmsKeyArn
-    op: exists
-- rule_id: aws.guardduty.detector.guardduty_detector_enabled_in_all_regions
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
     var: item.Status
     op: equals
-    value: ENABLED
-- rule_id: aws.guardduty.detector.guardduty_detector_s_enabled
-  for_each: aws.guardduty.get_detector
+    value: Enabled
+- rule_id: aws.guardduty.finding.guardduty_finding_suppression_rules_documented_and_scoped_configured
+  for_each: aws.guardduty.describe_organization_configuration
   conditions:
-    var: item.Status
+    var: item.AdditionalConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.guardduty.finding.rbac_least_privilege
+  for_each: aws.guardduty.get_findings
+  conditions:
+    var: item.Findings
+    op: not_equals
+    value: 'null'
+- rule_id: aws.guardduty.detector.guardduty_detector_enabled_in_all_regions
+  for_each: aws.guardduty.list_organization_admin_accounts
+  conditions:
+    var: item.AdminStatus
+    op: equals
+    value: ENABLED
+- rule_id: aws.guardduty.ipset.guardduty_detector_used_by_detectors_configured
+  for_each: aws.guardduty.create_detector
+  conditions:
+    var: item.DetectorId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.guardduty.detector.guardduty_detector_s_enabled
+  for_each: aws.guardduty.list_organization_admin_accounts
+  conditions:
+    var: item.AdminStatus
     op: equals
     value: ENABLED
 - rule_id: aws.guardduty.finding.guardduty_finding_reports_storage_encrypted
   for_each: aws.guardduty.describe_publishing_destination
   conditions:
     var: item.KmsKeyArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.guardduty.detector.guardduty_detectors_enabled
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.Status
+    var: item.AdminStatus
     op: equals
     value: ENABLED
 - rule_id: aws.guardduty.resource.eks_audit_log_enabled
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.Status
+    var: item.AdminStatus
     op: equals
     value: ENABLED
 - rule_id: aws.guardduty.is.guardduty_enabled
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.Status
+    var: item.AdminStatus
     op: equals
     value: ENABLED
 - rule_id: aws.guardduty.custom_identifier.guardduty_storage_encrypted
-  for_each: aws.guardduty.describe_publishing_destination
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.KmsKeyArn
-    op: exists
+    var: item.Status
+    op: equals
+    value: Enabled
 - rule_id: aws.guardduty.detector.finding_detector_finding_export_encrypted_destination
   for_each: aws.guardduty.describe_publishing_destination
   conditions:
     var: item.KmsKeyArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.guardduty.detector.guardduty_detector_destinations_encrypted
-  for_each: aws.guardduty.describe_publishing_destination
+  for_each: aws.guardduty.describe_organization_configuration
   conditions:
-    var: item.KmsKeyArn
-    op: exists
+    var: item.AdditionalConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.guardduty.finding.alert_destinations_configured
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.describe_organization_configuration
+  conditions:
+    var: item.AdditionalConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.guardduty.custom_identifier.guardduty_source_trusted_configured
+  for_each: aws.guardduty.get_member_detectors
+  conditions:
+    var: item.MemberDataSourceConfigurations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.guardduty.centrally_managed.guardduty_centrally_managed_configured
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
     var: item.Status
     op: equals
-    value: ENABLED
+    value: Enabled
 - rule_id: aws.guardduty.ipset.guardduty_sources_trusted_configured
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
     var: item.Status
     op: equals
-    value: ACTIVE
+    value: Enabled
 - rule_id: aws.guardduty.resource.guardduty_enabled
-  for_each: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_organization_admin_accounts
   conditions:
-    var: item.Status
+    var: item.AdminStatus
     op: equals
     value: ENABLED
 - rule_id: aws.guardduty.no_high_severity_findings.guardduty_finding_no_high_severity_findings_configured
   for_each: aws.guardduty.get_findings
   conditions:
-    var: item.count_by_severity
-    op: equals
-    value:
-      HIGH: 0
+    var: item.Severity
+    op: not_equals
+    value: High

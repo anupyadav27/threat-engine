@@ -1,143 +1,149 @@
-# MACIE Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/macie_metadata.yaml
-
 version: '1.0'
 provider: aws
 service: macie
+services:
+  client: macie
+  module: boto3.client
 discovery:
-- discovery_id: aws.macie.custom_data_identifiers
+- discovery_id: aws.macie.get_classification_export_configuration
   calls:
-  - action: list_macies
-    fields:
-    - Macies
-  emit:
-    items_for: list_macies_response[]
-    item:
-      id: '{{ custom_data_identifier.Id }}'
-      name: '{{ custom_data_identifier.Name }}'
-- discovery_id: aws.macie.custom_data_identifier_encryption
-  for_each: aws.macie.custom_data_identifiers
-  calls:
-  - action: list_macies
-    params:
-      Custom_data_identifierId: '{{ item.id }}'
+  - action: get_classification_export_configuration
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_macies_response.Encrypted if list_macies_response.Encrypted
-        is defined else false }}'
-- discovery_id: aws.macie.custom_data_identifier_logging
-  for_each: aws.macie.custom_data_identifiers
+      s3Destination: '{{ response.configuration.s3Destination }}'
+      configuration: '{{ resource.configuration }}'
+- discovery_id: aws.macie.get_reveal_configuration
   calls:
-  - action: describe_custom_data_identifier_logging
-    params:
-      Custom_data_identifierId: '{{ item.id }}'
+  - action: get_reveal_configuration
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_custom_data_identifier_logging_response.LoggingEnabled
-        is defined if describe_custom_data_identifier_logging_response else false
+      kmsKeyId: '{{ response.configuration.kmsKeyId }}'
+      status: '{{ response.configuration.status }}'
+- discovery_id: aws.macie.describe_buckets
+  calls:
+  - action: describe_buckets
+    save_as: response
+  emit:
+    item:
+      accountId: '{{ response.buckets.accountId }}'
+      allowsUnencryptedObjectUploads: '{{ response.buckets.allowsUnencryptedObjectUploads
         }}'
-- discovery_id: aws.macie.findingss
-  for_each: aws.macie.finding
+      automatedDiscoveryMonitoringStatus: '{{ response.buckets.automatedDiscoveryMonitoringStatus
+        }}'
+      bucketArn: '{{ response.buckets.bucketArn }}'
+      bucketCreatedAt: '{{ response.buckets.bucketCreatedAt }}'
+      bucketName: '{{ response.buckets.bucketName }}'
+      classifiableObjectCount: '{{ response.buckets.classifiableObjectCount }}'
+      classifiableSizeInBytes: '{{ response.buckets.classifiableSizeInBytes }}'
+      errorCode: '{{ response.buckets.errorCode }}'
+      errorMessage: '{{ response.buckets.errorMessage }}'
+      jobDetails: '{{ response.buckets.jobDetails }}'
+      lastAutomatedDiscoveryTime: '{{ response.buckets.lastAutomatedDiscoveryTime
+        }}'
+      lastUpdated: '{{ response.buckets.lastUpdated }}'
+      objectCount: '{{ response.buckets.objectCount }}'
+      objectCountByEncryptionType: '{{ response.buckets.objectCountByEncryptionType
+        }}'
+      publicAccess: '{{ response.buckets.publicAccess }}'
+      region: '{{ response.buckets.region }}'
+      replicationDetails: '{{ response.buckets.replicationDetails }}'
+      sensitivityScore: '{{ response.buckets.sensitivityScore }}'
+      serverSideEncryption: '{{ response.buckets.serverSideEncryption }}'
+      sharedAccess: '{{ response.buckets.sharedAccess }}'
+      sizeInBytes: '{{ response.buckets.sizeInBytes }}'
+      sizeInBytesCompressed: '{{ response.buckets.sizeInBytesCompressed }}'
+      tags: '{{ response.buckets.tags }}'
+      unclassifiableObjectCount: '{{ response.buckets.unclassifiableObjectCount }}'
+      unclassifiableObjectSizeInBytes: '{{ response.buckets.unclassifiableObjectSizeInBytes
+        }}'
+      versioning: '{{ response.buckets.versioning }}'
+- discovery_id: aws.macie.get_findings_publication_configuration
   calls:
-  - action: describe_findingss
+  - action: get_findings_publication_configuration
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.macie.classification_jobs
-  for_each: aws.macie.classification_job
-  calls:
-  - action: describe_classification_jobs
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.macie.findings_encryption
-  calls:
-  - action: list_findings_encryption
-  emit:
-    items_for: list_findings_encryption_response[]
-    item:
-      id: '{{ list_findings_encryption_response.Id }}'
-      compliant: '{{ true }}'
+      publishClassificationFindings: '{{ response.securityHubConfiguration.publishClassificationFindings
+        }}'
+      publishPolicyFindings: '{{ response.securityHubConfiguration.publishPolicyFindings
+        }}'
+      securityHubConfiguration: '{{ resource.securityHubConfiguration }}'
 checks:
 - rule_id: aws.macie.findings.retention_days_minimum
-  for_each: aws.macie.findingss
+  for_each: aws.macie.get_classification_export_configuration
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.macie.custom_data_identifier.macie_auto_classification_enabled_if_supported
-  for_each: aws.macie.custom_data_identifiers
+  for_each: aws.macie.get_reveal_configuration
   conditions:
-    var: item.compliant
+    var: item.status
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.macie.custom_data_identifier.policy_blocks_public_for_sensitive_configured
-  for_each: aws.macie.custom_data_identifiers
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.is_public
+    var: item.publicAccess
     op: equals
-    value: false
+    value: 'null'
 - rule_id: aws.macie.findings.macie_logs_centralized_and_encrypted
-  for_each: aws.macie.findings_encryption
+  for_each: aws.macie.get_reveal_configuration
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.kmsKeyId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.macie.custom_data_identifier.macie_required_sensitivity_tags_present
-  for_each: aws.macie.custom_data_identifiers
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.tags
+    op: not_empty
 - rule_id: aws.macie.findings.macie_export_destinations_private_configured
-  for_each: aws.macie.findingss
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.in_vpc
+    var: item.publicAccess
     op: equals
-    value: true
+    value: 'null'
 - rule_id: aws.macie.findings.rbac_least_privilege
-  for_each: aws.macie.findingss
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.publicAccess
+    op: not_equals
+    value: 'null'
 - rule_id: aws.macie.classification_job.macie_auto_classification_enabled_if_supported
-  for_each: aws.macie.classification_jobs
+  for_each: aws.macie.get_reveal_configuration
   conditions:
-    var: item.compliant
+    var: item.status
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.macie.findings.integrations_authenticated_configured
-  for_each: aws.macie.findingss
+  for_each: aws.macie.get_findings_publication_configuration
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.securityHubConfiguration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.macie.classification_job.macie_required_sensitivity_tags_present
-  for_each: aws.macie.classification_jobs
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.tags
+    op: not_empty
 - rule_id: aws.macie.findings.macie_reports_storage_encrypted
-  for_each: aws.macie.findings_encryption
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: encryption.encryption_enabled
+    var: item.serverSideEncryption
     op: equals
-    value: true
+    value: 'TRUE'
 - rule_id: aws.macie.classification_job.policy_blocks_public_for_sensitive_configured
-  for_each: aws.macie.classification_jobs
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.publicAccess
+    op: not_equals
+    value: PUBLIC
 - rule_id: aws.macie.findings.alert_destinations_configured
-  for_each: aws.macie.findingss
+  for_each: aws.macie.describe_buckets
   conditions:
-    var: item.monitoring_enabled
+    var: item.automatedDiscoveryMonitoringStatus
     op: equals
-    value: true
+    value: MONITORED

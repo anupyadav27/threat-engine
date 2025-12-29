@@ -23,34 +23,57 @@ discovery:
       EnhancedMonitoring: '{{ response.StreamDescription.EnhancedMonitoring }}'
       EncryptionType: '{{ response.StreamDescription.EncryptionType }}'
       KeyId: '{{ response.StreamDescription.KeyId }}'
+- discovery_id: aws.kinesis.describe_stream_consumer
+  calls:
+  - action: describe_stream_consumer
+    save_as: response
+  emit:
+    item:
+      ConsumerName: '{{ response.ConsumerDescription.ConsumerName }}'
+      ConsumerARN: '{{ response.ConsumerDescription.ConsumerARN }}'
+      ConsumerStatus: '{{ response.ConsumerDescription.ConsumerStatus }}'
+      ConsumerCreationTimestamp: '{{ response.ConsumerDescription.ConsumerCreationTimestamp
+        }}'
+      StreamARN: '{{ response.ConsumerDescription.StreamARN }}'
 checks:
 - rule_id: aws.kinesis.resource.stream_encrypted_at_rest
   for_each: aws.kinesis.describe_stream
   conditions:
     var: item.EncryptionType
-    op: equals
-    value: KMS
+    op: not_equals
+    value: NONE
+- rule_id: aws.kinesis.consumer.access_least_privilege
+  for_each: aws.kinesis.describe_stream_consumer
+  conditions:
+    var: item.ConsumerARN
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kinesis.consumer.auth_required
   for_each: aws.kinesis.describe_stream_consumer
   conditions:
-    var: item.consumer_status
-    op: equals
-    value: ACTIVE
+    var: item.ConsumerARN
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kinesis.stream.encryption_at_rest_enabled
   for_each: aws.kinesis.describe_stream
   conditions:
     var: item.EncryptionType
-    op: equals
-    value: KMS
+    op: not_equals
+    value: NONE
+- rule_id: aws.kinesis.stream.private_network_only_if_supported
+  for_each: aws.kinesis.describe_stream
+  conditions:
+    var: item.StreamStatus
+    op: not_equals
+    value: CREATING
 - rule_id: aws.kinesis.stream_data_retention_period.stream_data_retention_period_configured
   for_each: aws.kinesis.describe_stream
   conditions:
     var: item.RetentionPeriodHours
-    op: gte
-    value: 24
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kinesis.stream.consumer_auth_required
   for_each: aws.kinesis.describe_stream_consumer
   conditions:
-    var: item.consumer_status
-    op: equals
-    value: ACTIVE
+    var: item.ConsumerARN
+    op: exists

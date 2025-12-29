@@ -38,16 +38,52 @@ discovery:
       DeletionMode: '{{ response.Stacks.DeletionMode }}'
       DetailedStatus: '{{ response.Stacks.DetailedStatus }}'
       LastOperations: '{{ response.Stacks.LastOperations }}'
+- discovery_id: aws.cloudformation.describe_stack_resources
+  calls:
+  - action: describe_stack_resources
+    save_as: response
+  emit:
+    item:
+      StackName: '{{ response.StackResources.StackName }}'
+      StackId: '{{ response.StackResources.StackId }}'
+      LogicalResourceId: '{{ response.StackResources.LogicalResourceId }}'
+      PhysicalResourceId: '{{ response.StackResources.PhysicalResourceId }}'
+      ResourceType: '{{ response.StackResources.ResourceType }}'
+      Timestamp: '{{ response.StackResources.Timestamp }}'
+      ResourceStatus: '{{ response.StackResources.ResourceStatus }}'
+      ResourceStatusReason: '{{ response.StackResources.ResourceStatusReason }}'
+      Description: '{{ response.StackResources.Description }}'
+      DriftInformation: '{{ response.StackResources.DriftInformation }}'
+      ModuleInfo: '{{ response.StackResources.ModuleInfo }}'
+      StackResources: '{{ resource.StackResources }}'
+- discovery_id: aws.cloudformation.describe_type
+  calls:
+  - action: describe_type
+    save_as: response
+  emit:
+    item:
+      TypeNameAlias: '{{ response.RequiredActivatedTypes.TypeNameAlias }}'
+      OriginalTypeName: '{{ response.RequiredActivatedTypes.OriginalTypeName }}'
+      PublisherId: '{{ response.RequiredActivatedTypes.PublisherId }}'
+      SupportedMajorVersions: '{{ response.RequiredActivatedTypes.SupportedMajorVersions
+        }}'
+      LoggingConfig: '{{ resource.LoggingConfig }}'
 checks:
 - rule_id: aws.cloudformation.stack.cloudformation_approvals_required_for_changes
   for_each: aws.cloudformation.describe_stacks
   conditions:
     var: item.StackStatus
-    op: equals
-    value: REVIEW_IN_PROGRESS
-- rule_id: aws.cloudformation.stack.change_audit_logging_enabled
-  for_each: aws.cloudformation.describe_stacks
+    op: not_equals
+    value: DELETE_COMPLETE
+- rule_id: aws.cloudformation.stack.cloudformation_storage_encrypted_and_private
+  for_each: aws.cloudformation.describe_stack_resources
   conditions:
-    var: item.StackStatus
-    op: equals
+    var: item.StackResources
+    op: contains
+    value: Encrypted
+- rule_id: aws.cloudformation.stack.change_audit_logging_enabled
+  for_each: aws.cloudformation.describe_type
+  conditions:
+    var: item.LoggingConfig
+    op: contains
     value: ENABLED

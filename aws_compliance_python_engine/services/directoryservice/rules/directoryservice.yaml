@@ -1,45 +1,63 @@
-# DS Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/ds_metadata.yaml
-
 version: '1.0'
 provider: aws
-service: ds
+service: directoryservice
+services:
+  client: directoryservice
+  module: boto3.client
 discovery:
-- discovery_id: aws.directoryservice.resources
+- discovery_id: aws.directoryservice.list_a_d_assessments
   calls:
-  - action: describe_directories
-    fields:
-    - Directoryservices
+  - action: list_ad_assessments
+    save_as: response
   emit:
-    items_for: describe_directories_response[]
+    items_for: '{{ response.Assessments }}'
+    as: resource
     item:
-      id: '{{ resource.Id }}'
-      name: '{{ resource.Name }}'
-- discovery_id: aws.directoryservice.resource_logging
-  for_each: aws.directoryservice.resources
+      AssessmentId: '{{ resource.AssessmentId }}'
+      DirectoryId: '{{ resource.DirectoryId }}'
+      DnsName: '{{ resource.DnsName }}'
+      StartTime: '{{ resource.StartTime }}'
+      LastUpdateDateTime: '{{ resource.LastUpdateDateTime }}'
+      Status: '{{ resource.Status }}'
+      CustomerDnsIps: '{{ resource.CustomerDnsIps }}'
+      ReportType: '{{ resource.ReportType }}'
+- discovery_id: aws.directoryservice.describe_client_authentication_settings
   calls:
-  - action: describe_directories
+  - action: describe_client_authentication_settings
+    save_as: response
     params:
-      ResourceId: '{{ item.id }}'
+      DirectoryId: '{{ item.DirectoryId }}'
+  for_each: aws.directoryservice.list_a_d_assessments
+  on_error: continue
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_directories_response.LoggingEnabled is defined
-        if describe_directories_response else false }}'
+      Type: '{{ response.ClientAuthenticationSettingsInfo.Type }}'
+      Status: '{{ response.ClientAuthenticationSettingsInfo.Status }}'
+      LastUpdatedDateTime: '{{ response.ClientAuthenticationSettingsInfo.LastUpdatedDateTime
+        }}'
+      ClientAuthenticationSettingsInfo: '{{ resource.ClientAuthenticationSettingsInfo
+        }}'
+- discovery_id: aws.directoryservice.list_log_subscriptions
+  calls:
+  - action: list_log_subscriptions
+    save_as: response
+  emit:
+    items_for: '{{ response.LogSubscriptions }}'
+    as: resource
+    item:
+      DirectoryId: '{{ resource.DirectoryId }}'
+      LogGroupName: '{{ resource.LogGroupName }}'
+      SubscriptionCreatedDateTime: '{{ resource.SubscriptionCreatedDateTime }}'
 checks:
-- title: 'DIRECTORYSERVICE resource: Supported Mfa Radius Enabled'
-  severity: critical
-  rule_id: aws.directoryservice.resource.supported_mfa_radius_enabled
-  for_each: aws.directoryservice.resources
+- rule_id: aws.directoryservice.resource.supported_mfa_radius_enabled
+  for_each: aws.directoryservice.describe_client_authentication_settings
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'DIRECTORYSERVICE resource: Directoryservice Directory Log Forwarding Enabled'
-  severity: medium
-  rule_id: aws.directoryservice.resource.directoryservice_directory_log_forwarding_enabled
-  for_each: aws.directoryservice.resource_logging
+    var: item.ClientAuthenticationSettingsInfo
+    op: not_equals
+    value: 'null'
+- rule_id: aws.directoryservice.resource.directoryservice_directory_log_forwarding_enabled
+  for_each: aws.directoryservice.list_log_subscriptions
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
+    var: item.LogGroupName
+    op: not_equals
+    value: 'null'

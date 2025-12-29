@@ -5,40 +5,6 @@ services:
   client: directconnect
   module: boto3.client
 discovery:
-- discovery_id: aws.directconnect.create_bgp_peer
-  calls:
-  - action: create_bgp_peer
-    save_as: response
-  emit:
-    item:
-      ownerAccount: '{{ response.virtualInterface.ownerAccount }}'
-      virtualInterfaceId: '{{ response.virtualInterface.virtualInterfaceId }}'
-      location: '{{ response.virtualInterface.location }}'
-      connectionId: '{{ response.virtualInterface.connectionId }}'
-      virtualInterfaceType: '{{ response.virtualInterface.virtualInterfaceType }}'
-      virtualInterfaceName: '{{ response.virtualInterface.virtualInterfaceName }}'
-      vlan: '{{ response.virtualInterface.vlan }}'
-      asn: '{{ response.virtualInterface.asn }}'
-      asnLong: '{{ response.virtualInterface.asnLong }}'
-      amazonSideAsn: '{{ response.virtualInterface.amazonSideAsn }}'
-      authKey: '{{ response.virtualInterface.authKey }}'
-      amazonAddress: '{{ response.virtualInterface.amazonAddress }}'
-      customerAddress: '{{ response.virtualInterface.customerAddress }}'
-      addressFamily: '{{ response.virtualInterface.addressFamily }}'
-      virtualInterfaceState: '{{ response.virtualInterface.virtualInterfaceState }}'
-      customerRouterConfig: '{{ response.virtualInterface.customerRouterConfig }}'
-      mtu: '{{ response.virtualInterface.mtu }}'
-      jumboFrameCapable: '{{ response.virtualInterface.jumboFrameCapable }}'
-      virtualGatewayId: '{{ response.virtualInterface.virtualGatewayId }}'
-      directConnectGatewayId: '{{ response.virtualInterface.directConnectGatewayId
-        }}'
-      routeFilterPrefixes: '{{ response.virtualInterface.routeFilterPrefixes }}'
-      bgpPeers: '{{ response.virtualInterface.bgpPeers }}'
-      region: '{{ response.virtualInterface.region }}'
-      awsDeviceV2: '{{ response.virtualInterface.awsDeviceV2 }}'
-      awsLogicalDeviceId: '{{ response.virtualInterface.awsLogicalDeviceId }}'
-      tags: '{{ response.virtualInterface.tags }}'
-      siteLinkEnabled: '{{ response.virtualInterface.siteLinkEnabled }}'
 - discovery_id: aws.directconnect.describe_connections
   calls:
   - action: describe_connections
@@ -75,27 +41,28 @@ checks:
   conditions:
     var: item.hasLogicalRedundancy
     op: equals
-    value: ENABLED
+    value: 'yes'
 - rule_id: aws.directconnect.connection.tunnel_health_monitoring_enabled
-  for_each: aws.directconnect.create_bgp_peer
+  for_each: aws.directconnect.describe_connections
   conditions:
-    var: item.virtualInterfaceState
-    op: equals
-    value: AVAILABLE
+    var: item.connectionState
+    op: not_equals
+    value: down
 - rule_id: aws.directconnect.virtual_interface_redundancy.directconnect_virtual_interface_redundancy_configured
   for_each: aws.directconnect.describe_connections
   conditions:
     var: item.hasLogicalRedundancy
     op: equals
-    value: ENABLED
+    value: 'yes'
 - rule_id: aws.directconnect.connection.pre_shared_keys_key_rotation_policy_configured
-  for_each: aws.directconnect.create_bgp_peer
+  for_each: aws.directconnect.describe_connections
   conditions:
-    var: item.authKey
-    op: exists
+    var: item.macSecKeys
+    op: not_equals
+    value: 'null'
 - rule_id: aws.directconnect.connection.ike_phase_encryption_strong_configured
-  for_each: aws.directconnect.create_bgp_peer
+  for_each: aws.directconnect.describe_connections
   conditions:
-    var: item.virtualInterfaceState
+    var: item.portEncryptionStatus
     op: equals
-    value: ENABLED
+    value: enabled

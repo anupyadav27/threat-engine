@@ -5,19 +5,13 @@ services:
   client: shield
   module: boto3.client
 discovery:
-- discovery_id: aws.shield.describe_protection
+- discovery_id: aws.shield.get_subscription_state
   calls:
-  - action: describe_protection
+  - action: get_subscription_state
     save_as: response
   emit:
     item:
-      Id: '{{ response.Protection.Id }}'
-      Name: '{{ response.Protection.Name }}'
-      ResourceArn: '{{ response.Protection.ResourceArn }}'
-      HealthCheckIds: '{{ response.Protection.HealthCheckIds }}'
-      ProtectionArn: '{{ response.Protection.ProtectionArn }}'
-      ApplicationLayerAutomaticResponseConfiguration: '{{ response.Protection.ApplicationLayerAutomaticResponseConfiguration
-        }}'
+      SubscriptionState: '{{ response.SubscriptionState }}'
 - discovery_id: aws.shield.describe_subscription
   calls:
   - action: describe_subscription
@@ -33,57 +27,106 @@ discovery:
         }}'
       SubscriptionLimits: '{{ response.Subscription.SubscriptionLimits }}'
       SubscriptionArn: '{{ response.Subscription.SubscriptionArn }}'
+- discovery_id: aws.shield.list_protections
+  calls:
+  - action: list_protections
+    save_as: response
+  emit:
+    items_for: '{{ response.Protections }}'
+    as: resource
+    item:
+      Id: '{{ resource.Id }}'
+      Name: '{{ resource.Name }}'
+      ResourceArn: '{{ resource.ResourceArn }}'
+      HealthCheckIds: '{{ resource.HealthCheckIds }}'
+      ProtectionArn: '{{ resource.ProtectionArn }}'
+      ApplicationLayerAutomaticResponseConfiguration: '{{ resource.ApplicationLayerAutomaticResponseConfiguration
+        }}'
+- discovery_id: aws.shield.describe_protection
+  calls:
+  - action: describe_protection
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.Protection.Id }}'
+      Name: '{{ response.Protection.Name }}'
+      ResourceArn: '{{ response.Protection.ResourceArn }}'
+      HealthCheckIds: '{{ response.Protection.HealthCheckIds }}'
+      ProtectionArn: '{{ response.Protection.ProtectionArn }}'
+      ApplicationLayerAutomaticResponseConfiguration: '{{ response.Protection.ApplicationLayerAutomaticResponseConfiguration
+        }}'
+      Protection: '{{ resource.Protection }}'
+- discovery_id: aws.shield.describe_d_r_t_access
+  calls:
+  - action: describe_drt_access
+    save_as: response
+  emit:
+    item:
+      LogBucketList: '{{ response.LogBucketList }}'
 checks:
 - rule_id: aws.shield.subscription.shield_web_acl_attached_to_cdn_configured
-  for_each: aws.shield.describe_protection
+  for_each: aws.shield.get_subscription_state
   conditions:
-    var: item.ResourceArn
-    op: exists
+    var: item.SubscriptionState
+    op: equals
+    value: ACTIVE
 - rule_id: aws.shield.subscription.shield_ip_rate_limit_rules_configured_if_supported
-  for_each: aws.shield.describe_protection
+  for_each: aws.shield.get_subscription_state
   conditions:
-    var: item.ApplicationLayerAutomaticResponseConfiguration
-    op: exists
+    var: item.SubscriptionState
+    op: equals
+    value: ACTIVE
 - rule_id: aws.shield.subscription.shield_block_actions_not_count_only_configured
-  for_each: aws.shield.describe_protection
+  for_each: aws.shield.get_subscription_state
   conditions:
-    var: item.ApplicationLayerAutomaticResponseConfiguration
-    op: exists
+    var: item.SubscriptionState
+    op: not_equals
+    value: INACTIVE
 - rule_id: aws.shield.protection.shield_managed_rule_sets_enabled
-  for_each: aws.shield.describe_protection
-  conditions:
-    var: item.ApplicationLayerAutomaticResponseConfiguration
-    op: exists
-- rule_id: aws.shield.subscription.shield_managed_rule_sets_enabled
   for_each: aws.shield.describe_subscription
   conditions:
     var: item.ProactiveEngagementStatus
     op: equals
     value: ENABLED
+- rule_id: aws.shield.subscription.shield_managed_rule_sets_enabled
+  for_each: aws.shield.get_subscription_state
+  conditions:
+    var: item.SubscriptionState
+    op: equals
+    value: ACTIVE
 - rule_id: aws.shield.protection.shield_block_actions_not_count_only_configured
-  for_each: aws.shield.describe_protection
+  for_each: aws.shield.list_protections
   conditions:
     var: item.ApplicationLayerAutomaticResponseConfiguration
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.shield.protection.shield_ip_rate_limit_rules_configured_if_supported
   for_each: aws.shield.describe_protection
   conditions:
-    var: item.ApplicationLayerAutomaticResponseConfiguration
-    op: exists
+    var: item.Protection
+    op: not_equals
+    value: 'null'
 - rule_id: aws.shield.subscription.logging_enabled
-  for_each: aws.shield.describe_subscription
+  for_each: aws.shield.describe_d_r_t_access
   conditions:
-    var: item.ProactiveEngagementStatus
+    var: item.LogBucketList
     op: equals
-    value: ENABLED
+    value: 'true'
+- rule_id: aws.shield.advanced.shield_protection_in_internet_facing_load_balancers_configured
+  for_each: aws.shield.describe_protection
+  conditions:
+    var: item.Protection
+    op: not_equals
+    value: 'null'
 - rule_id: aws.shield.protection.shield_web_acl_attached_to_cdn_configured
   for_each: aws.shield.describe_protection
   conditions:
-    var: item.ResourceArn
-    op: exists
+    var: item.Protection
+    op: not_equals
+    value: 'null'
 - rule_id: aws.shield.protection.logging_enabled
-  for_each: aws.shield.describe_subscription
+  for_each: aws.shield.describe_d_r_t_access
   conditions:
-    var: item.ProactiveEngagementStatus
+    var: item.LogBucketList
     op: equals
-    value: ENABLED
+    value: true

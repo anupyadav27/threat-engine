@@ -5,104 +5,160 @@ services:
   client: ebs
   module: boto3.client
 discovery:
-- discovery_id: aws.ebs.list_changed_blocks
+- discovery_id: aws.ebs.describe_subnets
   calls:
-  - action: list_changed_blocks
+  - action: describe_subnets
     save_as: response
   emit:
-    items_for: '{{ response.ChangedBlocks }}'
-    as: resource
     item:
-      BlockIndex: '{{ resource.BlockIndex }}'
-      FirstBlockToken: '{{ resource.FirstBlockToken }}'
-      SecondBlockToken: '{{ resource.SecondBlockToken }}'
-- discovery_id: aws.ebs.list_snapshot_blocks
+      AvailabilityZoneId: '{{ response.Subnets.AvailabilityZoneId }}'
+      EnableLniAtDeviceIndex: '{{ response.Subnets.EnableLniAtDeviceIndex }}'
+      MapCustomerOwnedIpOnLaunch: '{{ response.Subnets.MapCustomerOwnedIpOnLaunch
+        }}'
+      CustomerOwnedIpv4Pool: '{{ response.Subnets.CustomerOwnedIpv4Pool }}'
+      OwnerId: '{{ response.Subnets.OwnerId }}'
+      AssignIpv6AddressOnCreation: '{{ response.Subnets.AssignIpv6AddressOnCreation
+        }}'
+      Ipv6CidrBlockAssociationSet: '{{ response.Subnets.Ipv6CidrBlockAssociationSet
+        }}'
+      Tags: '{{ response.Subnets.Tags }}'
+      SubnetArn: '{{ response.Subnets.SubnetArn }}'
+      OutpostArn: '{{ response.Subnets.OutpostArn }}'
+      EnableDns64: '{{ response.Subnets.EnableDns64 }}'
+      Ipv6Native: '{{ response.Subnets.Ipv6Native }}'
+      PrivateDnsNameOptionsOnLaunch: '{{ response.Subnets.PrivateDnsNameOptionsOnLaunch
+        }}'
+      BlockPublicAccessStates: '{{ response.Subnets.BlockPublicAccessStates }}'
+      Type: '{{ response.Subnets.Type }}'
+      SubnetId: '{{ response.Subnets.SubnetId }}'
+      State: '{{ response.Subnets.State }}'
+      VpcId: '{{ response.Subnets.VpcId }}'
+      CidrBlock: '{{ response.Subnets.CidrBlock }}'
+      AvailableIpAddressCount: '{{ response.Subnets.AvailableIpAddressCount }}'
+      AvailabilityZone: '{{ response.Subnets.AvailabilityZone }}'
+      DefaultForAz: '{{ response.Subnets.DefaultForAz }}'
+      MapPublicIpOnLaunch: '{{ response.Subnets.MapPublicIpOnLaunch }}'
+- discovery_id: aws.ebs.describe_fpga_images
   calls:
-  - action: list_snapshot_blocks
+  - action: describe_fpga_images
     save_as: response
-    params:
-      SnapshotId: '{{ item.SnapshotId }}'
-  on_error: continue
-  for_each: aws.ebs.start_snapshot
   emit:
-    items_for: '{{ response.Blocks }}'
-    as: resource
     item:
-      BlockIndex: '{{ resource.BlockIndex }}'
-      BlockToken: '{{ resource.BlockToken }}'
-- discovery_id: aws.ebs.start_snapshot
+      FpgaImageId: '{{ response.FpgaImages.FpgaImageId }}'
+      FpgaImageGlobalId: '{{ response.FpgaImages.FpgaImageGlobalId }}'
+      Name: '{{ response.FpgaImages.Name }}'
+      Description: '{{ response.FpgaImages.Description }}'
+      ShellVersion: '{{ response.FpgaImages.ShellVersion }}'
+      PciId: '{{ response.FpgaImages.PciId }}'
+      State: '{{ response.FpgaImages.State }}'
+      CreateTime: '{{ response.FpgaImages.CreateTime }}'
+      UpdateTime: '{{ response.FpgaImages.UpdateTime }}'
+      OwnerId: '{{ response.FpgaImages.OwnerId }}'
+      OwnerAlias: '{{ response.FpgaImages.OwnerAlias }}'
+      ProductCodes: '{{ response.FpgaImages.ProductCodes }}'
+      Tags: '{{ response.FpgaImages.Tags }}'
+      Public: '{{ response.FpgaImages.Public }}'
+      DataRetentionSupport: '{{ response.FpgaImages.DataRetentionSupport }}'
+      InstanceTypes: '{{ response.FpgaImages.InstanceTypes }}'
+- discovery_id: aws.ebs.describe_import_image_tasks
   calls:
-  - action: start_snapshot
+  - action: describe_import_image_tasks
     save_as: response
-    params:
-      VolumeSize: '{{ item.VolumeSize }}'
-  on_error: continue
-  for_each: aws.ebs.list_snapshot_blocks
   emit:
     item:
-      Key: '{{ response.Tags.Key }}'
-      Value: '{{ response.Tags.Value }}'
+      Architecture: '{{ response.ImportImageTasks.Architecture }}'
+      Description: '{{ response.ImportImageTasks.Description }}'
+      Encrypted: '{{ response.ImportImageTasks.Encrypted }}'
+      Hypervisor: '{{ response.ImportImageTasks.Hypervisor }}'
+      ImageId: '{{ response.ImportImageTasks.ImageId }}'
+      ImportTaskId: '{{ response.ImportImageTasks.ImportTaskId }}'
+      KmsKeyId: '{{ response.ImportImageTasks.KmsKeyId }}'
+      LicenseType: '{{ response.ImportImageTasks.LicenseType }}'
+      Platform: '{{ response.ImportImageTasks.Platform }}'
+      Progress: '{{ response.ImportImageTasks.Progress }}'
+      SnapshotDetails: '{{ response.ImportImageTasks.SnapshotDetails }}'
+      Status: '{{ response.ImportImageTasks.Status }}'
+      StatusMessage: '{{ response.ImportImageTasks.StatusMessage }}'
+      Tags: '{{ response.ImportImageTasks.Tags }}'
+      LicenseSpecifications: '{{ response.ImportImageTasks.LicenseSpecifications }}'
+      UsageOperation: '{{ response.ImportImageTasks.UsageOperation }}'
+      BootMode: '{{ response.ImportImageTasks.BootMode }}'
 checks:
 - rule_id: aws.ebs.volume.snapshots_not_public_configured
-  for_each: aws.ebs.list_snapshot_blocks
+  for_each: aws.ebs.describe_subnets
   conditions:
-    var: item.BlockToken
-    op: exists
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ebs.volume.backup_configured
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_fpga_images
   conditions:
-    var: item.Key
-    op: exists
+    var: item.DataRetentionSupport
+    op: equals
+    value: 'true'
 - rule_id: aws.ebs.volume.snapshots_encrypted
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
-    op: exists
+    var: item.Encrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
-    op: exists
+    var: item.Encrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
-    op: exists
+    var: item.Encrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.ebs.snapshot.not_public_configured
-  for_each: aws.ebs.list_changed_blocks
+  for_each: aws.ebs.describe_subnets
   conditions:
-    var: item.BlockIndex
-    op: exists
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
-    op: exists
+    var: item.Encrypted
+    op: equals
+    value: 'true'
 - rule_id: aws.ebs.snapshot.ebs_s_encrypted
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
+    var: item.Encrypted
     op: equals
-    value: Encrypted
+    value: 'true'
 - rule_id: aws.ebs.snapshot.s_not_public_configured
-  for_each: aws.ebs.list_snapshot_blocks
+  for_each: aws.ebs.describe_subnets
   conditions:
-    var: item.BlockToken
-    op: exists
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ebs.snapshot.snapshots_not_public_configured
-  for_each: aws.ebs.list_snapshot_blocks
+  for_each: aws.ebs.describe_subnets
   conditions:
-    var: item.BlockToken
-    op: equals
-    value: []
+    var: item.BlockPublicAccessStates
+    op: not_equals
+    value: unblocked
 - rule_id: aws.ebs.snapshot.snapshots_encrypted
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
+    var: item.Encrypted
     op: equals
-    value: Encrypted
+    value: 'true'
 - rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
-  for_each: aws.ebs.start_snapshot
+  for_each: aws.ebs.describe_import_image_tasks
   conditions:
-    var: item.Key
-    op: exists
+    var: item.Encrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.ebs.volume.encryption_at_rest_enabled
+  for_each: aws.ebs.describe_import_image_tasks
+  conditions:
+    var: item.Encrypted
+    op: equals
+    value: 'true'

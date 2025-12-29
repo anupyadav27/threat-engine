@@ -21,22 +21,31 @@ discovery:
       DeploymentMode: '{{ resource.DeploymentMode }}'
       EngineType: '{{ resource.EngineType }}'
       HostInstanceType: '{{ resource.HostInstanceType }}'
+- discovery_id: aws.mq.describe_broker
+  calls:
+  - action: describe_broker
+    save_as: response
+  emit:
+    item:
+      ActionRequiredCode: '{{ response.ActionsRequired.ActionRequiredCode }}'
+      ActionRequiredInfo: '{{ response.ActionsRequired.ActionRequiredInfo }}'
+      Logs: '{{ resource.Logs }}'
 checks:
 - rule_id: aws.mq.cluster.mq_deployment_mode_configured
   for_each: aws.mq.list_brokers
   conditions:
     var: item.DeploymentMode
     op: equals
-    value: ACTIVE
+    value: ACTIVE_STANDBY_MULTI_AZ
 - rule_id: aws.mq.resource.broker_logging_enabled
-  for_each: aws.mq.list_brokers
+  for_each: aws.mq.describe_broker
   conditions:
-    var: item.BrokerState
-    op: equals
-    value: ENABLED
+    var: item.Logs
+    op: not_equals
+    value: 'null'
 - rule_id: aws.mq.broker.mq_active_deployment_mode_configured
   for_each: aws.mq.list_brokers
   conditions:
     var: item.DeploymentMode
     op: equals
-    value: ACTIVE
+    value: ACTIVE_STANDBY_MULTI_AZ

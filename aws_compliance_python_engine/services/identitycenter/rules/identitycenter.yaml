@@ -1,191 +1,164 @@
-# IDENTITYSTORE Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/identitystore_metadata.yaml
-
 version: '1.0'
 provider: aws
-service: identitystore
+service: identitycenter
+services:
+  client: identitycenter
+  module: boto3.client
 discovery:
-- discovery_id: aws.identitycenter.groups
+- discovery_id: aws.identitycenter.list_accounts
   calls:
-  - action: list_users
-    fields:
-    - Identitycenters
+  - action: list_accounts
+    save_as: response
   emit:
-    items_for: list_users_response[]
+    items_for: '{{ response.accountList }}'
+    as: resource
     item:
-      id: '{{ group.Id }}'
-      name: '{{ group.Name }}'
-- discovery_id: aws.identitycenter.users
-  for_each: aws.identitycenter.user
+      accountId: '{{ resource.accountId }}'
+      accountName: '{{ resource.accountName }}'
+      emailAddress: '{{ resource.emailAddress }}'
+      roleName: '{{ resource.roleName }}'
+- discovery_id: aws.identitycenter.list_account_roles
   calls:
-  - action: list_users
+  - action: list_account_roles
+    save_as: response
+    params:
+      accountId: '{{ item.accountId }}'
+  for_each: aws.identitycenter.list_accounts
+  on_error: continue
   emit:
+    items_for: '{{ response.roleList }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.identitycenter.permissionsets
-  for_each: aws.identitycenter.permissionset
+      roleName: '{{ resource.roleName }}'
+      accountId: '{{ resource.accountId }}'
+- discovery_id: aws.identitycenter.get_role_credentials
   calls:
-  - action: describe_permissionsets
+  - action: get_role_credentials
+    save_as: response
+    params:
+      roleName: '{{ item.roleName }}'
+      accountId: '{{ item.accountId }}'
+  for_each: aws.identitycenter.list_account_roles
+  on_error: continue
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
+      accessKeyId: '{{ response.roleCredentials.accessKeyId }}'
+      secretAccessKey: '{{ response.roleCredentials.secretAccessKey }}'
+      sessionToken: '{{ response.roleCredentials.sessionToken }}'
+      expiration: '{{ response.roleCredentials.expiration }}'
+      roleCredentials: '{{ resource.roleCredentials }}'
 checks:
-- title: 'IDENTITYCENTER permissionset: Identitycenter Trust Principals Allowlist
-    Only Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.identitycenter_trust_principals_allowlist_only_configured
-  for_each: aws.identitycenter.permissionsets
+- rule_id: aws.identitycenter.permissionset.identitycenter_trust_principals_allowlist_only_configured
+  for_each: aws.identitycenter.list_accounts
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Max Session Duration Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.max_session_duration_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.max_session_duration_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Scopes Or Roles Least Privilege'
-  severity: high
-  rule_id: aws.identitycenter.permissionset.scopes_or_roles_least_privilege
-  for_each: aws.identitycenter.permissionsets
+    var: item.expiration
+    op: greater_than
+    value: '0'
+- rule_id: aws.identitycenter.permissionset.scopes_or_roles_least_privilege
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Identitycenter Workload Identity Federation
-    Used If Supported'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.identitycenter_workload_identity_federation_used_if_supported
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.identitycenter_workload_identity_federation_used_if_supported
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Identitycenter No Inline Policies Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.identitycenter_no_inline_policies_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.identitycenter_no_inline_policies_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Keys Not Used Or Rotated 90 Days Or Less Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.keys_not_used_or_rotated_90_days_or_less_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.keys_not_used_or_rotated_90_days_or_less_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER user: Console Password Present Only If Required'
-  severity: critical
-  rule_id: aws.identitycenter.user.console_password_present_only_if_required
-  for_each: aws.identitycenter.users
+    var: item.expiration
+    op: less_than
+    value: '90'
+- rule_id: aws.identitycenter.user.console_password_present_only_if_required
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER user: Access Keys Rotated 90 Days Or Less When Present'
-  severity: medium
-  rule_id: aws.identitycenter.user.access_keys_rotated_90_days_or_less_when_present
-  for_each: aws.identitycenter.users
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.user.access_keys_rotated_90_days_or_less_when_present
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Session Duration Reasonable If Applicable
-    Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.session_duration_reasonable_if_applicable_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.expiration
+    op: less_than
+    value: '90'
+- rule_id: aws.identitycenter.permissionset.session_duration_reasonable_if_applicable_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER user: Identitycenter No Inline Policies Enabled'
-  severity: medium
-  rule_id: aws.identitycenter.user.identitycenter_no_inline_policies_enabled
-  for_each: aws.identitycenter.users
+    var: item.expiration
+    op: greater_than
+    value: '3600'
+- rule_id: aws.identitycenter.user.identitycenter_no_inline_policies_enabled
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER group: Identitycenter Membership Review Enabled If Supported'
-  severity: medium
-  rule_id: aws.identitycenter.group.identitycenter_membership_review_enabled_if_supported
-  for_each: aws.identitycenter.groups
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.group.identitycenter_membership_review_enabled_if_supported
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER group: Identitycenter External Sharing Restricted If Supported'
-  severity: medium
-  rule_id: aws.identitycenter.group.identitycenter_external_sharing_restricted_if_supported
-  for_each: aws.identitycenter.groups
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.group.identitycenter_external_sharing_restricted_if_supported
+  for_each: aws.identitycenter.list_accounts
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER user: Identitycenter Inactive 90 Days Disabled'
-  severity: medium
-  rule_id: aws.identitycenter.user.identitycenter_inactive_90_days_disabled
-  for_each: aws.identitycenter.users
+    var: item.accountId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.user.identitycenter_inactive_90_days_disabled
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER group: Identitycenter Attached Policies Not Admin Star Configured'
-  severity: medium
-  rule_id: aws.identitycenter.group.identitycenter_attached_policies_not_admin_star_configured
-  for_each: aws.identitycenter.groups
+    var: item.expiration
+    op: less_than
+    value: '90'
+- rule_id: aws.identitycenter.group.identitycenter_attached_policies_not_admin_star_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER group: Identitycenter No Inline Policies Configured'
-  severity: medium
-  rule_id: aws.identitycenter.group.identitycenter_no_inline_policies_configured
-  for_each: aws.identitycenter.groups
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.group.identitycenter_no_inline_policies_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER user: Mfa Required'
-  severity: critical
-  rule_id: aws.identitycenter.user.mfa_required
-  for_each: aws.identitycenter.users
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.user.mfa_required
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'IDENTITYCENTER permissionset: Identitycenter Trust External Id Or Audience
-    Required'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.identitycenter_trust_external_id_or_audience_required
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleCredentials
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.identitycenter_trust_external_id_or_audience_required
+  for_each: aws.identitycenter.list_accounts
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: Identitycenter Attached Policies Not Admin
-    Star Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.identitycenter_attached_policies_not_admin_star_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleName
+    op: not_equals
+    value: 'null'
+- rule_id: aws.identitycenter.permissionset.identitycenter_attached_policies_not_admin_star_configured
+  for_each: aws.identitycenter.list_accounts
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'IDENTITYCENTER permissionset: No User Managed Long Lived Keys Configured'
-  severity: medium
-  rule_id: aws.identitycenter.permissionset.no_user_managed_long_lived_keys_configured
-  for_each: aws.identitycenter.permissionsets
+    var: item.roleName
+    op: not_equals
+    value: '*'
+- rule_id: aws.identitycenter.permissionset.no_user_managed_long_lived_keys_configured
+  for_each: aws.identitycenter.get_role_credentials
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.accessKeyId
+    op: not_equals
+    value: 'null'

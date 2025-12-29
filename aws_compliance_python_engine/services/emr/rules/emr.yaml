@@ -15,18 +15,12 @@ discovery:
         }}'
       PermittedPublicSecurityGroupRuleRanges: '{{ response.BlockPublicAccessConfiguration.PermittedPublicSecurityGroupRuleRanges
         }}'
-- discovery_id: aws.emr.add_instance_fleet
-  calls:
-  - action: add_instance_fleet
-    save_as: response
+      BlockPublicAccessConfiguration: '{{ resource.BlockPublicAccessConfiguration
+        }}'
 - discovery_id: aws.emr.list_instances
   calls:
   - action: list_instances
     save_as: response
-    params:
-      ClusterId: '{{ item.ClusterId }}'
-  on_error: continue
-  for_each: aws.emr.add_instance_fleet
   emit:
     items_for: '{{ response.Instances }}'
     as: resource
@@ -47,17 +41,18 @@ checks:
 - rule_id: aws.emr.cluster.account_public_block_enabled
   for_each: aws.emr.get_block_public_access_configuration
   conditions:
-    var: item.BlockPublicSecurityGroupRules
+    var: item.BlockPublicAccessConfiguration
     op: equals
     value: true
 - rule_id: aws.emr.cluster.master_nodes_no_public_ip_configured
   for_each: aws.emr.list_instances
   conditions:
     var: item.PublicIpAddress
-    op: equals
+    op: not_equals
+    value: 'null'
 - rule_id: aws.emr.cluster.publicly_accesible_configured
   for_each: aws.emr.get_block_public_access_configuration
   conditions:
-    var: item.BlockPublicSecurityGroupRules
+    var: item.BlockPublicAccessConfiguration
     op: equals
-    value: true
+    value: 'false'

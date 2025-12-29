@@ -1,105 +1,120 @@
-# COSTEXPLORER Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/costexplorer_metadata.yaml
-
 version: '1.0'
 provider: aws
 service: costexplorer
+services:
+  client: costexplorer
+  module: boto3.client
 discovery:
-- discovery_id: aws.costexplorer.costcategorys
+- discovery_id: aws.costexplorer.list_cost_allocation_tags
   calls:
-  - action: list_costexplorers
-    fields:
-    - Costexplorers
+  - action: list_cost_allocation_tags
+    save_as: response
   emit:
-    items_for: list_costexplorers_response[]
+    items_for: '{{ response.CostAllocationTags }}'
+    as: resource
     item:
-      id: '{{ costcategory.Id }}'
-      name: '{{ costcategory.Name }}'
-- discovery_id: aws.costexplorer.costcategory_encryption
-  for_each: aws.costexplorer.costcategorys
+      TagKey: '{{ resource.TagKey }}'
+      Type: '{{ resource.Type }}'
+      Status: '{{ resource.Status }}'
+      LastUpdatedDate: '{{ resource.LastUpdatedDate }}'
+      LastUsedDate: '{{ resource.LastUsedDate }}'
+- discovery_id: aws.costexplorer.get_tags
   calls:
-  - action: list_costexplorers
-    params:
-      CostcategoryId: '{{ item.id }}'
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_costexplorers_response.Encrypted if list_costexplorers_response.Encrypted
-        is defined else false }}'
-- discovery_id: aws.costexplorer.cost_allocation_tags
-  for_each: aws.costexplorer.cost_allocation_tag
-  calls:
-  - action: describe_cost_allocation_tags
+  - action: get_tags
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.costexplorer.anomalydetectors
-  for_each: aws.costexplorer.anomalydetector
+      Tags: '{{ response.Tags }}'
+- discovery_id: aws.costexplorer.get_rightsizing_recommendation
   calls:
-  - action: describe_anomalydetectors
+  - action: get_rightsizing_recommendation
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
+      AccountId: '{{ response.RightsizingRecommendations.AccountId }}'
+      CurrentInstance: '{{ response.RightsizingRecommendations.CurrentInstance }}'
+      RightsizingType: '{{ response.RightsizingRecommendations.RightsizingType }}'
+      ModifyRecommendationDetail: '{{ response.RightsizingRecommendations.ModifyRecommendationDetail
+        }}'
+      TerminateRecommendationDetail: '{{ response.RightsizingRecommendations.TerminateRecommendationDetail
+        }}'
+      FindingReasonCodes: '{{ response.RightsizingRecommendations.FindingReasonCodes
+        }}'
+      Configuration: '{{ resource.Configuration }}'
+- discovery_id: aws.costexplorer.list_cost_category_definitions
+  calls:
+  - action: list_cost_category_definitions
+    save_as: response
+  emit:
+    items_for: '{{ response.CostCategoryReferences }}'
+    as: resource
+    item:
+      CostCategoryArn: '{{ resource.CostCategoryArn }}'
+      Name: '{{ resource.Name }}'
+      EffectiveStart: '{{ resource.EffectiveStart }}'
+      EffectiveEnd: '{{ resource.EffectiveEnd }}'
+      NumberOfRules: '{{ resource.NumberOfRules }}'
+      ProcessingStatus: '{{ resource.ProcessingStatus }}'
+      Values: '{{ resource.Values }}'
+      DefaultValue: '{{ resource.DefaultValue }}'
 checks:
 - rule_id: aws.costexplorer.costcategory.billing_admins_mfa_required
-  for_each: aws.costexplorer.costcategorys
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.compliant
+    var: item.Status
     op: equals
-    value: true
+    value: Active
 - rule_id: aws.costexplorer.cost_allocation_tag.costexplorer_required_cost_tags_present
-  for_each: aws.costexplorer.cost_allocation_tags
+  for_each: aws.costexplorer.get_tags
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.Tags
+    op: contains
+    value: Costexplorer
 - rule_id: aws.costexplorer.anomalydetector.costexplorer_detectors_enabled
-  for_each: aws.costexplorer.anomalydetectors
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.compliant
+    var: item.Status
     op: equals
-    value: true
+    value: Active
 - rule_id: aws.costexplorer.cost_allocation_tag.untagged_resource_alerts_enabled
-  for_each: aws.costexplorer.cost_allocation_tags
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.monitoring_enabled
+    var: item.Status
     op: equals
-    value: true
+    value: Active
 - rule_id: aws.costexplorer.anomalydetector.costexplorer_severity_thresholds_configured
-  for_each: aws.costexplorer.anomalydetectors
+  for_each: aws.costexplorer.get_rightsizing_recommendation
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.Configuration
+    op: not_equals
+    value: 'null'
 - rule_id: aws.costexplorer.cost_allocation_tag.cost_tag_policy_enforced
-  for_each: aws.costexplorer.cost_allocation_tags
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.is_public
+    var: item.TagKey
     op: equals
-    value: false
+    value: CostTag
 - rule_id: aws.costexplorer.costcategory.billing_console_rbac_least_privilege
-  for_each: aws.costexplorer.costcategorys
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.Type
+    op: not_equals
+    value: AWSGenerated
 - rule_id: aws.costexplorer.anomalydetector.alert_destinations_configured
-  for_each: aws.costexplorer.anomalydetectors
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: item.monitoring_enabled
-    op: equals
-    value: true
+    var: item.Status
+    op: not_equals
+    value: Inactive
 - rule_id: aws.costexplorer.costcategory.costexplorer_cost_export_destinations_least_privilege
-  for_each: aws.costexplorer.costcategorys
+  for_each: aws.costexplorer.list_cost_category_definitions
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.CostCategoryArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.costexplorer.costcategory.costexplorer_cost_data_exports_private_and_encrypted
-  for_each: aws.costexplorer.costcategory_encryption
+  for_each: aws.costexplorer.list_cost_allocation_tags
   conditions:
-    var: encryption.encryption_enabled
+    var: item.Status
     op: equals
-    value: true
+    value: Active

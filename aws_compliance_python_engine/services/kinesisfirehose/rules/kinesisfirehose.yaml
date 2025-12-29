@@ -1,85 +1,80 @@
 version: '1.0'
 provider: aws
 service: kinesisfirehose
+services:
+  client: kinesisfirehose
+  module: boto3.client
 discovery:
-- discovery_id: aws.kinesisfirehose.deliverystreams
+- discovery_id: aws.kinesisfirehose.list_delivery_streams
   calls:
   - action: list_delivery_streams
-    fields:
-    - Kinesisfirehoses
+    save_as: response
   emit:
-    items_for: list_delivery_streams_response[]
     item:
-      id: '{{ deliverystream.Id }}'
-      name: '{{ deliverystream.Name }}'
-- discovery_id: aws.kinesisfirehose.deliverystream_encryption
-  for_each: aws.kinesisfirehose.deliverystreams
+      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamEncryptionConfiguration
+        }}'
+      DeliveryStreamStatus: '{{ response.DeliveryStreamStatus }}'
+      DeliveryStreamType: '{{ response.DeliveryStreamType }}'
+- discovery_id: aws.kinesisfirehose.describe_delivery_stream
   calls:
-  - action: list_delivery_streams
-    params:
-      DeliverystreamId: '{{ item.id }}'
+  - action: describe_delivery_stream
+    save_as: response
   emit:
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_delivery_streams_response.Encrypted if list_delivery_streams_response.Encrypted is defined
-        else false }}'
-- discovery_id: aws.kinesisfirehose.deliverystream_logging
-  for_each: aws.kinesisfirehose.deliverystreams
-  calls:
-  - action: describe_deliverystream_logging
-    params:
-      DeliverystreamId: '{{ item.id }}'
-  emit:
-    item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_deliverystream_logging_response.LoggingEnabled is defined if describe_deliverystream_logging_response
-        else false }}'
+      DeliveryStreamName: '{{ response.DeliveryStreamDescription.DeliveryStreamName
+        }}'
+      DeliveryStreamARN: '{{ response.DeliveryStreamDescription.DeliveryStreamARN
+        }}'
+      DeliveryStreamStatus: '{{ response.DeliveryStreamDescription.DeliveryStreamStatus
+        }}'
+      FailureDescription: '{{ response.DeliveryStreamDescription.FailureDescription
+        }}'
+      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamDescription.DeliveryStreamEncryptionConfiguration
+        }}'
+      DeliveryStreamType: '{{ response.DeliveryStreamDescription.DeliveryStreamType
+        }}'
+      VersionId: '{{ response.DeliveryStreamDescription.VersionId }}'
+      CreateTimestamp: '{{ response.DeliveryStreamDescription.CreateTimestamp }}'
+      LastUpdateTimestamp: '{{ response.DeliveryStreamDescription.LastUpdateTimestamp
+        }}'
+      Source: '{{ response.DeliveryStreamDescription.Source }}'
+      Destinations: '{{ response.DeliveryStreamDescription.Destinations }}'
+      HasMoreDestinations: '{{ response.DeliveryStreamDescription.HasMoreDestinations
+        }}'
 checks:
-- title: 'KINESISFIREHOSE deliverystream: Consumer Auth Required'
-  severity: medium
-  rule_id: aws.kinesisfirehose.deliverystream.consumer_auth_required
-  for_each: aws.kinesisfirehose.deliverystreams
+- rule_id: aws.kinesisfirehose.deliverystream.consumer_auth_required
+  for_each: aws.kinesisfirehose.list_delivery_streams
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
-- title: 'KINESISFIREHOSE deliverystream: Encryption At Rest Enabled'
-  severity: high
-  rule_id: aws.kinesisfirehose.deliverystream.encryption_at_rest_enabled
-  for_each: aws.kinesisfirehose.deliverystream_encryption
+    var: item.DeliveryStreamEncryptionConfiguration
+    op: not_equals
+    value: 'null'
+- rule_id: aws.kinesisfirehose.deliverystream.encryption_at_rest_enabled
+  for_each: aws.kinesisfirehose.list_delivery_streams
   conditions:
-    var: encryption.encryption_enabled
+    var: item.DeliveryStreamEncryptionConfiguration
     op: equals
-    value: true
-- title: 'KINESISFIREHOSE deliverystream: Kinesisfirehose Destination Least Privilege'
-  severity: high
-  rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege
-  for_each: aws.kinesisfirehose.deliverystreams
+    value: 'null'
+- rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege
+  for_each: aws.kinesisfirehose.describe_delivery_stream
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
-- title: 'KINESISFIREHOSE deliverystream: Logging Enabled'
-  severity: medium
-  rule_id: aws.kinesisfirehose.deliverystream.logging_enabled
-  for_each: aws.kinesisfirehose.deliverystream_logging
+    var: item.Destinations
+    op: not_equals
+    value: 'null'
+- rule_id: aws.kinesisfirehose.deliverystream.logging_enabled
+  for_each: aws.kinesisfirehose.list_delivery_streams
   conditions:
-    var: logging.logging_enabled
+    var: item.DeliveryStreamStatus
     op: equals
-    value: true
-- title: 'KINESISFIREHOSE deliverystream: Private Network Only If Supported'
-  severity: high
-  rule_id: aws.kinesisfirehose.deliverystream.private_network_only_if_supported
-  for_each: aws.kinesisfirehose.deliverystreams
+    value: ACTIVE
+- rule_id: aws.kinesisfirehose.deliverystream.private_network_only_if_supported
+  for_each: aws.kinesisfirehose.list_delivery_streams
   conditions:
-    var: item.is_public
+    var: item.DeliveryStreamType
     op: equals
-    value: false
-- title: 'KINESISFIREHOSE deliverystream: Kinesisfirehose Destination Encrypted'
-  severity: high
-  rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_encrypted
-  for_each: aws.kinesisfirehose.deliverystream_encryption
+    value: DirectPut
+- rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_encrypted
+  for_each: aws.kinesisfirehose.list_delivery_streams
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.DeliveryStreamEncryptionConfiguration
+    op: not_equals
+    value: 'null'

@@ -5,6 +5,18 @@ services:
   client: athena
   module: boto3.client
 discovery:
+- discovery_id: aws.athena.batch_get_named_query
+  calls:
+  - action: batch_get_named_query
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.NamedQueries.Name }}'
+      Description: '{{ response.NamedQueries.Description }}'
+      Database: '{{ response.NamedQueries.Database }}'
+      QueryString: '{{ response.NamedQueries.QueryString }}'
+      NamedQueryId: '{{ response.NamedQueries.NamedQueryId }}'
+      WorkGroup: '{{ response.NamedQueries.WorkGroup }}'
 - discovery_id: aws.athena.list_work_groups
   calls:
   - action: list_work_groups
@@ -19,45 +31,27 @@ discovery:
       CreationTime: '{{ resource.CreationTime }}'
       EngineVersion: '{{ resource.EngineVersion }}'
       IdentityCenterApplicationArn: '{{ resource.IdentityCenterApplicationArn }}'
-- discovery_id: aws.athena.get_named_query
+- discovery_id: aws.athena.get_session
   calls:
-  - action: get_named_query
+  - action: get_session
     save_as: response
-    params:
-      NamedQueryId: '{{ item.NamedQueryId }}'
-  on_error: continue
-  for_each: aws.athena.create_named_query
   emit:
     item:
-      Name: '{{ response.NamedQuery.Name }}'
-      Description: '{{ response.NamedQuery.Description }}'
-      Database: '{{ response.NamedQuery.Database }}'
-      QueryString: '{{ response.NamedQuery.QueryString }}'
-      NamedQueryId: '{{ response.NamedQuery.NamedQueryId }}'
-      WorkGroup: '{{ response.NamedQuery.WorkGroup }}'
-- discovery_id: aws.athena.get_work_group
-  calls:
-  - action: get_work_group
-    save_as: response
-    params:
-      WorkGroup: '{{ item.WorkGroup }}'
-  on_error: continue
-  for_each: aws.athena.get_named_query
-  emit:
-    item:
-      Name: '{{ response.WorkGroup.Name }}'
-      State: '{{ response.WorkGroup.State }}'
-      Configuration: '{{ response.WorkGroup.Configuration }}'
-      Description: '{{ response.WorkGroup.Description }}'
-      CreationTime: '{{ response.WorkGroup.CreationTime }}'
-      IdentityCenterApplicationArn: '{{ response.WorkGroup.IdentityCenterApplicationArn
+      CoordinatorDpuSize: '{{ response.EngineConfiguration.CoordinatorDpuSize }}'
+      MaxConcurrentDpus: '{{ response.EngineConfiguration.MaxConcurrentDpus }}'
+      DefaultExecutorDpuSize: '{{ response.EngineConfiguration.DefaultExecutorDpuSize
         }}'
+      AdditionalConfigs: '{{ response.EngineConfiguration.AdditionalConfigs }}'
+      SparkProperties: '{{ response.EngineConfiguration.SparkProperties }}'
+      Classifications: '{{ response.EngineConfiguration.Classifications }}'
+      MonitoringConfiguration: '{{ resource.MonitoringConfiguration }}'
 checks:
 - rule_id: aws.athena.resource.workgroup_logging_enabled
-  for_each: aws.athena.get_work_group
+  for_each: aws.athena.batch_get_named_query
   conditions:
-    var: item.Configuration
-    op: exists
+    var: item.WorkGroup
+    op: equals
+    value: 'null'
 - rule_id: aws.athena.workgroup.admin_activity_logging_enabled
   for_each: aws.athena.list_work_groups
   conditions:
@@ -65,30 +59,38 @@ checks:
     op: equals
     value: ENABLED
 - rule_id: aws.athena.workgroup.encryption_at_rest_enabled
-  for_each: aws.athena.get_work_group
+  for_each: aws.athena.list_work_groups
   conditions:
-    var: item.Configuration
-    op: exists
+    var: item.State
+    op: equals
+    value: ENABLED
 - rule_id: aws.athena.workgroup.logs_retention_days_minimum
-  for_each: aws.athena.list_work_groups
+  for_each: aws.athena.batch_get_named_query
   conditions:
-    var: item.State
-    op: equals
-    value: ENABLED
+    var: item.WorkGroup
+    op: not_equals
+    value: 'null'
 - rule_id: aws.athena.workgroup.query_access_logging_enabled
+  for_each: aws.athena.get_session
+  conditions:
+    var: item.MonitoringConfiguration
+    op: equals
+    value: ENABLED
+- rule_id: aws.athena.workgroup.athena_allowed_data_sources_allowlist_configured
+  for_each: aws.athena.batch_get_named_query
+  conditions:
+    var: item.WorkGroup
+    op: not_equals
+    value: 'null'
+- rule_id: aws.athena.workgroup.query_result_encryption_enabled
   for_each: aws.athena.list_work_groups
   conditions:
     var: item.State
     op: equals
     value: ENABLED
-- rule_id: aws.athena.workgroup.query_result_encryption_enabled
-  for_each: aws.athena.get_work_group
-  conditions:
-    var: item.Configuration
-    op: exists
 - rule_id: aws.athena.workgroup_encryption.at_rest_enabled
-  for_each: aws.athena.get_work_group
+  for_each: aws.athena.list_work_groups
   conditions:
-    var: item.Configuration
-    op: contains
-    value: EncryptionConfiguration
+    var: item.State
+    op: equals
+    value: ENABLED

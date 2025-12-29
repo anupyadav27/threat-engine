@@ -14,26 +14,100 @@ discovery:
       ActionTargetArn: '{{ response.ActionTargets.ActionTargetArn }}'
       Name: '{{ response.ActionTargets.Name }}'
       Description: '{{ response.ActionTargets.Description }}'
-- discovery_id: aws.securityhub.describe_organization_configuration
+      SecurityHub: '{{ resource.SecurityHub }}'
+- discovery_id: aws.securityhub.list_configuration_policies
   calls:
-  - action: describe_organization_configuration
+  - action: list_configuration_policies
+    save_as: response
+  emit:
+    items_for: '{{ response.ConfigurationPolicySummaries }}'
+    as: resource
+    item:
+      Arn: '{{ resource.Arn }}'
+      Id: '{{ resource.Id }}'
+      Name: '{{ resource.Name }}'
+      Description: '{{ resource.Description }}'
+      UpdatedAt: '{{ resource.UpdatedAt }}'
+      ServiceEnabled: '{{ resource.ServiceEnabled }}'
+- discovery_id: aws.securityhub.list_connectors_v2
+  calls:
+  - action: list_connectors_v2
+    save_as: response
+  emit:
+    items_for: '{{ response.Connectors }}'
+    as: resource
+    item:
+      ConnectorArn: '{{ resource.ConnectorArn }}'
+      ConnectorId: '{{ resource.ConnectorId }}'
+      Name: '{{ resource.Name }}'
+      Description: '{{ resource.Description }}'
+      ProviderSummary: '{{ resource.ProviderSummary }}'
+      CreatedAt: '{{ resource.CreatedAt }}'
+- discovery_id: aws.securityhub.get_connector_v2
+  calls:
+  - action: get_connector_v2
+    save_as: response
+    params:
+      ConnectorId: '{{ item.ConnectorId }}'
+  for_each: aws.securityhub.list_connectors_v2
+  on_error: continue
+  emit:
+    item:
+      ConnectorStatus: '{{ response.Health.ConnectorStatus }}'
+      Message: '{{ response.Health.Message }}'
+      LastCheckedAt: '{{ response.Health.LastCheckedAt }}'
+      KmsKeyArn: '{{ resource.KmsKeyArn }}'
+- discovery_id: aws.securityhub.get_findings
+  calls:
+  - action: get_findings
     save_as: response
   emit:
     item:
-      ConfigurationType: '{{ response.OrganizationConfiguration.ConfigurationType
-        }}'
-      Status: '{{ response.OrganizationConfiguration.Status }}'
-      StatusMessage: '{{ response.OrganizationConfiguration.StatusMessage }}'
-- discovery_id: aws.securityhub.get_administrator_account
-  calls:
-  - action: get_administrator_account
-    save_as: response
-  emit:
-    item:
-      AccountId: '{{ response.Administrator.AccountId }}'
-      InvitationId: '{{ response.Administrator.InvitationId }}'
-      InvitedAt: '{{ response.Administrator.InvitedAt }}'
-      MemberStatus: '{{ response.Administrator.MemberStatus }}'
+      SchemaVersion: '{{ response.Findings.SchemaVersion }}'
+      Id: '{{ response.Findings.Id }}'
+      ProductArn: '{{ response.Findings.ProductArn }}'
+      ProductName: '{{ response.Findings.ProductName }}'
+      CompanyName: '{{ response.Findings.CompanyName }}'
+      Region: '{{ response.Findings.Region }}'
+      GeneratorId: '{{ response.Findings.GeneratorId }}'
+      AwsAccountId: '{{ response.Findings.AwsAccountId }}'
+      Types: '{{ response.Findings.Types }}'
+      FirstObservedAt: '{{ response.Findings.FirstObservedAt }}'
+      LastObservedAt: '{{ response.Findings.LastObservedAt }}'
+      CreatedAt: '{{ response.Findings.CreatedAt }}'
+      UpdatedAt: '{{ response.Findings.UpdatedAt }}'
+      Severity: '{{ response.Findings.Severity }}'
+      Confidence: '{{ response.Findings.Confidence }}'
+      Criticality: '{{ response.Findings.Criticality }}'
+      Title: '{{ response.Findings.Title }}'
+      Description: '{{ response.Findings.Description }}'
+      Remediation: '{{ response.Findings.Remediation }}'
+      SourceUrl: '{{ response.Findings.SourceUrl }}'
+      ProductFields: '{{ response.Findings.ProductFields }}'
+      UserDefinedFields: '{{ response.Findings.UserDefinedFields }}'
+      Malware: '{{ response.Findings.Malware }}'
+      Network: '{{ response.Findings.Network }}'
+      NetworkPath: '{{ response.Findings.NetworkPath }}'
+      Process: '{{ response.Findings.Process }}'
+      Threats: '{{ response.Findings.Threats }}'
+      ThreatIntelIndicators: '{{ response.Findings.ThreatIntelIndicators }}'
+      Resources: '{{ response.Findings.Resources }}'
+      Compliance: '{{ response.Findings.Compliance }}'
+      VerificationState: '{{ response.Findings.VerificationState }}'
+      WorkflowState: '{{ response.Findings.WorkflowState }}'
+      Workflow: '{{ response.Findings.Workflow }}'
+      RecordState: '{{ response.Findings.RecordState }}'
+      RelatedFindings: '{{ response.Findings.RelatedFindings }}'
+      Note: '{{ response.Findings.Note }}'
+      Vulnerabilities: '{{ response.Findings.Vulnerabilities }}'
+      PatchSummary: '{{ response.Findings.PatchSummary }}'
+      Action: '{{ response.Findings.Action }}'
+      FindingProviderFields: '{{ response.Findings.FindingProviderFields }}'
+      Sample: '{{ response.Findings.Sample }}'
+      GeneratorDetails: '{{ response.Findings.GeneratorDetails }}'
+      ProcessedAt: '{{ response.Findings.ProcessedAt }}'
+      AwsAccountName: '{{ response.Findings.AwsAccountName }}'
+      Detection: '{{ response.Findings.Detection }}'
 - discovery_id: aws.securityhub.list_automation_rules
   calls:
   - action: list_automation_rules
@@ -51,38 +125,57 @@ discovery:
       CreatedAt: '{{ resource.CreatedAt }}'
       UpdatedAt: '{{ resource.UpdatedAt }}'
       CreatedBy: '{{ resource.CreatedBy }}'
-- discovery_id: aws.securityhub.list_configuration_policies
+- discovery_id: aws.securityhub.list_members
   calls:
-  - action: list_configuration_policies
+  - action: list_members
     save_as: response
   emit:
-    items_for: '{{ response.ConfigurationPolicySummaries }}'
+    items_for: '{{ response.Members }}'
     as: resource
     item:
-      Arn: '{{ resource.Arn }}'
-      Id: '{{ resource.Id }}'
-      Name: '{{ resource.Name }}'
-      Description: '{{ resource.Description }}'
+      AccountId: '{{ resource.AccountId }}'
+      Email: '{{ resource.Email }}'
+      MasterId: '{{ resource.MasterId }}'
+      AdministratorId: '{{ resource.AdministratorId }}'
+      MemberStatus: '{{ resource.MemberStatus }}'
+      InvitedAt: '{{ resource.InvitedAt }}'
       UpdatedAt: '{{ resource.UpdatedAt }}'
-      ServiceEnabled: '{{ resource.ServiceEnabled }}'
+- discovery_id: aws.securityhub.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+  emit:
+    item:
+      ConfigurationType: '{{ response.OrganizationConfiguration.ConfigurationType
+        }}'
+      Status: '{{ response.OrganizationConfiguration.Status }}'
+      StatusMessage: '{{ response.OrganizationConfiguration.StatusMessage }}'
+      AutoEnable: '{{ resource.AutoEnable }}'
 checks:
 - rule_id: aws.securityhub.finding.alert_destinations_configured
   for_each: aws.securityhub.describe_action_targets
   conditions:
-    var: item.ActionTargetArn
-    op: exists
+    var: item.SecurityHub
+    op: not_equals
+    value: 'null'
+- rule_id: aws.securityhub.finding.securityhub_suppression_rules_documented_and_scoped_configured
+  for_each: aws.securityhub.describe_action_targets
+  conditions:
+    var: item.SecurityHub
+    op: equals
+    value: 'true'
 - rule_id: aws.securityhub.hub.securityhub_detectors_enabled
-  for_each: aws.securityhub.describe_organization_configuration
+  for_each: aws.securityhub.list_configuration_policies
   conditions:
-    var: item.Status
+    var: item.ServiceEnabled
     op: equals
-    value: ENABLED
+    value: true
 - rule_id: aws.securityhub.finding.securityhub_archival_export_encrypted
-  for_each: aws.securityhub.describe_organization_configuration
+  for_each: aws.securityhub.get_connector_v2
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.KmsKeyArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.securityhub.resource.securityhub_resource_enabled
   for_each: aws.securityhub.list_configuration_policies
   conditions:
@@ -90,17 +183,17 @@ checks:
     op: equals
     value: true
 - rule_id: aws.securityhub.action.rbac_least_privilege
-  for_each: aws.securityhub.list_automation_rules
+  for_each: aws.securityhub.get_findings
   conditions:
-    var: item.RuleStatus
-    op: equals
-    value: ENABLED
+    var: item.Action
+    op: not_equals
+    value: 'null'
 - rule_id: aws.securityhub.hub.securityhub_enabled_in_all_regions
-  for_each: aws.securityhub.describe_organization_configuration
+  for_each: aws.securityhub.list_configuration_policies
   conditions:
-    var: item.Status
+    var: item.ServiceEnabled
     op: equals
-    value: ENABLED
+    value: true
 - rule_id: aws.securityhub.action.versioning_and_immutability_enabled
   for_each: aws.securityhub.list_automation_rules
   conditions:
@@ -108,32 +201,38 @@ checks:
     op: equals
     value: ENABLED
 - rule_id: aws.securityhub.hub.securityhub_master_member_configured
-  for_each: aws.securityhub.get_administrator_account
+  for_each: aws.securityhub.list_members
   conditions:
-    var: item.MemberStatus
-    op: equals
-    value: ENABLED
+    var: item.MasterId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.securityhub.hub.securityhub_finding_export_encrypted_destination
-  for_each: aws.securityhub.describe_organization_configuration
+  for_each: aws.securityhub.describe_action_targets
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.SecurityHub
+    op: not_equals
+    value: 'null'
 - rule_id: aws.securityhub.hub.securityhub_destinations_encrypted
-  for_each: aws.securityhub.describe_organization_configuration
+  for_each: aws.securityhub.describe_action_targets
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.SecurityHub
+    op: not_equals
+    value: 'null'
 - rule_id: aws.securityhub.hub.securityhub_auto_enroll_new_accounts_configured
   for_each: aws.securityhub.describe_organization_configuration
   conditions:
-    var: item.Status
+    var: item.AutoEnable
     op: equals
-    value: ENABLED
-- rule_id: aws.securityhub.resource.securityhub_hub_enabled_in_all_regions
-  for_each: aws.securityhub.describe_organization_configuration
+    value: 'true'
+- rule_id: aws.securityhub.action.securityhub_storage_encrypted_and_private
+  for_each: aws.securityhub.get_connector_v2
   conditions:
-    var: item.Status
+    var: item.KmsKeyArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.securityhub.resource.securityhub_hub_enabled_in_all_regions
+  for_each: aws.securityhub.list_configuration_policies
+  conditions:
+    var: item.ServiceEnabled
     op: equals
-    value: ENABLED
+    value: true

@@ -1,192 +1,221 @@
-# EVENTBRIDGE Service - Logic Only
-# Metadata (titles, severity, descriptions) in: metadata/checks/eventbridge_metadata.yaml
-
 version: '1.0'
 provider: aws
 service: eventbridge
+services:
+  client: eventbridge
+  module: boto3.client
 discovery:
-- discovery_id: aws.eventbridge.eventbuss
+- discovery_id: aws.eventbridge.list_archives
   calls:
-  - action: list_eventbridges
-    fields:
-    - Eventbridges
+  - action: list_archives
+    save_as: response
   emit:
-    items_for: list_eventbridges_response[]
+    items_for: '{{ response.Archives }}'
+    as: resource
     item:
-      id: '{{ eventbus.Id }}'
-      name: '{{ eventbus.Name }}'
-- discovery_id: aws.eventbridge.eventbus_encryption
-  for_each: aws.eventbridge.eventbuss
+      ArchiveName: '{{ resource.ArchiveName }}'
+      EventSourceArn: '{{ resource.EventSourceArn }}'
+      State: '{{ resource.State }}'
+      StateReason: '{{ resource.StateReason }}'
+      RetentionDays: '{{ resource.RetentionDays }}'
+      SizeBytes: '{{ resource.SizeBytes }}'
+      EventCount: '{{ resource.EventCount }}'
+      CreationTime: '{{ resource.CreationTime }}'
+- discovery_id: aws.eventbridge.list_rules
   calls:
-  - action: list_eventbridges
-    params:
-      EventbusId: '{{ item.id }}'
+  - action: list_rules
+    save_as: response
   emit:
+    items_for: '{{ response.Rules }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      encryption_enabled: '{{ list_eventbridges_response.Encrypted if list_eventbridges_response.Encrypted
-        is defined else false }}'
-- discovery_id: aws.eventbridge.eventbus_logging
-  for_each: aws.eventbridge.eventbuss
+      Name: '{{ resource.Name }}'
+      Arn: '{{ resource.Arn }}'
+      EventPattern: '{{ resource.EventPattern }}'
+      State: '{{ resource.State }}'
+      Description: '{{ resource.Description }}'
+      ScheduleExpression: '{{ resource.ScheduleExpression }}'
+      RoleArn: '{{ resource.RoleArn }}'
+      ManagedBy: '{{ resource.ManagedBy }}'
+      EventBusName: '{{ resource.EventBusName }}'
+- discovery_id: aws.eventbridge.list_endpoints
   calls:
-  - action: describe_eventbus_logging
-    params:
-      EventbusId: '{{ item.id }}'
+  - action: list_endpoints
+    save_as: response
   emit:
+    items_for: '{{ response.Endpoints }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      logging_enabled: '{{ describe_eventbus_logging_response.LoggingEnabled is defined
-        if describe_eventbus_logging_response else false }}'
-- discovery_id: aws.eventbridge.resources
-  for_each: aws.eventbridge.resource
+      Name: '{{ resource.Name }}'
+      Description: '{{ resource.Description }}'
+      Arn: '{{ resource.Arn }}'
+      RoutingConfig: '{{ resource.RoutingConfig }}'
+      ReplicationConfig: '{{ resource.ReplicationConfig }}'
+      EventBuses: '{{ resource.EventBuses }}'
+      RoleArn: '{{ resource.RoleArn }}'
+      EndpointId: '{{ resource.EndpointId }}'
+      EndpointUrl: '{{ resource.EndpointUrl }}'
+      State: '{{ resource.State }}'
+      StateReason: '{{ resource.StateReason }}'
+      CreationTime: '{{ resource.CreationTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
+- discovery_id: aws.eventbridge.list_event_buses
   calls:
-  - action: describe_resources
+  - action: list_event_buses
+    save_as: response
   emit:
+    items_for: '{{ response.EventBuses }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.eventbridge.rules
-  for_each: aws.eventbridge.rule
+      Name: '{{ resource.Name }}'
+      Arn: '{{ resource.Arn }}'
+      Description: '{{ resource.Description }}'
+      Policy: '{{ resource.Policy }}'
+      CreationTime: '{{ resource.CreationTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
+      EventBusArn: '{{ resource.EventBusArn }}'
+- discovery_id: aws.eventbridge.list_connections
   calls:
-  - action: describe_rule
+  - action: list_connections
+    save_as: response
   emit:
+    items_for: '{{ response.Connections }}'
+    as: resource
     item:
-      resource_id: '{{ item.id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.eventbridge.rule_logging
+      ConnectionArn: '{{ resource.ConnectionArn }}'
+      Name: '{{ resource.Name }}'
+      ConnectionState: '{{ resource.ConnectionState }}'
+      StateReason: '{{ resource.StateReason }}'
+      AuthorizationType: '{{ resource.AuthorizationType }}'
+      CreationTime: '{{ resource.CreationTime }}'
+      LastModifiedTime: '{{ resource.LastModifiedTime }}'
+      LastAuthorizedTime: '{{ resource.LastAuthorizedTime }}'
+- discovery_id: aws.eventbridge.describe_event_bus
   calls:
-  - action: list_rule_logging
+  - action: describe_event_bus
+    save_as: response
   emit:
-    items_for: list_rule_logging_response[]
     item:
-      id: '{{ list_rule_logging_response.Id }}'
-      compliant: '{{ true }}'
-- discovery_id: aws.eventbridge.rule_encryption
-  calls:
-  - action: list_rule_encryption
-  emit:
-    items_for: list_rule_encryption_response[]
-    item:
-      id: '{{ list_rule_encryption_response.Id }}'
-      compliant: '{{ true }}'
+      Arn: '{{ response.DeadLetterConfig.Arn }}'
+      KmsKeyIdentifier: '{{ resource.KmsKeyIdentifier }}'
 checks:
 - rule_id: aws.eventbridge.rule.oncall_contacts_verified
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: item.compliant
+    var: item.State
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.eventbridge.eventbus.oncall_contacts_verified
-  for_each: aws.eventbridge.eventbuss
+  for_each: aws.eventbridge.list_rules
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.EventBusName
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.execution_roles_least_privilege
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_endpoints
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.RoleArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.eventbus.change_audit_logging_enabled
-  for_each: aws.eventbridge.eventbus_logging
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: logging.logging_enabled
-    op: equals
-    value: true
+    var: item.EventBusArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.eventbus.policy_exists_for_critical_severity_configured
-  for_each: aws.eventbridge.eventbuss
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.eventbus.message_encryption_in_transit_configured
-  for_each: aws.eventbridge.eventbus_encryption
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.EventBusArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.no_public_webhooks_configured
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.message_encryption_in_transit_configured
-  for_each: aws.eventbridge.rule_encryption
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.State
+    op: not_equals
+    value: DISABLED
 - rule_id: aws.eventbridge.rule.private_networking_enforced
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.State
+    op: not_equals
+    value: ENABLED
 - rule_id: aws.eventbridge.rule.eventbridge_logs_and_metrics_enabled
-  for_each: aws.eventbridge.rule_logging
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: logging.logging_enabled
+    var: item.State
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.eventbridge.rule.eventbridge_destinations_configured
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.EventBusArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.resource.global_endpoint_event_replication_enabled
-  for_each: aws.eventbridge.resources
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: item.compliant
+    var: item.State
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.eventbridge.eventbus.endpoints_authenticated_configured
-  for_each: aws.eventbridge.eventbuss
+  for_each: aws.eventbridge.list_connections
   conditions:
-    var: item.compliant
+    var: item.AuthorizationType
     op: equals
-    value: true
+    value: BASIC
 - rule_id: aws.eventbridge.rule.eventbridge_artifacts_private_and_encrypted
-  for_each: aws.eventbridge.rule_encryption
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.State
+    op: not_equals
+    value: DISABLED
 - rule_id: aws.eventbridge.eventbus.no_public_webhooks_configured
-  for_each: aws.eventbridge.eventbuss
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.EventBusArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.eventbus.eventbridge_destinations_configured
-  for_each: aws.eventbridge.eventbuss
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.compliant
-    op: equals
-    value: true
+    var: item.EventBusArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.kms_encryption_enabled
-  for_each: aws.eventbridge.rule_encryption
+  for_each: aws.eventbridge.describe_event_bus
   conditions:
-    var: encryption.encryption_enabled
-    op: equals
-    value: true
+    var: item.KmsKeyIdentifier
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.policy_exists_for_critical_severity_configured
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_event_buses
   conditions:
-    var: item.is_public
-    op: equals
-    value: false
+    var: item.Policy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.eventbridge.rule.change_audit_logging_enabled
-  for_each: aws.eventbridge.rule_logging
+  for_each: aws.eventbridge.list_archives
   conditions:
-    var: logging.logging_enabled
+    var: item.State
     op: equals
-    value: true
+    value: ENABLED
 - rule_id: aws.eventbridge.rule.endpoints_authenticated_configured
-  for_each: aws.eventbridge.rules
+  for_each: aws.eventbridge.list_connections
   conditions:
-    var: item.compliant
+    var: item.AuthorizationType
     op: equals
-    value: true
+    value: BASIC

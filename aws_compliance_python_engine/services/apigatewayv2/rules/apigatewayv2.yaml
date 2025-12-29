@@ -5,87 +5,148 @@ services:
   client: apigatewayv2
   module: boto3.client
 discovery:
-- discovery_id: aws.apigatewayv2.get_route
+- discovery_id: aws.apigatewayv2.get_apis
   calls:
-  - action: get_route
+  - action: get_apis
     save_as: response
-    params:
-      ApiId: '{{ item.ApiId }}'
-      RouteId: '{{ item.RouteId }}'
-  on_error: continue
-  for_each: aws.apigatewayv2.get_apis
-- discovery_id: aws.apigatewayv2.get_stage
-  calls:
-  - action: get_stage
-    save_as: response
-    params:
-      StageName: '{{ item.StageName }}'
-      ApiId: '{{ item.ApiId }}'
-  on_error: continue
-  for_each: aws.apigatewayv2.get_stages
   emit:
     item:
-      DestinationArn: '{{ response.AccessLogSettings.DestinationArn }}'
-      Format: '{{ response.AccessLogSettings.Format }}'
+      ApiEndpoint: '{{ response.Items.ApiEndpoint }}'
+      ApiGatewayManaged: '{{ response.Items.ApiGatewayManaged }}'
+      ApiId: '{{ response.Items.ApiId }}'
+      ApiKeySelectionExpression: '{{ response.Items.ApiKeySelectionExpression }}'
+      CorsConfiguration: '{{ response.Items.CorsConfiguration }}'
+      CreatedDate: '{{ response.Items.CreatedDate }}'
+      Description: '{{ response.Items.Description }}'
+      DisableSchemaValidation: '{{ response.Items.DisableSchemaValidation }}'
+      DisableExecuteApiEndpoint: '{{ response.Items.DisableExecuteApiEndpoint }}'
+      ImportInfo: '{{ response.Items.ImportInfo }}'
+      IpAddressType: '{{ response.Items.IpAddressType }}'
+      Name: '{{ response.Items.Name }}'
+      ProtocolType: '{{ response.Items.ProtocolType }}'
+      RouteSelectionExpression: '{{ response.Items.RouteSelectionExpression }}'
+      Tags: '{{ response.Items.Tags }}'
+      Version: '{{ response.Items.Version }}'
+      Warnings: '{{ response.Items.Warnings }}'
+- discovery_id: aws.apigatewayv2.get_stages
+  calls:
+  - action: get_stages
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+  for_each: aws.apigatewayv2.get_apis
+  on_error: continue
+  emit:
+    item:
+      AccessLogSettings: '{{ response.Items.AccessLogSettings }}'
+      ApiGatewayManaged: '{{ response.Items.ApiGatewayManaged }}'
+      AutoDeploy: '{{ response.Items.AutoDeploy }}'
+      ClientCertificateId: '{{ response.Items.ClientCertificateId }}'
+      CreatedDate: '{{ response.Items.CreatedDate }}'
+      DefaultRouteSettings: '{{ response.Items.DefaultRouteSettings }}'
+      DeploymentId: '{{ response.Items.DeploymentId }}'
+      Description: '{{ response.Items.Description }}'
+      LastDeploymentStatusMessage: '{{ response.Items.LastDeploymentStatusMessage
+        }}'
+      LastUpdatedDate: '{{ response.Items.LastUpdatedDate }}'
+      RouteSettings: '{{ response.Items.RouteSettings }}'
+      StageName: '{{ response.Items.StageName }}'
+      StageVariables: '{{ response.Items.StageVariables }}'
+      Tags: '{{ response.Items.Tags }}'
+- discovery_id: aws.apigatewayv2.get_routes
+  calls:
+  - action: get_routes
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+  for_each: aws.apigatewayv2.get_apis
+  on_error: continue
+  emit:
+    item:
+      ApiGatewayManaged: '{{ response.Items.ApiGatewayManaged }}'
+      ApiKeyRequired: '{{ response.Items.ApiKeyRequired }}'
+      AuthorizationScopes: '{{ response.Items.AuthorizationScopes }}'
+      AuthorizationType: '{{ response.Items.AuthorizationType }}'
+      AuthorizerId: '{{ response.Items.AuthorizerId }}'
+      ModelSelectionExpression: '{{ response.Items.ModelSelectionExpression }}'
+      OperationName: '{{ response.Items.OperationName }}'
+      RequestModels: '{{ response.Items.RequestModels }}'
+      RequestParameters: '{{ response.Items.RequestParameters }}'
+      RouteId: '{{ response.Items.RouteId }}'
+      RouteKey: '{{ response.Items.RouteKey }}'
+      RouteResponseSelectionExpression: '{{ response.Items.RouteResponseSelectionExpression
+        }}'
+      Target: '{{ response.Items.Target }}'
 checks:
 - rule_id: aws.apigatewayv2.stage.api_quota_limit_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.route_settings
-    op: exists
+    var: item.StageVariables
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_usage_plan_required_for_api_keys
   for_each: aws.apigatewayv2.get_routes
   conditions:
-    var: item.api_key_required
+    var: item.ApiKeyRequired
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.apigatewayv2.stage.api_burst_limit_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.route_settings
-    op: exists
+    var: item.StageVariables
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.resource.api_access_logging_enabled
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_logs_retention_days_minimum
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_access_logging_enabled
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_access_log_sink_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_execution_logging_level_minimum_error_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.api.access_logging_enabled
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_rate_limit_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.route_settings
-    op: exists
+    var: item.StageVariables
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_throttle_overrides_bounded
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.route_settings
-    op: exists
+    var: item.StageVariables
+    op: not_equals
+    value: 'null'
 - rule_id: aws.apigatewayv2.stage.api_access_log_fields_identity_configured
   for_each: aws.apigatewayv2.get_stages
   conditions:
-    var: item.access_log_settings
-    op: exists
+    var: item.AccessLogSettings
+    op: not_equals
+    value: 'null'

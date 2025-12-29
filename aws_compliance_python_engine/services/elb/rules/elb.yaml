@@ -5,128 +5,143 @@ services:
   client: elb
   module: boto3.client
 discovery:
-- discovery_id: aws.elb.describe_load_balancer_policies
+- discovery_id: aws.elb.describe_listeners
   calls:
-  - action: describe_load_balancer_policies
+  - action: describe_listeners
     save_as: response
   emit:
     item:
-      PolicyName: '{{ response.PolicyDescriptions.PolicyName }}'
-      PolicyTypeName: '{{ response.PolicyDescriptions.PolicyTypeName }}'
-      PolicyAttributeDescriptions: '{{ response.PolicyDescriptions.PolicyAttributeDescriptions
-        }}'
+      ListenerArn: '{{ response.Listeners.ListenerArn }}'
+      LoadBalancerArn: '{{ response.Listeners.LoadBalancerArn }}'
+      Port: '{{ response.Listeners.Port }}'
+      Protocol: '{{ response.Listeners.Protocol }}'
+      Certificates: '{{ response.Listeners.Certificates }}'
+      SslPolicy: '{{ response.Listeners.SslPolicy }}'
+      DefaultActions: '{{ response.Listeners.DefaultActions }}'
+      AlpnPolicy: '{{ response.Listeners.AlpnPolicy }}'
+      MutualAuthentication: '{{ response.Listeners.MutualAuthentication }}'
+      Listeners: '{{ resource.Listeners }}'
+- discovery_id: aws.elb.describe_listener_attributes
+  calls:
+  - action: describe_listener_attributes
+    save_as: response
+  emit:
+    item:
+      Key: '{{ response.Attributes.Key }}'
+      Value: '{{ response.Attributes.Value }}'
+      Attributes: '{{ resource.Attributes }}'
 - discovery_id: aws.elb.describe_load_balancers
   calls:
   - action: describe_load_balancers
     save_as: response
   emit:
     item:
-      LoadBalancerName: '{{ response.LoadBalancerDescriptions.LoadBalancerName }}'
-      DNSName: '{{ response.LoadBalancerDescriptions.DNSName }}'
-      CanonicalHostedZoneName: '{{ response.LoadBalancerDescriptions.CanonicalHostedZoneName
+      LoadBalancerArn: '{{ response.LoadBalancers.LoadBalancerArn }}'
+      DNSName: '{{ response.LoadBalancers.DNSName }}'
+      CanonicalHostedZoneId: '{{ response.LoadBalancers.CanonicalHostedZoneId }}'
+      CreatedTime: '{{ response.LoadBalancers.CreatedTime }}'
+      LoadBalancerName: '{{ response.LoadBalancers.LoadBalancerName }}'
+      Scheme: '{{ response.LoadBalancers.Scheme }}'
+      VpcId: '{{ response.LoadBalancers.VpcId }}'
+      State: '{{ response.LoadBalancers.State }}'
+      Type: '{{ response.LoadBalancers.Type }}'
+      AvailabilityZones: '{{ response.LoadBalancers.AvailabilityZones }}'
+      SecurityGroups: '{{ response.LoadBalancers.SecurityGroups }}'
+      IpAddressType: '{{ response.LoadBalancers.IpAddressType }}'
+      CustomerOwnedIpv4Pool: '{{ response.LoadBalancers.CustomerOwnedIpv4Pool }}'
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ response.LoadBalancers.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic
         }}'
-      CanonicalHostedZoneNameID: '{{ response.LoadBalancerDescriptions.CanonicalHostedZoneNameID
+      EnablePrefixForIpv6SourceNat: '{{ response.LoadBalancers.EnablePrefixForIpv6SourceNat
         }}'
-      ListenerDescriptions: '{{ response.LoadBalancerDescriptions.ListenerDescriptions
-        }}'
-      Policies: '{{ response.LoadBalancerDescriptions.Policies }}'
-      BackendServerDescriptions: '{{ response.LoadBalancerDescriptions.BackendServerDescriptions
-        }}'
-      AvailabilityZones: '{{ response.LoadBalancerDescriptions.AvailabilityZones }}'
-      Subnets: '{{ response.LoadBalancerDescriptions.Subnets }}'
-      VPCId: '{{ response.LoadBalancerDescriptions.VPCId }}'
-      Instances: '{{ response.LoadBalancerDescriptions.Instances }}'
-      HealthCheck: '{{ response.LoadBalancerDescriptions.HealthCheck }}'
-      SourceSecurityGroup: '{{ response.LoadBalancerDescriptions.SourceSecurityGroup
-        }}'
-      SecurityGroups: '{{ response.LoadBalancerDescriptions.SecurityGroups }}'
-      CreatedTime: '{{ response.LoadBalancerDescriptions.CreatedTime }}'
-      Scheme: '{{ response.LoadBalancerDescriptions.Scheme }}'
-- discovery_id: aws.elb.describe_load_balancer_attributes
+      IpamPools: '{{ response.LoadBalancers.IpamPools }}'
+- discovery_id: aws.elb.describe_s_s_l_policies
   calls:
-  - action: describe_load_balancer_attributes
+  - action: describe_ssl_policies
     save_as: response
-    params:
-      LoadBalancerName: '{{ item.LoadBalancerName }}'
-  on_error: continue
-  for_each: aws.elb.describe_load_balancers
   emit:
     item:
-      CrossZoneLoadBalancing: '{{ response.LoadBalancerAttributes.CrossZoneLoadBalancing
+      SslProtocols: '{{ response.SslPolicies.SslProtocols }}'
+      Ciphers: '{{ response.SslPolicies.Ciphers }}'
+      Name: '{{ response.SslPolicies.Name }}'
+      SupportedLoadBalancerTypes: '{{ response.SslPolicies.SupportedLoadBalancerTypes
         }}'
-      AccessLog: '{{ response.LoadBalancerAttributes.AccessLog }}'
-      ConnectionDraining: '{{ response.LoadBalancerAttributes.ConnectionDraining }}'
-      ConnectionSettings: '{{ response.LoadBalancerAttributes.ConnectionSettings }}'
-      AdditionalAttributes: '{{ response.LoadBalancerAttributes.AdditionalAttributes
-        }}'
+      Policies: '{{ resource.Policies }}'
 checks:
 - rule_id: aws.elb.loadbalancer.listener_loadbalancer_secure_listener_protocols_configured
-  for_each: aws.elb.describe_load_balancers
+  for_each: aws.elb.describe_listeners
   conditions:
-    var: item.ListenerDescriptions
+    var: item.Listeners
     op: contains
     value: HTTPS
 - rule_id: aws.elb.loadbalancer.access_logs_enabled
-  for_each: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_listener_attributes
   conditions:
-    var: item.AccessLog
+    var: item.Attributes
     op: equals
-    value: true
+    value: Enabled
 - rule_id: aws.elb.ssllisteners.ssl_listeners_configured
+  for_each: aws.elb.describe_listeners
+  conditions:
+    var: item.Listeners
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elb.resource.logging_enabled
+  for_each: aws.elb.describe_listener_attributes
+  conditions:
+    var: item.Attributes
+    op: equals
+    value: Enabled
+- rule_id: aws.elb.internetfacing.elb_internet_facing_configured
   for_each: aws.elb.describe_load_balancers
   conditions:
-    var: item.ListenerDescriptions
-    op: exists
-- rule_id: aws.elb.resource.logging_enabled
-  for_each: aws.elb.describe_load_balancer_attributes
-  conditions:
-    var: item.AccessLog
+    var: item.Scheme
     op: equals
-    value: true
+    value: internet-facing
 - rule_id: aws.elb.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
-  for_each: aws.elb.describe_load_balancer_policies
+  for_each: aws.elb.describe_listeners
   conditions:
-    var: item.PolicyAttributeDescriptions
+    var: item.Listeners
     op: contains
-    value: ELBSecurityPolicy-2016-08
+    value: insecure_ssl_ciphers
 - rule_id: aws.elb.desync.elb_mitigation_mode_configured
-  for_each: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_listener_attributes
   conditions:
-    var: item.AdditionalAttributes
-    op: contains
-    value: desync_mitigation_mode
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elb.isinmultipleaz.elb_is_in_multiple_az_configured
   for_each: aws.elb.describe_load_balancers
   conditions:
     var: item.AvailabilityZones
-    op: gt
-    value: 1
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elb.loadbalancer.waf_attached_if_supported
-  for_each: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_s_s_l_policies
   conditions:
-    var: item.AdditionalAttributes
-    op: contains
-    value: waf:enabled
+    var: item.Policies
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elb.logging.access_logging_enabled
-  for_each: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_listener_attributes
   conditions:
-    var: item.AccessLog
+    var: item.Attributes
     op: equals
-    value: true
+    value: Enabled
 - rule_id: aws.elb.loadbalancer.valid_certificate_enabled
-  for_each: aws.elb.describe_load_balancers
+  for_each: aws.elb.describe_listeners
   conditions:
-    var: item.ListenerDescriptions
-    op: exists
+    var: item.Listeners
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elb.loadbalancer.listener_tls_min_1_2_configured
-  for_each: aws.elb.describe_load_balancers
+  for_each: aws.elb.describe_listeners
   conditions:
-    var: item.ListenerDescriptions
+    var: item.Listeners
     op: contains
     value: TLSv1.2
 - rule_id: aws.elb.listener.ssl_tls_enforced
-  for_each: aws.elb.describe_load_balancer_policies
+  for_each: aws.elb.describe_listeners
   conditions:
-    var: item.PolicyName
-    op: contains
-    value: ELBSecurityPolicy
+    var: item.Listeners
+    op: not_equals
+    value: 'null'

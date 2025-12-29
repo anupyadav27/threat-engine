@@ -80,6 +80,26 @@ def extract_value(obj: Any, path: str):
                 return None
     return current
 
+def extract_checked_fields(cond_config: Dict[str, Any]) -> set:
+    """Extract all field names referenced in check conditions"""
+    fields = set()
+    
+    if isinstance(cond_config, dict):
+        if 'all' in cond_config:
+            for sub_cond in cond_config['all']:
+                fields.update(extract_checked_fields(sub_cond))
+        elif 'any' in cond_config:
+            for sub_cond in cond_config['any']:
+                fields.update(extract_checked_fields(sub_cond))
+        else:
+            var = cond_config.get('var', '')
+            if var:
+                # Extract field name from 'item.field' or just 'field'
+                field_name = var.replace('item.', '') if var.startswith('item.') else var
+                fields.add(field_name)
+    
+    return fields
+
 def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
     """Evaluate a condition with the given operator and expected value"""
     if operator == 'exists':
@@ -654,6 +674,9 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                         actual_value = extract_value(context, var) if var else None
                         return evaluate_condition(actual_value, op, value)
                 
+                # Extract checked fields from conditions for evidence filtering
+                checked_fields = extract_checked_fields(conditions) if conditions else set()
+                
                 try:
                     result = eval_conditions(conditions)
                     status = 'PASS' if result else 'FAIL'
@@ -667,7 +690,8 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                     'severity': severity,
                     'assertion_id': assertion_id,
                     'result': status,
-                    'region': region
+                    'region': region,
+                    '_checked_fields': list(checked_fields)  # Store for evidence filtering
                 }
                 
                 if item:

@@ -5,15 +5,6 @@ services:
   client: xray
   module: boto3.client
 discovery:
-- discovery_id: aws.xray.delete_sampling_rule
-  calls:
-  - action: delete_sampling_rule
-    save_as: response
-  emit:
-    item:
-      SamplingRule: '{{ response.SamplingRuleRecord.SamplingRule }}'
-      CreatedAt: '{{ response.SamplingRuleRecord.CreatedAt }}'
-      ModifiedAt: '{{ response.SamplingRuleRecord.ModifiedAt }}'
 - discovery_id: aws.xray.get_encryption_config
   calls:
   - action: get_encryption_config
@@ -23,42 +14,88 @@ discovery:
       KeyId: '{{ response.EncryptionConfig.KeyId }}'
       Status: '{{ response.EncryptionConfig.Status }}'
       Type: '{{ response.EncryptionConfig.Type }}'
-- discovery_id: aws.xray.batch_get_traces
+      EncryptionConfig: '{{ resource.EncryptionConfig }}'
+- discovery_id: aws.xray.get_indexing_rules
   calls:
-  - action: batch_get_traces
+  - action: get_indexing_rules
     save_as: response
   emit:
     item:
-      Id: '{{ response.Traces.Id }}'
-      Duration: '{{ response.Traces.Duration }}'
-      LimitExceeded: '{{ response.Traces.LimitExceeded }}'
-      Segments: '{{ response.Traces.Segments }}'
+      Name: '{{ response.IndexingRules.Name }}'
+      ModifiedAt: '{{ response.IndexingRules.ModifiedAt }}'
+      Rule: '{{ response.IndexingRules.Rule }}'
+- discovery_id: aws.xray.get_trace_summaries
+  calls:
+  - action: get_trace_summaries
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.TraceSummaries.Id }}'
+      StartTime: '{{ response.TraceSummaries.StartTime }}'
+      Duration: '{{ response.TraceSummaries.Duration }}'
+      ResponseTime: '{{ response.TraceSummaries.ResponseTime }}'
+      HasFault: '{{ response.TraceSummaries.HasFault }}'
+      HasError: '{{ response.TraceSummaries.HasError }}'
+      HasThrottle: '{{ response.TraceSummaries.HasThrottle }}'
+      IsPartial: '{{ response.TraceSummaries.IsPartial }}'
+      Http: '{{ response.TraceSummaries.Http }}'
+      Annotations: '{{ response.TraceSummaries.Annotations }}'
+      Users: '{{ response.TraceSummaries.Users }}'
+      ServiceIds: '{{ response.TraceSummaries.ServiceIds }}'
+      ResourceARNs: '{{ response.TraceSummaries.ResourceARNs }}'
+      InstanceIds: '{{ response.TraceSummaries.InstanceIds }}'
+      AvailabilityZones: '{{ response.TraceSummaries.AvailabilityZones }}'
+      EntryPoint: '{{ response.TraceSummaries.EntryPoint }}'
+      FaultRootCauses: '{{ response.TraceSummaries.FaultRootCauses }}'
+      ErrorRootCauses: '{{ response.TraceSummaries.ErrorRootCauses }}'
+      ResponseTimeRootCauses: '{{ response.TraceSummaries.ResponseTimeRootCauses }}'
+      Revision: '{{ response.TraceSummaries.Revision }}'
+      MatchedEventTime: '{{ response.TraceSummaries.MatchedEventTime }}'
+- discovery_id: aws.xray.get_groups
+  calls:
+  - action: get_groups
+    save_as: response
+  emit:
+    item:
+      GroupName: '{{ response.Groups.GroupName }}'
+      GroupARN: '{{ response.Groups.GroupARN }}'
+      FilterExpression: '{{ response.Groups.FilterExpression }}'
+      InsightsConfiguration: '{{ response.Groups.InsightsConfiguration }}'
+      Groups: '{{ resource.Groups }}'
 checks:
 - rule_id: aws.xray.trace.xray_store_encrypted
   for_each: aws.xray.get_encryption_config
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.EncryptionConfig
+    op: not_equals
+    value: 'null'
 - rule_id: aws.xray.samplingrule.xray_rules_present
-  for_each: aws.xray.delete_sampling_rule
+  for_each: aws.xray.get_indexing_rules
   conditions:
-    var: item.SamplingRule
-    op: exists
+    var: item.Rule
+    op: not_equals
+    value: 'null'
 - rule_id: aws.xray.samplingrule.xray_storage_encrypted
   for_each: aws.xray.get_encryption_config
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.EncryptionConfig
+    op: not_equals
+    value: 'null'
 - rule_id: aws.xray.trace.retention_days_minimum
-  for_each: aws.xray.batch_get_traces
+  for_each: aws.xray.get_trace_summaries
   conditions:
-    var: item.Duration
-    op: gte
-    value: 30
+    var: item.Annotations
+    op: greater_than
+    value: 0
+- rule_id: aws.xray.trace.rbac_least_privilege
+  for_each: aws.xray.get_groups
+  conditions:
+    var: item.Groups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.xray.samplingrule.rbac_least_privilege
-  for_each: aws.xray.delete_sampling_rule
+  for_each: aws.xray.get_groups
   conditions:
-    var: item.SamplingRule
-    op: exists
+    var: item.Groups
+    op: not_equals
+    value: 'null'

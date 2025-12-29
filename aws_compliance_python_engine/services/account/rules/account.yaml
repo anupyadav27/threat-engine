@@ -5,7 +5,39 @@ services:
   client: account
   module: boto3.client
 discovery:
-- discovery_id: aws.account.alternate_contacts
+- discovery_id: aws.account.get_contact_information
+  calls:
+  - action: get_contact_information
+    save_as: response
+  emit:
+    item:
+      AddressLine1: '{{ response.ContactInformation.AddressLine1 }}'
+      AddressLine2: '{{ response.ContactInformation.AddressLine2 }}'
+      AddressLine3: '{{ response.ContactInformation.AddressLine3 }}'
+      City: '{{ response.ContactInformation.City }}'
+      CompanyName: '{{ response.ContactInformation.CompanyName }}'
+      CountryCode: '{{ response.ContactInformation.CountryCode }}'
+      DistrictOrCounty: '{{ response.ContactInformation.DistrictOrCounty }}'
+      FullName: '{{ response.ContactInformation.FullName }}'
+      PhoneNumber: '{{ response.ContactInformation.PhoneNumber }}'
+      PostalCode: '{{ response.ContactInformation.PostalCode }}'
+      StateOrRegion: '{{ response.ContactInformation.StateOrRegion }}'
+      WebsiteUrl: '{{ response.ContactInformation.WebsiteUrl }}'
+      ContactInformation: '{{ resource.ContactInformation }}'
+- discovery_id: aws.account.get_account_information
+  calls:
+  - action: get_account_information
+    save_as: response
+- discovery_id: aws.account.get_primary_email
+  calls:
+  - action: get_primary_email
+    save_as: response
+  for_each: aws.account.get_account_information
+  on_error: continue
+  emit:
+    item:
+      PrimaryEmail: '{{ response.PrimaryEmail }}'
+- discovery_id: aws.account.get_alternate_contact
   calls:
   - action: get_alternate_contact
     save_as: response
@@ -17,15 +49,39 @@ discovery:
       PhoneNumber: '{{ response.AlternateContact.PhoneNumber }}'
       Title: '{{ response.AlternateContact.Title }}'
 checks:
-- rule_id: aws.account.security.contact_information_configured
-  for_each: aws.account.alternate_contacts
+- rule_id: aws.account.contact.details_separate_security_billing_operations_configured
+  for_each: aws.account.get_contact_information
   conditions:
-    var: item.security_contact.exists
-    op: equals
-    value: true
+    var: item.ContactInformation
+    op: not_equals
+    value: 'null'
 - rule_id: aws.account.resource.security_contact_configured
-  for_each: aws.account.alternate_contacts
+  for_each: aws.account.get_primary_email
   conditions:
-    var: item.security_contact.exists
-    op: equals
-    value: true
+    var: item.PrimaryEmail
+    op: not_equals
+    value: 'null'
+- rule_id: aws.account.security.contact_information_configured
+  for_each: aws.account.get_contact_information
+  conditions:
+    var: item.ContactInformation
+    op: not_equals
+    value: 'null'
+- rule_id: aws.account.contact.current_details_configured
+  for_each: aws.account.get_alternate_contact
+  conditions:
+    var: item.EmailAddress
+    op: not_equals
+    value: 'null'
+- rule_id: aws.account.resource.security_contact_complete
+  for_each: aws.account.get_alternate_contact
+  conditions:
+    var: item.EmailAddress
+    op: not_equals
+    value: 'null'
+- rule_id: aws.account.resource.security_contact_configured
+  for_each: aws.account.get_alternate_contact
+  conditions:
+    var: item.EmailAddress
+    op: not_equals
+    value: 'null'

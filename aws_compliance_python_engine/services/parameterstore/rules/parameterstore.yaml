@@ -1,54 +1,90 @@
 version: '1.0'
 provider: aws
 service: parameterstore
+services:
+  client: parameterstore
+  module: boto3.client
 discovery:
+- discovery_id: aws.parameterstore.describe_maintenance_windows
+  calls:
+  - action: describe_maintenance_windows
+    save_as: response
+  emit:
+    item:
+      WindowId: '{{ response.WindowIdentities.WindowId }}'
+      Name: '{{ response.WindowIdentities.Name }}'
+      Description: '{{ response.WindowIdentities.Description }}'
+      Enabled: '{{ response.WindowIdentities.Enabled }}'
+      Duration: '{{ response.WindowIdentities.Duration }}'
+      Cutoff: '{{ response.WindowIdentities.Cutoff }}'
+      Schedule: '{{ response.WindowIdentities.Schedule }}'
+      ScheduleTimezone: '{{ response.WindowIdentities.ScheduleTimezone }}'
+      ScheduleOffset: '{{ response.WindowIdentities.ScheduleOffset }}'
+      EndDate: '{{ response.WindowIdentities.EndDate }}'
+      StartDate: '{{ response.WindowIdentities.StartDate }}'
+      NextExecutionTime: '{{ response.WindowIdentities.NextExecutionTime }}'
 - discovery_id: aws.parameterstore.describe_parameters
   calls:
   - action: describe_parameters
-    save_as: describe_parameters_response
+    save_as: response
   emit:
-    items_for: '{{ describe_parameters_response.Parameters }}'
-    as: resource
     item:
-      name: '{{ resource.Name }}'
-      arn: '{{ resource.ARN }}'
-      type: '{{ resource.Type }}'
-      key_id: '{{ resource.KeyId }}'
-      last_modified_date: '{{ resource.LastModifiedDate }}'
-      last_modified_user: '{{ resource.LastModifiedUser }}'
-      description: '{{ resource.Description }}'
-      allowed_pattern: '{{ resource.AllowedPattern }}'
-      version: '{{ resource.Version }}'
-      tier: '{{ resource.Tier }}'
+      Name: '{{ response.Parameters.Name }}'
+      ARN: '{{ response.Parameters.ARN }}'
+      Type: '{{ response.Parameters.Type }}'
+      KeyId: '{{ response.Parameters.KeyId }}'
+      LastModifiedDate: '{{ response.Parameters.LastModifiedDate }}'
+      LastModifiedUser: '{{ response.Parameters.LastModifiedUser }}'
+      Description: '{{ response.Parameters.Description }}'
+      AllowedPattern: '{{ response.Parameters.AllowedPattern }}'
+      Version: '{{ response.Parameters.Version }}'
+      Tier: '{{ response.Parameters.Tier }}'
+      Policies: '{{ response.Parameters.Policies }}'
+      DataType: '{{ response.Parameters.DataType }}'
+- discovery_id: aws.parameterstore.get_parameter
+  calls:
+  - action: get_parameter
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.Parameter.Name }}'
+      Type: '{{ response.Parameter.Type }}'
+      Value: '{{ response.Parameter.Value }}'
+      Version: '{{ response.Parameter.Version }}'
+      Selector: '{{ response.Parameter.Selector }}'
+      SourceResult: '{{ response.Parameter.SourceResult }}'
+      LastModifiedDate: '{{ response.Parameter.LastModifiedDate }}'
+      ARN: '{{ response.Parameter.ARN }}'
+      DataType: '{{ response.Parameter.DataType }}'
+      Parameter: '{{ resource.Parameter }}'
 checks:
 - rule_id: aws.parameterstore.parameter.kms_encryption_enabled
-  for_each: aws.parameterstore.describe_parameters
+  for_each: aws.parameterstore.describe_maintenance_windows
   conditions:
-    var: item.key_id
-    op: exists
+    var: item.Enabled
+    op: equals
+    value: 'true'
 - rule_id: aws.parameterstore.parameter.kms_key_configured
   for_each: aws.parameterstore.describe_parameters
   conditions:
-    var: item.key_id
-    op: exists
+    var: item.KeyId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.parameterstore.parameter.rotation_enabled_for_rotatable_secrets
-  for_each: aws.parameterstore.describe_parameters
+  for_each: aws.parameterstore.describe_maintenance_windows
   conditions:
-    var: item.policies
-    op: exists
-    value: null
+    var: item.Enabled
+    op: equals
+    value: 'true'
 - rule_id: aws.parameterstore.parameter.rbac_least_privilege
-  for_each: aws.parameterstore.describe_parameters
+  for_each: aws.parameterstore.get_parameter
   conditions:
-    all:
-    - var: item.policies
-      op: exists
-    - var: item.tier
-      op: equals
-      value: Standard
+    var: item.Parameter
+    op: not_equals
+    value: 'null'
 - rule_id: aws.parameterstore.parameter.parameterstore_secure_string_type_for_sensitive_configured
   for_each: aws.parameterstore.describe_parameters
   conditions:
-    var: item.type
+    var: item.Type
     op: equals
     value: SecureString

@@ -20,6 +20,7 @@ discovery:
       DefaultActions: '{{ response.Listeners.DefaultActions }}'
       AlpnPolicy: '{{ response.Listeners.AlpnPolicy }}'
       MutualAuthentication: '{{ response.Listeners.MutualAuthentication }}'
+      Listeners: '{{ resource.Listeners }}'
 - discovery_id: aws.elbv2.describe_load_balancers
   calls:
   - action: describe_load_balancers
@@ -71,59 +72,157 @@ discovery:
       ProtocolVersion: '{{ response.TargetGroups.ProtocolVersion }}'
       IpAddressType: '{{ response.TargetGroups.IpAddressType }}'
       TargetControlPort: '{{ response.TargetGroups.TargetControlPort }}'
-- discovery_id: aws.elbv2.describe_tags
+- discovery_id: aws.elbv2.describe_listener_attributes
   calls:
-  - action: describe_tags
+  - action: describe_listener_attributes
     save_as: response
   emit:
     item:
-      ResourceArn: '{{ response.TagDescriptions.ResourceArn }}'
-      Tags: '{{ response.TagDescriptions.Tags }}'
+      Key: '{{ response.Attributes.Key }}'
+      Value: '{{ response.Attributes.Value }}'
+      Attributes: '{{ resource.Attributes }}'
+- discovery_id: aws.elbv2.describe_listener_certificates
+  calls:
+  - action: describe_listener_certificates
+    save_as: response
+    params:
+      ListenerArn: '{{ item.ListenerArn }}'
+  for_each: aws.elbv2.describe_listeners
+  on_error: continue
+  emit:
+    item:
+      CertificateArn: '{{ response.Certificates.CertificateArn }}'
+      IsDefault: '{{ response.Certificates.IsDefault }}'
+- discovery_id: aws.elbv2.describe_s_s_l_policies
+  calls:
+  - action: describe_ssl_policies
+    save_as: response
+  emit:
+    item:
+      SslProtocols: '{{ response.SslPolicies.SslProtocols }}'
+      Ciphers: '{{ response.SslPolicies.Ciphers }}'
+      Name: '{{ response.SslPolicies.Name }}'
+      SupportedLoadBalancerTypes: '{{ response.SslPolicies.SupportedLoadBalancerTypes
+        }}'
+      SslPolicies: '{{ resource.SslPolicies }}'
+- discovery_id: aws.elbv2.describe_rules
+  calls:
+  - action: describe_rules
+    save_as: response
+  emit:
+    item:
+      RuleArn: '{{ response.Rules.RuleArn }}'
+      Priority: '{{ response.Rules.Priority }}'
+      Conditions: '{{ response.Rules.Conditions }}'
+      Actions: '{{ response.Rules.Actions }}'
+      IsDefault: '{{ response.Rules.IsDefault }}'
+      Transforms: '{{ response.Rules.Transforms }}'
+      Rules: '{{ resource.Rules }}'
 checks:
 - rule_id: aws.elbv2.listener.cipher_policy_secure_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
     var: item.SslPolicy
-    op: equals
-    value: ELBSecurityPolicy-TLS-1-2-2017-01
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elbv2.isinmultipleaz.elbv2_is_in_multiple_az_configured
   for_each: aws.elbv2.describe_load_balancers
   conditions:
     var: item.AvailabilityZones
-    op: gt
-    value: 1
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elbv2.loadbalancer.waf_attached_if_supported
+  for_each: aws.elbv2.describe_target_groups
+  conditions:
+    var: item.LoadBalancerArns
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elbv2.internetfacing.elbv2_internet_facing_configured
+  for_each: aws.elbv2.describe_load_balancers
+  conditions:
+    var: item.Scheme
+    op: equals
+    value: internet-facing
 - rule_id: aws.elbv2.listener.tls_min_1_2_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
     var: item.SslPolicy
     op: equals
-    value: ELBSecurityPolicy-TLS-1-2-2017-01
+    value: ELBSecurityPolicy-2016-08
+- rule_id: aws.elbv2.deletion_protection.deletion_protection_configured
+  for_each: aws.elbv2.describe_listener_attributes
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elbv2.group.security_check_health_check_enabled
   for_each: aws.elbv2.describe_target_groups
   conditions:
     var: item.HealthCheckEnabled
     op: equals
     value: true
+- rule_id: aws.elbv2.loadbalancer.valid_certificate_enabled
+  for_each: aws.elbv2.describe_listener_certificates
+  conditions:
+    var: item.CertificateArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elbv2.targetgroup.health_checks_tls_if_supported_configured
   for_each: aws.elbv2.describe_target_groups
   conditions:
     var: item.HealthCheckProtocol
     op: equals
     value: HTTPS
+- rule_id: aws.elbv2.targetgroup.elbv2_targets_in_private_subnets_configured
+  for_each: aws.elbv2.describe_load_balancers
+  conditions:
+    var: item.VpcId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elbv2.loadbalancer.deletion_protection_enabled
+  for_each: aws.elbv2.describe_listener_attributes
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elbv2.logging.access_logging_enabled
+  for_each: aws.elbv2.describe_listeners
+  conditions:
+    var: item.Listeners
+    op: equals
+    value: 'true'
 - rule_id: aws.elbv2.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
-  for_each: aws.elbv2.describe_listeners
+  for_each: aws.elbv2.describe_s_s_l_policies
   conditions:
-    var: item.SslPolicy
-    op: equals
-    value: ELBSecurityPolicy-2016-08
+    var: item.Ciphers
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elbv2.wafaclattached.waf_acl_enabled
-  for_each: aws.elbv2.describe_tags
+  for_each: aws.elbv2.describe_rules
   conditions:
-    var: item.ResourceArn
-    op: exists
+    var: item.Rules
+    op: not_equals
+    value: 'null'
+- rule_id: aws.elbv2.loadbalancer.access_logs_enabled
+  for_each: aws.elbv2.describe_listener_attributes
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elbv2.loadbalancer.listener_tls_min_1_2_configured
+  for_each: aws.elbv2.describe_s_s_l_policies
+  conditions:
+    var: item.SslPolicies
+    op: contains
+    value: ELBSecurityPolicy-2016-08
+- rule_id: aws.elbv2.alb_https_redirect.elbv2_alb_https_redirect_configured
   for_each: aws.elbv2.describe_listeners
   conditions:
-    var: item.SslPolicy
-    op: equals
-    value: ELBSecurityPolicy-TLS-1-2-2017-01
+    var: item.DefaultActions
+    op: contains
+    value: redirect
+- rule_id: aws.elbv2.resource.logging_enabled
+  for_each: aws.elbv2.describe_listener_attributes
+  conditions:
+    var: item.Attributes
+    op: exists

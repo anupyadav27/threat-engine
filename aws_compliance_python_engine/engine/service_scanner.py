@@ -4,18 +4,16 @@ import boto3
 import yaml
 import logging
 from typing import Any, List, Dict, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 import sys
+import re
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.reporting_manager import save_reporting_bundle
 from auth.aws_auth import get_boto3_session, get_session_for_account
 from engine.discovery_helper import get_boto3_client_name
-import threading
-import re
 
 # Logging will be configured per-scan in output/scan_TIMESTAMP/logs/
 # This allows each scan to have its own log file
@@ -81,32 +79,148 @@ def extract_value(obj: Any, path: str):
                 return None
     return current
 
+def extract_checked_fields(cond_config: Dict[str, Any]) -> set:
+    """Extract all field names referenced in check conditions"""
+    fields = set()
+    
+    if isinstance(cond_config, dict):
+        if 'all' in cond_config:
+            for sub_cond in cond_config['all']:
+                fields.update(extract_checked_fields(sub_cond))
+        elif 'any' in cond_config:
+            for sub_cond in cond_config['any']:
+                fields.update(extract_checked_fields(sub_cond))
+        else:
+            var = cond_config.get('var', '')
+            if var:
+                # Extract field name from 'item.field' or just 'field'
+                field_name = var.replace('item.', '') if var.startswith('item.') else var
+                fields.add(field_name)
+    
+    return fields
+
 def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
-    """Evaluate a condition with the given operator and expected value"""
+    """Evaluate a condition with the given operator and expected value
+    
+    Supported operators:
+    - exists, not_exists: Check if value exists/doesn't exist
+    - equals, not_equals: Equality checks
+    - gt, gte, lt, lte: Numeric comparisons
+    - contains, not_contains: List/string membership
+    - in, not_in: Value in/not in list (for enum checks)
+    - is_empty, not_empty: Empty checks
+    - length_gte, length_gt, length_lt, length_lte: Length comparisons
+    """
+    # Existence checks
     if operator == 'exists':
         return value is not None and value != '' and value != []
+    elif operator == 'not_exists':
+        return value is None or value == '' or value == []
+    elif operator == 'is_empty':
+        return value is None or value == '' or value == []
+    elif operator == 'not_empty':
+        return value is not None and value != '' and value != []
+    
+    # Equality checks
     elif operator == 'equals':
         return value == expected
+    elif operator == 'not_equals':
+        return value != expected
+    
+    # Numeric comparisons
     elif operator == 'gt':
-        return float(value) > float(expected) if value is not None else False
+        try:
+            return float(value) > float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
     elif operator == 'gte':
-        return float(value) >= float(expected) if value is not None else False
+        try:
+            return float(value) >= float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
     elif operator == 'lt':
-        return float(value) < float(expected) if value is not None else False
+        try:
+            return float(value) < float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
     elif operator == 'lte':
-        return float(value) <= float(expected) if value is not None else False
-    elif operator == 'length_gte':
+        try:
+            return float(value) <= float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
+    
+    # List/string membership
+    elif operator == 'contains':
         if isinstance(value, (list, str)):
-            return len(value) >= int(expected)
+            return expected in value
         return False
     elif operator == 'not_contains':
         if isinstance(value, (list, str)):
             return expected not in value
         return False
-    elif operator == 'contains':
-        if isinstance(value, (list, str)):
-            return expected in value
+    
+    # Enum/list membership (value in/not in expected list)
+    elif operator == 'in':
+        if isinstance(expected, list):
+            return value in expected
         return False
+    elif operator == 'not_in':
+        if isinstance(expected, list):
+            return value not in expected
+        return False
+    
+    # Length comparisons
+    elif operator == 'length_gte':
+        if isinstance(value, (list, str)):
+            try:
+                return len(value) >= int(expected)
+            except (ValueError, TypeError):
+                return False
+        return False
+    elif operator == 'length_gt':
+        if isinstance(value, (list, str)):
+            try:
+                return len(value) > int(expected)
+            except (ValueError, TypeError):
+                return False
+        return False
+    elif operator == 'length_lt':
+        if isinstance(value, (list, str)):
+            try:
+                return len(value) < int(expected)
+            except (ValueError, TypeError):
+                return False
+        return False
+    elif operator == 'length_lte':
+        if isinstance(value, (list, str)):
+            try:
+                return len(value) <= int(expected)
+            except (ValueError, TypeError):
+                return False
+        return False
+    
+    # Operator aliases (for backward compatibility)
+    elif operator == 'greater_than':
+        try:
+            return float(value) > float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
+    elif operator == 'less_than':
+        try:
+            return float(value) < float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
+    elif operator == 'greater_than_or_equal':
+        try:
+            return float(value) >= float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
+    elif operator == 'less_than_or_equal':
+        try:
+            return float(value) <= float(expected) if value is not None and expected is not None else False
+        except (ValueError, TypeError):
+            return False
+    
     else:
         logger.warning(f"Unknown operator: {operator}")
         return False
@@ -478,31 +592,45 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
         for discovery in service_rules.get('discovery', []):
             discovery_id = discovery['discovery_id']
             
+            # Track save_as for emit processing (use first call's save_as)
+            discovery_save_as = None
+            
             # Process calls in order
             for call in discovery.get('calls', []):
                 action = call['action']
                 params = call.get('params', {})
                 # Auto-generate save_as if not provided
                 save_as = call.get('save_as', f'{action}_response')
-                for_each = call.get('for_each')
+                # Track the save_as for this discovery (use first call's save_as)
+                if discovery_save_as is None:
+                    discovery_save_as = save_as
+                # Read for_each from discovery level first, then fall back to call level
+                for_each = discovery.get('for_each') or call.get('for_each')
                 as_var = call.get('as', 'item')
                 # Default to 'continue' for better resilience
-                on_error = call.get('on_error', 'continue')
+                on_error = discovery.get('on_error') or call.get('on_error', 'continue')
                 
                 try:
                     if for_each:
                         # Get the items to iterate over
                         items_ref = for_each.replace('{{ ', '').replace(' }}', '')
                         
-                        # Extract items from saved data
-                        items = extract_value(saved_data, items_ref)
+                        # Try to get items from discovery_results first (processed items)
+                        # If not found, try saved_data (raw API responses)
+                        items = discovery_results.get(items_ref)
+                        if items is None:
+                            items = extract_value(saved_data, items_ref)
                         
                         # Debug logging
                         logger.debug(f"Looking for items in: {items_ref}")
+                        logger.debug(f"Discovery results keys: {list(discovery_results.keys())}")
                         logger.debug(f"Saved data keys: {list(saved_data.keys())}")
                         logger.debug(f"Extracted items count: {len(items) if items else 0}")
                         
                         if items:
+                            # Accumulate responses from all iterations
+                            accumulated_responses = []
+                            
                             for item in items:
                                 # Create context for this item
                                 context = {as_var: item}
@@ -530,32 +658,31 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                                     # Only create new client if different from service
                                     call_client = session.client(specified_client, region_name='us-east-1', config=BOTO_CONFIG)
                                 
-                                response = _retry_call(getattr(call_client, action), **resolved_params)
-                                
-                                # Save response if specified
-                                if save_as:
-                                    save_key = resolve_template(save_as, context)
-                                    # Apply field extraction if specified
-                                    if 'fields' in call:
-                                        extracted_data = {}
-                                        for field in call['fields']:
-                                            value = extract_value(response, field)
-                                            if value is not None:
-                                                # For array fields like Keys[], store the array directly
-                                                if field.endswith('[]'):
-                                                    extracted_data = value
-                                                else:
-                                                    # For other fields, store in a nested structure
-                                                    parts = field.split('.')
-                                                    current = extracted_data
-                                                    for part in parts[:-1]:
-                                                        if part not in current:
-                                                            current[part] = {}
-                                                        current = current[part]
-                                                    current[parts[-1]] = value
-                                        saved_data[save_key] = extracted_data
+                                try:
+                                    response = _retry_call(getattr(call_client, action), **resolved_params)
+                                    
+                                    # Store response with item context for emit processing
+                                    accumulated_responses.append({
+                                        'response': response,
+                                        'item': item,
+                                        'context': context
+                                    })
+                                except Exception as api_error:
+                                    if on_error == 'continue':
+                                        logger.warning(f"Failed {action} for item {item.get('Name', 'unknown')}: {api_error}")
+                                        continue
                                     else:
-                                        saved_data[save_key] = response
+                                        raise
+                            
+                            # Save accumulated responses for emit processing
+                            if save_as and accumulated_responses:
+                                # Store all responses in a list, keyed by save_as
+                                if save_as not in saved_data:
+                                    saved_data[save_as] = []
+                                # For backward compatibility, also save the last response directly
+                                saved_data[save_as] = [r['response'] for r in accumulated_responses]
+                                # Store full context for emit processing
+                                saved_data[f'{save_as}_contexts'] = accumulated_responses
                     else:
                         # Regular call - use service client or specified client
                         call_client = client
@@ -602,7 +729,33 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
             
             # Process emit
             emit_config = discovery.get('emit', {})
-            if 'items_for' in emit_config:
+            
+            # Check if this discovery had for_each and accumulated responses
+            discovery_for_each = discovery.get('for_each')
+            if discovery_for_each and discovery_save_as and f'{discovery_save_as}_contexts' in saved_data:
+                # This discovery used for_each - process accumulated responses
+                accumulated_contexts = saved_data[f'{discovery_save_as}_contexts']
+                results = []
+                
+                for acc_data in accumulated_contexts:
+                    response = acc_data['response']
+                    item = acc_data['item']
+                    context = acc_data['context']
+                    
+                    # Build item data from emit config
+                    item_data = {}
+                    for field_name, field_template in emit_config.get('item', {}).items():
+                        # Create context with response and item
+                        emit_context = {'response': response, 'item': item}
+                        emit_context.update(context)
+                        resolved_value = resolve_template(field_template, emit_context)
+                        item_data[field_name] = resolved_value
+                    
+                    results.append(item_data)
+                
+                discovery_results[discovery_id] = results
+            
+            elif 'items_for' in emit_config:
                 items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
                 as_var = emit_config.get('as', 'r')
                 
@@ -671,6 +824,10 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                 items = [{}]
             
             # Always use 'item' as the standard variable name in context
+            # Only run checks if there are items (don't create checks for empty infrastructure)
+            if not items:
+                continue  # Skip check if no resources found
+            
             for item in items:
                 context = {'item': item, 'params': params}
                 
@@ -698,13 +855,17 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                     logger.warning(f"Error evaluating {check_id}: {e}")
                     status = 'ERROR'
                 
+                # Extract checked fields from conditions for evidence filtering
+                checked_fields = extract_checked_fields(conditions)
+                
                 record = {
                     'rule_id': check_id,
                     'title': title,
                     'severity': severity,
                     'assertion_id': assertion_id,
                     'result': status,
-                    'region': 'us-east-1'
+                    'region': 'us-east-1',
+                    '_checked_fields': list(checked_fields)  # Store for evidence filtering
                 }
                 
                 # Add item data
@@ -749,24 +910,38 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
         for discovery in service_rules.get('discovery', []):
             discovery_id = discovery['discovery_id']
             
+            # Track save_as for emit processing (use first call's save_as)
+            discovery_save_as = None
+            
             # Process calls in order
             for call in discovery.get('calls', []):
                 action = call['action']
                 params = call.get('params', {})
                 # Auto-generate save_as if not provided
                 save_as = call.get('save_as', f'{action}_response')
-                for_each = call.get('for_each')
+                # Track the save_as for this discovery (use first call's save_as)
+                if discovery_save_as is None:
+                    discovery_save_as = save_as
+                # Read for_each from discovery level first, then fall back to call level
+                for_each = discovery.get('for_each') or call.get('for_each')
                 as_var = call.get('as', 'item')
                 # Default to 'continue' for better resilience
-                on_error = call.get('on_error', 'continue')
+                on_error = discovery.get('on_error') or call.get('on_error', 'continue')
                 
                 try:
                     if for_each:
                         # Get the items to iterate over
                         items_ref = for_each.replace('{{ ', '').replace(' }}', '')
-                        items = extract_value(saved_data, items_ref)
+                        # Try to get items from discovery_results first (processed items)
+                        # If not found, try saved_data (raw API responses)
+                        items = discovery_results.get(items_ref)
+                        if items is None:
+                            items = extract_value(saved_data, items_ref)
                         
                         if items:
+                            # Accumulate responses from all iterations
+                            accumulated_responses = []
+                            
                             for item in items:
                                 context = {as_var: item}
                                 context.update(saved_data)
@@ -790,30 +965,30 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                                     # Only create new client if different from service
                                     call_client = session.client(specified_client, region_name=region, config=BOTO_CONFIG)
                                 
-                                response = _retry_call(getattr(call_client, action), **resolved_params)
-                                
-                                if save_as:
-                                    save_key = resolve_template(save_as, context)
-                                    if 'fields' in call:
-                                        extracted_data = {}
-                                        for field in call['fields']:
-                                            value = extract_value(response, field)
-                                            if value is not None:
-                                                if field.endswith('[]'):
-                                                    extracted_data = value
-                                                else:
-                                                    parts = field.split('.')
-                                                    current = extracted_data
-                                                    for part in parts[:-1]:
-                                                        if part not in current:
-                                                            current[part] = {}
-                                                        current = current[part]
-                                                    current[parts[-1]] = value
-                                        saved_data[save_key] = extracted_data
+                                try:
+                                    response = _retry_call(getattr(call_client, action), **resolved_params)
+                                    
+                                    # Store response with item context for emit processing
+                                    accumulated_responses.append({
+                                        'response': response,
+                                        'item': item,
+                                        'context': context
+                                    })
+                                except Exception as api_error:
+                                    if on_error == 'continue':
+                                        logger.warning(f"Failed {action} for item {item.get('Name', 'unknown')}: {api_error}")
+                                        continue
                                     else:
-                                        saved_data[save_key] = response
+                                        raise
+                            
+                            # Save accumulated responses for emit processing
+                            if save_as and accumulated_responses:
+                                # Store all responses in a list, keyed by save_as
+                                saved_data[save_as] = [r['response'] for r in accumulated_responses]
+                                # Store full context for emit processing
+                                saved_data[f'{save_as}_contexts'] = accumulated_responses
                     else:
-                        # Use service client by default, or specified client if different
+                        # Regular call - use service client or specified client
                         call_client = client
                         specified_client = call.get('client', service_name)
                         if specified_client != service_name:
@@ -822,24 +997,7 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                         
                         response = _retry_call(getattr(call_client, action), **params)
                         if save_as:
-                            if 'fields' in call:
-                                extracted_data = {}
-                                for field in call['fields']:
-                                    value = extract_value(response, field)
-                                    if value is not None:
-                                        if field.endswith('[]'):
-                                            extracted_data = value
-                                        else:
-                                            parts = field.split('.')
-                                            current = extracted_data
-                                            for part in parts[:-1]:
-                                                if part not in current:
-                                                    current[part] = {}
-                                                current = current[part]
-                                            current[parts[-1]] = value
-                                saved_data[save_as] = extracted_data
-                            else:
-                                saved_data[save_as] = response
+                            saved_data[save_as] = response
                             
                 except Exception as e:
                     if on_error == 'continue':
@@ -848,9 +1006,35 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                     else:
                         raise
             
-            # Process emit (same as global)
+            # Process emit
             emit_config = discovery.get('emit', {})
-            if 'items_for' in emit_config:
+            
+            # Check if this discovery had for_each and accumulated responses
+            discovery_for_each = discovery.get('for_each')
+            if discovery_for_each and discovery_save_as and f'{discovery_save_as}_contexts' in saved_data:
+                # This discovery used for_each - process accumulated responses
+                accumulated_contexts = saved_data[f'{discovery_save_as}_contexts']
+                results = []
+                
+                for acc_data in accumulated_contexts:
+                    response = acc_data['response']
+                    item = acc_data['item']
+                    context = acc_data['context']
+                    
+                    # Build item data from emit config
+                    item_data = {}
+                    for field_name, field_template in emit_config.get('item', {}).items():
+                        # Create context with response and item
+                        emit_context = {'response': response, 'item': item}
+                        emit_context.update(context)
+                        resolved_value = resolve_template(field_template, emit_context)
+                        item_data[field_name] = resolved_value
+                    
+                    results.append(item_data)
+                
+                discovery_results[discovery_id] = results
+            
+            elif 'items_for' in emit_config:
                 items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
                 as_var = emit_config.get('as', 'r')
                 items = extract_value(saved_data, items_path)
@@ -905,6 +1089,10 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                 items = [{}]
             
             # Always use 'item' as the standard variable name in context
+            # Only run checks if there are items (don't create checks for empty infrastructure)
+            if not items:
+                continue  # Skip check if no resources found
+            
             for item in items:
                 context = {'item': item, 'params': params}
                 
@@ -931,13 +1119,17 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                     logger.warning(f"Error evaluating {check_id}: {e}")
                     status = 'ERROR'
                 
+                # Extract checked fields from conditions for evidence filtering
+                checked_fields = extract_checked_fields(conditions)
+                
                 record = {
                     'rule_id': check_id,
                     'title': title,
                     'severity': severity,
                     'assertion_id': assertion_id,
                     'result': status,
-                    'region': region
+                    'region': region,
+                    '_checked_fields': list(checked_fields)  # Store for evidence filtering
                 }
                 
                 if item:

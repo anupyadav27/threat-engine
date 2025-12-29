@@ -5,23 +5,6 @@ services:
   client: workspaces
   module: boto3.client
 discovery:
-- discovery_id: aws.workspaces.describe_applications
-  calls:
-  - action: describe_applications
-    save_as: response
-  emit:
-    item:
-      ApplicationId: '{{ response.Applications.ApplicationId }}'
-      Created: '{{ response.Applications.Created }}'
-      Description: '{{ response.Applications.Description }}'
-      LicenseType: '{{ response.Applications.LicenseType }}'
-      Name: '{{ response.Applications.Name }}'
-      Owner: '{{ response.Applications.Owner }}'
-      State: '{{ response.Applications.State }}'
-      SupportedComputeTypeNames: '{{ response.Applications.SupportedComputeTypeNames
-        }}'
-      SupportedOperatingSystemNames: '{{ response.Applications.SupportedOperatingSystemNames
-        }}'
 - discovery_id: aws.workspaces.describe_workspace_directories
   calls:
   - action: describe_workspace_directories
@@ -62,31 +45,57 @@ discovery:
       ActiveDirectoryConfig: '{{ response.Directories.ActiveDirectoryConfig }}'
       StreamingProperties: '{{ response.Directories.StreamingProperties }}'
       ErrorMessage: '{{ response.Directories.ErrorMessage }}'
+- discovery_id: aws.workspaces.describe_workspaces
+  calls:
+  - action: describe_workspaces
+    save_as: response
+  emit:
+    item:
+      WorkspaceId: '{{ response.Workspaces.WorkspaceId }}'
+      DirectoryId: '{{ response.Workspaces.DirectoryId }}'
+      UserName: '{{ response.Workspaces.UserName }}'
+      IpAddress: '{{ response.Workspaces.IpAddress }}'
+      Ipv6Address: '{{ response.Workspaces.Ipv6Address }}'
+      State: '{{ response.Workspaces.State }}'
+      BundleId: '{{ response.Workspaces.BundleId }}'
+      SubnetId: '{{ response.Workspaces.SubnetId }}'
+      ErrorMessage: '{{ response.Workspaces.ErrorMessage }}'
+      ErrorCode: '{{ response.Workspaces.ErrorCode }}'
+      ComputerName: '{{ response.Workspaces.ComputerName }}'
+      VolumeEncryptionKey: '{{ response.Workspaces.VolumeEncryptionKey }}'
+      UserVolumeEncryptionEnabled: '{{ response.Workspaces.UserVolumeEncryptionEnabled
+        }}'
+      RootVolumeEncryptionEnabled: '{{ response.Workspaces.RootVolumeEncryptionEnabled
+        }}'
+      WorkspaceName: '{{ response.Workspaces.WorkspaceName }}'
+      WorkspaceProperties: '{{ response.Workspaces.WorkspaceProperties }}'
+      ModificationStates: '{{ response.Workspaces.ModificationStates }}'
+      RelatedWorkspaces: '{{ response.Workspaces.RelatedWorkspaces }}'
+      DataReplicationSettings: '{{ response.Workspaces.DataReplicationSettings }}'
+      StandbyWorkspacesProperties: '{{ response.Workspaces.StandbyWorkspacesProperties
+        }}'
 checks:
 - rule_id: aws.workspaces.resource.directory_check_web_access_disabled
   for_each: aws.workspaces.describe_workspace_directories
   conditions:
     var: item.WorkspaceAccessProperties
-    op: equals
-    value:
-      DeviceTypeWeb: DISABLED
+    op: not_equals
+    value: 'null'
 - rule_id: aws.workspaces.restapi.public_access_restricted
   for_each: aws.workspaces.describe_workspace_directories
   conditions:
     var: item.WorkspaceAccessProperties
-    op: equals
-    value:
-      DeviceTypeWindows: DENY
-      DeviceTypeOsx: DENY
-      DeviceTypeWeb: DENY
-      DeviceTypeIos: DENY
-      DeviceTypeAndroid: DENY
-      DeviceTypeChromeOs: DENY
-      DeviceTypeZeroClient: DENY
-      DeviceTypeLinux: DENY
-- rule_id: aws.workspaces.resource.workspaces_directory_enable_maintenance_mode_configured
-  for_each: aws.workspaces.describe_applications
+    op: not_equals
+    value: 'null'
+- rule_id: aws.workspaces.volume.encryption_enabled
+  for_each: aws.workspaces.describe_workspaces
   conditions:
-    var: item.State
+    var: item.UserVolumeEncryptionEnabled
     op: equals
-    value: ENABLED
+    value: 'true'
+- rule_id: aws.workspaces.resource.workspaces_directory_enable_maintenance_mode_configured
+  for_each: aws.workspaces.describe_workspace_directories
+  conditions:
+    var: item.WorkspaceDirectoryName
+    op: not_equals
+    value: 'null'

@@ -30,83 +30,111 @@ discovery:
       AvailabilityZoneId: '{{ response.FileSystems.AvailabilityZoneId }}'
       Tags: '{{ response.FileSystems.Tags }}'
       FileSystemProtection: '{{ response.FileSystems.FileSystemProtection }}'
-- discovery_id: aws.efs.describe_replication_configurations
+- discovery_id: aws.efs.describe_access_points
   calls:
-  - action: describe_replication_configurations
+  - action: describe_access_points
     save_as: response
   emit:
     item:
-      SourceFileSystemId: '{{ response.Replications.SourceFileSystemId }}'
-      SourceFileSystemRegion: '{{ response.Replications.SourceFileSystemRegion }}'
-      SourceFileSystemArn: '{{ response.Replications.SourceFileSystemArn }}'
-      OriginalSourceFileSystemArn: '{{ response.Replications.OriginalSourceFileSystemArn
-        }}'
-      CreationTime: '{{ response.Replications.CreationTime }}'
-      Destinations: '{{ response.Replications.Destinations }}'
-      SourceFileSystemOwnerId: '{{ response.Replications.SourceFileSystemOwnerId }}'
-- discovery_id: aws.efs.create_replication_configuration
+      ClientToken: '{{ response.AccessPoints.ClientToken }}'
+      Name: '{{ response.AccessPoints.Name }}'
+      Tags: '{{ response.AccessPoints.Tags }}'
+      AccessPointId: '{{ response.AccessPoints.AccessPointId }}'
+      AccessPointArn: '{{ response.AccessPoints.AccessPointArn }}'
+      FileSystemId: '{{ response.AccessPoints.FileSystemId }}'
+      PosixUser: '{{ response.AccessPoints.PosixUser }}'
+      RootDirectory: '{{ response.AccessPoints.RootDirectory }}'
+      OwnerId: '{{ response.AccessPoints.OwnerId }}'
+      LifeCycleState: '{{ response.AccessPoints.LifeCycleState }}'
+- discovery_id: aws.efs.describe_backup_policy
   calls:
-  - action: create_replication_configuration
+  - action: describe_backup_policy
     save_as: response
-    params:
-      SourceFileSystemId: '{{ item.SourceFileSystemId }}'
-      Destinations: '{{ item.Destinations }}'
-  on_error: continue
-  for_each: aws.efs.describe_replication_configurations
   emit:
     item:
-      Status: '{{ response.Destinations.Status }}'
-      FileSystemId: '{{ response.Destinations.FileSystemId }}'
-      Region: '{{ response.Destinations.Region }}'
-      LastReplicatedTimestamp: '{{ response.Destinations.LastReplicatedTimestamp }}'
-      OwnerId: '{{ response.Destinations.OwnerId }}'
-      StatusMessage: '{{ response.Destinations.StatusMessage }}'
-      RoleArn: '{{ response.Destinations.RoleArn }}'
+      Status: '{{ response.BackupPolicy.Status }}'
+      BackupPolicy: '{{ resource.BackupPolicy }}'
+- discovery_id: aws.efs.describe_mount_targets
+  calls:
+  - action: describe_mount_targets
+    save_as: response
+  emit:
+    item:
+      OwnerId: '{{ response.MountTargets.OwnerId }}'
+      MountTargetId: '{{ response.MountTargets.MountTargetId }}'
+      FileSystemId: '{{ response.MountTargets.FileSystemId }}'
+      SubnetId: '{{ response.MountTargets.SubnetId }}'
+      LifeCycleState: '{{ response.MountTargets.LifeCycleState }}'
+      IpAddress: '{{ response.MountTargets.IpAddress }}'
+      Ipv6Address: '{{ response.MountTargets.Ipv6Address }}'
+      NetworkInterfaceId: '{{ response.MountTargets.NetworkInterfaceId }}'
+      AvailabilityZoneId: '{{ response.MountTargets.AvailabilityZoneId }}'
+      AvailabilityZoneName: '{{ response.MountTargets.AvailabilityZoneName }}'
+      VpcId: '{{ response.MountTargets.VpcId }}'
 checks:
 - rule_id: aws.efs.not_publicly_accessible.not_publicly_accessible_configured
   for_each: aws.efs.describe_file_systems
   conditions:
-    var: item.NumberOfMountTargets
-    op: equals
-    value: 0
+    var: item.FileSystemArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.efs.user.identity_and_root_directory_enforced
+  for_each: aws.efs.describe_access_points
+  conditions:
+    var: item.RootDirectory
+    op: not_equals
+    value: 'null'
 - rule_id: aws.efs.filesystem.encryption_at_rest_enabled
   for_each: aws.efs.describe_file_systems
   conditions:
     var: item.Encrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.efs.have.backup_enabled
-  for_each: aws.efs.create_replication_configuration
+  for_each: aws.efs.describe_backup_policy
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.BackupPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.efs.filesystem.snapshots_enabled
-  for_each: aws.efs.create_replication_configuration
+  for_each: aws.efs.describe_file_systems
   conditions:
-    var: item.Status
+    var: item.FileSystemProtection
     op: equals
     value: ENABLED
 - rule_id: aws.efs.resource.backup_enabled
-  for_each: aws.efs.create_replication_configuration
+  for_each: aws.efs.describe_backup_policy
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.BackupPolicy
+    op: not_equals
+    value: 'null'
 - rule_id: aws.efs.resource.multi_az_enabled
   for_each: aws.efs.describe_file_systems
   conditions:
-    var: item.Name
-    op: exists
+    var: item.NumberOfMountTargets
+    op: greater_than
+    value: 1
 - rule_id: aws.efs.resource.encryption_at_rest_enabled
   for_each: aws.efs.describe_file_systems
   conditions:
     var: item.Encrypted
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.efs.encryption.at_rest_enabled
   for_each: aws.efs.describe_file_systems
   conditions:
     var: item.Encrypted
     op: equals
-    value: true
+    value: 'true'
+- rule_id: aws.efs.filesystem.kms_key_policy_least_privilege
+  for_each: aws.efs.describe_file_systems
+  conditions:
+    var: item.Encrypted
+    op: equals
+    value: 'true'
+- rule_id: aws.efs.filesystem.private_network_only_configured
+  for_each: aws.efs.describe_mount_targets
+  conditions:
+    var: item.VpcId
+    op: not_equals
+    value: 'null'

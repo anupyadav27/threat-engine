@@ -5,26 +5,43 @@ services:
   client: transfer
   module: boto3.client
 discovery:
-- discovery_id: aws.transfer.list_servers
+- discovery_id: aws.transfer.describe_server
   calls:
-  - action: list_servers
+  - action: describe_server
     save_as: response
   emit:
-    items_for: '{{ response.Servers }}'
-    as: resource
     item:
-      Arn: '{{ resource.Arn }}'
-      Domain: '{{ resource.Domain }}'
-      IdentityProviderType: '{{ resource.IdentityProviderType }}'
-      EndpointType: '{{ resource.EndpointType }}'
-      LoggingRole: '{{ resource.LoggingRole }}'
-      ServerId: '{{ resource.ServerId }}'
-      State: '{{ resource.State }}'
-      UserCount: '{{ resource.UserCount }}'
+      Arn: '{{ response.Server.Arn }}'
+      Certificate: '{{ response.Server.Certificate }}'
+      ProtocolDetails: '{{ response.Server.ProtocolDetails }}'
+      Domain: '{{ response.Server.Domain }}'
+      EndpointDetails: '{{ response.Server.EndpointDetails }}'
+      EndpointType: '{{ response.Server.EndpointType }}'
+      HostKeyFingerprint: '{{ response.Server.HostKeyFingerprint }}'
+      IdentityProviderDetails: '{{ response.Server.IdentityProviderDetails }}'
+      IdentityProviderType: '{{ response.Server.IdentityProviderType }}'
+      LoggingRole: '{{ response.Server.LoggingRole }}'
+      PostAuthenticationLoginBanner: '{{ response.Server.PostAuthenticationLoginBanner
+        }}'
+      PreAuthenticationLoginBanner: '{{ response.Server.PreAuthenticationLoginBanner
+        }}'
+      Protocols: '{{ response.Server.Protocols }}'
+      SecurityPolicyName: '{{ response.Server.SecurityPolicyName }}'
+      ServerId: '{{ response.Server.ServerId }}'
+      State: '{{ response.Server.State }}'
+      Tags: '{{ response.Server.Tags }}'
+      UserCount: '{{ response.Server.UserCount }}'
+      WorkflowDetails: '{{ response.Server.WorkflowDetails }}'
+      StructuredLogDestinations: '{{ response.Server.StructuredLogDestinations }}'
+      S3StorageOptions: '{{ response.Server.S3StorageOptions }}'
+      As2ServiceManagedEgressIpAddresses: '{{ response.Server.As2ServiceManagedEgressIpAddresses
+        }}'
+      IpAddressType: '{{ response.Server.IpAddressType }}'
+      Server: '{{ resource.Server }}'
 checks:
 - rule_id: aws.transfer.resource.server_in_transit_encryption_enabled
-  for_each: aws.transfer.list_servers
+  for_each: aws.transfer.describe_server
   conditions:
-    var: item.ProtocolDetails
-    op: exists
-    value: null
+    var: item.Server
+    op: not_equals
+    value: 'null'

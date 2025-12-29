@@ -54,29 +54,6 @@ discovery:
       NetworkType: '{{ response.CacheClusters.NetworkType }}'
       IpDiscovery: '{{ response.CacheClusters.IpDiscovery }}'
       TransitEncryptionMode: '{{ response.CacheClusters.TransitEncryptionMode }}'
-- discovery_id: aws.elasticache.describe_global_replication_groups
-  calls:
-  - action: describe_global_replication_groups
-    save_as: response
-  emit:
-    item:
-      GlobalReplicationGroupId: '{{ response.GlobalReplicationGroups.GlobalReplicationGroupId
-        }}'
-      GlobalReplicationGroupDescription: '{{ response.GlobalReplicationGroups.GlobalReplicationGroupDescription
-        }}'
-      Status: '{{ response.GlobalReplicationGroups.Status }}'
-      CacheNodeType: '{{ response.GlobalReplicationGroups.CacheNodeType }}'
-      Engine: '{{ response.GlobalReplicationGroups.Engine }}'
-      EngineVersion: '{{ response.GlobalReplicationGroups.EngineVersion }}'
-      Members: '{{ response.GlobalReplicationGroups.Members }}'
-      ClusterEnabled: '{{ response.GlobalReplicationGroups.ClusterEnabled }}'
-      GlobalNodeGroups: '{{ response.GlobalReplicationGroups.GlobalNodeGroups }}'
-      AuthTokenEnabled: '{{ response.GlobalReplicationGroups.AuthTokenEnabled }}'
-      TransitEncryptionEnabled: '{{ response.GlobalReplicationGroups.TransitEncryptionEnabled
-        }}'
-      AtRestEncryptionEnabled: '{{ response.GlobalReplicationGroups.AtRestEncryptionEnabled
-        }}'
-      ARN: '{{ response.GlobalReplicationGroups.ARN }}'
 - discovery_id: aws.elasticache.describe_replication_groups
   calls:
   - action: describe_replication_groups
@@ -128,133 +105,165 @@ discovery:
         }}'
       ClusterMode: '{{ response.ReplicationGroups.ClusterMode }}'
       Engine: '{{ response.ReplicationGroups.Engine }}'
-- discovery_id: aws.elasticache.describe_service_updates
+- discovery_id: aws.elasticache.describe_serverless_caches
   calls:
-  - action: describe_service_updates
+  - action: describe_serverless_caches
     save_as: response
   emit:
     item:
-      ServiceUpdateName: '{{ response.ServiceUpdates.ServiceUpdateName }}'
-      ServiceUpdateReleaseDate: '{{ response.ServiceUpdates.ServiceUpdateReleaseDate
+      ServerlessCacheName: '{{ response.ServerlessCaches.ServerlessCacheName }}'
+      Description: '{{ response.ServerlessCaches.Description }}'
+      CreateTime: '{{ response.ServerlessCaches.CreateTime }}'
+      Status: '{{ response.ServerlessCaches.Status }}'
+      Engine: '{{ response.ServerlessCaches.Engine }}'
+      MajorEngineVersion: '{{ response.ServerlessCaches.MajorEngineVersion }}'
+      FullEngineVersion: '{{ response.ServerlessCaches.FullEngineVersion }}'
+      CacheUsageLimits: '{{ response.ServerlessCaches.CacheUsageLimits }}'
+      KmsKeyId: '{{ response.ServerlessCaches.KmsKeyId }}'
+      SecurityGroupIds: '{{ response.ServerlessCaches.SecurityGroupIds }}'
+      Endpoint: '{{ response.ServerlessCaches.Endpoint }}'
+      ReaderEndpoint: '{{ response.ServerlessCaches.ReaderEndpoint }}'
+      ARN: '{{ response.ServerlessCaches.ARN }}'
+      UserGroupId: '{{ response.ServerlessCaches.UserGroupId }}'
+      SubnetIds: '{{ response.ServerlessCaches.SubnetIds }}'
+      SnapshotRetentionLimit: '{{ response.ServerlessCaches.SnapshotRetentionLimit
         }}'
-      ServiceUpdateEndDate: '{{ response.ServiceUpdates.ServiceUpdateEndDate }}'
-      ServiceUpdateSeverity: '{{ response.ServiceUpdates.ServiceUpdateSeverity }}'
-      ServiceUpdateRecommendedApplyByDate: '{{ response.ServiceUpdates.ServiceUpdateRecommendedApplyByDate
+      DailySnapshotTime: '{{ response.ServerlessCaches.DailySnapshotTime }}'
+- discovery_id: aws.elasticache.describe_global_replication_groups
+  calls:
+  - action: describe_global_replication_groups
+    save_as: response
+  emit:
+    item:
+      GlobalReplicationGroupId: '{{ response.GlobalReplicationGroups.GlobalReplicationGroupId
         }}'
-      ServiceUpdateStatus: '{{ response.ServiceUpdates.ServiceUpdateStatus }}'
-      ServiceUpdateDescription: '{{ response.ServiceUpdates.ServiceUpdateDescription
+      GlobalReplicationGroupDescription: '{{ response.GlobalReplicationGroups.GlobalReplicationGroupDescription
         }}'
-      ServiceUpdateType: '{{ response.ServiceUpdates.ServiceUpdateType }}'
-      Engine: '{{ response.ServiceUpdates.Engine }}'
-      EngineVersion: '{{ response.ServiceUpdates.EngineVersion }}'
-      AutoUpdateAfterRecommendedApplyByDate: '{{ response.ServiceUpdates.AutoUpdateAfterRecommendedApplyByDate
+      Status: '{{ response.GlobalReplicationGroups.Status }}'
+      CacheNodeType: '{{ response.GlobalReplicationGroups.CacheNodeType }}'
+      Engine: '{{ response.GlobalReplicationGroups.Engine }}'
+      EngineVersion: '{{ response.GlobalReplicationGroups.EngineVersion }}'
+      Members: '{{ response.GlobalReplicationGroups.Members }}'
+      ClusterEnabled: '{{ response.GlobalReplicationGroups.ClusterEnabled }}'
+      GlobalNodeGroups: '{{ response.GlobalReplicationGroups.GlobalNodeGroups }}'
+      AuthTokenEnabled: '{{ response.GlobalReplicationGroups.AuthTokenEnabled }}'
+      TransitEncryptionEnabled: '{{ response.GlobalReplicationGroups.TransitEncryptionEnabled
         }}'
-      EstimatedUpdateTime: '{{ response.ServiceUpdates.EstimatedUpdateTime }}'
+      AtRestEncryptionEnabled: '{{ response.GlobalReplicationGroups.AtRestEncryptionEnabled
+        }}'
+      ARN: '{{ response.GlobalReplicationGroups.ARN }}'
 checks:
 - rule_id: aws.elasticache.cluster.require_tls_in_transit_configured
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.TransitEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.encryption_at_rest_cmek_configured
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AtRestEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.node.public_access_disabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
-    var: item.CacheSecurityGroups
-    op: equals
-    value: []
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elasticache.cluster.elasticache_automatic_failover_enabled
   for_each: aws.elasticache.describe_replication_groups
   conditions:
     var: item.AutomaticFailover
     op: equals
-    value: ENABLED
+    value: enabled
+- rule_id: aws.elasticache.cluster.private_networking_enforced
+  for_each: aws.elasticache.describe_serverless_caches
+  conditions:
+    var: item.SecurityGroupIds
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elasticache.node.deletion_protection_enabled
   for_each: aws.elasticache.describe_global_replication_groups
   conditions:
     var: item.ClusterEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.rest_encryption_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AtRestEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.deletion_protection_enabled
+  for_each: aws.elasticache.describe_global_replication_groups
+  conditions:
+    var: item.ClusterEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.elasticache.cluster.elasticache_minor_version_auto_upgrade_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
-    var: item.CacheClusterStatus
+    var: item.AutoMinorVersionUpgrade
     op: equals
-    value: ENABLED
-- rule_id: aws.elasticache.cluster.elasticache_minor_version_auto_upgrade_enabled
-  for_each: aws.elasticache.describe_service_updates
-  conditions:
-    var: item.AutoUpdateAfterRecommendedApplyByDate
-    op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.audit_logging_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
-    var: item.AuthTokenEnabled
+    var: item.ReplicationGroupLogDeliveryEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.public_access_disabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
-    var: item.ConfigurationEndpoint
-    op: exists
+    var: item.SecurityGroups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.elasticache.node.iam_or_managed_identity_auth_enabled_if_supported
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AuthTokenEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.node.require_tls_in_transit_configured
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.TransitEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.in_transit_encryption_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.TransitEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.iam_or_managed_identity_auth_enabled_if_supported
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AuthTokenEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.node.encryption_at_rest_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AtRestEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.encryption_at_rest_enabled
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.AtRestEncryptionEnabled
     op: equals
-    value: true
+    value: 'true'
 - rule_id: aws.elasticache.cluster.elasticache_multi_az_enabled
   for_each: aws.elasticache.describe_replication_groups
   conditions:
     var: item.MultiAZ
     op: equals
-    value: true
+    value: enabled
 - rule_id: aws.elasticache.backupretention.backup_retention_configured
   for_each: aws.elasticache.describe_cache_clusters
   conditions:
     var: item.SnapshotRetentionLimit
-    op: gt
-    value: 0
+    op: not_equals
+    value: 'null'

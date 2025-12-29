@@ -5,29 +5,58 @@ services:
   client: fsx
   module: boto3.client
 discovery:
-- discovery_id: aws.fsx.create_backup
+- discovery_id: aws.fsx.describe_backups
   calls:
-  - action: create_backup
+  - action: describe_backups
     save_as: response
   emit:
     item:
-      BackupId: '{{ response.Backup.BackupId }}'
-      Lifecycle: '{{ response.Backup.Lifecycle }}'
-      FailureDetails: '{{ response.Backup.FailureDetails }}'
-      Type: '{{ response.Backup.Type }}'
-      ProgressPercent: '{{ response.Backup.ProgressPercent }}'
-      CreationTime: '{{ response.Backup.CreationTime }}'
-      KmsKeyId: '{{ response.Backup.KmsKeyId }}'
-      ResourceARN: '{{ response.Backup.ResourceARN }}'
-      Tags: '{{ response.Backup.Tags }}'
-      FileSystem: '{{ response.Backup.FileSystem }}'
-      DirectoryInformation: '{{ response.Backup.DirectoryInformation }}'
-      OwnerId: '{{ response.Backup.OwnerId }}'
-      SourceBackupId: '{{ response.Backup.SourceBackupId }}'
-      SourceBackupRegion: '{{ response.Backup.SourceBackupRegion }}'
-      ResourceType: '{{ response.Backup.ResourceType }}'
-      Volume: '{{ response.Backup.Volume }}'
-      SizeInBytes: '{{ response.Backup.SizeInBytes }}'
+      BackupId: '{{ response.Backups.BackupId }}'
+      Lifecycle: '{{ response.Backups.Lifecycle }}'
+      FailureDetails: '{{ response.Backups.FailureDetails }}'
+      Type: '{{ response.Backups.Type }}'
+      ProgressPercent: '{{ response.Backups.ProgressPercent }}'
+      CreationTime: '{{ response.Backups.CreationTime }}'
+      KmsKeyId: '{{ response.Backups.KmsKeyId }}'
+      ResourceARN: '{{ response.Backups.ResourceARN }}'
+      Tags: '{{ response.Backups.Tags }}'
+      FileSystem: '{{ response.Backups.FileSystem }}'
+      DirectoryInformation: '{{ response.Backups.DirectoryInformation }}'
+      OwnerId: '{{ response.Backups.OwnerId }}'
+      SourceBackupId: '{{ response.Backups.SourceBackupId }}'
+      SourceBackupRegion: '{{ response.Backups.SourceBackupRegion }}'
+      ResourceType: '{{ response.Backups.ResourceType }}'
+      Volume: '{{ response.Backups.Volume }}'
+      SizeInBytes: '{{ response.Backups.SizeInBytes }}'
+      Backups: '{{ resource.Backups }}'
+- discovery_id: aws.fsx.describe_file_systems
+  calls:
+  - action: describe_file_systems
+    save_as: response
+  emit:
+    item:
+      OwnerId: '{{ response.FileSystems.OwnerId }}'
+      CreationTime: '{{ response.FileSystems.CreationTime }}'
+      FileSystemId: '{{ response.FileSystems.FileSystemId }}'
+      FileSystemType: '{{ response.FileSystems.FileSystemType }}'
+      Lifecycle: '{{ response.FileSystems.Lifecycle }}'
+      FailureDetails: '{{ response.FileSystems.FailureDetails }}'
+      StorageCapacity: '{{ response.FileSystems.StorageCapacity }}'
+      StorageType: '{{ response.FileSystems.StorageType }}'
+      VpcId: '{{ response.FileSystems.VpcId }}'
+      SubnetIds: '{{ response.FileSystems.SubnetIds }}'
+      NetworkInterfaceIds: '{{ response.FileSystems.NetworkInterfaceIds }}'
+      DNSName: '{{ response.FileSystems.DNSName }}'
+      KmsKeyId: '{{ response.FileSystems.KmsKeyId }}'
+      ResourceARN: '{{ response.FileSystems.ResourceARN }}'
+      Tags: '{{ response.FileSystems.Tags }}'
+      WindowsConfiguration: '{{ response.FileSystems.WindowsConfiguration }}'
+      LustreConfiguration: '{{ response.FileSystems.LustreConfiguration }}'
+      AdministrativeActions: '{{ response.FileSystems.AdministrativeActions }}'
+      OntapConfiguration: '{{ response.FileSystems.OntapConfiguration }}'
+      FileSystemTypeVersion: '{{ response.FileSystems.FileSystemTypeVersion }}'
+      OpenZFSConfiguration: '{{ response.FileSystems.OpenZFSConfiguration }}'
+      NetworkType: '{{ response.FileSystems.NetworkType }}'
 - discovery_id: aws.fsx.describe_file_caches
   calls:
   - action: describe_file_caches
@@ -51,42 +80,69 @@ discovery:
       LustreConfiguration: '{{ response.FileCaches.LustreConfiguration }}'
       DataRepositoryAssociationIds: '{{ response.FileCaches.DataRepositoryAssociationIds
         }}'
+- discovery_id: aws.fsx.describe_snapshots
+  calls:
+  - action: describe_snapshots
+    save_as: response
+  emit:
+    item:
+      ResourceARN: '{{ response.Snapshots.ResourceARN }}'
+      SnapshotId: '{{ response.Snapshots.SnapshotId }}'
+      Name: '{{ response.Snapshots.Name }}'
+      VolumeId: '{{ response.Snapshots.VolumeId }}'
+      CreationTime: '{{ response.Snapshots.CreationTime }}'
+      Lifecycle: '{{ response.Snapshots.Lifecycle }}'
+      LifecycleTransitionReason: '{{ response.Snapshots.LifecycleTransitionReason
+        }}'
+      Tags: '{{ response.Snapshots.Tags }}'
+      AdministrativeActions: '{{ response.Snapshots.AdministrativeActions }}'
+      Snapshots: '{{ resource.Snapshots }}'
 checks:
 - rule_id: aws.fsx.resource.backup_enabled
-  for_each: aws.fsx.create_backup
+  for_each: aws.fsx.describe_backups
   conditions:
-    var: item.Lifecycle
-    op: equals
-    value: AVAILABLE
+    var: item.Backups
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fsx.filesystem.kms_key_policy_least_privilege
-  for_each: aws.fsx.create_backup
+  for_each: aws.fsx.describe_backups
   conditions:
     var: item.KmsKeyId
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fsx.resource.fsx_windows_file_system_multi_az_enabled
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.FileSystemType
+    op: equals
+    value: WINDOWS
+- rule_id: aws.fsx.resource.file_system_copy_tags_to_backups_enabled
+  for_each: aws.fsx.describe_backups
+  conditions:
+    var: item.Backups
+    op: not_equals
+    value: 'null'
+- rule_id: aws.fsx.filesystem.private_network_only_configured
   for_each: aws.fsx.describe_file_caches
   conditions:
     var: item.SubnetIds
-    op: gt
-    value: 1
-- rule_id: aws.fsx.resource.file_system_copy_tags_to_backups_enabled
-  for_each: aws.fsx.create_backup
-  conditions:
-    var: item.Tags
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fsx.filesystem.encryption_at_rest_enabled
-  for_each: aws.fsx.create_backup
+  for_each: aws.fsx.describe_backups
   conditions:
-    var: item.KmsKeyId
-    op: exists
+    var: item.FileSystem
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fsx.filesystem.snapshots_enabled
-  for_each: aws.fsx.create_backup
+  for_each: aws.fsx.describe_snapshots
   conditions:
-    var: item.Lifecycle
-    op: equals
-    value: AVAILABLE
+    var: item.Snapshots
+    op: not_equals
+    value: 'null'
 - rule_id: aws.fsx.resource.file_system_copy_tags_to_volumes_enabled
-  for_each: aws.fsx.create_backup
+  for_each: aws.fsx.describe_backups
   conditions:
-    var: item.Tags
-    op: exists
+    var: item.FileSystem
+    op: not_equals
+    value: 'null'

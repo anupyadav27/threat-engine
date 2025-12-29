@@ -5,6 +5,24 @@ services:
   client: autoscaling
   module: boto3.client
 discovery:
+- discovery_id: aws.autoscaling.describe_scaling_activities
+  calls:
+  - action: describe_scaling_activities
+    save_as: response
+  emit:
+    item:
+      ActivityId: '{{ response.Activities.ActivityId }}'
+      AutoScalingGroupName: '{{ response.Activities.AutoScalingGroupName }}'
+      Description: '{{ response.Activities.Description }}'
+      Cause: '{{ response.Activities.Cause }}'
+      StartTime: '{{ response.Activities.StartTime }}'
+      EndTime: '{{ response.Activities.EndTime }}'
+      StatusCode: '{{ response.Activities.StatusCode }}'
+      StatusMessage: '{{ response.Activities.StatusMessage }}'
+      Progress: '{{ response.Activities.Progress }}'
+      Details: '{{ response.Activities.Details }}'
+      AutoScalingGroupState: '{{ response.Activities.AutoScalingGroupState }}'
+      AutoScalingGroupARN: '{{ response.Activities.AutoScalingGroupARN }}'
 - discovery_id: aws.autoscaling.describe_auto_scaling_groups
   calls:
   - action: describe_auto_scaling_groups
@@ -88,20 +106,26 @@ discovery:
         }}'
 checks:
 - rule_id: aws.autoscaling.group.autoscaling_multiple_az_configured
+  for_each: aws.autoscaling.describe_scaling_activities
+  conditions:
+    var: item.AutoScalingGroupState
+    op: equals
+    value: InService
+- rule_id: aws.autoscaling.group.autoscaling_capacity_rebalance_enabled
   for_each: aws.autoscaling.describe_auto_scaling_groups
   conditions:
-    var: item.AvailabilityZones
-    op: gt
-    value: 1
-- rule_id: aws.autoscaling.group.autoscaling_capacity_rebalance_enabled
+    var: item.CapacityRebalance
+    op: equals
+    value: 'true'
+- rule_id: aws.autoscaling.group.security_check_health_check_enabled
   for_each: aws.autoscaling.describe_policies
   conditions:
     var: item.Enabled
     op: equals
-    value: true
-- rule_id: aws.autoscaling.group.security_check_health_check_enabled
-  for_each: aws.autoscaling.describe_auto_scaling_groups
+    value: 'true'
+- rule_id: aws.autoscaling.group.auto_scaling_group_configured
+  for_each: aws.autoscaling.describe_scaling_activities
   conditions:
-    var: item.HealthCheckType
+    var: item.AutoScalingGroupState
     op: equals
-    value: ELB
+    value: InService

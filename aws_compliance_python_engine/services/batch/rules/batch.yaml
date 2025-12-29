@@ -5,6 +5,43 @@ services:
   client: batch
   module: boto3.client
 discovery:
+- discovery_id: aws.batch.describe_jobs
+  calls:
+  - action: describe_jobs
+    save_as: response
+  emit:
+    item:
+      jobArn: '{{ response.jobs.jobArn }}'
+      jobName: '{{ response.jobs.jobName }}'
+      jobId: '{{ response.jobs.jobId }}'
+      jobQueue: '{{ response.jobs.jobQueue }}'
+      status: '{{ response.jobs.status }}'
+      shareIdentifier: '{{ response.jobs.shareIdentifier }}'
+      schedulingPriority: '{{ response.jobs.schedulingPriority }}'
+      attempts: '{{ response.jobs.attempts }}'
+      statusReason: '{{ response.jobs.statusReason }}'
+      createdAt: '{{ response.jobs.createdAt }}'
+      retryStrategy: '{{ response.jobs.retryStrategy }}'
+      startedAt: '{{ response.jobs.startedAt }}'
+      stoppedAt: '{{ response.jobs.stoppedAt }}'
+      dependsOn: '{{ response.jobs.dependsOn }}'
+      jobDefinition: '{{ response.jobs.jobDefinition }}'
+      parameters: '{{ response.jobs.parameters }}'
+      container: '{{ response.jobs.container }}'
+      nodeDetails: '{{ response.jobs.nodeDetails }}'
+      nodeProperties: '{{ response.jobs.nodeProperties }}'
+      arrayProperties: '{{ response.jobs.arrayProperties }}'
+      timeout: '{{ response.jobs.timeout }}'
+      tags: '{{ response.jobs.tags }}'
+      propagateTags: '{{ response.jobs.propagateTags }}'
+      platformCapabilities: '{{ response.jobs.platformCapabilities }}'
+      eksProperties: '{{ response.jobs.eksProperties }}'
+      eksAttempts: '{{ response.jobs.eksAttempts }}'
+      ecsProperties: '{{ response.jobs.ecsProperties }}'
+      isCancelled: '{{ response.jobs.isCancelled }}'
+      isTerminated: '{{ response.jobs.isTerminated }}'
+      consumableResourceProperties: '{{ response.jobs.consumableResourceProperties
+        }}'
 - discovery_id: aws.batch.describe_compute_environments
   calls:
   - action: describe_compute_environments
@@ -30,18 +67,69 @@ discovery:
         }}'
       uuid: '{{ response.computeEnvironments.uuid }}'
       context: '{{ response.computeEnvironments.context }}'
+- discovery_id: aws.batch.describe_job_queues
+  calls:
+  - action: describe_job_queues
+    save_as: response
+  emit:
+    item:
+      jobQueueName: '{{ response.jobQueues.jobQueueName }}'
+      jobQueueArn: '{{ response.jobQueues.jobQueueArn }}'
+      state: '{{ response.jobQueues.state }}'
+      schedulingPolicyArn: '{{ response.jobQueues.schedulingPolicyArn }}'
+      status: '{{ response.jobQueues.status }}'
+      statusReason: '{{ response.jobQueues.statusReason }}'
+      priority: '{{ response.jobQueues.priority }}'
+      computeEnvironmentOrder: '{{ response.jobQueues.computeEnvironmentOrder }}'
+      serviceEnvironmentOrder: '{{ response.jobQueues.serviceEnvironmentOrder }}'
+      jobQueueType: '{{ response.jobQueues.jobQueueType }}'
+      tags: '{{ response.jobQueues.tags }}'
+      jobStateTimeLimitActions: '{{ response.jobQueues.jobStateTimeLimitActions }}'
 checks:
-- rule_id: aws.batch.jobqueue.no_public_ip_assigned_configured
+- rule_id: aws.batch.jobqueue.volumes_encrypted
+  for_each: aws.batch.describe_jobs
+  conditions:
+    var: item.jobQueue
+    op: not_equals
+    value: 'null'
+- rule_id: aws.batch.compute_environment.volumes_encrypted
   for_each: aws.batch.describe_compute_environments
   conditions:
     var: item.computeResources
-    op: equals
-    value:
-      assignPublicIp: DISABLED
+    op: not_equals
+    value: 'null'
+- rule_id: aws.batch.compute_environment.instance_profile_least_privilege
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.serviceRole
+    op: not_equals
+    value: 'null'
+- rule_id: aws.batch.compute_environment.batch_uses_approved_launch_template_configured
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.computeResources
+    op: not_equals
+    value: 'null'
+- rule_id: aws.batch.jobqueue.instance_profile_least_privilege
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.serviceRole
+    op: not_equals
+    value: 'null'
 - rule_id: aws.batch.compute_environment.no_public_ip_assigned_configured
   for_each: aws.batch.describe_compute_environments
   conditions:
     var: item.computeResources
-    op: contains
-    value:
-      assignPublicIp: DISABLED
+    op: not_equals
+    value: 'null'
+- rule_id: aws.batch.jobqueue.batch_uses_approved_launch_template_configured
+  for_each: aws.batch.describe_job_queues
+  conditions:
+    var: item.jobQueueType
+    op: equals
+    value: ECS
+- rule_id: aws.batch.jobqueue.no_public_ip_assigned_configured
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.computeResources
+    op: exists

@@ -5,6 +5,16 @@ services:
   client: kms
   module: boto3.client
 discovery:
+- discovery_id: aws.kms.list_keys
+  calls:
+  - action: list_keys
+    save_as: response
+  emit:
+    items_for: '{{ response.Keys }}'
+    as: resource
+    item:
+      KeyId: '{{ resource.KeyId }}'
+      KeyArn: '{{ resource.KeyArn }}'
 - discovery_id: aws.kms.create_key
   calls:
   - action: create_key
@@ -39,37 +49,17 @@ discovery:
       MacAlgorithms: '{{ response.KeyMetadata.MacAlgorithms }}'
       XksKeyConfiguration: '{{ response.KeyMetadata.XksKeyConfiguration }}'
       CurrentKeyMaterialId: '{{ response.KeyMetadata.CurrentKeyMaterialId }}'
-- discovery_id: aws.kms.list_aliases
+- discovery_id: aws.kms.get_key_rotation_status
   calls:
-  - action: list_aliases
+  - action: get_key_rotation_status
     save_as: response
   emit:
-    items_for: '{{ response.Aliases }}'
-    as: resource
     item:
-      AliasName: '{{ resource.AliasName }}'
-      AliasArn: '{{ resource.AliasArn }}'
-      TargetKeyId: '{{ resource.TargetKeyId }}'
-      CreationDate: '{{ resource.CreationDate }}'
-      LastUpdatedDate: '{{ resource.LastUpdatedDate }}'
-- discovery_id: aws.kms.list_keys
-  calls:
-  - action: list_keys
-    save_as: response
-  emit:
-    items_for: '{{ response.Keys }}'
-    as: resource
-    item:
-      KeyId: '{{ resource.KeyId }}'
-      KeyArn: '{{ resource.KeyArn }}'
+      KeyRotationEnabled: '{{ response.KeyRotationEnabled }}'
 - discovery_id: aws.kms.list_grants
   calls:
   - action: list_grants
     save_as: response
-    params:
-      KeyId: '{{ item.KeyId }}'
-  on_error: continue
-  for_each: aws.kms.list_keys
   emit:
     items_for: '{{ response.Grants }}'
     as: resource
@@ -83,77 +73,115 @@ discovery:
       IssuingAccount: '{{ resource.IssuingAccount }}'
       Operations: '{{ resource.Operations }}'
       Constraints: '{{ resource.Constraints }}'
+- discovery_id: aws.kms.get_key_policy
+  calls:
+  - action: get_key_policy
+    save_as: response
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
 checks:
 - rule_id: aws.kms.alias.points_to_active_key_configured
-  for_each: aws.kms.create_key
+  for_each: aws.kms.list_keys
   conditions:
-    var: item.KeyState
-    op: equals
-    value: Enabled
+    var: item.KeyId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kms.alias.logging_enabled
   for_each: aws.kms.create_key
   conditions:
     var: item.Enabled
     op: equals
     value: true
-- rule_id: aws.kms.key.certificate_expiration_configured
-  for_each: aws.kms.create_key
+- rule_id: aws.kms.key.state_change_monitoring_enabled
+  for_each: aws.kms.get_key_rotation_status
   conditions:
-    var: item.ValidTo
-    op: exists
-- rule_id: aws.kms.key.tls_min_1_2_enforced
-  for_each: aws.kms.create_key
-  conditions:
-    var: item.KeyState
+    var: item.KeyRotationEnabled
     op: equals
-    value: Enabled
+    value: true
+- rule_id: aws.kms.key.certificate_expiration_configured
+  for_each: aws.kms.get_key_rotation_status
+  conditions:
+    var: item.KeyRotationEnabled
+    op: equals
+    value: true
+- rule_id: aws.kms.key.mtls_required_for_internal_services_if_supported
+  for_each: aws.kms.create_key
+  conditions:
+    var: item.KeyUsage
+    op: equals
+    value: ENCRYPT_DECRYPT
+- rule_id: aws.kms.key.tls_min_1_2_enforced
+  for_each: aws.kms.get_key_rotation_status
+  conditions:
+    var: item.KeyRotationEnabled
+    op: equals
+    value: true
 - rule_id: aws.kms.key.multi_region_disabled
+  for_each: aws.kms.create_key
+  conditions:
+    var: item.MultiRegion
+    op: equals
+    value: 'false'
+- rule_id: aws.kms.key.in_transit_tls_min_1_2_configured
+  for_each: aws.kms.create_key
+  conditions:
+    var: item.KeyUsage
+    op: equals
+    value: ENCRYPT_DECRYPT
+- rule_id: aws.kms.grant.lessthan_wildcard_permissions_configured
+  for_each: aws.kms.list_grants
+  conditions:
+    var: item.Constraints
+    op: not_equals
+    value: 'null'
+- rule_id: aws.kms.key.at_rest_cmek_enabled
   for_each: aws.kms.create_key
   conditions:
     var: item.KeyManager
     op: equals
     value: CUSTOMER
-- rule_id: aws.kms.key.in_transit_tls_min_1_2_configured
-  for_each: aws.kms.create_key
-  conditions:
-    var: item.KeyState
-    op: equals
-    value: Enabled
-- rule_id: aws.kms.grant.lessthan_wildcard_permissions_configured
-  for_each: aws.kms.list_grants
-  conditions:
-    var: item.Operations
-    op: contains
-    value:
-    - Encrypt
-    - Decrypt
-    - GenerateDataKey
 - rule_id: aws.kms.key.not_scheduled_for_deletion_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.DeletionDate
-    op: exists
+    var: item.KeyState
+    op: not_equals
+    value: PendingDeletion
 - rule_id: aws.kms.grant.ee_principal_valid
   for_each: aws.kms.list_grants
   conditions:
     var: item.GranteePrincipal
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kms.key.rotation_enabled
+  for_each: aws.kms.get_key_rotation_status
+  conditions:
+    var: item.KeyRotationEnabled
+    op: equals
+    value: true
+- rule_id: aws.kms.alias.default_keys_disabled_if_cmek_required
   for_each: aws.kms.create_key
   conditions:
     var: item.Enabled
     op: equals
-    value: true
-- rule_id: aws.kms.alias.key_has_alias_configured
-  for_each: aws.kms.list_aliases
+    value: false
+- rule_id: aws.kms.key.customer_managed_keys_in_use
+  for_each: aws.kms.create_key
   conditions:
-    var: item.AliasName
+    var: item.KeyManager
+    op: equals
+    value: CUSTOMER
+- rule_id: aws.kms.alias.key_has_alias_configured
+  for_each: aws.kms.list_keys
+  conditions:
+    var: item.KeyArn
     op: exists
 - rule_id: aws.kms.key.deletion_requires_waiting_period_configured
   for_each: aws.kms.create_key
   conditions:
-    var: item.DeletionDate
-    op: exists
+    var: item.PendingDeletionWindowInDays
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kms.key.logging_enabled
   for_each: aws.kms.create_key
   conditions:
@@ -165,8 +193,14 @@ checks:
   conditions:
     var: item.KeyState
     op: not_equals
-    value: PENDING_DELETION
+    value: PendingDeletion
 - rule_id: aws.kms.key.not_publicly_accessible_configured
+  for_each: aws.kms.create_key
+  conditions:
+    var: item.KeyState
+    op: not_equals
+    value: Enabled
+- rule_id: aws.kms.key.default_keys_disabled_if_cmek_required
   for_each: aws.kms.create_key
   conditions:
     var: item.KeyManager
@@ -176,4 +210,17 @@ checks:
   for_each: aws.kms.list_grants
   conditions:
     var: item.Constraints
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.kms.key.lifecycle_policy_configured
+  for_each: aws.kms.get_key_rotation_status
+  conditions:
+    var: item.KeyRotationEnabled
+    op: equals
+    value: true
+- rule_id: aws.kms.key.policy_least_privilege
+  for_each: aws.kms.get_key_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: 'null'

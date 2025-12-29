@@ -89,6 +89,26 @@ def extract_value(obj: Any, path: str):
     return current
 
 
+def extract_checked_fields(cond_config: Dict[str, Any]) -> set:
+    """Extract all field names referenced in check conditions"""
+    fields = set()
+    
+    if isinstance(cond_config, dict):
+        if 'all' in cond_config:
+            for sub_cond in cond_config['all']:
+                fields.update(extract_checked_fields(sub_cond))
+        elif 'any' in cond_config:
+            for sub_cond in cond_config['any']:
+                fields.update(extract_checked_fields(sub_cond))
+        else:
+            var = cond_config.get('var', '')
+            if var:
+                # Extract field name from 'item.field' or just 'field'
+                field_name = var.replace('item.', '') if var.startswith('item.') else var
+                fields.add(field_name)
+    
+    return fields
+
 def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
     """Evaluate a condition with the given operator"""
     if operator == 'exists':
@@ -357,6 +377,17 @@ def run_service_scan(
                 # Merge item with saved_data for context
                 context = {**saved_data, **item}
                 
+                # Extract checked fields from check structure for evidence filtering
+                checked_fields = set()
+                for call in check.get('calls', []):
+                    if call.get('action') == 'eval':
+                        for field in call.get('fields', []):
+                            path = field.get('path', '')
+                            if path:
+                                # Extract field name from path (remove 'item.' prefix if present)
+                                field_name = path.replace('item.', '') if path.startswith('item.') else path.split('.')[-1]
+                                checked_fields.add(field_name)
+                
                 # Evaluate conditions
                 call_results = []
                 for call in check.get('calls', []):
@@ -383,15 +414,23 @@ def run_service_scan(
                 else:  # AND
                     final_result = all(call_results) if call_results else False
                 
-                checks_output.append({
+                record = {
                     'check_id': check_id,
                     'title': title,
                     'severity': severity,
                     'result': 'PASS' if final_result else 'FAIL',
                     'project': project_id,
                     'region': region or 'global',
-                    'resource_id': item.get('resource_name') or item.get('name') or 'unknown'
-                })
+                    'resource_id': item.get('resource_name') or item.get('name') or 'unknown',
+                    '_checked_fields': list(checked_fields)  # Store for evidence filtering
+                }
+                
+                # Add item data to record
+                if item and isinstance(item, dict):
+                    for key, value in item.items():
+                        record[key] = value
+                
+                checks_output.append(record)
         
         return {
             'inventory': discovery_results,

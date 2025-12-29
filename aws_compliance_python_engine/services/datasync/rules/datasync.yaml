@@ -5,22 +5,33 @@ services:
   client: datasync
   module: boto3.client
 discovery:
-- discovery_id: aws.datasync.list_agents
+- discovery_id: aws.datasync.list_tasks
   calls:
-  - action: list_agents
+  - action: list_tasks
     save_as: response
   emit:
-    items_for: '{{ response.Agents }}'
+    items_for: '{{ response.Tasks }}'
     as: resource
     item:
-      AgentArn: '{{ resource.AgentArn }}'
-      Name: '{{ resource.Name }}'
+      TaskArn: '{{ resource.TaskArn }}'
       Status: '{{ resource.Status }}'
-      Platform: '{{ resource.Platform }}'
+      Name: '{{ resource.Name }}'
+      TaskMode: '{{ resource.TaskMode }}'
+- discovery_id: aws.datasync.describe_task
+  calls:
+  - action: describe_task
+    save_as: response
+    params:
+      TaskArn: '{{ item.TaskArn }}'
+  for_each: aws.datasync.list_tasks
+  on_error: continue
+  emit:
+    item:
+      CloudWatchLogGroupArn: '{{ response.CloudWatchLogsLogGroupArn }}'
 checks:
 - rule_id: aws.datasync.resource.task_logging_enabled
-  for_each: aws.datasync.list_agents
+  for_each: aws.datasync.describe_task
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.CloudWatchLogGroupArn
+    op: not_equals
+    value: 'null'

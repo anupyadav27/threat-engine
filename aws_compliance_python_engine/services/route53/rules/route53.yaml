@@ -5,18 +5,41 @@ services:
   client: route53
   module: boto3.client
 discovery:
-- discovery_id: aws.route53.list_cidr_collections
+- discovery_id: aws.route53.list_cidr_blocks
   calls:
-  - action: list_cidr_collections
+  - action: list_cidr_blocks
     save_as: response
   emit:
-    items_for: '{{ response.CidrCollections }}'
+    items_for: '{{ response.CidrBlocks }}'
     as: resource
     item:
-      Arn: '{{ resource.Arn }}'
-      Id: '{{ resource.Id }}'
-      Name: '{{ resource.Name }}'
-      Version: '{{ resource.Version }}'
+      CidrBlock: '{{ resource.CidrBlock }}'
+      LocationName: '{{ resource.LocationName }}'
+- discovery_id: aws.route53.create_query_logging_config
+  calls:
+  - action: create_query_logging_config
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.QueryLoggingConfig.Id }}'
+      HostedZoneId: '{{ response.QueryLoggingConfig.HostedZoneId }}'
+      CloudWatchLogsLogGroupArn: '{{ response.QueryLoggingConfig.CloudWatchLogsLogGroupArn
+        }}'
+      QueryLoggingConfig: '{{ resource.QueryLoggingConfig }}'
+- discovery_id: aws.route53.create_health_check
+  calls:
+  - action: create_health_check
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.HealthCheck.Id }}'
+      CallerReference: '{{ response.HealthCheck.CallerReference }}'
+      LinkedService: '{{ response.HealthCheck.LinkedService }}'
+      HealthCheckConfig: '{{ response.HealthCheck.HealthCheckConfig }}'
+      HealthCheckVersion: '{{ response.HealthCheck.HealthCheckVersion }}'
+      CloudWatchAlarmConfiguration: '{{ response.HealthCheck.CloudWatchAlarmConfiguration
+        }}'
+      HealthCheck: '{{ resource.HealthCheck }}'
 - discovery_id: aws.route53.list_health_checks
   calls:
   - action: list_health_checks
@@ -31,40 +54,10 @@ discovery:
       HealthCheckConfig: '{{ resource.HealthCheckConfig }}'
       HealthCheckVersion: '{{ resource.HealthCheckVersion }}'
       CloudWatchAlarmConfiguration: '{{ resource.CloudWatchAlarmConfiguration }}'
-- discovery_id: aws.route53.list_query_logging_configs
-  calls:
-  - action: list_query_logging_configs
-    save_as: response
-  emit:
-    items_for: '{{ response.QueryLoggingConfigs }}'
-    as: resource
-    item:
-      Id: '{{ resource.Id }}'
-      HostedZoneId: '{{ resource.HostedZoneId }}'
-      CloudWatchLogsLogGroupArn: '{{ resource.CloudWatchLogsLogGroupArn }}'
-- discovery_id: aws.route53.activate_key_signing_key
-  calls:
-  - action: activate_key_signing_key
-    save_as: response
-    params:
-      HostedZoneId: '{{ item.HostedZoneId }}'
-      Name: '{{ item.Name }}'
-  on_error: continue
-  for_each: aws.route53.list_query_logging_configs
-  emit:
-    item:
-      Id: '{{ response.ChangeInfo.Id }}'
-      Status: '{{ response.ChangeInfo.Status }}'
-      SubmittedAt: '{{ response.ChangeInfo.SubmittedAt }}'
-      Comment: '{{ response.ChangeInfo.Comment }}'
 - discovery_id: aws.route53.list_resource_record_sets
   calls:
   - action: list_resource_record_sets
     save_as: response
-    params:
-      HostedZoneId: '{{ item.HostedZoneId }}'
-  on_error: continue
-  for_each: aws.route53.list_query_logging_configs
   emit:
     items_for: '{{ response.ResourceRecordSets }}'
     as: resource
@@ -84,70 +77,181 @@ discovery:
       TrafficPolicyInstanceId: '{{ resource.TrafficPolicyInstanceId }}'
       CidrRoutingConfig: '{{ resource.CidrRoutingConfig }}'
       GeoProximityLocation: '{{ resource.GeoProximityLocation }}'
+- discovery_id: aws.route53.get_d_n_s_s_e_c
+  calls:
+  - action: get_dnssec
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.KeySigningKeys.Name }}'
+      KmsArn: '{{ response.KeySigningKeys.KmsArn }}'
+      Flag: '{{ response.KeySigningKeys.Flag }}'
+      SigningAlgorithmMnemonic: '{{ response.KeySigningKeys.SigningAlgorithmMnemonic
+        }}'
+      SigningAlgorithmType: '{{ response.KeySigningKeys.SigningAlgorithmType }}'
+      DigestAlgorithmMnemonic: '{{ response.KeySigningKeys.DigestAlgorithmMnemonic
+        }}'
+      DigestAlgorithmType: '{{ response.KeySigningKeys.DigestAlgorithmType }}'
+      KeyTag: '{{ response.KeySigningKeys.KeyTag }}'
+      DigestValue: '{{ response.KeySigningKeys.DigestValue }}'
+      PublicKey: '{{ response.KeySigningKeys.PublicKey }}'
+      DSRecord: '{{ response.KeySigningKeys.DSRecord }}'
+      DNSKEYRecord: '{{ response.KeySigningKeys.DNSKEYRecord }}'
+      Status: '{{ response.KeySigningKeys.Status }}'
+      StatusMessage: '{{ response.KeySigningKeys.StatusMessage }}'
+      CreatedDate: '{{ response.KeySigningKeys.CreatedDate }}'
+      LastModifiedDate: '{{ response.KeySigningKeys.LastModifiedDate }}'
+- discovery_id: aws.route53.list_reusable_delegation_sets
+  calls:
+  - action: list_reusable_delegation_sets
+    save_as: response
+  emit:
+    items_for: '{{ response.DelegationSets }}'
+    as: resource
+    item:
+      Id: '{{ resource.Id }}'
+      CallerReference: '{{ resource.CallerReference }}'
+      NameServers: '{{ resource.NameServers }}'
+- discovery_id: aws.route53.list_query_logging_configs
+  calls:
+  - action: list_query_logging_configs
+    save_as: response
+  emit:
+    items_for: '{{ response.QueryLoggingConfigs }}'
+    as: resource
+    item:
+      Id: '{{ resource.Id }}'
+      HostedZoneId: '{{ resource.HostedZoneId }}'
+      CloudWatchLogsLogGroupArn: '{{ resource.CloudWatchLogsLogGroupArn }}'
+- discovery_id: aws.route53.list_traffic_policies
+  calls:
+  - action: list_traffic_policies
+    save_as: response
+  emit:
+    items_for: '{{ response.TrafficPolicySummaries }}'
+    as: resource
+    item:
+      Id: '{{ resource.Id }}'
+      Name: '{{ resource.Name }}'
+      Type: '{{ resource.Type }}'
+      LatestVersion: '{{ resource.LatestVersion }}'
+      TrafficPolicyCount: '{{ resource.TrafficPolicyCount }}'
+- discovery_id: aws.route53.get_traffic_policy
+  calls:
+  - action: get_traffic_policy
+    save_as: response
+    params:
+      Id: '{{ item.Id }}'
+  for_each: aws.route53.list_traffic_policies
+  on_error: continue
+  emit:
+    item:
+      Id: '{{ response.TrafficPolicy.Id }}'
+      Version: '{{ response.TrafficPolicy.Version }}'
+      Name: '{{ response.TrafficPolicy.Name }}'
+      Type: '{{ response.TrafficPolicy.Type }}'
+      Document: '{{ response.TrafficPolicy.Document }}'
+      Comment: '{{ response.TrafficPolicy.Comment }}'
+      TrafficPolicy: '{{ resource.TrafficPolicy }}'
 checks:
 - rule_id: aws.route53.recordset.no_rfc1918_in_public_zones_configured
-  for_each: aws.route53.list_resource_record_sets
+  for_each: aws.route53.list_cidr_blocks
   conditions:
-    var: item.ResourceRecords
-    op: contains
-    value:
-    - 10.0.0.0/8
-    - 172.16.0.0/12
-    - 192.168.0.0/16
+    var: item.CidrBlock
+    op: not_equals
+    value: 10.0.0.0/8
 - rule_id: aws.route53.hostedzone.query_logging_enabled
-  for_each: aws.route53.list_query_logging_configs
+  for_each: aws.route53.create_query_logging_config
   conditions:
-    var: item.CloudWatchLogsLogGroupArn
-    op: exists
+    var: item.QueryLoggingConfig
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.trafficpolicy.security_check_health_checks_required_for_failover_configured
-  for_each: aws.route53.list_resource_record_sets
+  for_each: aws.route53.create_health_check
   conditions:
-    var: item.HealthCheckId
-    op: exists
+    var: item.HealthCheck
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.healthcheck.alerts_configured
   for_each: aws.route53.list_health_checks
   conditions:
     var: item.CloudWatchAlarmConfiguration
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.route53.recordset.route53_caa_records_present_for_root_and_wildcard_configured
+  for_each: aws.route53.list_resource_record_sets
+  conditions:
+    var: item.ResourceRecords
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.healthcheck.route53_no_plaintext_credentials_in_url_configured
   for_each: aws.route53.list_health_checks
   conditions:
     var: item.HealthCheckConfig
-    op: contains
-    value: NO_PLAINTEXT_CREDENTIALS
+    op: not_equals
+    value: 'null'
+- rule_id: aws.route53.hostedzone.route53_zone_transfer_restricted_or_tsig_required
+  for_each: aws.route53.get_d_n_s_s_e_c
+  conditions:
+    var: item.DNSKEYRecord
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.hostedzone.route53_cross_account_sharing_restricted
-  for_each: aws.route53.list_health_checks
+  for_each: aws.route53.list_reusable_delegation_sets
   conditions:
-    var: item.LinkedService
-    op: equals
+    var: item.NameServers
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.hostedzone.route53_dnssec_enabled_if_supported
-  for_each: aws.route53.activate_key_signing_key
+  for_each: aws.route53.get_d_n_s_s_e_c
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.DNSKEYRecord
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.healthcheck.https_or_tls_used_configured
   for_each: aws.route53.list_health_checks
   conditions:
     var: item.HealthCheckConfig
-    op: contains
-    value: HTTPS
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.resource.public_hosted_zones_cloudwatch_logging_enabled
   for_each: aws.route53.list_query_logging_configs
   conditions:
     var: item.CloudWatchLogsLogGroupArn
-    op: exists
+    op: not_equals
+    value: 'null'
 - rule_id: aws.route53.recordset.route53_alias_targets_in_approved_services_configured
   for_each: aws.route53.list_resource_record_sets
   conditions:
     var: item.AliasTarget
-    op: contains
-    value:
-    - approved-service-1
-    - approved-service-2
-- rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
-  for_each: aws.route53.list_cidr_collections
+    op: in
+    value: approved_service_list
+- rule_id: aws.route53.recordset.route53_dmarc_record_present_when_mx_configured
+  for_each: aws.route53.list_resource_record_sets
   conditions:
-    var: item.Name
-    op: contains
-    value: approved-domain.com
+    var: item.ResourceRecords
+    op: not_equals
+    value: 'null'
+- rule_id: aws.route53.trafficpolicy.policy_documents_encrypted_and_private
+  for_each: aws.route53.get_traffic_policy
+  conditions:
+    var: item.TrafficPolicy
+    op: not_equals
+    value: 'null'
+- rule_id: aws.route53.recordset.route53_no_broad_wildcards_sensitive_zones_configured
+  for_each: aws.route53.list_resource_record_sets
+  conditions:
+    var: item.Type
+    op: not_equals
+    value: '*'
+- rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
+  for_each: aws.route53.list_resource_record_sets
+  conditions:
+    var: item.Type
+    op: in
+    value:
+    - A
+    - CNAME
+    - MX
+    - NS
+    - TXT

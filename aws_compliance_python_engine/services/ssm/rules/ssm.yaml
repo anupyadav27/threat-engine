@@ -5,22 +5,212 @@ services:
   client: ssm
   module: boto3.client
 discovery:
-- discovery_id: aws.ssm.describe_activations
+- discovery_id: aws.ssm.describe_patch_group_state
   calls:
-  - action: describe_activations
+  - action: describe_patch_group_state
     save_as: response
   emit:
     item:
-      ActivationId: '{{ response.ActivationList.ActivationId }}'
-      Description: '{{ response.ActivationList.Description }}'
-      DefaultInstanceName: '{{ response.ActivationList.DefaultInstanceName }}'
-      IamRole: '{{ response.ActivationList.IamRole }}'
-      RegistrationLimit: '{{ response.ActivationList.RegistrationLimit }}'
-      RegistrationsCount: '{{ response.ActivationList.RegistrationsCount }}'
-      ExpirationDate: '{{ response.ActivationList.ExpirationDate }}'
-      Expired: '{{ response.ActivationList.Expired }}'
-      CreatedDate: '{{ response.ActivationList.CreatedDate }}'
-      Tags: '{{ response.ActivationList.Tags }}'
+      InstancesWithCriticalNonCompliantPatches: '{{ response.InstancesWithCriticalNonCompliantPatches
+        }}'
+- discovery_id: aws.ssm.describe_patch_baselines
+  calls:
+  - action: describe_patch_baselines
+    save_as: response
+  emit:
+    item:
+      BaselineId: '{{ response.BaselineIdentities.BaselineId }}'
+      BaselineName: '{{ response.BaselineIdentities.BaselineName }}'
+      OperatingSystem: '{{ response.BaselineIdentities.OperatingSystem }}'
+      BaselineDescription: '{{ response.BaselineIdentities.BaselineDescription }}'
+      DefaultBaseline: '{{ response.BaselineIdentities.DefaultBaseline }}'
+- discovery_id: aws.ssm.get_patch_baseline
+  calls:
+  - action: get_patch_baseline
+    save_as: response
+    params:
+      BaselineId: '{{ item.BaselineId }}'
+  for_each: aws.ssm.describe_patch_baselines
+  on_error: continue
+  emit:
+    item:
+      ApprovalRules: '{{ response.ApprovalRules }}'
+      ApprovedPatchesComplianceLevel: '{{ response.ApprovedPatchesComplianceLevel
+        }}'
+- discovery_id: aws.ssm.describe_maintenance_window_schedule
+  calls:
+  - action: describe_maintenance_window_schedule
+    save_as: response
+  emit:
+    item:
+      WindowId: '{{ response.ScheduledWindowExecutions.WindowId }}'
+      Name: '{{ response.ScheduledWindowExecutions.Name }}'
+      ExecutionTime: '{{ response.ScheduledWindowExecutions.ExecutionTime }}'
+- discovery_id: aws.ssm.describe_sessions
+  calls:
+  - action: describe_sessions
+    save_as: response
+  emit:
+    item:
+      SessionId: '{{ response.Sessions.SessionId }}'
+      Target: '{{ response.Sessions.Target }}'
+      Status: '{{ response.Sessions.Status }}'
+      StartDate: '{{ response.Sessions.StartDate }}'
+      EndDate: '{{ response.Sessions.EndDate }}'
+      DocumentName: '{{ response.Sessions.DocumentName }}'
+      Owner: '{{ response.Sessions.Owner }}'
+      Reason: '{{ response.Sessions.Reason }}'
+      Details: '{{ response.Sessions.Details }}'
+      OutputUrl: '{{ response.Sessions.OutputUrl }}'
+      MaxSessionDuration: '{{ response.Sessions.MaxSessionDuration }}'
+      AccessType: '{{ response.Sessions.AccessType }}'
+- discovery_id: aws.ssm.list_documents
+  calls:
+  - action: list_documents
+    save_as: response
+  emit:
+    items_for: '{{ response.DocumentIdentifiers }}'
+    as: resource
+    item:
+      Name: '{{ resource.Name }}'
+      CreatedDate: '{{ resource.CreatedDate }}'
+      DisplayName: '{{ resource.DisplayName }}'
+      Owner: '{{ resource.Owner }}'
+      VersionName: '{{ resource.VersionName }}'
+      PlatformTypes: '{{ resource.PlatformTypes }}'
+      DocumentVersion: '{{ resource.DocumentVersion }}'
+      DocumentType: '{{ resource.DocumentType }}'
+      SchemaVersion: '{{ resource.SchemaVersion }}'
+      DocumentFormat: '{{ resource.DocumentFormat }}'
+      TargetType: '{{ resource.TargetType }}'
+      Tags: '{{ resource.Tags }}'
+      Requires: '{{ resource.Requires }}'
+      ReviewStatus: '{{ resource.ReviewStatus }}'
+      Author: '{{ resource.Author }}'
+- discovery_id: aws.ssm.describe_maintenance_window_execution_task_invocations
+  calls:
+  - action: describe_maintenance_window_execution_task_invocations
+    save_as: response
+  emit:
+    item:
+      WindowExecutionId: '{{ response.WindowExecutionTaskInvocationIdentities.WindowExecutionId
+        }}'
+      TaskExecutionId: '{{ response.WindowExecutionTaskInvocationIdentities.TaskExecutionId
+        }}'
+      InvocationId: '{{ response.WindowExecutionTaskInvocationIdentities.InvocationId
+        }}'
+      ExecutionId: '{{ response.WindowExecutionTaskInvocationIdentities.ExecutionId
+        }}'
+      TaskType: '{{ response.WindowExecutionTaskInvocationIdentities.TaskType }}'
+      Parameters: '{{ response.WindowExecutionTaskInvocationIdentities.Parameters
+        }}'
+      Status: '{{ response.WindowExecutionTaskInvocationIdentities.Status }}'
+      StatusDetails: '{{ response.WindowExecutionTaskInvocationIdentities.StatusDetails
+        }}'
+      StartTime: '{{ response.WindowExecutionTaskInvocationIdentities.StartTime }}'
+      EndTime: '{{ response.WindowExecutionTaskInvocationIdentities.EndTime }}'
+      OwnerInformation: '{{ response.WindowExecutionTaskInvocationIdentities.OwnerInformation
+        }}'
+      WindowTargetId: '{{ response.WindowExecutionTaskInvocationIdentities.WindowTargetId
+        }}'
+      WindowExecutionTaskInvocationIdentities: '{{ resource.WindowExecutionTaskInvocationIdentities
+        }}'
+- discovery_id: aws.ssm.describe_automation_executions
+  calls:
+  - action: describe_automation_executions
+    save_as: response
+  emit:
+    item:
+      AutomationExecutionId: '{{ response.AutomationExecutionMetadataList.AutomationExecutionId
+        }}'
+      DocumentName: '{{ response.AutomationExecutionMetadataList.DocumentName }}'
+      DocumentVersion: '{{ response.AutomationExecutionMetadataList.DocumentVersion
+        }}'
+      AutomationExecutionStatus: '{{ response.AutomationExecutionMetadataList.AutomationExecutionStatus
+        }}'
+      ExecutionStartTime: '{{ response.AutomationExecutionMetadataList.ExecutionStartTime
+        }}'
+      ExecutionEndTime: '{{ response.AutomationExecutionMetadataList.ExecutionEndTime
+        }}'
+      ExecutedBy: '{{ response.AutomationExecutionMetadataList.ExecutedBy }}'
+      LogFile: '{{ response.AutomationExecutionMetadataList.LogFile }}'
+      Outputs: '{{ response.AutomationExecutionMetadataList.Outputs }}'
+      Mode: '{{ response.AutomationExecutionMetadataList.Mode }}'
+      ParentAutomationExecutionId: '{{ response.AutomationExecutionMetadataList.ParentAutomationExecutionId
+        }}'
+      CurrentStepName: '{{ response.AutomationExecutionMetadataList.CurrentStepName
+        }}'
+      CurrentAction: '{{ response.AutomationExecutionMetadataList.CurrentAction }}'
+      FailureMessage: '{{ response.AutomationExecutionMetadataList.FailureMessage
+        }}'
+      TargetParameterName: '{{ response.AutomationExecutionMetadataList.TargetParameterName
+        }}'
+      Targets: '{{ response.AutomationExecutionMetadataList.Targets }}'
+      TargetMaps: '{{ response.AutomationExecutionMetadataList.TargetMaps }}'
+      ResolvedTargets: '{{ response.AutomationExecutionMetadataList.ResolvedTargets
+        }}'
+      MaxConcurrency: '{{ response.AutomationExecutionMetadataList.MaxConcurrency
+        }}'
+      MaxErrors: '{{ response.AutomationExecutionMetadataList.MaxErrors }}'
+      Target: '{{ response.AutomationExecutionMetadataList.Target }}'
+      AutomationType: '{{ response.AutomationExecutionMetadataList.AutomationType
+        }}'
+      AlarmConfiguration: '{{ response.AutomationExecutionMetadataList.AlarmConfiguration
+        }}'
+      TriggeredAlarms: '{{ response.AutomationExecutionMetadataList.TriggeredAlarms
+        }}'
+      TargetLocationsURL: '{{ response.AutomationExecutionMetadataList.TargetLocationsURL
+        }}'
+      AutomationSubtype: '{{ response.AutomationExecutionMetadataList.AutomationSubtype
+        }}'
+      ScheduledTime: '{{ response.AutomationExecutionMetadataList.ScheduledTime }}'
+      Runbooks: '{{ response.AutomationExecutionMetadataList.Runbooks }}'
+      OpsItemId: '{{ response.AutomationExecutionMetadataList.OpsItemId }}'
+      AssociationId: '{{ response.AutomationExecutionMetadataList.AssociationId }}'
+      ChangeRequestName: '{{ response.AutomationExecutionMetadataList.ChangeRequestName
+        }}'
+      AutomationExecutionMetadataList: '{{ resource.AutomationExecutionMetadataList
+        }}'
+      Status: '{{ resource.Status }}'
+- discovery_id: aws.ssm.describe_maintenance_windows
+  calls:
+  - action: describe_maintenance_windows
+    save_as: response
+  emit:
+    item:
+      WindowId: '{{ response.WindowIdentities.WindowId }}'
+      Name: '{{ response.WindowIdentities.Name }}'
+      Description: '{{ response.WindowIdentities.Description }}'
+      Enabled: '{{ response.WindowIdentities.Enabled }}'
+      Duration: '{{ response.WindowIdentities.Duration }}'
+      Cutoff: '{{ response.WindowIdentities.Cutoff }}'
+      Schedule: '{{ response.WindowIdentities.Schedule }}'
+      ScheduleTimezone: '{{ response.WindowIdentities.ScheduleTimezone }}'
+      ScheduleOffset: '{{ response.WindowIdentities.ScheduleOffset }}'
+      EndDate: '{{ response.WindowIdentities.EndDate }}'
+      StartDate: '{{ response.WindowIdentities.StartDate }}'
+      NextExecutionTime: '{{ response.WindowIdentities.NextExecutionTime }}'
+- discovery_id: aws.ssm.describe_maintenance_window_tasks
+  calls:
+  - action: describe_maintenance_window_tasks
+    save_as: response
+  emit:
+    item:
+      WindowId: '{{ response.Tasks.WindowId }}'
+      WindowTaskId: '{{ response.Tasks.WindowTaskId }}'
+      TaskArn: '{{ response.Tasks.TaskArn }}'
+      Type: '{{ response.Tasks.Type }}'
+      Targets: '{{ response.Tasks.Targets }}'
+      TaskParameters: '{{ response.Tasks.TaskParameters }}'
+      Priority: '{{ response.Tasks.Priority }}'
+      LoggingInfo: '{{ response.Tasks.LoggingInfo }}'
+      ServiceRoleArn: '{{ response.Tasks.ServiceRoleArn }}'
+      MaxConcurrency: '{{ response.Tasks.MaxConcurrency }}'
+      MaxErrors: '{{ response.Tasks.MaxErrors }}'
+      Name: '{{ response.Tasks.Name }}'
+      Description: '{{ response.Tasks.Description }}'
+      CutoffBehavior: '{{ response.Tasks.CutoffBehavior }}'
+      AlarmConfiguration: '{{ response.Tasks.AlarmConfiguration }}'
 - discovery_id: aws.ssm.describe_association
   calls:
   - action: describe_association
@@ -60,122 +250,198 @@ discovery:
       TargetMaps: '{{ response.AssociationDescription.TargetMaps }}'
       AlarmConfiguration: '{{ response.AssociationDescription.AlarmConfiguration }}'
       TriggeredAlarms: '{{ response.AssociationDescription.TriggeredAlarms }}'
-- discovery_id: aws.ssm.describe_maintenance_window_schedule
+- discovery_id: aws.ssm.describe_document
   calls:
-  - action: describe_maintenance_window_schedule
+  - action: describe_document
     save_as: response
   emit:
     item:
-      WindowId: '{{ response.ScheduledWindowExecutions.WindowId }}'
-      Name: '{{ response.ScheduledWindowExecutions.Name }}'
-      ExecutionTime: '{{ response.ScheduledWindowExecutions.ExecutionTime }}'
-- discovery_id: aws.ssm.describe_parameters
-  calls:
-  - action: describe_parameters
-    save_as: response
-  emit:
-    item:
-      Name: '{{ response.Parameters.Name }}'
-      ARN: '{{ response.Parameters.ARN }}'
-      Type: '{{ response.Parameters.Type }}'
-      KeyId: '{{ response.Parameters.KeyId }}'
-      LastModifiedDate: '{{ response.Parameters.LastModifiedDate }}'
-      LastModifiedUser: '{{ response.Parameters.LastModifiedUser }}'
-      Description: '{{ response.Parameters.Description }}'
-      AllowedPattern: '{{ response.Parameters.AllowedPattern }}'
-      Version: '{{ response.Parameters.Version }}'
-      Tier: '{{ response.Parameters.Tier }}'
-      Policies: '{{ response.Parameters.Policies }}'
-      DataType: '{{ response.Parameters.DataType }}'
-- discovery_id: aws.ssm.describe_patch_baselines
-  calls:
-  - action: describe_patch_baselines
-    save_as: response
-  emit:
-    item:
-      BaselineId: '{{ response.BaselineIdentities.BaselineId }}'
-      BaselineName: '{{ response.BaselineIdentities.BaselineName }}'
-      OperatingSystem: '{{ response.BaselineIdentities.OperatingSystem }}'
-      BaselineDescription: '{{ response.BaselineIdentities.BaselineDescription }}'
-      DefaultBaseline: '{{ response.BaselineIdentities.DefaultBaseline }}'
-- discovery_id: aws.ssm.describe_patch_groups
-  calls:
-  - action: describe_patch_groups
-    save_as: response
-  emit:
-    item:
-      PatchGroup: '{{ response.Mappings.PatchGroup }}'
-      BaselineIdentity: '{{ response.Mappings.BaselineIdentity }}'
-- discovery_id: aws.ssm.describe_maintenance_window_tasks
-  calls:
-  - action: describe_maintenance_window_tasks
-    save_as: response
-    params:
-      WindowId: '{{ item.WindowId }}'
-  on_error: continue
-  for_each: aws.ssm.describe_maintenance_window_schedule
-  emit:
-    item:
-      WindowId: '{{ response.Tasks.WindowId }}'
-      WindowTaskId: '{{ response.Tasks.WindowTaskId }}'
-      TaskArn: '{{ response.Tasks.TaskArn }}'
-      Type: '{{ response.Tasks.Type }}'
-      Targets: '{{ response.Tasks.Targets }}'
-      TaskParameters: '{{ response.Tasks.TaskParameters }}'
-      Priority: '{{ response.Tasks.Priority }}'
-      LoggingInfo: '{{ response.Tasks.LoggingInfo }}'
-      ServiceRoleArn: '{{ response.Tasks.ServiceRoleArn }}'
-      MaxConcurrency: '{{ response.Tasks.MaxConcurrency }}'
-      MaxErrors: '{{ response.Tasks.MaxErrors }}'
-      Name: '{{ response.Tasks.Name }}'
-      Description: '{{ response.Tasks.Description }}'
-      CutoffBehavior: '{{ response.Tasks.CutoffBehavior }}'
-      AlarmConfiguration: '{{ response.Tasks.AlarmConfiguration }}'
+      Sha1: '{{ response.Document.Sha1 }}'
+      Hash: '{{ response.Document.Hash }}'
+      HashType: '{{ response.Document.HashType }}'
+      Name: '{{ response.Document.Name }}'
+      DisplayName: '{{ response.Document.DisplayName }}'
+      VersionName: '{{ response.Document.VersionName }}'
+      Owner: '{{ response.Document.Owner }}'
+      CreatedDate: '{{ response.Document.CreatedDate }}'
+      Status: '{{ response.Document.Status }}'
+      StatusInformation: '{{ response.Document.StatusInformation }}'
+      DocumentVersion: '{{ response.Document.DocumentVersion }}'
+      Description: '{{ response.Document.Description }}'
+      Parameters: '{{ response.Document.Parameters }}'
+      PlatformTypes: '{{ response.Document.PlatformTypes }}'
+      DocumentType: '{{ response.Document.DocumentType }}'
+      SchemaVersion: '{{ response.Document.SchemaVersion }}'
+      LatestVersion: '{{ response.Document.LatestVersion }}'
+      DefaultVersion: '{{ response.Document.DefaultVersion }}'
+      DocumentFormat: '{{ response.Document.DocumentFormat }}'
+      TargetType: '{{ response.Document.TargetType }}'
+      Tags: '{{ response.Document.Tags }}'
+      AttachmentsInformation: '{{ response.Document.AttachmentsInformation }}'
+      Requires: '{{ response.Document.Requires }}'
+      Author: '{{ response.Document.Author }}'
+      ReviewInformation: '{{ response.Document.ReviewInformation }}'
+      ApprovedVersion: '{{ response.Document.ApprovedVersion }}'
+      PendingReviewVersion: '{{ response.Document.PendingReviewVersion }}'
+      ReviewStatus: '{{ response.Document.ReviewStatus }}'
+      Category: '{{ response.Document.Category }}'
+      CategoryEnum: '{{ response.Document.CategoryEnum }}'
+      Document: '{{ resource.Document }}'
 checks:
-- rule_id: aws.ssm.patchbaseline.ssm_required_controls_present
-  for_each: aws.ssm.describe_patch_baselines
+- rule_id: aws.ssm.managed.ssm_compliant_patching_configured
+  for_each: aws.ssm.describe_patch_group_state
   conditions:
-    var: item.DefaultBaseline
+    var: item.InstancesWithCriticalNonCompliantPatches
+    op: greater_than
+    value: 0
+- rule_id: aws.ssm.patchbaseline.ssm_required_controls_present
+  for_each: aws.ssm.get_patch_baseline
+  conditions:
+    var: item.ApprovedPatchesComplianceLevel
     op: equals
-    value: true
+    value: CRITICAL
+- rule_id: aws.ssm.patchbaseline.ssm_approval_rules_configured
+  for_each: aws.ssm.get_patch_baseline
+  conditions:
+    var: item.ApprovalRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ssm.patchbaseline.ssm_baseline_defined_for_os_families_configured
   for_each: aws.ssm.describe_patch_baselines
   conditions:
     var: item.BaselineId
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.maintenance_window.ssm_window_configured
+  for_each: aws.ssm.describe_maintenance_window_schedule
+  conditions:
+    var: item.WindowId
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ssm.patchgroup.ssm_approval_rules_configured
-  for_each: aws.ssm.describe_patch_groups
+  for_each: aws.ssm.get_patch_baseline
   conditions:
-    var: item.BaselineIdentity
-    op: exists
+    var: item.ApprovalRules
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ssm.restapi.public_access_restricted
-  for_each: aws.ssm.describe_association
+  for_each: aws.ssm.describe_sessions
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.AccessType
+    op: not_equals
+    value: Public
+- rule_id: aws.ssm.patchbaseline.ssm_exemptions_have_expiry_and_owner_configured
+  for_each: aws.ssm.list_documents
+  conditions:
+    var: item.Owner
+    op: not_equals
+    value: 'null'
 - rule_id: aws.ssm.maintenance_window.execution_roles_least_privilege
+  for_each: aws.ssm.describe_maintenance_window_execution_task_invocations
+  conditions:
+    var: item.WindowExecutionTaskInvocationIdentities
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.baseline.ssm_conformance_pack_deployed_configured
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    var: item.BaselineId
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.automation.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    var: item.AutomationExecutionMetadataList
+    op: equals
+    value: 'false'
+- rule_id: aws.ssm.document.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.describe_maintenance_windows
+  conditions:
+    var: item.Enabled
+    op: equals
+    value: true
+- rule_id: aws.ssm.automation.remediation_roles_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    var: item.AutomationType
+    op: not_equals
+    value: CrossAccount
+- rule_id: aws.ssm.automation.ssm_artifacts_encrypted_and_private
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    var: item.AutomationExecutionMetadataList
+    op: equals
+    value: 'true'
+- rule_id: aws.ssm.automation.change_audit_logging_enabled
   for_each: aws.ssm.describe_maintenance_window_tasks
   conditions:
-    var: item.ServiceRoleArn
-    op: exists
-- rule_id: aws.ssm.automation.remediation_roles_least_privilege
-  for_each: aws.ssm.describe_activations
+    var: item.LoggingInfo
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.document.change_audit_logging_enabled
+  for_each: aws.ssm.describe_maintenance_window_tasks
   conditions:
-    var: item.IamRole
-    op: exists
-- rule_id: aws.ssm.automation.execution_roles_least_privilege
-  for_each: aws.ssm.describe_activations
+    var: item.LoggingInfo
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.patchbaseline.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_maintenance_windows
   conditions:
-    var: item.IamRole
-    op: exists
+    var: item.Enabled
+    op: equals
+    value: true
+- rule_id: aws.ssm.automation.versioning_and_immutability_enabled
+  for_each: aws.ssm.describe_maintenance_windows
+  conditions:
+    var: item.Enabled
+    op: equals
+    value: 'true'
 - rule_id: aws.ssm.patchgroup.ssm_baseline_defined_for_os_families_configured
   for_each: aws.ssm.describe_patch_baselines
   conditions:
     var: item.BaselineId
     op: exists
-- rule_id: aws.ssm.document.ssm_secrets_encrypted
-  for_each: aws.ssm.describe_parameters
+- rule_id: aws.ssm.patchgroup.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_association
   conditions:
-    var: item.KeyId
-    op: exists
+    var: item.SyncCompliance
+    op: equals
+    value: AUTO
+- rule_id: aws.ssm.baseline.ssm_parameters_configured
+  for_each: aws.ssm.describe_association
+  conditions:
+    var: item.Parameters
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.document.ssm_secrets_encrypted
+  for_each: aws.ssm.describe_document
+  conditions:
+    var: item.Document
+    op: not_equals
+    value: 'null'
+- rule_id: aws.ssm.automation.execution_roles_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    var: item.Status
+    op: in
+    value:
+    - Pending
+    - InProgress
+    - PendingApproval
+    - Approved
+- rule_id: aws.ssm.automation.rbac_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    var: item.Status
+    op: in
+    value:
+    - Pending
+    - InProgress
+    - Waiting
+    - Approved
+- rule_id: aws.ssm.document.rbac_least_privilege
+  for_each: aws.ssm.list_documents
+  conditions:
+    var: item.DocumentType
+    op: equals
+    value: Policy

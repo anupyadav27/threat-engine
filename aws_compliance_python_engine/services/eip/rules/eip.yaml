@@ -1,29 +1,28 @@
 version: '1.0'
 provider: aws
 service: eip
+services:
+  client: eip
+  module: boto3.client
 discovery:
-- discovery_id: aws.eip.describe_addresses
+- discovery_id: aws.eip.describe_address_transfers
   calls:
-  - action: describe_addresses
-    save_as: describe_addresses_response
+  - action: describe_address_transfers
+    save_as: response
   emit:
-    items_for: '{{ describe_addresses_response.Addresses }}'
-    as: resource
     item:
-      allocation_id: '{{ resource.AllocationId }}'
-      association_id: '{{ resource.AssociationId }}'
-      domain: '{{ resource.Domain }}'
-      network_interface_id: '{{ resource.NetworkInterfaceId }}'
-      network_interface_owner_id: '{{ resource.NetworkInterfaceOwnerId }}'
-      private_ip_address: '{{ resource.PrivateIpAddress }}'
-      tags: '{{ resource.Tags }}'
-      public_ipv4_pool: '{{ resource.PublicIpv4Pool }}'
-      network_border_group: '{{ resource.NetworkBorderGroup }}'
-      customer_owned_ip: '{{ resource.CustomerOwnedIp }}'
+      PublicIp: '{{ response.AddressTransfers.PublicIp }}'
+      AllocationId: '{{ response.AddressTransfers.AllocationId }}'
+      TransferAccountId: '{{ response.AddressTransfers.TransferAccountId }}'
+      TransferOfferExpirationTimestamp: '{{ response.AddressTransfers.TransferOfferExpirationTimestamp
+        }}'
+      TransferOfferAcceptedTimestamp: '{{ response.AddressTransfers.TransferOfferAcceptedTimestamp
+        }}'
+      AddressTransferStatus: '{{ response.AddressTransfers.AddressTransferStatus }}'
 checks:
 - rule_id: aws.eip.address.address_enabled
-  for_each: aws.eip.describe_addresses
+  for_each: aws.eip.describe_address_transfers
   conditions:
-    var: item.service_managed
+    var: item.AddressTransferStatus
     op: equals
-    value: false
+    value: accepted

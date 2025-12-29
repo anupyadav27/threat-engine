@@ -23,33 +23,57 @@ discovery:
       status: '{{ resource.status }}'
       statusReason: '{{ resource.statusReason }}'
       configuration: '{{ resource.configuration }}'
-- discovery_id: aws.accessanalyzer.list_access_previews
+- discovery_id: aws.accessanalyzer.list_analyzed_resources
   calls:
-  - action: list_access_previews
+  - action: list_analyzed_resources
     save_as: response
     params:
       analyzerArn: '{{ item.arn }}'
-  on_error: continue
   for_each: aws.accessanalyzer.list_analyzers
+  on_error: continue
   emit:
-    items_for: '{{ response.accessPreviews }}'
+    items_for: '{{ response.analyzedResources }}'
     as: resource
     item:
-      id: '{{ resource.id }}'
-      analyzerArn: '{{ resource.analyzerArn }}'
-      createdAt: '{{ resource.createdAt }}'
-      status: '{{ resource.status }}'
-      statusReason: '{{ resource.statusReason }}'
+      analyzerArn: '{{ item.arn }}'
+      resourceArn: '{{ resource.resourceArn }}'
+      resourceOwnerAccount: '{{ resource.resourceOwnerAccount }}'
+      resourceType: '{{ resource.resourceType }}'
+- discovery_id: aws.accessanalyzer.get_analyzed_resource
+  calls:
+  - action: get_analyzed_resource
+    save_as: response
+    params:
+      analyzerArn: '{{ item.analyzerArn }}'
+      resourceArn: '{{ item.resourceArn }}'
+  for_each: aws.accessanalyzer.list_analyzed_resources
+  on_error: continue
+  emit:
+    item:
+      resourceArn: '{{ response.resource.resourceArn }}'
+      resourceType: '{{ response.resource.resourceType }}'
+      createdAt: '{{ response.resource.createdAt }}'
+      analyzedAt: '{{ response.resource.analyzedAt }}'
+      updatedAt: '{{ response.resource.updatedAt }}'
+      isPublic: '{{ response.resource.isPublic }}'
+      actions: '{{ response.resource.actions }}'
+      sharedVia: '{{ response.resource.sharedVia }}'
+      status: '{{ response.resource.status }}'
+      resourceOwnerAccount: '{{ response.resource.resourceOwnerAccount }}'
+      error: '{{ response.resource.error }}'
 checks:
-- rule_id: aws.accessanalyzer.resource.analyzer_active
+- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled
   for_each: aws.accessanalyzer.list_analyzers
   conditions:
     var: item.status
     op: equals
     value: ACTIVE
-- rule_id: aws.accessanalyzer.resource.analyzer_with_findings
-  for_each: aws.accessanalyzer.list_access_previews
+- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled_without_findings
+  for_each: aws.accessanalyzer.get_analyzed_resource
   conditions:
-    var: item.id
-    op: exists
-    value: null
+    all:
+    - var: item.status
+      op: exists
+    - var: item.status
+      op: not_equals
+      value: ACTIVE

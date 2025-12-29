@@ -89,6 +89,26 @@ def extract_value(obj: Any, path: str):
     return current
 
 
+def extract_checked_fields(cond_config: Dict[str, Any]) -> set:
+    """Extract all field names referenced in check conditions"""
+    fields = set()
+    
+    if isinstance(cond_config, dict):
+        if 'all' in cond_config:
+            for sub_cond in cond_config['all']:
+                fields.update(extract_checked_fields(sub_cond))
+        elif 'any' in cond_config:
+            for sub_cond in cond_config['any']:
+                fields.update(extract_checked_fields(sub_cond))
+        else:
+            var = cond_config.get('var', '')
+            if var:
+                # Extract field name from 'item.field' or just 'field'
+                field_name = var.replace('item.', '') if var.startswith('item.') else var
+                fields.add(field_name)
+    
+    return fields
+
 def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
     """Evaluate a condition with the given operator"""
     if operator == 'exists':
@@ -381,6 +401,9 @@ def run_service_scan(
                 result = 'PASS'
                 resource_id = extract_value(item, 'id') if item else None
                 
+                # Extract checked fields from conditions for evidence filtering
+                checked_fields = extract_checked_fields(conditions) if conditions else set()
+                
                 # Evaluate conditions
                 if conditions:
                     var_path = conditions.get('var', '').replace('item.', '')
@@ -402,15 +425,23 @@ def run_service_scan(
                     else:
                         logger.info(f"    Result: {result} (resource: {resource_id.split('/')[-1] if resource_id else 'global'})")
                 
-                checks_output.append({
+                record = {
                     'rule_id': check_id,
                     'title': check.get('title', ''),
                     'severity': check.get('severity', 'medium'),
                     'result': result,
                     'subscription': subscription_id,
                     'location': location or 'global',
-                    'resource_id': resource_id
-                })
+                    'resource_id': resource_id,
+                    '_checked_fields': list(checked_fields)  # Store for evidence filtering
+                }
+                
+                # Add item data to record
+                if item and isinstance(item, dict):
+                    for key, value in item.items():
+                        record[key] = value
+                
+                checks_output.append(record)
         
         # Summary logging
         total_discovered = sum(len(v) if isinstance(v, list) else 0 for v in discovery_results.values())

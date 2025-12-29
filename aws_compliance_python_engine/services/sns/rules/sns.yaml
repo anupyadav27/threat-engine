@@ -5,10 +5,29 @@ services:
   client: sns
   module: boto3.client
 discovery:
-- discovery_id: aws.sns.get_sms_attributes
+- discovery_id: aws.sns.list_subscriptions
   calls:
-  - action: get_sms_attributes
+  - action: list_subscriptions
     save_as: response
+  emit:
+    items_for: '{{ response.Subscriptions }}'
+    as: resource
+    item:
+      SubscriptionArn: '{{ resource.SubscriptionArn }}'
+      Owner: '{{ resource.Owner }}'
+      Protocol: '{{ resource.Protocol }}'
+      Endpoint: '{{ resource.Endpoint }}'
+      TopicArn: '{{ resource.TopicArn }}'
+- discovery_id: aws.sns.list_platform_applications
+  calls:
+  - action: list_platform_applications
+    save_as: response
+  emit:
+    items_for: '{{ response.PlatformApplications }}'
+    as: resource
+    item:
+      PlatformApplicationArn: '{{ resource.PlatformApplicationArn }}'
+      Attributes: '{{ resource.Attributes }}'
 - discovery_id: aws.sns.list_origination_numbers
   calls:
   - action: list_origination_numbers
@@ -23,89 +42,148 @@ discovery:
       Iso2CountryCode: '{{ resource.Iso2CountryCode }}'
       RouteType: '{{ resource.RouteType }}'
       NumberCapabilities: '{{ resource.NumberCapabilities }}'
-- discovery_id: aws.sns.list_platform_applications
-  calls:
-  - action: list_platform_applications
-    save_as: response
-  emit:
-    items_for: '{{ response.PlatformApplications }}'
-    as: resource
-    item:
-      PlatformApplicationArn: '{{ resource.PlatformApplicationArn }}'
-      Attributes: '{{ resource.Attributes }}'
-- discovery_id: aws.sns.list_subscriptions
-  calls:
-  - action: list_subscriptions
-    save_as: response
-  emit:
-    items_for: '{{ response.Subscriptions }}'
-    as: resource
-    item:
-      SubscriptionArn: '{{ resource.SubscriptionArn }}'
-      Owner: '{{ resource.Owner }}'
-      Protocol: '{{ resource.Protocol }}'
-      Endpoint: '{{ resource.Endpoint }}'
-      TopicArn: '{{ resource.TopicArn }}'
 checks:
+- rule_id: aws.sns.topic.destinations_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.Endpoint
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.resource.topics_kms_encryption_at_rest_enabled
+  for_each: aws.sns.list_platform_applications
+  conditions:
+    var: item.Attributes
+    op: contains
+    value: Kms
+- rule_id: aws.sns.topics_not_publicly_accessible.topics_not_publicly_accessible_configured
   for_each: aws.sns.list_subscriptions
   conditions:
     var: item.TopicArn
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.no_public_webhooks_without_auth_configured
+  for_each: aws.sns.list_platform_applications
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.policy_exists_for_critical_severity_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.TopicArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.subscription.no_public_webhooks_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.Endpoint
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.subscription.oncall_contacts_verified
   for_each: aws.sns.list_origination_numbers
   conditions:
     var: item.Status
     op: equals
-    value: ACTIVE
+    value: Verified
+- rule_id: aws.sns.topic.endpoints_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.Endpoint
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.subscription.sns_subscription_destinations_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.Endpoint
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.destinations_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.TopicArn
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.subscription.endpoints_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.Endpoint
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.subscription.change_audit_logging_enabled
-  for_each: aws.sns.list_subscriptions
+  for_each: aws.sns.list_platform_applications
   conditions:
-    var: item.SubscriptionArn
-    op: exists
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.subscription.message_encryption_in_transit_configured
-  for_each: aws.sns.list_subscriptions
+  for_each: aws.sns.list_platform_applications
   conditions:
-    var: item.Protocol
-    op: equals
-    value: https
-- rule_id: aws.sns.subscription.policy_exists_for_critical_severity_configured
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic_subscription_configured.topic_subscription_configured_configured
   for_each: aws.sns.list_subscriptions
   conditions:
     var: item.SubscriptionArn
-    op: exists
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.subscription.policy_exists_for_critical_severity_configured
+  for_each: aws.sns.list_platform_applications
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.destinations_access_least_privilege
+  for_each: aws.sns.list_subscriptions
+  conditions:
+    var: item.TopicArn
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.topic.change_audit_logging_enabled
   for_each: aws.sns.list_platform_applications
   conditions:
     var: item.Attributes
-    op: contains
-    value: LoggingEnabled
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.topic.critical_alarms_enabled
-  for_each: aws.sns.list_origination_numbers
+  for_each: aws.sns.list_platform_applications
   conditions:
-    var: item.Status
-    op: equals
-    value: ENABLED
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.topic.oncall_contacts_verified
   for_each: aws.sns.list_origination_numbers
   conditions:
     var: item.Status
     op: equals
-    value: ACTIVE
+    value: Verified
 - rule_id: aws.sns.topics.kms_encryption_at_rest_enabled
   for_each: aws.sns.list_platform_applications
   conditions:
     var: item.Attributes
-    op: contains
-    value: KmsMasterKeyId
-- rule_id: aws.sns.topic.message_encryption_in_transit_configured
-  for_each: aws.sns.list_subscriptions
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.no_public_webhooks_configured
+  for_each: aws.sns.list_platform_applications
   conditions:
-    var: item.Protocol
-    op: equals
-    value: https
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.channels_configured
+  for_each: aws.sns.list_platform_applications
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
+- rule_id: aws.sns.topic.message_encryption_in_transit_configured
+  for_each: aws.sns.list_platform_applications
+  conditions:
+    var: item.Attributes
+    op: not_equals
+    value: 'null'
 - rule_id: aws.sns.topic.alarm_actions_configured
   for_each: aws.sns.list_subscriptions
   conditions:
-    var: item.SubscriptionArn
-    op: exists
+    var: item.TopicArn
+    op: not_equals
+    value: 'null'

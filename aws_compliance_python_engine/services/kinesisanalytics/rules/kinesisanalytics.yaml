@@ -16,10 +16,47 @@ discovery:
       ApplicationName: '{{ resource.ApplicationName }}'
       ApplicationARN: '{{ resource.ApplicationARN }}'
       ApplicationStatus: '{{ resource.ApplicationStatus }}'
+- discovery_id: aws.kinesisanalytics.describe_application
+  calls:
+  - action: describe_application
+    save_as: response
+    params:
+      ApplicationName: '{{ item.ApplicationName }}'
+  for_each: aws.kinesisanalytics.list_applications
+  on_error: continue
+  emit:
+    item:
+      ApplicationName: '{{ response.ApplicationDetail.ApplicationName }}'
+      ApplicationDescription: '{{ response.ApplicationDetail.ApplicationDescription
+        }}'
+      ApplicationARN: '{{ response.ApplicationDetail.ApplicationARN }}'
+      ApplicationStatus: '{{ response.ApplicationDetail.ApplicationStatus }}'
+      CreateTimestamp: '{{ response.ApplicationDetail.CreateTimestamp }}'
+      LastUpdateTimestamp: '{{ response.ApplicationDetail.LastUpdateTimestamp }}'
+      InputDescriptions: '{{ response.ApplicationDetail.InputDescriptions }}'
+      OutputDescriptions: '{{ response.ApplicationDetail.OutputDescriptions }}'
+      ReferenceDataSourceDescriptions: '{{ response.ApplicationDetail.ReferenceDataSourceDescriptions
+        }}'
+      CloudWatchLoggingOptionDescriptions: '{{ response.ApplicationDetail.CloudWatchLoggingOptionDescriptions
+        }}'
+      ApplicationCode: '{{ response.ApplicationDetail.ApplicationCode }}'
+      ApplicationVersionId: '{{ response.ApplicationDetail.ApplicationVersionId }}'
 checks:
+- rule_id: aws.kinesisanalytics.application.role_least_privilege
+  for_each: aws.kinesisanalytics.list_applications
+  conditions:
+    var: item.ApplicationARN
+    op: not_equals
+    value: 'null'
+- rule_id: aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured
+  for_each: aws.kinesisanalytics.describe_application
+  conditions:
+    var: item.OutputDescriptions
+    op: not_equals
+    value: 'null'
 - rule_id: aws.kinesisanalytics.application.network_private_only_configured
   for_each: aws.kinesisanalytics.list_applications
   conditions:
     var: item.ApplicationStatus
-    op: equals
-    value: ACTIVE
+    op: not_equals
+    value: RUNNING

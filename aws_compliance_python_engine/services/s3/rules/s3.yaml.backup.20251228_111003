@@ -1,0 +1,441 @@
+version: '1.0'
+provider: aws
+service: s3
+services:
+  client: s3
+  module: boto3.client
+discovery:
+- discovery_id: aws.s3.get_bucket_encryption
+  calls:
+  - action: get_bucket_encryption
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+  emit:
+    item:
+      Rules: '{{ response.ServerSideEncryptionConfiguration.Rules }}'
+- discovery_id: aws.s3.list_buckets
+  calls:
+  - action: list_buckets
+    save_as: response
+  emit:
+    items_for: '{{ response.Buckets }}'
+    as: resource
+    item:
+      Name: '{{ resource.Name }}'
+      CreationDate: '{{ resource.CreationDate }}'
+      BucketRegion: '{{ resource.BucketRegion }}'
+      BucketArn: '{{ resource.BucketArn }}'
+- discovery_id: aws.s3.get_bucket_versioning
+  calls:
+  - action: get_bucket_versioning
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+- discovery_id: aws.s3.get_bucket_logging
+  calls:
+  - action: get_bucket_logging
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+  emit:
+    item:
+      TargetBucket: '{{ response.LoggingEnabled.TargetBucket }}'
+      TargetGrants: '{{ response.LoggingEnabled.TargetGrants }}'
+      TargetPrefix: '{{ response.LoggingEnabled.TargetPrefix }}'
+      TargetObjectKeyFormat: '{{ response.LoggingEnabled.TargetObjectKeyFormat }}'
+- discovery_id: aws.s3.get_public_access_block
+  calls:
+  - action: get_public_access_block
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+  emit:
+    item:
+      BlockPublicAcls: '{{ response.PublicAccessBlockConfiguration.BlockPublicAcls
+        }}'
+      IgnorePublicAcls: '{{ response.PublicAccessBlockConfiguration.IgnorePublicAcls
+        }}'
+      BlockPublicPolicy: '{{ response.PublicAccessBlockConfiguration.BlockPublicPolicy
+        }}'
+      RestrictPublicBuckets: '{{ response.PublicAccessBlockConfiguration.RestrictPublicBuckets
+        }}'
+- discovery_id: aws.s3.get_object_lock_configuration
+  calls:
+  - action: get_object_lock_configuration
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+  emit:
+    item:
+      ObjectLockEnabled: '{{ response.ObjectLockConfiguration.ObjectLockEnabled }}'
+      Rule: '{{ response.ObjectLockConfiguration.Rule }}'
+- discovery_id: aws.s3.get_bucket_policy_status
+  calls:
+  - action: get_bucket_policy_status
+    save_as: response
+    params:
+      Bucket: '{{ item.Name }}'
+  for_each: aws.s3.list_buckets
+  on_error: continue
+  emit:
+    item:
+      IsPublic: '{{ response.PolicyStatus.IsPublic }}'
+checks:
+- rule_id: aws.s3.bucket.encryption_at_rest_enabled
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.default_encryption_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: exists
+- rule_id: aws.s3.bucket.kms_encryption_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: aws:kms
+- rule_id: aws.s3.bucket.versioning_enabled
+  for_each: aws.s3.get_bucket_versioning
+  conditions:
+    var: item.Status
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.TargetBucket
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.block_public_access_enabled
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+    - var: item.BlockPublicPolicy
+      op: equals
+      value: true
+    - var: item.RestrictPublicBuckets
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.block_public_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.BlockPublicPolicy
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.immutability_or_object_lock_if_supported
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.immutable_or_worm_enabled_if_supported
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.lifecycle_policy_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.lifecycle_enabled
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.account.level_public_access_blocks_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+    - var: item.BlockPublicPolicy
+      op: equals
+      value: true
+    - var: item.RestrictPublicBuckets
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.backup_storage_immutability_enabled
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.cmk_cmek_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    all:
+    - var: item.Rules
+      op: equals
+      value: aws:kms
+    - var: encryption.kms_key_id
+      op: exists
+- rule_id: aws.s3.bucket.cmk_cmek_key_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    all:
+    - var: item.Rules
+      op: equals
+      value: aws:kms
+    - var: encryption.kms_key_id
+      op: exists
+- rule_id: aws.s3.bucket.encryption_at_rest_cmek_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    all:
+    - var: item.Rules
+      op: equals
+      value: aws:kms
+    - var: encryption.kms_key_id
+      op: exists
+- rule_id: aws.s3.bucket.encryption_enabled
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.encryption_in_transit_tls_min_1_2_configured
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.key_policy_least_privilege
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.object_level_write_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.TargetBucket
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.object_versioning_configured
+  for_each: aws.s3.get_bucket_versioning
+  conditions:
+    var: item.Status
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.policy_denies_public_and_insecure_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.policy_public_write_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.public_access_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.public_read_prohibited_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.public_write_prohibited_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.bucket.rbac_least_privilege
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.require_tls_in_transit_configured
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.retention_days_minimum
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.secure_transport_policy_configured
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket.server_access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  conditions:
+    var: item.TargetBucket
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    all:
+    - var: item.Rules
+      op: equals
+      value: aws:kms
+    - var: encryption.kms_key_id
+      op: exists
+- rule_id: aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucket_notification.bucket_destination_least_privilege
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.bucketpolicy.bucket_deny_insecure_transport_configured
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.bucketpolicy.no_public_principals_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.intelligent_tiering.protected_from_public_override_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.lifecycle_configuration.immutable_retention_locked_where_required
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.lifecycle_configuration.protected_from_public_override_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.lifecycle_configuration.versioning_enabled_if_supported
+  for_each: aws.s3.get_bucket_versioning
+  conditions:
+    var: item.Status
+    op: equals
+    value: true
+- rule_id: aws.s3.macie_classification_jobs_status.macie_classification_jobs_status_configured
+  for_each: aws.s3.get_bucket_versioning
+  conditions:
+    var: item.Status
+    op: equals
+    value: true
+- rule_id: aws.s3.object.encryption_at_rest_enabled
+  for_each: aws.s3.get_bucket_encryption
+  conditions:
+    var: item.Rules
+    op: equals
+    value: true
+- rule_id: aws.s3.object.lock_or_immutability_enabled_if_supported
+  for_each: aws.s3.get_object_lock_configuration
+  conditions:
+    var: item.ObjectLockEnabled
+    op: equals
+    value: true
+- rule_id: aws.s3.object.not_publicly_readable_configured
+  for_each: aws.s3.get_public_access_block
+  conditions:
+    all:
+    - var: item.BlockPublicAcls
+      op: equals
+      value: true
+    - var: item.IgnorePublicAcls
+      op: equals
+      value: true
+- rule_id: aws.s3.replication.auth_roles_least_privilege
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true
+- rule_id: aws.s3.replication.encryption_in_transit_tls_required
+  for_each: aws.s3.get_bucket_policy_status
+  conditions:
+    var: item.IsPublic
+    op: equals
+    value: true

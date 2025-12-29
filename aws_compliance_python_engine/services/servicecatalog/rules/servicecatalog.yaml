@@ -5,33 +5,20 @@ services:
   client: servicecatalog
   module: boto3.client
 discovery:
-- discovery_id: aws.servicecatalog.scan_provisioned_products
+- discovery_id: aws.servicecatalog.list_portfolio_access
   calls:
-  - action: scan_provisioned_products
+  - action: list_portfolio_access
     save_as: response
   emit:
+    items_for: '{{ response.AccountIds }}'
+    as: resource
     item:
-      Name: '{{ response.ProvisionedProducts.Name }}'
-      Arn: '{{ response.ProvisionedProducts.Arn }}'
-      Type: '{{ response.ProvisionedProducts.Type }}'
-      Id: '{{ response.ProvisionedProducts.Id }}'
-      Status: '{{ response.ProvisionedProducts.Status }}'
-      StatusMessage: '{{ response.ProvisionedProducts.StatusMessage }}'
-      CreatedTime: '{{ response.ProvisionedProducts.CreatedTime }}'
-      IdempotencyToken: '{{ response.ProvisionedProducts.IdempotencyToken }}'
-      LastRecordId: '{{ response.ProvisionedProducts.LastRecordId }}'
-      LastProvisioningRecordId: '{{ response.ProvisionedProducts.LastProvisioningRecordId
-        }}'
-      LastSuccessfulProvisioningRecordId: '{{ response.ProvisionedProducts.LastSuccessfulProvisioningRecordId
-        }}'
-      ProductId: '{{ response.ProvisionedProducts.ProductId }}'
-      ProvisioningArtifactId: '{{ response.ProvisionedProducts.ProvisioningArtifactId
-        }}'
-      LaunchRoleArn: '{{ response.ProvisionedProducts.LaunchRoleArn }}'
+      AccountId: '{{ resource }}'
+      PortfolioShareDetails: '{{ response.PortfolioShareDetails }}'
 checks:
 - rule_id: aws.servicecatalog.portfolio.servicecatalog_shared_within_organization_only_configured
-  for_each: aws.servicecatalog.scan_provisioned_products
+  for_each: aws.servicecatalog.list_portfolio_access
   conditions:
-    var: item.Type
-    op: equals
-    value: ORGANIZATION
+    var: item.PortfolioShareDetails
+    op: not_equals
+    value: 'null'
