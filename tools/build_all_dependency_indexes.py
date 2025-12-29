@@ -120,11 +120,19 @@ def build_all_services(
     include_all_kinds: bool = False,
     validate: bool = False,
     parallel: bool = False,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    exclude: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """Build dependency indexes for all services."""
     
     service_dirs = find_service_directories(root_path)
+    
+    # Filter out excluded services
+    if exclude:
+        exclude_set = set(exclude)
+        service_dirs = [d for d in service_dirs if d.name not in exclude_set]
+        if exclude_set:
+            print(f"⚠️  Excluding services: {', '.join(sorted(exclude_set))}\n")
     
     # Apply limit if specified
     if limit and limit > 0:
@@ -352,6 +360,11 @@ Examples:
         type=int,
         help='Limit number of services to process (for testing)'
     )
+    parser.add_argument(
+        '--exclude',
+        nargs='+',
+        help='Services to exclude from processing (e.g., --exclude network web)'
+    )
     
     args = parser.parse_args()
     
@@ -370,7 +383,8 @@ Examples:
         read_only=True,
         include_all_kinds=args.all_kinds,
         validate=args.validate,
-        limit=args.limit
+        limit=args.limit,
+        exclude=args.exclude
     )
     
     # Generate quality report
