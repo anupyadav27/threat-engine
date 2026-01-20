@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: threat-engine-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - threat-engine-network
+
+  # Compliance Engine
+  compliance-engine:
+    build:
+      context: ../../../
+      dockerfile: compliance-engine/Dockerfile
+    container_name: compliance-engine
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/compliance_engine
+      OUTPUT_DIR: /output
+      LOG_LEVEL: INFO
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../../../engines-output:/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - threat-engine-network
+
+  # Rule Engine
+  rule-engine:
+    build:
+      context: ../../../
+      dockerfile: rule_engine/Dockerfile
+    container_name: rule-engine
+    environment:
+      OUTPUT_DIR: /output
+      LOG_LEVEL: INFO
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../../../engines-output/rule-engine/output:/output
+      - ../../../pythonsdk-database:/pythonsdk-database
+    networks:
+      - threat-engine-network
+
+  # Onboarding Engine
+  onboarding-engine:
+    build:
+      context: ../../../
+      dockerfile: onboarding_engine/Dockerfile
+    container_name: onboarding-engine
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/threat_engine
+      AWS_ENGINE_URL: http://aws-configScan-engine:8000
+      RULE_ENGINE_URL: http://rule-engine:8000
+      LOG_LEVEL: INFO
+    ports:
+      - "8003:8000"
+    depends_on:
+      - postgres
+      - compliance-engine
+    networks:
+      - threat-engine-network
+
+  # Threat Engine
+  threat-engine:
+    build:
+      context: ../../../
+      dockerfile: threat-engine/Dockerfile
+    container_name: threat-engine
+    environment:
+      USE_S3: "false"
+      SCAN_RESULTS_DIR: /data
+      PORT: 8000
+      LOG_LEVEL: INFO
+    ports:
+      - "8004:8000"
+    volumes:
+      - ../../../engines-output:/data
+    networks:
+      - threat-engine-network
+
+  # Inventory Engine
+  inventory-engine:
+    build:
+      context: ../../../
+      dockerfile: inventory-engine/Dockerfile
+    container_name: inventory-engine
+    environment:
+      USE_S3: "false"
+      INVENTORY_OUTPUT_DIR: /data
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/inventory_engine
+      PORT: 8000
+      LOG_LEVEL: INFO
+    ports:
+      - "8005:8000"
+    volumes:
+      - ../../../engines-output:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - threat-engine-network
+
+  # AWS ConfigScan Engine (example)
+  aws-configScan-engine:
+    build:
+      context: ../../../
+      dockerfile: configScan_engines/aws-configScan-engine/Dockerfile
+    container_name: aws-configScan-engine
+    environment:
+      OUTPUT_DIR: /output
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../../engines-output/aws-configScan-engine/output:/output
+    networks:
+      - threat-engine-network
+
+volumes:
+  postgres_data:
+
+networks:
+  threat-engine-network:
+    driver: bridge
+

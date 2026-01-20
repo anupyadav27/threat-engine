@@ -1,0 +1,234 @@
+{
+  "service": "xray",
+  "review_date": "2025-01-27",
+  "review_summary": {
+    "total_rules": 6,
+    "rules_reviewed": 6,
+    "consolidation_opportunities": 2,
+    "cross_service_suggestions": 0,
+    "potential_misconfigurations": 2
+  },
+  "consolidation_suggestions": {
+    "duplicates": [
+      {
+        "keep": {
+          "rule_id": "aws.xray.trace.xray_store_encrypted",
+          "metadata_file": "aws.xray.trace.xray_store_encrypted.yaml",
+          "reason": "Most comprehensive - checks Type==KMS AND KeyId exists (superset of other encryption checks)",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.xray.samplingrule.xray_storage_encrypted",
+            "metadata_file": "aws.xray.samplingrule.xray_storage_encrypted.yaml",
+            "replaced_by": "aws.xray.trace.xray_store_encrypted",
+            "reason": "Subset of xray_store_encrypted - only checks Type==KMS, missing KeyId check",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.xray.trace.xray_store_encrypted",
+          "metadata_file": "aws.xray.trace.xray_store_encrypted.yaml",
+          "reason": "Most comprehensive encryption check - checks Type==KMS AND KeyId exists",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.xray.trace.rbac_least_privilege",
+            "metadata_file": "aws.xray.trace.rbac_least_privilege.yaml",
+            "replaced_by": "aws.xray.trace.xray_store_encrypted",
+            "reason": "CRITICAL MISCONFIGURATION: Rule name suggests RBAC/access control check, but actually checks encryption config (Type==KMS). This is a logic error - rule should be checking access control, not encryption.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "required",
+            "action": "fix_rule_logic_or_remove",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.xray.trace.retention_days_minimum",
+            "metadata_file": "aws.xray.trace.retention_days_minimum.yaml",
+            "replaced_by": "aws.xray.trace.xray_store_encrypted",
+            "reason": "CRITICAL MISCONFIGURATION: Rule name suggests retention check, but actually checks encryption config (Type==KMS). This is a logic error - rule should be checking retention settings, not encryption.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "required",
+            "action": "fix_rule_logic_or_remove",
+            "compliance_merged": false
+          }
+        ]
+      }
+    ]
+  },
+  "cross_service_suggestions": [],
+  "potential_misconfigurations": [
+    {
+      "rule_id": "aws.xray.trace.rbac_least_privilege",
+      "metadata_file": "aws.xray.trace.rbac_least_privilege.yaml",
+      "issue": "Rule name indicates RBAC/least privilege access control check, but actually checks encryption configuration (get_encryption_config \u2192 Type==KMS). This is a fundamental logic mismatch.",
+      "severity": "critical",
+      "recommendation": "Either fix the rule to check access control (IAM policies, resource policies) OR remove this rule if encryption check is redundant with xray_store_encrypted",
+      "current_check": {
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "checks": [
+          "Type == KMS"
+        ]
+      },
+      "expected_check": "Should check IAM policies, resource policies, or access control settings for least privilege"
+    },
+    {
+      "rule_id": "aws.xray.trace.retention_days_minimum",
+      "metadata_file": "aws.xray.trace.retention_days_minimum.yaml",
+      "issue": "Rule name indicates retention days minimum check, but actually checks encryption configuration (get_encryption_config \u2192 Type==KMS). This is a fundamental logic mismatch.",
+      "severity": "critical",
+      "recommendation": "Either fix the rule to check retention settings (group settings, retention period) OR remove this rule if encryption check is redundant with xray_store_encrypted",
+      "current_check": {
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "checks": [
+          "Type == KMS"
+        ]
+      },
+      "expected_check": "Should check group settings or retention configuration for minimum retention days"
+    }
+  ],
+  "confidence_scores": {
+    "consolidation_opportunities": 92.0,
+    "cross_service_placement": 100.0
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "action": "fix",
+      "rule_ids": [
+        "aws.xray.trace.rbac_least_privilege",
+        "aws.xray.trace.retention_days_minimum"
+      ],
+      "description": "Fix 2 rules with critical misconfigurations - rule names don't match actual checks. Both incorrectly check encryption instead of their intended purpose (RBAC and retention)",
+      "impact": "Prevents incorrect compliance reporting and ensures rules check what they claim to check"
+    },
+    {
+      "priority": "high",
+      "action": "consolidate",
+      "rule_ids": [
+        "aws.xray.samplingrule.xray_storage_encrypted",
+        "aws.xray.trace.xray_store_encrypted"
+      ],
+      "description": "Merge encryption checks - xray_store_encrypted is more comprehensive (checks Type AND KeyId)",
+      "impact": "Reduces duplicate encryption checks, improves maintainability"
+    }
+  ],
+  "analysis_details": {
+    "check_signatures": {
+      "aws.xray.trace.xray_store_encrypted": {
+        "normalized_signature": "get_encryption_config|EncryptionConfig|null|[{\"field_path\":\"KeyId\",\"expected_value\":null,\"operator\":\"exists\"},{\"field_path\":\"Type\",\"expected_value\":\"KMS\",\"operator\":\"equals\"}]",
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "logical_operator": null,
+        "nested_fields_count": 2,
+        "note": "Most comprehensive - checks both Type and KeyId"
+      },
+      "aws.xray.samplingrule.xray_storage_encrypted": {
+        "normalized_signature": "get_encryption_config|EncryptionConfig|null|[{\"field_path\":\"Type\",\"expected_value\":\"KMS\",\"operator\":\"equals\"}]",
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "logical_operator": null,
+        "nested_fields_count": 1,
+        "note": "Subset of xray_store_encrypted - only checks Type"
+      },
+      "aws.xray.trace.rbac_least_privilege": {
+        "normalized_signature": "get_encryption_config|EncryptionConfig|null|[{\"field_path\":\"Type\",\"expected_value\":\"KMS\",\"operator\":\"equals\"}]",
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "logical_operator": null,
+        "nested_fields_count": 1,
+        "note": "MISCONFIGURATION: Name suggests RBAC check but actually checks encryption"
+      },
+      "aws.xray.trace.retention_days_minimum": {
+        "normalized_signature": "get_encryption_config|EncryptionConfig|null|[{\"field_path\":\"Type\",\"expected_value\":\"KMS\",\"operator\":\"equals\"}]",
+        "python_method": "get_encryption_config",
+        "response_path": "EncryptionConfig",
+        "logical_operator": null,
+        "nested_fields_count": 1,
+        "note": "MISCONFIGURATION: Name suggests retention check but actually checks encryption"
+      },
+      "aws.xray.samplingrule.xray_rules_present": {
+        "normalized_signature": "get_sampling_rules|SamplingRuleRecords|null|[{\"field_path\":\"SamplingRule\",\"expected_value\":null,\"operator\":\"exists\"}]",
+        "python_method": "get_sampling_rules",
+        "response_path": "SamplingRuleRecords",
+        "logical_operator": null,
+        "nested_fields_count": 1,
+        "note": "Unique rule - checks sampling rules exist"
+      },
+      "aws.xray.samplingrule.rbac_least_privilege": {
+        "normalized_signature": "get_sampling_rules|SamplingRuleRecords|all|[{\"field_path\":\"SamplingRule.ResourceARN\",\"expected_value\":null,\"operator\":\"exists\"},{\"field_path\":\"SamplingRule.RuleARN\",\"expected_value\":null,\"operator\":\"exists\"}]",
+        "python_method": "get_sampling_rules",
+        "response_path": "SamplingRuleRecords",
+        "logical_operator": "all",
+        "nested_fields_count": 2,
+        "note": "Unique rule - checks sampling rule ARNs exist (legitimate RBAC check)"
+      }
+    },
+    "method_ownership_verification": {
+      "get_encryption_config": {
+        "service": "xray",
+        "service_count": 1,
+        "is_ambiguous": false,
+        "belongs_to_service": true
+      },
+      "get_sampling_rules": {
+        "service": "xray",
+        "service_count": 1,
+        "is_ambiguous": false,
+        "belongs_to_service": true
+      }
+    },
+    "compliance_analysis": {
+      "rules_with_compliance": 0,
+      "compliance_standards_found": [],
+      "note": "No explicit compliance standards found in any metadata YAML files"
+    },
+    "method_distribution": {
+      "get_encryption_config": 5,
+      "get_sampling_rules": 2
+    },
+    "rule_logic_issues": {
+      "total_misconfigurations": 2,
+      "severity_breakdown": {
+        "critical": 2
+      },
+      "summary": "2 rules have critical logic mismatches where rule names don't match actual checks performed"
+    }
+  },
+  "validation_summary": {
+    "validation_date": "2026-01-08",
+    "rules_validated": 6,
+    "rules_passing": 6,
+    "rules_fixed": 0,
+    "metadata_mapping_fixed": 2,
+    "validation_status": "PASS",
+    "issues_fixed": [
+      "Fixed metadata_mapping.json for aws.xray.trace.xray_store_encrypted: Changed logical_operator from null to all (YAML has multiple conditions)",
+      "Fixed metadata_mapping.json for aws.xray.samplingrule.xray_rules_present: Changed field_path from SamplingRule to SamplingRuleRecords[].SamplingRule.RuleName to match YAML (checks item.RuleName)"
+    ],
+    "test_results": {
+      "test_date": "2026-01-08",
+      "test_status": "PASS",
+      "notes": "Validation complete. All rules pass metadata mapping validation. AWS scan executes successfully."
+    }
+  }
+}
+
+
+

@@ -1,0 +1,97 @@
+version: '1.0'
+provider: aws
+service: finspace-data
+services:
+  client: finspace-data
+  module: boto3.client
+discovery:
+- discovery_id: aws.finspace-data.list_datasets
+  calls:
+  - action: list_datasets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.datasets }}'
+- discovery_id: aws.finspace-data.get_working_location
+  calls:
+  - action: get_working_location
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.s3Uri }}'
+- discovery_id: aws.finspace-data.list_users
+  calls:
+  - action: list_users
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.users }}'
+- discovery_id: aws.finspace-data.list_changesets
+  for_each: aws.finspace-data.list_datasets
+  calls:
+  - action: list_changesets
+    save_as: response
+    on_error: continue
+    params:
+      datasetDatasetId: '{{ item.datasetDatasetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.changesets }}'
+- discovery_id: aws.finspace-data.list_data_views
+  for_each: aws.finspace-data.list_datasets
+  calls:
+  - action: list_data_views
+    save_as: response
+    on_error: continue
+    params:
+      datasetDatasetId: '{{ item.datasetDatasetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.dataViews }}'
+- discovery_id: aws.finspace-data.list_permission_groups
+  calls:
+  - action: list_permission_groups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.permissionGroups }}'
+- discovery_id: aws.finspace-data.get_external_data_view_access_details
+  for_each: aws.finspace-data.list_data_views
+  calls:
+  - action: get_external_data_view_access_details
+    save_as: response
+    on_error: continue
+    params:
+      dataViewDataViewId: '{{ item.dataViewDataViewId }}'
+      datasetDatasetId: '{{ item.datasetDatasetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.credentials }}'
+- discovery_id: aws.finspace-data.get_changeset
+  for_each: aws.finspace-data.list_changesets
+  calls:
+  - action: get_changeset
+    save_as: response
+    on_error: continue
+    params:
+      changesetChangesetId: '{{ item.changesetChangesetId }}'
+      datasetDatasetId: '{{ item.datasetDatasetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.errorInfo }}'
+- discovery_id: aws.finspace-data.get_dataset
+  for_each: aws.finspace-data.list_datasets
+  calls:
+  - action: get_dataset
+    save_as: response
+    on_error: continue
+    params:
+      datasetDatasetId: '{{ item.datasetDatasetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.schemaDefinition }}'
+checks: []

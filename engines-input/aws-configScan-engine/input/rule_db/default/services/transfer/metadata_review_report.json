@@ -1,0 +1,107 @@
+{
+  "service": "transfer",
+  "review_date": "2026-01-03",
+  "review_summary": {
+    "total_rules": 1,
+    "rules_reviewed": 1,
+    "consolidation_opportunities": 0,
+    "cross_service_suggestions": 0
+  },
+  "consolidation_suggestions": {
+    "duplicates": [],
+    "similar_checks": []
+  },
+  "cross_service_suggestions": [],
+  "confidence_scores": {
+    "consolidation_opportunities": 0.0,
+    "cross_service_placement": 100.0
+  },
+  "recommendations": [
+    {
+      "priority": "low",
+      "action": "no_action",
+      "rule_ids": [],
+      "description": "Only 1 rule exists for transfer service. No consolidation opportunities identified.",
+      "impact": "Current rule set is minimal with no duplicates or redundant checks"
+    },
+    {
+      "priority": "low",
+      "action": "review_rule_logic",
+      "rule_ids": ["aws.transfer.resource.server_in_transit_encryption_enabled"],
+      "description": "Rule checks SecurityPolicyName twice - once for exists and once for in array. This is valid but could be optimized to a single check if the 'in' operator handles null values.",
+      "impact": "Minor optimization opportunity - current logic is correct but redundant"
+    }
+  ],
+  "analysis_details": {
+    "rules_analyzed": [
+      {
+        "rule_id": "aws.transfer.resource.server_in_transit_encryption_enabled",
+        "metadata_file": "aws.transfer.resource.server_in_transit_encryption_enabled.yaml",
+        "python_method": "describe_server",
+        "response_path": "Server",
+        "logical_operator": "all",
+        "nested_field_count": 3,
+        "fields_checked": ["Protocols", "SecurityPolicyName", "SecurityPolicyName"],
+        "method_service": "transfer",
+        "rule_service": "transfer",
+        "is_cross_service": false,
+        "method_ambiguous": false,
+        "compliance_count": 3,
+        "compliance": [
+          "iso27001_2022_multi_cloud_A.8.12_0067",
+          "iso27001_2022_multi_cloud_A.8.24_0080",
+          "soc2_multi_cloud_cc_6_7_0013"
+        ],
+        "note": "SecurityPolicyName is checked twice - once for exists and once for in array. This is valid but could potentially be optimized."
+      }
+    ],
+    "check_signature_analysis": {
+      "unique_signatures": 1,
+      "signature_groups": {
+        "describe_server + Server + all + [Protocols, SecurityPolicyName, SecurityPolicyName]": 1
+      },
+      "duplicate_signatures": 0
+    },
+    "method_ownership_analysis": {
+      "methods_checked": ["describe_server"],
+      "methods_confirmed_in_transfer": ["describe_server"],
+      "ambiguous_methods": [],
+      "cross_service_methods": []
+    },
+    "notable_observations": [
+      {
+        "rule_id": "aws.transfer.resource.server_in_transit_encryption_enabled",
+        "observation": "Rule has 3 compliance standards attached",
+        "note": "Well-mapped compliance coverage: iso27001 (2 standards) and soc2 (1 standard)"
+      },
+      {
+        "rule_id": "aws.transfer.resource.server_in_transit_encryption_enabled",
+        "observation": "Rule checks both Protocols (FTPS/SFTP) and SecurityPolicyName (TLS policies)",
+        "note": "Comprehensive check for encryption in transit - validates both protocol and security policy"
+      },
+      {
+        "rule_id": "aws.transfer.resource.server_in_transit_encryption_enabled",
+        "observation": "Metadata YAML has subcategory as 'encryption_at_rest' but rule checks 'encryption in transit'",
+        "suggestion": "Consider updating subcategory to 'encryption_in_transit' to match the rule's purpose"
+      }
+    ]
+  },
+  "validation_summary": {
+    "validation_date": "2026-01-08",
+    "rules_validated": 1,
+    "rules_passing": 1,
+    "rules_fixed": 0,
+    "rules_needing_attention": 0,
+    "test_results": {
+      "total_checks": 5,
+      "pass": 0,
+      "fail": 5,
+      "execution_errors": 0
+    },
+    "discovery_fixes": [],
+    "rule_fixes": [],
+    "notes": "All discoveries correctly use items_for for arrays. All field paths match emit structure. Test executed successfully with no errors. All 1 rule is properly configured. The rule correctly checks Protocols contains SFTP and SecurityPolicyName exists and is in the allowed list. Note: YAML comment mentions 'Check evaluation may need adjustment for Protocols list field handling' but test completed successfully, suggesting the contains operator works correctly for the Protocols array."
+  }
+}
+
+

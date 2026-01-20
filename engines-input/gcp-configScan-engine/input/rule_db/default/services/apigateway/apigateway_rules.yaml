@@ -1,0 +1,305 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+apigateway:
+  version: '1.0'
+  provider: gcp
+  service: apigateway
+  scope: regional
+  discovery:
+  - discovery_id: list_apigateway_apis
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: api_name
+      - path: createTime
+        var: api_create_time
+      - path: displayName
+        var: api_display_name
+  - discovery_id: list_apigateway_configs
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: config_name
+      - path: gatewayConfig
+        var: gateway_config
+      - path: openapiDocuments
+        var: openapi_docs
+  - discovery_id: list_apigateway_gateways
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: gateway_name
+      - path: apiConfig
+        var: api_config_ref
+      - path: state
+        var: gateway_state
+  checks:
+  - check_id: gcp.apigateway.api.api_access_logging_enabled
+    title: Ensure API Gateway Access Logging is Enabled
+    severity: medium
+    for_each: list_apigateway_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.logging_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.apigateway.api.api_key_restrictions_verified
+    title: Ensure API Key Restrictions are Properly Configured
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gatewayConfig.backendConfig.googleServiceAccount
+        operator: exists
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-api-key-restrictions
+  - check_id: gcp.apigateway.api.certificate_enabled
+    title: Ensure Certificates are Enabled for API Gateway
+    severity: high
+    for_each: list_apigateway_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultHostname
+        operator: contains
+        expected: https://
+      - path: labels.ssl_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.apigateway.api.gateway_api_gateway_https_required
+    title: Ensure HTTPS is Enabled for API Gateway Endpoints
+    severity: critical
+    for_each: list_apigateway_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultHostname
+        operator: contains
+        expected: https://
+  - check_id: gcp.apigateway.api.gateway_authorization_enabled
+    title: Ensure API Gateway Authorization is Enabled
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-backend
+      - path: gatewayConfig.backendConfig.googleServiceAccount
+        operator: exists
+  - check_id: gcp.apigateway.api.gateway_restapi_logging_enabled
+    title: Enable Logging for API Gateway REST APIs
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-logging
+  - check_id: gcp.apigateway.api.gateway_restapi_waf_acl_attached_configured
+    title: Ensure WAF Configured for API Gateway REST APIs
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-security-policy
+  - check_id: gcp.apigateway.api.platform_endpoint_authn_required
+    title: Ensure API Gateway Uses Endpoint Authentication
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: securityDefinitions
+  - check_id: gcp.apigateway.api.platform_endpoint_authz_policies_enforced
+    title: Enforce Platform Endpoint Authz Policies for API Gateway
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-authorization
+      - path: gatewayConfig.backendConfig.googleServiceAccount
+        operator: exists
+  - check_id: gcp.apigateway.api.platform_endpoint_private_networking_enforced
+    title: Enforce Private Networking for API Gateway Endpoints
+    severity: medium
+    for_each: list_apigateway_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.network_type
+        operator: equals
+        expected: private
+  - check_id: gcp.apigateway.api.platform_endpoint_waf_attached
+    title: Ensure WAF is Attached to API Gateway Endpoints
+    severity: high
+    for_each: list_apigateway_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.security_policy
+        operator: exists
+  - check_id: gcp.apigateway.api_config.platform_authorizer_cache_ttl_reasonable
+    title: Ensure Reasonable TTL for API Gateway Authorizer Cache
+    severity: low
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-jwt-cache-ttl
+  - check_id: gcp.apigateway.api_config.platform_authorizer_tls_min_1_2_enforced
+    title: Ensure TLS 1.2+ for API Gateway Platform Authorizer
+    severity: high
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-tls-minimum-version
+  - check_id: gcp.apigateway.api_config.platform_authorizer_token_audience_restricted
+    title: Restrict API Gateway Token Audience for Security
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-audiences
+  - check_id: gcp.apigateway.api_config.platform_stage_logging_enabled
+    title: Ensure API Gateway Platform Stage Logging is Enabled
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: gatewayConfig.backendConfig.logging
+        operator: exists
+  - check_id: gcp.apigateway.api_config.platform_stage_require_usage_plan_for_api_keys
+    title: Ensure Usage Plans for API Keys in API Gateway
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-quota
+  - check_id: gcp.apigateway.api_config.platform_stage_throttling_enabled
+    title: Enable Throttling for API Gateway Configurations
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-rate-limit
+  - check_id: gcp.apigateway.api_config.platform_usage_plan_quota_limits_configured
+    title: Ensure API Gateway Usage Plan Quotas Are Configured
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-quota-limit
+  - check_id: gcp.apigateway.api_config.platform_usage_plan_rate_limits_configured
+    title: API Gateway Rate Limits for Usage Plans Configured
+    severity: medium
+    for_each: list_apigateway_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: openapiDocuments[].document
+        operator: contains
+        expected: x-google-rate-limit-per-minute
+  api_name: apigateway
+  api_version: v1
+  project_param_format: projects/{{project_id}}

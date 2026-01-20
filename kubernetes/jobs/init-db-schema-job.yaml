@@ -1,0 +1,229 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schema
+  namespace: threat-engine-engines
+data:
+  schema.sql: |
+    -- PostgreSQL Schema for Threat Engine Onboarding
+    -- Based on DynamoDB tables structure
+
+    -- Enable UUID extension
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+    -- Tenants table
+    CREATE TABLE IF NOT EXISTS tenants (
+        tenant_id VARCHAR(255) PRIMARY KEY,
+        tenant_name VARCHAR(255) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        UNIQUE(tenant_name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tenants_name ON tenants(tenant_name);
+    CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+
+    -- Providers table
+    CREATE TABLE IF NOT EXISTS providers (
+        provider_id VARCHAR(255) PRIMARY KEY,
+        tenant_id VARCHAR(255) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+        provider_type VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        UNIQUE(tenant_id, provider_type)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_providers_tenant_type ON providers(tenant_id, provider_type);
+    CREATE INDEX IF NOT EXISTS idx_providers_status ON providers(status);
+
+    -- Accounts table
+    CREATE TABLE IF NOT EXISTS accounts (
+        account_id VARCHAR(255) PRIMARY KEY,
+        provider_id VARCHAR(255) NOT NULL REFERENCES providers(provider_id) ON DELETE CASCADE,
+        tenant_id VARCHAR(255) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+        account_name VARCHAR(255) NOT NULL,
+        account_number VARCHAR(50),
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        onboarding_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        onboarding_id VARCHAR(255),
+        last_validated_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_accounts_tenant_status ON accounts(tenant_id, status);
+    CREATE INDEX IF NOT EXISTS idx_accounts_provider_status ON accounts(provider_id, status);
+    CREATE INDEX IF NOT EXISTS idx_accounts_tenant ON accounts(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_accounts_provider ON accounts(provider_id);
+    CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
+
+    -- Schedules table
+    CREATE TABLE IF NOT EXISTS schedules (
+        schedule_id VARCHAR(255) PRIMARY KEY,
+        tenant_id VARCHAR(255) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+        account_id VARCHAR(255) NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        schedule_type VARCHAR(50) NOT NULL,
+        provider_type VARCHAR(50) NOT NULL,
+        cron_expression VARCHAR(255),
+        interval_seconds INTEGER DEFAULT 0,
+        regions JSONB DEFAULT '[]'::jsonb,
+        services JSONB DEFAULT '[]'::jsonb,
+        exclude_services JSONB DEFAULT '[]'::jsonb,
+        timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
+        status VARCHAR(50) NOT NULL DEFAULT 'active',
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        next_run_at TIMESTAMP WITH TIME ZONE,
+        run_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        notify_on_success BOOLEAN NOT NULL DEFAULT FALSE,
+        notify_on_failure BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_schedules_tenant ON schedules(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_schedules_account ON schedules(account_id);
+    CREATE INDEX IF NOT EXISTS idx_schedules_enabled_next_run ON schedules(enabled, next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
+
+    -- Executions table
+    CREATE TABLE IF NOT EXISTS executions (
+        execution_id VARCHAR(255) PRIMARY KEY,
+        schedule_id VARCHAR(255) NOT NULL REFERENCES schedules(schedule_id) ON DELETE CASCADE,
+        account_id VARCHAR(255) NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+        scan_id VARCHAR(255),
+        started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP WITH TIME ZONE,
+        status VARCHAR(50) NOT NULL DEFAULT 'running',
+        triggered_by VARCHAR(50) NOT NULL DEFAULT 'scheduler',
+        total_checks INTEGER,
+        passed_checks INTEGER,
+        failed_checks INTEGER,
+        error_message TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_executions_schedule_started ON executions(schedule_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_executions_account_started ON executions(account_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_executions_status ON executions(status);
+
+    -- Scan results table
+    CREATE TABLE IF NOT EXISTS scan_results (
+        scan_id VARCHAR(255) PRIMARY KEY,
+        account_id VARCHAR(255) NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+        provider_type VARCHAR(50) NOT NULL,
+        scan_type VARCHAR(50) NOT NULL DEFAULT 'scheduled',
+        started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP WITH TIME ZONE,
+        status VARCHAR(50) NOT NULL DEFAULT 'running',
+        total_checks INTEGER,
+        passed_checks INTEGER,
+        failed_checks INTEGER,
+        error_checks INTEGER,
+        result_storage_path TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scan_results_account_started ON scan_results(account_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_scan_results_status_started ON scan_results(status, started_at);
+    CREATE INDEX IF NOT EXISTS idx_scan_results_status ON scan_results(status);
+
+    -- Function to automatically update updated_at timestamp
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+
+    -- Triggers for updated_at
+    DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
+    CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenants
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+    DROP TRIGGER IF EXISTS update_providers_updated_at ON providers;
+    CREATE TRIGGER update_providers_updated_at BEFORE UPDATE ON providers
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+    DROP TRIGGER IF EXISTS update_accounts_updated_at ON accounts;
+    CREATE TRIGGER update_accounts_updated_at BEFORE UPDATE ON accounts
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+    DROP TRIGGER IF EXISTS update_schedules_updated_at ON schedules;
+    CREATE TRIGGER update_schedules_updated_at BEFORE UPDATE ON schedules
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-db-schema
+  namespace: threat-engine-engines
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: postgres-init
+        image: postgres:14-alpine
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Initializing RDS PostgreSQL schema..."
+          export PGPASSWORD='apXuHV%2OSyRWK62'
+          export PGSSLMODE='require'
+          RDS_HOST="postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+          RDS_USER="postgres"
+          RDS_DB="vulnerability_db"
+          echo "🔍 Testing connection..."
+          psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "SELECT version();" || exit 1
+          echo "✅ Connection successful!"
+          echo "📝 Creating threatengine user if needed..."
+          psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'threatengine') THEN CREATE USER threatengine WITH PASSWORD 'v-nKrqSta17I8UA1IPzIgoiJHPIE-zPm20V7D857yVU'; GRANT ALL PRIVILEGES ON DATABASE vulnerability_db TO threatengine; END IF; END \$\$;" || echo "⚠️  User may already exist"
+          psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "GRANT ALL PRIVILEGES ON SCHEMA public TO threatengine;"
+          echo "🔍 Checking existing tables..."
+          TABLE_COUNT=$(psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('tenants', 'providers', 'accounts', 'schedules', 'executions', 'scan_results');" 2>/dev/null | tr -d ' ' || echo "0")
+          if [ "$TABLE_COUNT" -gt 0 ]; then
+            echo "⚠️  Found $TABLE_COUNT existing table(s). Listing..."
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
+            echo "If you want to recreate, manually drop tables first."
+            exit 0
+          fi
+          echo "📝 Creating schema from ConfigMap..."
+          psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -f /schema/schema.sql
+          if [ $? -eq 0 ]; then
+            echo "✅ Schema created successfully!"
+            echo "📝 Granting permissions to threatengine user..."
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO threatengine;"
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO threatengine;"
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO threatengine;"
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO threatengine;"
+            echo "📊 Verifying tables..."
+            psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name;"
+            echo ""
+            echo "✅ Schema initialization complete!"
+          else
+            echo "❌ Schema creation failed"
+            exit 1
+          fi
+        volumeMounts:
+        - name: schema
+          mountPath: /schema
+        env:
+        - name: PGPASSWORD
+          value: "apXuHV%2OSyRWK62"
+        - name: PGSSLMODE
+          value: "require"
+      volumes:
+      - name: schema
+        configMap:
+          name: db-schema

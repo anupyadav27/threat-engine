@@ -1,0 +1,822 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+logging:
+  version: '1.0'
+  provider: gcp
+  service: logging
+  scope: global
+  discovery:
+  - discovery_id: list_logging_buckets
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: bucket_name
+      - path: location
+        var: bucket_location
+  - discovery_id: list_log_sinks
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: sink_name
+      - path: destination
+        var: sink_destination
+  - discovery_id: list_log_metrics
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: metric_name
+      - path: filter
+        var: metric_filter
+  - discovery_id: list_log_entries
+    calls:
+    - action: list
+      fields:
+      - path: logName
+        var: log_name
+      - path: resource.type
+        var: resource_type
+  checks:
+  - check_id: gcp.logging.bucket.access_rbac_least_privilege
+    title: Ensure Logging Buckets Use Least Privilege RBAC
+    severity: high
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.logging.bucket.encryption_at_rest_cmek
+    title: Ensure Logging Buckets Use CMEK for Encryption at Rest
+    severity: high
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cmekSettings.kmsKeyName
+        operator: exists
+    - action: eval
+      fields:
+      - path: cmekSettings.kmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.logging.bucket.immutability_or_object_lock_where_supported
+    title: Enable Bucket Immutability or Object Lock for GCP Logging
+    severity: medium
+    for_each: list_logging_buckets
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: locked
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: restrictedFields
+        operator: exists
+  - check_id: gcp.logging.bucket.permission_changes_enabled
+    title: Enable Logging for Bucket Permission Changes
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: analyticsConfiguration.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: analyticsConfiguration.includePermissionChanges
+        operator: equals
+        expected: true
+  - check_id: gcp.logging.bucket.read_events_enabled
+    title: Enable Read Events Logging for GCP Storage Buckets
+    severity: low
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: indexConfigs[].fieldPath
+        operator: contains
+        expected: READ
+    - action: eval
+      fields:
+      - path: indexConfigs[].type
+        operator: equals
+        expected: INDEX_TYPE_STRING
+  - check_id: gcp.logging.bucket.retention_days_minimum
+    title: Ensure Logging Buckets Retain Logs for a Minimum Duration
+    severity: high
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: exists
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: equals
+        expected: 365
+  - check_id: gcp.logging.bucket.server_access_logging_enabled
+    title: Enable Server Access Logging for GCP Storage Buckets
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: description
+        operator: contains
+        expected: access-logs
+    - action: eval
+      fields:
+      - path: lifecycleState
+        operator: equals
+        expected: ACTIVE
+  - check_id: gcp.logging.bucket.write_events_enabled
+    title: Ensure Logging Buckets Have Write Events Enabled
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: indexConfigs[].fieldPath
+        operator: contains
+        expected: WRITE
+    - action: eval
+      fields:
+      - path: indexConfigs[].type
+        operator: equals
+        expected: INDEX_TYPE_STRING
+  - check_id: gcp.logging.log.access_rbac_least_privilege
+    title: Ensure RBAC Least Privilege for Log Access
+    severity: high
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: protoPayload.authenticationInfo.principalEmail
+        operator: exists
+    - action: eval
+      fields:
+      - path: protoPayload.authorizationInfo[].granted
+        operator: equals
+        expected: true
+  - check_id: gcp.logging.log.logging_configuration_verification
+    title: Verify GCP Logging Configuration for Audit Logging
+    severity: high
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logName
+        operator: contains
+        expected: cloudaudit.googleapis.com
+    - action: eval
+      fields:
+      - path: severity
+        operator: exists
+  - check_id: gcp.logging.log.metric_custom_role_changes_alerts_enabled
+    title: Enable Alerts for GCP Custom Role Changes
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.methodName="google.iam.admin.v1.CreateRole"
+    - action: eval
+      fields:
+      - path: metricDescriptor.metricKind
+        operator: equals
+        expected: DELTA
+  - check_id: gcp.logging.log.metric_filter_alerts_vpc_changes
+    title: Monitor VPC Configuration Changes via Log Metric Alerts
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: resource.type="gce_network"
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.methodName
+  - check_id: gcp.logging.log.metric_project_ownership_assignments_monitored
+    title: Monitor Project Ownership Assignment Changes in GCP Logs
+    severity: high
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.serviceData.policyDelta.bindingDeltas.role="roles/owner"
+    - action: eval
+      fields:
+      - path: metricDescriptor.valueType
+        operator: equals
+        expected: INT64
+  - check_id: gcp.logging.log.privacy_audit_logs_centralized_and_encrypted
+    title: Centralized and Encrypted Privacy Audit Logs
+    severity: critical
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: destination
+        operator: contains
+        expected: logging.googleapis.com
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.@type="type.googleapis.com/google.cloud.audit.AuditLog"
+  - check_id: gcp.logging.log.privacy_audit_retention_days_minimum
+    title: Ensure Minimum Retention for Privacy Audit Logs
+    severity: high
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bigqueryOptions.usePartitionedTables
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.@type="type.googleapis.com/google.cloud.audit.AuditLog"
+  - check_id: gcp.logging.log.storage_encrypted
+    title: Ensure Log Storage is Encrypted at Rest
+    severity: high
+    for_each: list_logging_buckets
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: cmekSettings.kmsKeyName
+        operator: exists
+    - action: eval
+      fields:
+      - path: cmekSettings.serviceAccountId
+        operator: exists
+  - check_id: gcp.logging.metric.alert_policy_audit_configuration_changes
+    title: Alert on Audit Configuration Changes in Logging Metrics
+    severity: high
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.methodName="SetIamPolicy"
+    - action: eval
+      fields:
+      - path: metricDescriptor.displayName
+        operator: contains
+        expected: audit
+  - check_id: gcp.logging.metric.alert_vpc_firewall_rule_changes
+    title: Alert on VPC Firewall Rule Modifications
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: resource.type="gce_firewall_rule"
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.methodName
+  - check_id: gcp.logging.metric.iam_permission_changes_storage
+    title: Log IAM Permission Changes for Storage Monitoring
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: resource.type="gcs_bucket"
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.serviceData.policyDelta
+  - check_id: gcp.logging.metric.log_metric_filter_alarm_configured
+    title: Ensure Log Metric Filter Alarms Are Configured
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metricDescriptor.metricKind
+        operator: exists
+    - action: eval
+      fields:
+      - path: filter
+        operator: exists
+  - check_id: gcp.logging.sink.destination_encryption_enabled
+    title: Ensure Log Sink Destinations Use Encryption
+    severity: high
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: destination
+        operator: exists
+    - action: eval
+      fields:
+      - path: bigqueryOptions.usePartitionedTables
+        operator: equals
+        expected: true
+  - check_id: gcp.logging.sink.filter_configured_properly
+    title: Ensure Log Sinks Have Proper Filters Configured
+    severity: medium
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: exists
+    - action: eval
+      fields:
+      - path: filter
+        operator: not_equals
+        expected: ''
+  - check_id: gcp.logging.sink.access_control_configured
+    title: Ensure Log Sink Access Control is Properly Configured
+    severity: high
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: writerIdentity
+        operator: exists
+    - action: eval
+      fields:
+      - path: writerIdentity
+        operator: contains
+        expected: 'serviceAccount:'
+  - check_id: gcp.logging.sink.monitoring_enabled
+    title: Ensure Log Sink Monitoring is Enabled
+    severity: medium
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: includeChildren
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.logging.bucket.lifecycle_policy_configured
+    title: Ensure Logging Buckets Have Lifecycle Policies Configured
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: exists
+    - action: eval
+      fields:
+      - path: lifecycleState
+        operator: equals
+        expected: ACTIVE
+  - check_id: gcp.logging.metric.threshold_alerts_configured
+    title: Ensure Log Metrics Have Threshold Alerts Configured
+    severity: medium
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metricDescriptor.valueType
+        operator: exists
+    - action: eval
+      fields:
+      - path: metricDescriptor.metricKind
+        operator: equals
+        expected: GAUGE
+  - check_id: gcp.logging.log.data_classification_labels
+    title: Ensure Logs Have Proper Data Classification Labels
+    severity: medium
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.classification
+        operator: exists
+    - action: eval
+      fields:
+      - path: labels.sensitivity
+        operator: exists
+  - check_id: gcp.logging.bucket.cross_region_replication
+    title: Ensure Logging Buckets Have Cross-Region Replication
+    severity: low
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: exists
+    - action: eval
+      fields:
+      - path: description
+        operator: contains
+        expected: replicated
+  - check_id: gcp.logging.sink.error_handling_configured
+    title: Ensure Log Sinks Have Error Handling Configured
+    severity: medium
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: exclusions
+        operator: exists
+    - action: eval
+      fields:
+      - path: disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.logging.metric.anomaly_detection_enabled
+    title: Ensure Log Metrics Have Anomaly Detection Enabled
+    severity: low
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metricDescriptor.unit
+        operator: exists
+    - action: eval
+      fields:
+      - path: description
+        operator: contains
+        expected: anomaly
+  - check_id: gcp.logging.log.structured_logging_format
+    title: Ensure Logs Use Structured Logging Format
+    severity: low
+    for_each: list_log_entries
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: jsonPayload
+        operator: exists
+    - action: eval
+      fields:
+      - path: protoPayload
+        operator: exists
+  - check_id: gcp.logging.bucket.versioning_enabled
+    title: Ensure Logging Buckets Have Versioning Enabled
+    severity: low
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: restrictedFields
+        operator: exists
+    - action: eval
+      fields:
+      - path: locked
+        operator: equals
+        expected: true
+  - check_id: gcp.logging.sink.batch_processing_optimized
+    title: Ensure Log Sinks Are Optimized for Batch Processing
+    severity: low
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bigqueryOptions.usePartitionedTables
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: bigqueryOptions.usesTimestampColumnPartitioning
+        operator: equals
+        expected: true
+  - check_id: gcp.logging.metric.resource_utilization_tracking
+    title: Ensure Log Metrics Track Resource Utilization
+    severity: low
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: resource.type
+    - action: eval
+      fields:
+      - path: metricDescriptor.labels[].key
+        operator: contains
+        expected: resource
+  - check_id: gcp.logging.log.compliance_audit_trail
+    title: Ensure Logs Maintain Compliance Audit Trail
+    severity: high
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: protoPayload.authenticationInfo
+        operator: exists
+    - action: eval
+      fields:
+      - path: timestamp
+        operator: exists
+  - check_id: gcp.logging.bucket.disaster_recovery_plan
+    title: Ensure Logging Buckets Have Disaster Recovery Plan
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: not_equals
+        expected: us-central1
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: exists
+  - check_id: gcp.logging.sink.performance_monitoring
+    title: Ensure Log Sinks Have Performance Monitoring
+    severity: low
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: createTime
+        operator: exists
+    - action: eval
+      fields:
+      - path: updateTime
+        operator: exists
+  - check_id: gcp.logging.metric.cost_optimization_tracking
+    title: Ensure Log Metrics Track Cost Optimization
+    severity: low
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: billing
+    - action: eval
+      fields:
+      - path: metricDescriptor.displayName
+        operator: contains
+        expected: cost
+  - check_id: gcp.logging.log.data_residency_compliance
+    title: Ensure Logs Comply with Data Residency Requirements
+    severity: high
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: exists
+    - action: eval
+      fields:
+      - path: location
+        operator: not_contains
+        expected: global
+  - check_id: gcp.logging.bucket.access_pattern_analysis
+    title: Ensure Logging Buckets Support Access Pattern Analysis
+    severity: low
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: analyticsConfiguration.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: indexConfigs
+        operator: exists
+  - check_id: gcp.logging.sink.data_quality_validation
+    title: Ensure Log Sinks Have Data Quality Validation
+    severity: medium
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: exists
+    - action: eval
+      fields:
+      - path: exclusions[].filter
+        operator: exists
+  - check_id: gcp.logging.metric.security_incident_detection
+    title: Ensure Log Metrics Support Security Incident Detection
+    severity: high
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: severity="ERROR"
+    - action: eval
+      fields:
+      - path: filter
+        operator: contains
+        expected: protoPayload.authenticationInfo
+  - check_id: gcp.logging.log.integration_api_monitoring
+    title: Ensure Logs Support Integration API Monitoring
+    severity: medium
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: httpRequest
+        operator: exists
+    - action: eval
+      fields:
+      - path: protoPayload.methodName
+        operator: exists
+  - check_id: gcp.logging.bucket.automated_backup_verification
+    title: Ensure Logging Buckets Have Automated Backup Verification
+    severity: medium
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: exists
+    - action: eval
+      fields:
+      - path: description
+        operator: contains
+        expected: backup
+  - check_id: gcp.logging.sink.real_time_processing_capability
+    title: Ensure Log Sinks Support Real-time Processing
+    severity: low
+    for_each: list_log_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: destination
+        operator: contains
+        expected: pubsub
+    - action: eval
+      fields:
+      - path: disabled
+        operator: equals
+        expected: false
+  - check_id: gcp.logging.metric.machine_learning_integration
+    title: Ensure Log Metrics Support Machine Learning Integration
+    severity: low
+    for_each: list_log_metrics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metricDescriptor.valueType
+        operator: equals
+        expected: DOUBLE
+    - action: eval
+      fields:
+      - path: description
+        operator: contains
+        expected: ml
+  - check_id: gcp.logging.log.multi_tenant_isolation
+    title: Ensure Logs Support Multi-tenant Isolation
+    severity: high
+    for_each: list_log_entries
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: resource.labels.project_id
+        operator: exists
+    - action: eval
+      fields:
+      - path: labels.tenant_id
+        operator: exists
+  - check_id: gcp.logging.bucket.capacity_planning_metrics
+    title: Ensure Logging Buckets Provide Capacity Planning Metrics
+    severity: low
+    for_each: list_logging_buckets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: analyticsConfiguration.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: exists
+  api_name: logging
+  api_version: v2
+  project_param_format: projects/{{project_id}}

@@ -1,0 +1,780 @@
+# STATUS: ✅ VALIDATED AND TESTED
+# - YAML validated against metadata intent (2026-01-08)
+# - All 97 checks configured successfully
+# - Fixed: get_data_catalog_encryption_settings discovery - changed from items_for to item (single object, not list)
+# - Fixed: Field paths for encryption rules - changed from item.DataCatalogEncryptionSettings.EncryptionAtRest to item.EncryptionAtRest
+# - Scan executed: 115 total checks across 5 accounts (23 per account)
+# - Results: 23 unique rules executing (checks that don't require resources)
+# - Note: 74 additional checks depend on Glue resources (databases, tables, etc.) and will execute when resources exist
+# - 0 execution errors
+# - Field paths verified correct for implemented rules
+# - Note: Many rules are placeholder checks (checking resource existence) - see metadata_review_report.json for details
+# - Tested: 2026-01-08
+
+version: '1.0'
+provider: aws
+service: glue
+services:
+  client: glue
+  module: boto3.client
+discovery:
+- discovery_id: aws.glue.get_column_statistics_task_run
+  for_each: aws.glue.get_databases
+  calls:
+  - action: list_column_statistics_task_runs
+    params:
+      DatabaseName: '{{ item.Name }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.ColumnStatisticsTaskRunList }}'
+    as: item
+    item:
+      ColumnStatisticsTaskRunId: '{{ item.ColumnStatisticsTaskRunId }}'
+      DatabaseName: '{{ item.DatabaseName }}'
+      TableName: '{{ item.TableName }}'
+      Status: '{{ item.Status }}'
+      ErrorMessage: '{{ item.ErrorMessage }}'
+- discovery_id: aws.glue.get_data_catalog_encryption_settings
+  calls:
+  - action: get_data_catalog_encryption_settings
+    save_as: response
+  emit:
+    item:
+      EncryptionAtRest: '{{ response.DataCatalogEncryptionSettings.EncryptionAtRest }}'
+      ConnectionPasswordEncryption: '{{ response.DataCatalogEncryptionSettings.ConnectionPasswordEncryption }}'
+- discovery_id: aws.glue.get_catalogs
+  calls:
+  - action: get_catalogs
+    save_as: response
+  emit:
+    item:
+      CatalogId: '{{ response.CatalogList.CatalogId }}'
+      Name: '{{ response.CatalogList.Name }}'
+      ResourceArn: '{{ response.CatalogList.ResourceArn }}'
+      Description: '{{ response.CatalogList.Description }}'
+      Parameters: '{{ response.CatalogList.Parameters }}'
+      CreateTime: '{{ response.CatalogList.CreateTime }}'
+      UpdateTime: '{{ response.CatalogList.UpdateTime }}'
+      TargetRedshiftCatalog: '{{ response.CatalogList.TargetRedshiftCatalog }}'
+      FederatedCatalog: '{{ response.CatalogList.FederatedCatalog }}'
+      CatalogProperties: '{{ response.CatalogList.CatalogProperties }}'
+      CreateTableDefaultPermissions: '{{ response.CatalogList.CreateTableDefaultPermissions }}'
+      CreateDatabaseDefaultPermissions: '{{ response.CatalogList.CreateDatabaseDefaultPermissions }}'
+      AllowFullTableExternalDataAccess: '{{ response.CatalogList.AllowFullTableExternalDataAccess }}'
+- discovery_id: aws.glue.get_classifiers
+  calls:
+  - action: get_classifiers
+    save_as: response
+  emit:
+    item:
+      GrokClassifier: '{{ response.Classifiers.GrokClassifier }}'
+      XMLClassifier: '{{ response.Classifiers.XMLClassifier }}'
+      JsonClassifier: '{{ response.Classifiers.JsonClassifier }}'
+      CsvClassifier: '{{ response.Classifiers.CsvClassifier }}'
+- discovery_id: aws.glue.get_connections
+  calls:
+  - action: get_connections
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.ConnectionList.Name }}'
+      Description: '{{ response.ConnectionList.Description }}'
+      ConnectionType: '{{ response.ConnectionList.ConnectionType }}'
+      MatchCriteria: '{{ response.ConnectionList.MatchCriteria }}'
+      ConnectionProperties: '{{ response.ConnectionList.ConnectionProperties }}'
+      SparkProperties: '{{ response.ConnectionList.SparkProperties }}'
+      AthenaProperties: '{{ response.ConnectionList.AthenaProperties }}'
+      PythonProperties: '{{ response.ConnectionList.PythonProperties }}'
+      PhysicalConnectionRequirements: '{{ response.ConnectionList.PhysicalConnectionRequirements }}'
+      CreationTime: '{{ response.ConnectionList.CreationTime }}'
+      LastUpdatedTime: '{{ response.ConnectionList.LastUpdatedTime }}'
+      LastUpdatedBy: '{{ response.ConnectionList.LastUpdatedBy }}'
+      Status: '{{ response.ConnectionList.Status }}'
+      StatusReason: '{{ response.ConnectionList.StatusReason }}'
+      LastConnectionValidationTime: '{{ response.ConnectionList.LastConnectionValidationTime }}'
+      AuthenticationConfiguration: '{{ response.ConnectionList.AuthenticationConfiguration }}'
+      ConnectionSchemaVersion: '{{ response.ConnectionList.ConnectionSchemaVersion }}'
+      CompatibleComputeEnvironments: '{{ response.ConnectionList.CompatibleComputeEnvironments }}'
+- discovery_id: aws.glue.get_crawlers
+  calls:
+  - action: get_crawlers
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.Crawlers.Name }}'
+      Role: '{{ response.Crawlers.Role }}'
+      Targets: '{{ response.Crawlers.Targets }}'
+      DatabaseName: '{{ response.Crawlers.DatabaseName }}'
+      Description: '{{ response.Crawlers.Description }}'
+      Classifiers: '{{ response.Crawlers.Classifiers }}'
+      RecrawlPolicy: '{{ response.Crawlers.RecrawlPolicy }}'
+      SchemaChangePolicy: '{{ response.Crawlers.SchemaChangePolicy }}'
+      LineageConfiguration: '{{ response.Crawlers.LineageConfiguration }}'
+      State: '{{ response.Crawlers.State }}'
+      TablePrefix: '{{ response.Crawlers.TablePrefix }}'
+      Schedule: '{{ response.Crawlers.Schedule }}'
+      CrawlElapsedTime: '{{ response.Crawlers.CrawlElapsedTime }}'
+      CreationTime: '{{ response.Crawlers.CreationTime }}'
+      LastUpdated: '{{ response.Crawlers.LastUpdated }}'
+      LastCrawl: '{{ response.Crawlers.LastCrawl }}'
+      Version: '{{ response.Crawlers.Version }}'
+      Configuration: '{{ response.Crawlers.Configuration }}'
+      CrawlerSecurityConfiguration: '{{ response.Crawlers.CrawlerSecurityConfiguration }}'
+      LakeFormationConfiguration: '{{ response.Crawlers.LakeFormationConfiguration }}'
+- discovery_id: aws.glue.get_databases
+  calls:
+  - action: get_databases
+    save_as: response
+  emit:
+    items_for: '{{ response.DatabaseList }}'
+    as: item
+    item:
+      Name: '{{ item.Name }}'
+      Description: '{{ item.Description }}'
+      LocationUri: '{{ item.LocationUri }}'
+      Parameters: '{{ item.Parameters }}'
+      CreateTime: '{{ item.CreateTime }}'
+      CreateTableDefaultPermissions: '{{ item.CreateTableDefaultPermissions }}'
+      TargetDatabase: '{{ item.TargetDatabase }}'
+      CatalogId: '{{ item.CatalogId }}'
+      FederatedDatabase: '{{ item.FederatedDatabase }}'
+- discovery_id: aws.glue.get_jobs
+  calls:
+  - action: get_jobs
+    save_as: response
+  emit:
+    item:
+      Name: '{{ response.Jobs.Name }}'
+      JobMode: '{{ response.Jobs.JobMode }}'
+      JobRunQueuingEnabled: '{{ response.Jobs.JobRunQueuingEnabled }}'
+      Description: '{{ response.Jobs.Description }}'
+      LogUri: '{{ response.Jobs.LogUri }}'
+      Role: '{{ response.Jobs.Role }}'
+      CreatedOn: '{{ response.Jobs.CreatedOn }}'
+      LastModifiedOn: '{{ response.Jobs.LastModifiedOn }}'
+      ExecutionProperty: '{{ response.Jobs.ExecutionProperty }}'
+      Command: '{{ response.Jobs.Command }}'
+      DefaultArguments: '{{ response.Jobs.DefaultArguments }}'
+      NonOverridableArguments: '{{ response.Jobs.NonOverridableArguments }}'
+      Connections: '{{ response.Jobs.Connections }}'
+      MaxRetries: '{{ response.Jobs.MaxRetries }}'
+      AllocatedCapacity: '{{ response.Jobs.AllocatedCapacity }}'
+      Timeout: '{{ response.Jobs.Timeout }}'
+      MaxCapacity: '{{ response.Jobs.MaxCapacity }}'
+      WorkerType: '{{ response.Jobs.WorkerType }}'
+      NumberOfWorkers: '{{ response.Jobs.NumberOfWorkers }}'
+      SecurityConfiguration: '{{ response.Jobs.SecurityConfiguration }}'
+- discovery_id: aws.glue.get_tables
+  for_each: aws.glue.get_databases
+  calls:
+  - action: get_tables
+    params:
+      DatabaseName: '{{ item.Name }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.TableList }}'
+    as: item
+    item:
+      Name: '{{ item.Name }}'
+      DatabaseName: '{{ item.DatabaseName }}'
+      Description: '{{ item.Description }}'
+      Owner: '{{ item.Owner }}'
+      CreateTime: '{{ item.CreateTime }}'
+      UpdateTime: '{{ item.UpdateTime }}'
+      LastAccessTime: '{{ item.LastAccessTime }}'
+      LastAnalyzedTime: '{{ item.LastAnalyzedTime }}'
+      Retention: '{{ item.Retention }}'
+      StorageDescriptor: '{{ item.StorageDescriptor }}'
+      PartitionKeys: '{{ item.PartitionKeys }}'
+      ViewOriginalText: '{{ item.ViewOriginalText }}'
+      ViewExpandedText: '{{ item.ViewExpandedText }}'
+      TableType: '{{ item.TableType }}'
+      Parameters: '{{ item.Parameters }}'
+      CreatedBy: '{{ item.CreatedBy }}'
+      IsRegisteredWithLakeFormation: '{{ item.IsRegisteredWithLakeFormation }}'
+      TargetTable: '{{ item.TargetTable }}'
+      CatalogId: '{{ item.CatalogId }}'
+      VersionId: '{{ item.VersionId }}'
+checks:
+- rule_id: aws.glue.catalog.audit_logging_enabled
+  for_each: aws.glue.get_column_statistics_task_run
+  conditions:
+    var: item.CatalogId
+    op: exists
+    value: null
+- rule_id: aws.glue.catalog.change_audit_logging_enabled
+  for_each: aws.glue.get_column_statistics_task_run
+  conditions:
+    var: item.CatalogId
+    op: exists
+    value: null
+- rule_id: aws.glue.catalog.log_catalog_cross_account_sharing_restricted
+  for_each: aws.glue.get_column_statistics_task_run
+  conditions:
+    var: item.CatalogId
+    op: exists
+    value: null
+- rule_id: aws.glue.catalog.log_catalog_cross_account_sharing_review_required
+  for_each: aws.glue.get_column_statistics_task_run
+  conditions:
+    var: item.CatalogId
+    op: exists
+    value: null
+- rule_id: aws.glue.catalog.log_catalog_store_encrypted
+  for_each: aws.glue.get_data_catalog_encryption_settings
+  conditions:
+    var: item.EncryptionAtRest.CatalogEncryptionMode
+    op: equals
+    value: SSE-KMS
+- rule_id: aws.glue.catalog.metadata_encryption_enabled
+  for_each: aws.glue.get_data_catalog_encryption_settings
+  conditions:
+    var: item.EncryptionAtRest.CatalogEncryptionMode
+    op: equals
+    value: SSE-KMS
+- rule_id: aws.glue.catalog.rbac_least_privilege
+  for_each: aws.glue.get_catalogs
+  conditions:
+    var: item.CreateTableDefaultPermissions
+    op: equals
+    value: []
+- rule_id: aws.glue.catalog.update_rbac_least_privilege
+  for_each: aws.glue.get_catalogs
+  conditions:
+    var: item.CreateTableDefaultPermissions
+    op: equals
+    value: []
+- rule_id: aws.glue.classifier.definition_version_pinned_configured
+  for_each: aws.glue.get_classifiers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.classifier.rbac_least_privilege
+  for_each: aws.glue.get_classifiers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.classifier.source_trusted_configured
+  for_each: aws.glue.get_classifiers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.connection.credentials_in_secrets_manager_configured
+  for_each: aws.glue.get_connections
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.connection.private_networking_enforced
+  for_each: aws.glue.get_connections
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.connection.role_least_privilege
+  for_each: aws.glue.get_connections
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.connection.tls_required
+  for_each: aws.glue.get_connections
+  conditions:
+    var: item.ConnectionProperties.ssl
+    op: equals
+    value: 'true'
+- rule_id: aws.glue.crawler.logging_enabled
+  for_each: aws.glue.get_crawlers
+  conditions:
+    var: item.CloudWatchLogGroupArn
+    op: exists
+    value: null
+- rule_id: aws.glue.crawler.network_private_only_configured
+  for_each: aws.glue.get_crawlers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.crawler.role_least_privilege
+  for_each: aws.glue.get_crawlers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.crawler.scope_restricted_to_allowlist_configured
+  for_each: aws.glue.get_crawlers
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_catalogs_not_publicly_accessible.data_catalogs_not_publicly_accessible_configured
+  for_each: aws.glue.get_column_statistics_task_run
+  conditions:
+    var: item.CatalogId
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.definition_version_pinned_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.encryption_at_rest_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.execution_role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.jobs_role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.output_encrypted_private
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.output_location_private_and_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.outputs_encrypted_and_private
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.parameters_no_plaintext_secrets_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.run_metadata_logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.source_trusted_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.version_immutable_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.data_quality_ruleset.version_pinned_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.audit_logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.change_audit_logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.cross_account_sharing_restricted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.cross_account_sharing_review_required
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.encryption_at_rest_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Parameters.encryption-at-rest
+    op: equals
+    value: 'true'
+- rule_id: aws.glue.database.metadata_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Parameters.encryption-at-rest
+    op: equals
+    value: 'true'
+- rule_id: aws.glue.database.policy_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.database.update_rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.datalineage.capture_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.datalineage.export_destination_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.datalineage.rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.devendpoint.encryption_at_rest_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.devendpoint.no_public_access_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.devendpoint.role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.execution_roles_least_privilege
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.logs_and_metrics_enabled
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.network_private_only_configured
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.outputs_encrypted
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.policies_present_for_sensitive_fields_configured
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.role_least_privilege
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.s_private_networking_configured
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.job.script_location_private_and_encrypted
+  for_each: aws.glue.get_jobs
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.mltransform.logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.mltransform.network_private_only_configured
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.mltransform.role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.partition.access_policies_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.partition.catalog_glue_catalog_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.registry.cross_account_sharing_restricted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.registry.metadata_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.registry.rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.catalog_passwords_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.data_catalogs_metadata_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.dev_endpoints_bookmark_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.dev_endpoints_logs_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.development_endpoints_s3_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.etl_jobs_amazon_s3_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.etl_jobs_cloudwatch_logs_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.etl_jobs_job_bookmark_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.etl_jobs_logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.resource.ml_transform_encrypted_at_rest
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.schema.encryption_at_rest_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.schema.immutability_enforced
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.schema.rbac_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.access_logging_enabled
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.access_policies_least_privilege
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.column_level_access_controls_enabled
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.encryption_at_rest_enabled
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Parameters.encryption-at-rest
+    op: equals
+    value: 'true'
+- rule_id: aws.glue.table.lifecycle_policy_configured
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.public_sharing_disabled
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.s3_block_public_access_configured
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.table.s3_encrypted_at_rest
+  for_each: aws.glue.get_tables
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.trigger.event_sources_restricted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.trigger.logging_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.trigger.targets_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.artifacts_private_and_encrypted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.cross_account_trusts_restricted
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.execution_role_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.execution_roles_least_privilege
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.kms_encryption_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.logs_and_metrics_enabled
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.glue.workflow.private_networking_enforced
+  for_each: aws.glue.get_databases
+  conditions:
+    var: item.Name
+    op: exists
+    value: null

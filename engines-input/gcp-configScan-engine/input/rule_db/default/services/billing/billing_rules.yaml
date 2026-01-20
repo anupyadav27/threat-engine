@@ -1,0 +1,346 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+billing:
+  version: '1.0'
+  provider: gcp
+  service: billing
+  scope: global
+  discovery:
+  - discovery_id: list_billing_accounts
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: billing_account_name
+      - path: displayName
+        var: billing_account_display_name
+  - discovery_id: list_billing_budgets
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: budget_name
+      - path: displayName
+        var: budget_display_name
+  - discovery_id: list_anomaly_detectors
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: detector_name
+      - path: displayName
+        var: detector_display_name
+  - discovery_id: list_billing_projects
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: project_name
+      - path: billingAccountName
+        var: project_billing_account
+  checks:
+  - check_id: gcp.billing.anomaly.cost_alert_destinations_configured
+    title: Ensure Billing Anomaly Cost Alert Destinations Configured
+    severity: medium
+    for_each: list_anomaly_detectors
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: notificationChannels
+        operator: exists
+    - action: eval
+      fields:
+      - path: notificationChannels
+        operator: contains
+        expected: projects/
+  - check_id: gcp.billing.anomaly.cost_detectors_enabled
+    title: Enable GCP Billing Cost Anomaly Detectors
+    severity: high
+    for_each: list_anomaly_detectors
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: state
+        operator: equals
+        expected: ENABLED
+  - check_id: gcp.billing.anomaly.cost_severity_thresholds_configured
+    title: Ensure Cost Severity Thresholds Are Configured for Billing Anomalies
+    severity: medium
+    for_each: list_anomaly_detectors
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: alertPolicy.thresholds
+        operator: exists
+    - action: eval
+      fields:
+      - path: alertPolicy.thresholds[].severity
+        operator: contains
+        expected: CRITICAL
+  - check_id: gcp.billing.billing_account.cost_access_admins_mfa_required
+    title: Enforce MFA for Cost Access Admins on Billing Accounts
+    severity: high
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].members[]
+        operator: contains
+        expected: 'user:'
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: has({}.mfaEnabled)
+  - check_id: gcp.billing.billing_account.cost_access_console_rbac_least_privilege
+    title: Ensure Billing Account Access Uses Least Privilege RBAC
+    severity: high
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: equals
+        expected: roles/billing.user
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_exists
+        expected: roles/billing.admin
+  - check_id: gcp.billing.billing_account.cost_access_cost_data_exports_private_and_encrypted
+    title: Ensure Cost Data Exports are Private and Encrypted
+    severity: high
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_billing_export_config
+      fields:
+      - path: bigqueryExport.dataset.encryption.kmsKeyName
+        operator: exists
+    - action: eval
+      fields:
+      - path: bigqueryExport.dataset.access[].specialGroup
+        operator: not_exists
+        expected: allUsers
+  - check_id: gcp.billing.billing_account.cost_access_cost_export_destinations_least_privilege
+    title: Restrict Cost Export Destinations to Least Privilege
+    severity: medium
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_billing_export_config
+      fields:
+      - path: bigqueryExport.dataset.access[].role
+        operator: equals
+        expected: READER
+    - action: eval
+      fields:
+      - path: bigqueryExport.dataset.access[].userByEmail
+        operator: exists
+  - check_id: gcp.billing.billing_account.cost_savings_plan_admins_mfa_required
+    title: Enable MFA for Cost Savings Plan Admins on Billing Accounts
+    severity: high
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: contains
+        expected: billing.costsManager
+    - action: eval
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: has({}.mfaEnabled)
+  - check_id: gcp.billing.billing_account.cost_savings_plan_approval_workflow_required
+    title: Enforce Approval Workflow for Cost Savings Plans
+    severity: medium
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_billing_account_settings
+      fields:
+      - path: costManagement.approvalWorkflow.enabled
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: costManagement.approvalWorkflow.approvers
+        operator: exists
+  - check_id: gcp.billing.billing_account.cost_savings_plan_purchase_permissions_restricted
+    title: Restrict Cost Savings Plan Purchase Permissions
+    severity: high
+    for_each: list_billing_accounts
+    logic: AND
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: not_exists
+        expected: roles/billing.admin
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: equals
+        expected: roles/billing.costsManager
+  - check_id: gcp.billing.budget.cost_alert_destinations_configured
+    title: Ensure Cost Alert Destinations Are Configured
+    severity: medium
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: notificationsRule.pubsubTopic
+        operator: exists
+    - action: eval
+      fields:
+      - path: notificationsRule.monitoringNotificationChannels
+        operator: exists
+  - check_id: gcp.billing.budget.cost_alert_thresholds_configured
+    title: Ensure Billing Budget Cost Alert Thresholds Are Configured
+    severity: medium
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: thresholdRules
+        operator: exists
+    - action: eval
+      fields:
+      - path: thresholdRules[].thresholdPercent
+        operator: exists
+  - check_id: gcp.billing.budget.cost_budgets_defined_for_accounts_or_projects
+    title: Ensure Cost Budgets Are Set for GCP Projects or Accounts
+    severity: high
+    for_each: list_billing_projects
+    logic: OR
+    calls:
+    - action: get_project_budgets
+      fields:
+      - path: budgets
+        operator: exists
+    - action: get_billing_account_budgets
+      fields:
+      - path: budgets
+        operator: exists
+  - check_id: gcp.billing.budget.cost_cost_tag_policy_enforced
+    title: Enforce Cost Tag Policy on GCP Billing Budgets
+    severity: medium
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: budgetFilter.labels
+        operator: exists
+    - action: eval
+      fields:
+      - path: budgetFilter.labels.environment
+        operator: exists
+  - check_id: gcp.billing.budget.cost_modify_permissions_restricted
+    title: Restrict Cost Modification Permissions for GCP Budgets
+    severity: high
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: get_budget_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: not_exists
+        expected: roles/billing.admin
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: equals
+        expected: roles/billing.budgetsViewer
+  - check_id: gcp.billing.budget.cost_required_cost_tags_present
+    title: Ensure Cost Tags are Present for GCP Billing Budgets
+    severity: medium
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: budgetFilter.labels.cost-center
+        operator: exists
+    - action: eval
+      fields:
+      - path: budgetFilter.labels.department
+        operator: exists
+  - check_id: gcp.billing.budget.cost_untagged_resource_alerts_enabled
+    title: Enable Alerts for Untagged Resource Costs
+    severity: medium
+    for_each: list_billing_budgets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: budgetFilter.labels.__untagged__
+        operator: exists
+    - action: eval
+      fields:
+      - path: notificationsRule.disableDefaultIamRecipients
+        operator: equals
+        expected: false
+  api_name: cloudbilling
+  api_version: v1

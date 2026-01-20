@@ -1,0 +1,234 @@
+version: '1.0'
+provider: aws
+service: mailmanager
+services:
+  client: mailmanager
+  module: boto3.client
+discovery:
+- discovery_id: aws.mailmanager.list_address_lists
+  calls:
+  - action: list_address_lists
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AddressLists }}'
+- discovery_id: aws.mailmanager.list_ingress_points
+  calls:
+  - action: list_ingress_points
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IngressPoints }}'
+- discovery_id: aws.mailmanager.list_addon_instances
+  calls:
+  - action: list_addon_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AddonInstances }}'
+- discovery_id: aws.mailmanager.list_addon_subscriptions
+  calls:
+  - action: list_addon_subscriptions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AddonSubscriptions }}'
+- discovery_id: aws.mailmanager.list_archives
+  calls:
+  - action: list_archives
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Archives }}'
+- discovery_id: aws.mailmanager.list_traffic_policies
+  calls:
+  - action: list_traffic_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TrafficPolicies }}'
+- discovery_id: aws.mailmanager.list_relays
+  calls:
+  - action: list_relays
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Relays }}'
+- discovery_id: aws.mailmanager.list_rule_sets
+  calls:
+  - action: list_rule_sets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RuleSets }}'
+- discovery_id: aws.mailmanager.list_address_list_import_jobs
+  for_each: aws.mailmanager.list_address_lists
+  calls:
+  - action: list_address_list_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      addressListAddressListId: '{{ item.addressListAddressListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ImportJobs }}'
+- discovery_id: aws.mailmanager.get_rule_set
+  for_each: aws.mailmanager.list_rule_sets
+  calls:
+  - action: get_rule_set
+    save_as: response
+    on_error: continue
+    params:
+      ruleSetRuleSetId: '{{ item.ruleSetRuleSetId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.mailmanager.get_relay
+  for_each: aws.mailmanager.list_relays
+  calls:
+  - action: get_relay
+    save_as: response
+    on_error: continue
+    params:
+      relayRelayId: '{{ item.relayRelayId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Authentication }}'
+- discovery_id: aws.mailmanager.get_archive
+  for_each: aws.mailmanager.list_archives
+  calls:
+  - action: get_archive
+    save_as: response
+    on_error: continue
+    params:
+      archivArchiveId: '{{ item.archivArchiveId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Retention }}'
+- discovery_id: aws.mailmanager.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.mailmanager.get_address_list_import_job
+  for_each: aws.mailmanager.list_address_list_import_jobs
+  calls:
+  - action: get_address_list_import_job
+    save_as: response
+    on_error: continue
+    params:
+      importJobJobId: '{{ item.importJobJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ImportDataFormat }}'
+- discovery_id: aws.mailmanager.get_ingress_point
+  for_each: aws.mailmanager.list_ingress_points
+  calls:
+  - action: get_ingress_point
+    save_as: response
+    on_error: continue
+    params:
+      ingressPointIngressPointId: '{{ item.ingressPointIngressPointId }}'
+  emit:
+    as: item
+    items_for: '{{ response.IngressPointAuthConfiguration }}'
+- discovery_id: aws.mailmanager.get_traffic_policy
+  for_each: aws.mailmanager.list_traffic_policies
+  calls:
+  - action: get_traffic_policy
+    save_as: response
+    on_error: continue
+    params:
+      trafficPolicyTrafficPolicyId: '{{ item.trafficPolicyTrafficPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.PolicyStatements }}'
+- discovery_id: aws.mailmanager.list_archive_exports
+  for_each: aws.mailmanager.list_archives
+  calls:
+  - action: list_archive_exports
+    save_as: response
+    on_error: continue
+    params:
+      archivArchiveId: '{{ item.archivArchiveId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Exports }}'
+- discovery_id: aws.mailmanager.get_archive_export
+  for_each: aws.mailmanager.list_archive_exports
+  calls:
+  - action: get_archive_export
+    save_as: response
+    on_error: continue
+    params:
+      exportExportId: '{{ item.exportExportId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Filters }}'
+- discovery_id: aws.mailmanager.list_members_of_address_list
+  for_each: aws.mailmanager.list_address_lists
+  calls:
+  - action: list_members_of_address_list
+    save_as: response
+    on_error: continue
+    params:
+      addressListAddressListId: '{{ item.addressListAddressListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Addresses }}'
+- discovery_id: aws.mailmanager.list_archive_searches
+  for_each: aws.mailmanager.list_archives
+  calls:
+  - action: list_archive_searches
+    save_as: response
+    on_error: continue
+    params:
+      archivArchiveId: '{{ item.archivArchiveId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Searches }}'
+- discovery_id: aws.mailmanager.get_archive_search_results
+  for_each: aws.mailmanager.list_archive_searches
+  calls:
+  - action: get_archive_search_results
+    save_as: response
+    on_error: continue
+    params:
+      searchSearchId: '{{ item.searchSearchId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Rows }}'
+- discovery_id: aws.mailmanager.get_archive_message
+  for_each: aws.mailmanager.get_archive_search_results
+  calls:
+  - action: get_archive_message
+    save_as: response
+    on_error: continue
+    params:
+      rowArchivedMessageId: '{{ item.rowArchivedMessageId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Metadata }}'
+- discovery_id: aws.mailmanager.get_archive_message_content
+  for_each: aws.mailmanager.get_archive_search_results
+  calls:
+  - action: get_archive_message_content
+    save_as: response
+    on_error: continue
+    params:
+      rowArchivedMessageId: '{{ item.rowArchivedMessageId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Body }}'
+checks: []

@@ -1,0 +1,516 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+dataproc:
+  version: '1.0'
+  provider: gcp
+  service: dataproc
+  scope: regional
+  discovery:
+  - discovery_id: list_dataproc_clusters
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: cluster_name
+      - path: projectId
+        var: project_id
+      - path: clusterName
+        var: cluster_id
+  - discovery_id: list_dataproc_jobs
+    calls:
+    - action: list
+      fields:
+      - path: reference.jobId
+        var: job_id
+      - path: reference.projectId
+        var: project_id
+  - discovery_id: get_cluster_details
+    for_each: list_dataproc_clusters
+    calls:
+    - action: get_cluster_metadata
+      fields:
+      - path: config
+        var: cluster_config
+      - path: status
+        var: cluster_status
+  - discovery_id: get_job_details
+    for_each: list_dataproc_jobs
+    calls:
+    - action: get_job_metadata
+      fields:
+      - path: placement
+        var: job_placement
+      - path: reference
+        var: job_reference
+  checks:
+  - check_id: gcp.dataproc.cluster.data_analytics_admin_access_least_privilege
+    title: Enforce Least Privilege for Dataproc Cluster Admin Access
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.dataproc:dataproc.allow.zero.workers
+        operator: not_exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.serviceAccount
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.serviceAccountScopes
+        operator: contains
+        expected: https://www.googleapis.com/auth/cloud-platform
+  - check_id: gcp.dataproc.cluster.data_analytics_audit_logging_enabled
+    title: Enable Data Analytics Audit Logging in Dataproc Clusters
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.dataproc:dataproc.logging.stackdriver.enable
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.dataproc:dataproc.monitoring.stackdriver.enable
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.dataproc.cluster.data_analytics_encryption_at_rest_cmek
+    title: Ensure Dataproc Clusters Use CMEK for Encryption at Rest
+    severity: critical
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.dataproc.cluster.data_analytics_private_networking_enforced
+    title: Enforce Private Networking for Dataproc Clusters
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.privateIpv6GoogleAccess
+        operator: equals
+        expected: PRIVATE_IPV6_GOOGLE_ACCESS_TO_GOOGLE
+  - check_id: gcp.dataproc.cluster.data_analytics_subnet_group_private_subnets_only
+    title: Enforce Private Subnets for Dataproc Cluster Networking
+    severity: medium
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.subnetworkUri
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.dataproc.cluster.data_analytics_tls_min_1_2_enforced
+    title: Enforce TLS 1.2 for Dataproc Cluster Data Analytics
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.hadoop:ssl.enabled
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.hadoop:ssl.require.client.cert
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.dataproc.cluster.datalake_dev_endpoint_encrypted
+    title: Ensure Dataproc Cluster Datalake Endpoint is Encrypted
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.endpointConfig.enableHttpPortAccess
+        operator: equals
+        expected: false
+    - action: eval
+      fields:
+      - path: config.softwareConfig.properties.dataproc:dataproc.conscrypt.provider.enable
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.dataproc.cluster.datalake_dev_endpoint_no_public_access
+    title: Prevent Public Access to Dataproc Dev Endpoints
+    severity: critical
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.endpointConfig.enableHttpPortAccess
+        operator: equals
+        expected: false
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.dataproc.cluster.datalake_dev_endpoint_role_least_privilege
+    title: Ensure Dataproc Cluster Dev Endpoints Use Least Privilege Roles
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.serviceAccount
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.serviceAccountScopes
+        operator: not_contains
+        expected: https://www.googleapis.com/auth/devstorage.full_control
+  - check_id: gcp.dataproc.cluster.encrypted_with_cmks_disabled
+    title: Ensure Dataproc Clusters Use CMKs for Encryption
+    severity: critical
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: contains
+        expected: cryptoKeys/
+  - check_id: gcp.dataproc.cluster.master_nodes_no_public_ip
+    title: Ensure Dataproc Master Nodes Don't Have Public IPs
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.masterConfig.isPreemptible
+        operator: not_exists
+        expected: true
+  - check_id: gcp.dataproc.cluster.pd_encryption_cmek_enabled
+    title: Ensure CMEK is Enabled for Dataproc Clusters
+    severity: critical
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.encryptionConfig.gcePdKmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.dataproc.job.datalake_logs_and_metrics_enabled
+    title: Enable Logging and Metrics for Dataproc Jobs
+    severity: medium
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: driverOutputResourceUri
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: driverControlFilesUri
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.job.datalake_ml_transform_logs_enabled
+    title: Enable Dataproc Job Datalake ML Transform Logs
+    severity: medium
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sparkJob.loggingConfig.driverLogLevels
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: pysparkJob.loggingConfig.driverLogLevels
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.job.datalake_ml_transform_network_private_only
+    title: Ensure Dataproc Jobs Use Private Networks Only
+    severity: high
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: placement.clusterName
+        operator: exists
+        expected: true
+    - action: get_cluster_metadata
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.dataproc.job.datalake_ml_transform_role_least_privilege
+    title: Ensure Least Privilege for Dataproc Datalake ML Transform Role
+    severity: high
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sparkJob.properties.spark.hadoop.google.cloud.auth.service.account.enable
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: pysparkJob.properties.spark.hadoop.google.cloud.auth.service.account.enable
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.dataproc.job.datalake_network_private_only
+    title: Ensure Dataproc Jobs Use Private Networks Only
+    severity: high
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: get_cluster_metadata
+      fields:
+      - path: config.gceClusterConfig.internalIpOnly
+        operator: equals
+        expected: true
+    - action: get_cluster_metadata
+      fields:
+      - path: config.gceClusterConfig.subnetworkUri
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.job.datalake_role_least_privilege
+    title: Ensure Dataproc Job Uses Least Privilege Role
+    severity: high
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: get_cluster_metadata
+      fields:
+      - path: config.gceClusterConfig.serviceAccount
+        operator: exists
+        expected: true
+    - action: get_cluster_metadata
+      fields:
+      - path: config.gceClusterConfig.serviceAccountScopes
+        operator: not_contains
+        expected: https://www.googleapis.com/auth/devstorage.full_control
+  - check_id: gcp.dataproc.job.datalake_script_location_private_and_encrypted
+    title: Ensure Dataproc Script Locations are Private and Encrypted
+    severity: high
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sparkJob.mainJarFileUri
+        operator: contains
+        expected: gs://
+    - action: eval
+      fields:
+      - path: pysparkJob.mainPythonFileUri
+        operator: contains
+        expected: gs://
+  - check_id: gcp.dataproc.job.datalake_trigger_event_sources_restricted
+    title: Restrict Datalake Trigger Event Sources in Dataproc Jobs
+    severity: medium
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.maxFailuresPerHour
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: scheduling.maxFailuresTotal
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.cluster.security_config_kerberos_enabled
+    title: Ensure Kerberos Authentication is Enabled for Dataproc Clusters
+    severity: high
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.securityConfig.kerberosConfig.enableKerberos
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: config.securityConfig.kerberosConfig.rootPrincipalPasswordUri
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.cluster.preemptible_instances_limited
+    title: Limit Use of Preemptible Instances in Dataproc Clusters
+    severity: medium
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.secondaryWorkerConfig.isPreemptible
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: config.masterConfig.isPreemptible
+        operator: equals
+        expected: false
+  - check_id: gcp.dataproc.cluster.idle_deletion_enabled
+    title: Enable Idle Deletion for Dataproc Clusters
+    severity: low
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.lifecycleConfig.idleDeleteTtl
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.lifecycleConfig.autoDeleteTime
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.cluster.network_tags_configured
+    title: Ensure Network Tags are Configured for Dataproc Clusters
+    severity: medium
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.tags
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.gceClusterConfig.tags
+        operator: contains
+        expected: dataproc
+  - check_id: gcp.dataproc.job.max_restarts_configured
+    title: Configure Maximum Restarts for Dataproc Jobs
+    severity: low
+    for_each: list_dataproc_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: scheduling.maxFailuresPerHour
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: scheduling.maxFailuresTotal
+        operator: exists
+        expected: true
+  - check_id: gcp.dataproc.cluster.software_config_image_version_latest
+    title: Ensure Dataproc Clusters Use Latest Software Image Versions
+    severity: low
+    for_each: list_dataproc_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: config.softwareConfig.imageVersion
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: config.softwareConfig.imageVersion
+        operator: contains
+        expected: '2.'
+  api_name: dataproc
+  api_version: v1
+  project_param_format: projects/{{project_id}}

@@ -1,0 +1,96 @@
+version: '1.0'
+provider: aws
+service: entityresolution
+services:
+  client: entityresolution
+  module: boto3.client
+discovery:
+- discovery_id: aws.entityresolution.list_id_namespaces
+  calls:
+  - action: list_id_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.idNamespaceSummaries }}'
+- discovery_id: aws.entityresolution.list_matching_workflows
+  calls:
+  - action: list_matching_workflows
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.workflowSummaries }}'
+- discovery_id: aws.entityresolution.list_schema_mappings
+  calls:
+  - action: list_schema_mappings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.schemaList }}'
+- discovery_id: aws.entityresolution.list_provider_services
+  calls:
+  - action: list_provider_services
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.providerServiceSummaries }}'
+- discovery_id: aws.entityresolution.get_matching_workflow
+  for_each: aws.entityresolution.list_matching_workflows
+  calls:
+  - action: get_matching_workflow
+    save_as: response
+    on_error: continue
+    params:
+      workflowSummaryWorkflowName: '{{ item.workflowSummaryWorkflowName }}'
+  emit:
+    as: item
+    items_for: '{{ response.inputSourceConfig }}'
+- discovery_id: aws.entityresolution.get_schema_mapping
+  for_each: aws.entityresolution.list_schema_mappings
+  calls:
+  - action: get_schema_mapping
+    save_as: response
+    on_error: continue
+    params:
+      schemaListSchemaName: '{{ item.schemaListSchemaName }}'
+  emit:
+    as: item
+    items_for: '{{ response.mappedInputFields }}'
+- discovery_id: aws.entityresolution.list_matching_jobs
+  for_each: aws.entityresolution.list_matching_workflows
+  calls:
+  - action: list_matching_jobs
+    save_as: response
+    on_error: continue
+    params:
+      workflowSummaryWorkflowName: '{{ item.workflowSummaryWorkflowName }}'
+  emit:
+    as: item
+    items_for: '{{ response.jobs }}'
+- discovery_id: aws.entityresolution.get_id_mapping_job
+  for_each: aws.entityresolution.list_matching_jobs
+  calls:
+  - action: get_id_mapping_job
+    save_as: response
+    on_error: continue
+    params:
+      jobJobId: '{{ item.jobJobId }}'
+      workflowSummaryWorkflowName: '{{ item.workflowSummaryWorkflowName }}'
+  emit:
+    as: item
+    items_for: '{{ response.outputSourceConfig }}'
+- discovery_id: aws.entityresolution.get_id_mapping_workflow
+  for_each: aws.entityresolution.list_matching_workflows
+  calls:
+  - action: get_id_mapping_workflow
+    save_as: response
+    on_error: continue
+    params:
+      workflowSummaryWorkflowName: '{{ item.workflowSummaryWorkflowName }}'
+  emit:
+    as: item
+    items_for: '{{ response.inputSourceConfig }}'
+checks: []

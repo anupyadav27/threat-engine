@@ -1,0 +1,161 @@
+version: '1.0'
+provider: aws
+service: iottwinmaker
+services:
+  client: iottwinmaker
+  module: boto3.client
+discovery:
+- discovery_id: aws.iottwinmaker.get_pricing_plan
+  calls:
+  - action: get_pricing_plan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.currentPricingPlan }}'
+- discovery_id: aws.iottwinmaker.list_workspaces
+  calls:
+  - action: list_workspaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.workspaceSummaries }}'
+- discovery_id: aws.iottwinmaker.list_entities
+  for_each: aws.iottwinmaker.list_workspaces
+  calls:
+  - action: list_entities
+    save_as: response
+    on_error: continue
+    params:
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.entitySummaries }}'
+- discovery_id: aws.iottwinmaker.list_components
+  for_each: aws.iottwinmaker.list_entities
+  calls:
+  - action: list_components
+    save_as: response
+    on_error: continue
+    params:
+      entitySummaryEntityId: '{{ item.entitySummaryEntityId }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.componentSummaries }}'
+- discovery_id: aws.iottwinmaker.get_component_type
+  for_each: aws.iottwinmaker.list_components
+  calls:
+  - action: get_component_type
+    save_as: response
+    on_error: continue
+    params:
+      componentTypeSummaryComponentTypeId: '{{ item.componentTypeSummaryComponentTypeId
+        }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.extendsFrom }}'
+- discovery_id: aws.iottwinmaker.list_properties
+  for_each: aws.iottwinmaker.list_entities
+  calls:
+  - action: list_properties
+    save_as: response
+    on_error: continue
+    params:
+      entitySummaryEntityId: '{{ item.entitySummaryEntityId }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.propertySummaries }}'
+- discovery_id: aws.iottwinmaker.list_sync_resources
+  for_each: aws.iottwinmaker.list_components
+  calls:
+  - action: list_sync_resources
+    save_as: response
+    on_error: continue
+    params:
+      componentSummarySyncSource: '{{ item.componentSummarySyncSource }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.syncResources }}'
+- discovery_id: aws.iottwinmaker.get_entity
+  for_each: aws.iottwinmaker.list_entities
+  calls:
+  - action: get_entity
+    save_as: response
+    on_error: continue
+    params:
+      entitySummaryEntityId: '{{ item.entitySummaryEntityId }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.status }}'
+- discovery_id: aws.iottwinmaker.get_workspace
+  for_each: aws.iottwinmaker.list_workspaces
+  calls:
+  - action: get_workspace
+    save_as: response
+    on_error: continue
+    params:
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.linkedServices }}'
+- discovery_id: aws.iottwinmaker.list_metadata_transfer_jobs
+  calls:
+  - action: list_metadata_transfer_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.metadataTransferJobSummaries }}'
+- discovery_id: aws.iottwinmaker.get_metadata_transfer_job
+  for_each: aws.iottwinmaker.list_metadata_transfer_jobs
+  calls:
+  - action: get_metadata_transfer_job
+    save_as: response
+    on_error: continue
+    params:
+      metadataTransferJobSummaryMetadataTransferJobId: '{{ item.metadataTransferJobSummaryMetadataTransferJobId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.sources }}'
+- discovery_id: aws.iottwinmaker.list_scenes
+  for_each: aws.iottwinmaker.list_workspaces
+  calls:
+  - action: list_scenes
+    save_as: response
+    on_error: continue
+    params:
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.sceneSummaries }}'
+- discovery_id: aws.iottwinmaker.get_property_value_history
+  for_each: aws.iottwinmaker.list_workspaces
+  calls:
+  - action: get_property_value_history
+    save_as: response
+    on_error: continue
+    params:
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.propertyValues }}'
+- discovery_id: aws.iottwinmaker.get_scene
+  for_each: aws.iottwinmaker.list_scenes
+  calls:
+  - action: get_scene
+    save_as: response
+    on_error: continue
+    params:
+      sceneSummarySceneId: '{{ item.sceneSummarySceneId }}'
+      workspaceSummaryWorkspaceId: '{{ item.workspaceSummaryWorkspaceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.capabilities }}'
+checks: []

@@ -1,0 +1,151 @@
+version: '1.0'
+provider: aws
+service: elbv2
+services:
+  client: elbv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.elbv2.describe_target_groups
+  calls:
+  - action: describe_target_groups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TargetGroups }}'
+- discovery_id: aws.elbv2.describe_load_balancers
+  calls:
+  - action: describe_load_balancers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancers }}'
+- discovery_id: aws.elbv2.describe_listeners
+  calls:
+  - action: describe_listeners
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Listeners }}'
+- discovery_id: aws.elbv2.describe_rules
+  calls:
+  - action: describe_rules
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.elbv2.describe_trust_stores
+  calls:
+  - action: describe_trust_stores
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TrustStores }}'
+- discovery_id: aws.elbv2.describe_ssl_policies
+  calls:
+  - action: describe_ssl_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SslPolicies }}'
+- discovery_id: aws.elbv2.describe_account_limits
+  calls:
+  - action: describe_account_limits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Limits }}'
+- discovery_id: aws.elbv2.describe_target_health
+  for_each: aws.elbv2.describe_target_groups
+  calls:
+  - action: describe_target_health
+    save_as: response
+    on_error: continue
+    params:
+      TargetGroupArn: '{{ item.targetGroupArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.TargetHealthDescriptions }}'
+- discovery_id: aws.elbv2.describe_trust_store_revocations
+  for_each: aws.elbv2.describe_trust_stores
+  calls:
+  - action: describe_trust_store_revocations
+    save_as: response
+    on_error: continue
+    params:
+      trustStorTrustStoreArn: '{{ item.trustStorTrustStoreArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.TrustStoreRevocations }}'
+- discovery_id: aws.elbv2.describe_target_group_attributes
+  for_each: aws.elbv2.describe_target_groups
+  calls:
+  - action: describe_target_group_attributes
+    save_as: response
+    on_error: continue
+    params:
+      TargetGroupArn: '{{ item.targetGroupArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Attributes }}'
+- discovery_id: aws.elbv2.describe_capacity_reservation
+  for_each: aws.elbv2.describe_load_balancers
+  calls:
+  - action: describe_capacity_reservation
+    save_as: response
+    on_error: continue
+    params:
+      LoadBalancerArn: '{{ item.loadBalancerArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.CapacityReservationState }}'
+- discovery_id: aws.elbv2.describe_tags
+  calls:
+  - action: describe_tags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagDescriptions }}'
+- discovery_id: aws.elbv2.describe_listener_certificates
+  for_each: aws.elbv2.describe_listeners
+  calls:
+  - action: describe_listener_certificates
+    save_as: response
+    on_error: continue
+    params:
+      listenerListenerArn: '{{ item.listenerListenerArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Certificates }}'
+- discovery_id: aws.elbv2.get_resource_policy
+  for_each: aws.elbv2.describe_tags
+  calls:
+  - action: get_resource_policy
+    save_as: response
+    on_error: continue
+    params:
+      tagDescriptionResourceArn: '{{ item.tagDescriptionResourceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.elbv2.get_trust_store_revocation_content
+  for_each: aws.elbv2.describe_trust_stores
+  calls:
+  - action: get_trust_store_revocation_content
+    save_as: response
+    on_error: continue
+    params:
+      trustStorTrustStoreArn: '{{ item.trustStorTrustStoreArn }}'
+      trustStoreRevocationRevocationId: '{{ item.trustStoreRevocationRevocationId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Location }}'
+checks: []

@@ -1,0 +1,94 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+workspace:
+  version: '1.0'
+  provider: gcp
+  service: workspace
+  scope: global
+  discovery:
+  - discovery_id: list_workspace_users
+    calls:
+    - action: list
+      fields:
+      - path: primaryEmail
+        var: user_email
+      - path: id
+        var: user_id
+      - path: name.fullName
+        var: user_name
+  checks:
+  - check_id: gcp.workspace.user.mfa_status_configured
+    title: Ensure MFA is Configured for Workspace Users
+    severity: high
+    for_each: list_workspace_users
+    logic: AND
+    calls:
+    - action: get_user_security_settings
+      fields:
+      - path: isEnforcedIn2Sv
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: isAdmin
+        operator: equals
+        expected: true
+      - path: suspended
+        operator: equals
+        expected: false
+    - action: get_user_mfa_enrollment
+      fields:
+      - path: enrolledFactors
+        operator: exists
+      - path: enrolledFactors
+        operator: contains
+        expected: TOTP
+  api_name: admin
+  api_version: directory_v1

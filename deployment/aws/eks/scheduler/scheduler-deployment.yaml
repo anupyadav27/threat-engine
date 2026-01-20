@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler-service
+  namespace: threat-engine-engines
+  labels:
+    app: scheduler-service
+    tier: scheduler
+spec:
+  replicas: 1  # Only one scheduler instance
+  selector:
+    matchLabels:
+      app: scheduler-service
+  template:
+    metadata:
+      labels:
+        app: scheduler-service
+        tier: scheduler
+    spec:
+      serviceAccountName: aws-compliance-engine-sa  # Use IRSA for AWS access
+      containers:
+      - name: scheduler
+        image: yadavanup84/threat-engine-scheduler:latest
+        env:
+        # AWS Services Configuration
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: aws-region
+        - name: SECRETS_MANAGER_PREFIX
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: secrets-manager-prefix
+        - name: SECRETS_MANAGER_KMS_KEY_ID
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: secrets-manager-kms-key-id
+        # DynamoDB Table Names
+        - name: DYNAMODB_TENANTS_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: dynamodb-tenants-table
+        - name: DYNAMODB_SCHEDULES_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: dynamodb-schedules-table
+        - name: DYNAMODB_EXECUTIONS_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: dynamodb-executions-table
+        # Scheduler Configuration
+        - name: SCHEDULER_INTERVAL_SECONDS
+          value: "60"
+        # Logging
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: log-level
+        - name: AWS_ENGINE_URL
+          value: "http://aws-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: AZURE_ENGINE_URL
+          value: "http://azure-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: GCP_ENGINE_URL
+          value: "http://gcp-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: ALICLOUD_ENGINE_URL
+          value: "http://alicloud-compliance-engine.threat-engine-engines.svc.cluster.local"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Scheduler runs continuously, no health checks needed
+

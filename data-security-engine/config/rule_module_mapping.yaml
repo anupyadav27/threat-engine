@@ -1,0 +1,201 @@
+# Rule to Data Security Module Mapping Configuration
+# This file documents which configScan rules map to which data security modules
+# Rules are enriched in: engines-input/aws-configScan-engine/input/rule_db/default/services/
+
+# Data Security Modules
+data_security_modules:
+  - data_protection_encryption
+  - data_access_governance
+  - data_activity_monitoring
+  - data_residency
+  - data_compliance
+  - data_classification
+
+# Service-specific rule mappings
+# These are auto-generated based on rule patterns and can be customized
+
+services:
+  s3:
+    data_protection_encryption:
+      rules:
+        - aws.s3.bucket.encryption_at_rest_enabled
+        - aws.s3.bucket.s3_encrypted_at_rest
+        - aws.s3.bucket.default_encryption_configured
+        - aws.s3.bucket.kms_encryption_configured
+        - aws.s3.bucket.cmk_cmek_configured
+        - aws.s3.bucket.encryption_at_rest_cmek_configured
+        - aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
+        - aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
+        - aws.s3.bucket.encryption_in_transit_tls_min_1_2_configured
+        - aws.s3.bucket.encryption_enabled
+      description: "S3 encryption at rest and in transit checks"
+      
+    data_access_governance:
+      rules:
+        - aws.s3.bucket.public_access_configured
+        - aws.s3.bucket.block_public_access_enabled
+        - aws.s3.bucket.block_public_access_configured
+        - aws.s3.bucketpolicy.no_public_principals_configured
+        - aws.s3.bucket.rbac_least_privilege
+        - aws.s3.bucket.public_read_prohibited_configured
+        - aws.s3.bucket.public_write_prohibited_configured
+        - aws.s3.bucket.destination_private_only_configured
+        - aws.s3.bucket.policy_public_write_access_configured
+        - aws.s3.account.level_public_access_blocks_configured
+        - aws.s3.bucketpolicy.bucket_no_wildcards_on_actions_or_principals_configured
+      description: "S3 public access and IAM policy checks"
+      
+    data_activity_monitoring:
+      rules:
+        - aws.s3.bucket.server_access_logging_enabled
+        - aws.s3.bucket.access_logging_enabled
+        - aws.s3.bucket.object_level_write_logging_enabled
+      description: "S3 access logging and audit trail checks"
+      
+    data_compliance:
+      rules:
+        - aws.s3.bucket.retention_days_minimum
+        - aws.s3.bucket.lifecycle_policy_configured
+        - aws.s3.bucket.lifecycle_enabled
+        - aws.s3.bucket.immutable_or_worm_enabled_if_supported
+        - aws.s3.bucket.immutability_or_object_lock_if_supported
+        - aws.s3.object.lock_or_immutability_enabled_if_supported
+        - aws.s3.bucket.object_versioning_configured
+        - aws.s3.bucket.versioning_enabled
+      description: "S3 data retention and compliance checks"
+      
+    data_residency:
+      rules:
+        - aws.s3.bucket.replication_enabled
+        - aws.s3.replication.encryption_in_transit_tls_required
+        - aws.s3.replication.lag_monitoring_alerts_enabled
+      description: "S3 cross-region replication and residency checks"
+      
+    data_classification:
+      rules:
+        - aws.s3.macie_classification_jobs_status.macie_classification_jobs_status_configured
+        - aws.s3.intelligent_tiering.bucket_enforced_on_sensitive_datasets_configured
+      description: "S3 data classification checks (partial - actual classification is done via Python analyzer)"
+
+  rds:
+    data_protection_encryption:
+      rules:
+        - aws.rds.db_instance.encryption_at_rest_enabled
+        - aws.rds.db_snapshot.encryption_enabled
+        - aws.rds.db_cluster.encryption_enabled
+      description: "RDS encryption at rest checks"
+      
+    data_access_governance:
+      rules:
+        - aws.rds.db_instance.publicly_accessible
+        - aws.rds.db_instance.security_groups_configured
+        - aws.rds.db_instance.iam_authentication_enabled
+      description: "RDS access control checks"
+      
+    data_activity_monitoring:
+      rules:
+        - aws.rds.db_instance.audit_logging_enabled
+        - aws.rds.db_instance.enhanced_monitoring_enabled
+      description: "RDS logging and monitoring checks"
+      
+    data_compliance:
+      rules:
+        - aws.rds.db_instance.backup_retention_period
+        - aws.rds.db_instance.automated_backups_enabled
+      description: "RDS backup and retention checks"
+
+  dynamodb:
+    data_protection_encryption:
+      rules:
+        - aws.dynamodb.table.encryption_enabled
+        - aws.dynamodb.table.point_in_time_recovery_enabled
+      description: "DynamoDB encryption checks"
+      
+    data_access_governance:
+      rules:
+        - aws.dynamodb.table.public_access_restricted
+        - aws.dynamodb.table.iam_authentication_required
+      description: "DynamoDB access control checks"
+      
+    data_activity_monitoring:
+      rules:
+        - aws.dynamodb.table.streams_enabled
+        - aws.dynamodb.table.cloudwatch_alarms_configured
+      description: "DynamoDB monitoring checks"
+
+  redshift:
+    data_protection_encryption:
+      rules:
+        - aws.redshift.cluster.encryption_enabled
+        - aws.redshift.cluster.encryption_at_rest_enabled
+      description: "Redshift encryption checks"
+      
+    data_access_governance:
+      rules:
+        - aws.redshift.cluster.publicly_accessible
+        - aws.redshift.cluster.parameter_group_configured
+      description: "Redshift access control checks"
+      
+    data_activity_monitoring:
+      rules:
+        - aws.redshift.cluster.audit_logging_enabled
+        - aws.redshift.cluster.logging_enabled
+      description: "Redshift logging checks"
+
+# Cross-service mappings
+cross_service:
+  kms:
+    data_protection_encryption:
+      rules:
+        - aws.kms.key.rotation_enabled
+        - aws.kms.key.policy_least_privilege
+      description: "KMS key management checks"
+      
+  cloudtrail:
+    data_activity_monitoring:
+      rules:
+        - aws.cloudtrail.trail.logging_enabled
+        - aws.cloudtrail.trail.encryption_enabled
+        - aws.cloudtrail.trail.integrated_with_logs
+      description: "CloudTrail audit logging checks"
+
+# Data Security Module Descriptions
+module_descriptions:
+  data_protection_encryption: |
+    Ensures data is encrypted at rest and in transit. Includes KMS key management,
+    encryption algorithm validation, and encryption policy enforcement.
+    
+  data_access_governance: |
+    Controls who can access data resources. Includes public access restrictions,
+    IAM policy validation, and least privilege access controls.
+    
+  data_activity_monitoring: |
+    Tracks and monitors data access activities. Includes access logging,
+    audit trails, and activity anomaly detection.
+    
+  data_residency: |
+    Ensures data is stored and processed in compliant geographic regions.
+    Includes cross-region replication checks and residency policy enforcement.
+    
+  data_compliance: |
+    Enforces data retention, lifecycle, and compliance policies. Includes
+    backup retention, immutability, and compliance framework alignment.
+    
+  data_classification: |
+    Identifies and classifies sensitive data (PII, PCI, PHI). Includes
+    automated classification and sensitivity scoring.
+
+# Enrichment Statistics (auto-updated by enrichment script)
+# Run: python scripts/enrich_metadata.py --service <service> --dry-run
+statistics:
+  last_updated: null
+  services_enriched: []
+  total_rules_enriched: 0
+  module_counts:
+    data_protection_encryption: 0
+    data_access_governance: 0
+    data_activity_monitoring: 0
+    data_residency: 0
+    data_compliance: 0
+    data_classification: 0
+

@@ -1,0 +1,267 @@
+version: '1.0'
+provider: alicloud
+service: apsaramq
+discovery:
+- discovery_id: alicloud.apsaramq.broker
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeBrokers
+    params: {}
+    save_as: broker_response
+  emit:
+    items_for: '{ broker_response.Brokers.Broker }'
+    as: r
+    item:
+      id: '{{ r.BrokerId }}'
+      name: '{{ r.BrokerId }}'
+      resource_type: broker
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.apsaramq.cluster
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClusters
+    params: {}
+    save_as: cluster_response
+  emit:
+    items_for: '{ cluster_response.Clusters.Cluster }'
+    as: r
+    item:
+      id: '{{ r.ClusterId }}'
+      name: '{{ r.ClusterId }}'
+      resource_type: cluster
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.apsaramq.connector
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeConnectors
+    params: {}
+    save_as: connector_response
+  emit:
+    items_for: '{ connector_response.Connectors.Connector }'
+    as: r
+    item:
+      id: '{{ r.ConnectorId }}'
+      name: '{{ r.ConnectorId }}'
+      resource_type: connector
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.apsaramq.fleet
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeFleets
+    params: {}
+    save_as: fleet_response
+  emit:
+    items_for: '{ fleet_response.Fleets.Fleet }'
+    as: r
+    item:
+      id: '{{ r.FleetId }}'
+      name: '{{ r.FleetId }}'
+      resource_type: fleet
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.apsaramq.kafka_topic
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeKafkaTopics
+    params: {}
+    save_as: kafka_topic_response
+  emit:
+    items_for: '{ kafka_topic_response.KafkaTopics.KafkaTopic }'
+    as: r
+    item:
+      id: '{{ r.KafkaTopicId }}'
+      name: '{{ r.KafkaTopicId }}'
+      resource_type: kafka_topic
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.apsaramq.queue
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeQueues
+    params: {}
+    save_as: queue_response
+  emit:
+    items_for: '{ queue_response.Queues.Queue }'
+    as: r
+    item:
+      id: '{{ r.QueueId }}'
+      name: '{{ r.QueueId }}'
+      resource_type: queue
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.apsaramq.broker.active_deployment_mode
+  title: ApsaraMQ for RocketMQ Broker Should Use Active Deployment Mode
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.broker
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.broker.cluster_deployment_mode
+  title: ApsaraMQ for RocketMQ Broker Should Use Cluster Deployment Mode
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.broker
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.broker.logging_enabled
+  title: ApsaraMQ for Apache RocketMQ Broker Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.broker
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.apsaramq.cluster.encryption_at_rest_uses_cmk
+  title: ApsaraMQ for RocketMQ cluster encryption at rest should use Customer Managed Keys (CMK)
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaramq.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.apsaramq.cluster.in_transit_encryption_enabled
+  title: ApsaraMQ for Apache Kafka Cluster Should Have In-Transit Encryption Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaramq.cluster
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.apsaramq.connector.in_transit_encryption_enabled
+  title: ApsaraMQ for Kafka Connector Should Have In-Transit Encryption Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaramq.connector
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.apsaramq.fleet.default_internet_access_disabled
+  title: ApsaraMQ for RocketMQ Fleet Should Have Default Internet Access Disabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.fleet
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.kafka_topic.stream_consumer_auth_required
+  title: ApsaraMQ for Kafka Topic Stream Consumer Authentication Required
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.kafka_topic
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.kafka_topic.stream_encryption_at_rest_enabled
+  title: ApsaraMQ for Apache Kafka Topic Stream Encryption At Rest Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaramq.kafka_topic
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.apsaramq.kafka_topic.stream_private_network_only_where_supported
+  title: ApsaraMQ for Apache Kafka Topics Should Use Private Network Access Only Where Supported
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.kafka_topic
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.queue.auth_required
+  title: ApsaraMQ for RocketMQ Queue Authentication Should Be Required
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.queue
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.apsaramq.queue.cross_account_send_receive_restricted
+  title: ApsaraMQ for RocketMQ Queue Cross-Account Send and Receive Access Should Be Restricted
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.queue
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apsaramq.queue.encryption_at_rest_enabled
+  title: ApsaraMQ for RocketMQ Queue Encryption at Rest Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.apsaramq.queue
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.apsaramq.queue.private_network_only_where_supported
+  title: ApsaraMQ for RocketMQ queues should be configured for private network access only where supported
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.apsaramq.queue
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

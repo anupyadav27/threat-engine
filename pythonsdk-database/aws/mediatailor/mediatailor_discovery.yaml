@@ -1,0 +1,111 @@
+version: '1.0'
+provider: aws
+service: mediatailor
+services:
+  client: mediatailor
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediatailor.list_playback_configurations
+  calls:
+  - action: list_playback_configurations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediatailor.list_channels
+  calls:
+  - action: list_channels
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediatailor.list_source_locations
+  calls:
+  - action: list_source_locations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediatailor.get_channel_schedule
+  for_each: aws.mediatailor.list_channels
+  calls:
+  - action: get_channel_schedule
+    save_as: response
+    on_error: continue
+    params:
+      itemChannelName: '{{ item.itemChannelName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediatailor.describe_program
+  for_each: aws.mediatailor.list_channels
+  calls:
+  - action: describe_program
+    save_as: response
+    on_error: continue
+    params:
+      itemChannelName: '{{ item.itemChannelName }}'
+      itemProgramName: '{{ item.itemProgramName }}'
+  emit:
+    as: item
+    items_for: '{{ response.AdBreaks }}'
+- discovery_id: aws.mediatailor.describe_channel
+  for_each: aws.mediatailor.list_channels
+  calls:
+  - action: describe_channel
+    save_as: response
+    on_error: continue
+    params:
+      itemChannelName: '{{ item.itemChannelName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Outputs }}'
+- discovery_id: aws.mediatailor.get_playback_configuration
+  for_each: aws.mediatailor.list_playback_configurations
+  calls:
+  - action: get_playback_configuration
+    save_as: response
+    on_error: continue
+    params:
+      itemName: '{{ item.itemName }}'
+  emit:
+    as: item
+    items_for: '{{ response.AvailSuppression }}'
+- discovery_id: aws.mediatailor.describe_live_source
+  for_each: aws.mediatailor.get_channel_schedule
+  calls:
+  - action: describe_live_source
+    save_as: response
+    on_error: continue
+    params:
+      itemLiveSourceName: '{{ item.itemLiveSourceName }}'
+      itemSourceLocationName: '{{ item.itemSourceLocationName }}'
+  emit:
+    as: item
+    items_for: '{{ response.HttpPackageConfigurations }}'
+- discovery_id: aws.mediatailor.describe_source_location
+  for_each: aws.mediatailor.list_source_locations
+  calls:
+  - action: describe_source_location
+    save_as: response
+    on_error: continue
+    params:
+      itemSourceLocationName: '{{ item.itemSourceLocationName }}'
+  emit:
+    as: item
+    items_for: '{{ response.SegmentDeliveryConfigurations }}'
+- discovery_id: aws.mediatailor.get_channel_policy
+  for_each: aws.mediatailor.list_channels
+  calls:
+  - action: get_channel_policy
+    save_as: response
+    on_error: continue
+    params:
+      itemChannelName: '{{ item.itemChannelName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+checks: []

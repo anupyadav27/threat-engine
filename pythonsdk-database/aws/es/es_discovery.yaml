@@ -1,0 +1,157 @@
+version: '1.0'
+provider: aws
+service: es
+services:
+  client: es
+  module: boto3.client
+discovery:
+- discovery_id: aws.es.describe_reserved_elasticsearch_instances
+  calls:
+  - action: describe_reserved_elasticsearch_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ReservedElasticsearchInstances }}'
+- discovery_id: aws.es.describe_packages
+  calls:
+  - action: describe_packages
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PackageDetailsList }}'
+- discovery_id: aws.es.describe_reserved_elasticsearch_instance_offerings
+  calls:
+  - action: describe_reserved_elasticsearch_instance_offerings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ReservedElasticsearchInstanceOfferings }}'
+- discovery_id: aws.es.describe_outbound_cross_cluster_search_connections
+  calls:
+  - action: describe_outbound_cross_cluster_search_connections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CrossClusterSearchConnections }}'
+- discovery_id: aws.es.list_vpc_endpoints
+  calls:
+  - action: list_vpc_endpoints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VpcEndpointSummaryList }}'
+- discovery_id: aws.es.get_compatible_elasticsearch_versions
+  calls:
+  - action: get_compatible_elasticsearch_versions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CompatibleElasticsearchVersions }}'
+- discovery_id: aws.es.list_domain_names
+  calls:
+  - action: list_domain_names
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainNames }}'
+- discovery_id: aws.es.describe_elasticsearch_domains
+  calls:
+  - action: describe_elasticsearch_domains
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainStatusList }}'
+- discovery_id: aws.es.describe_domain_change_progress
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_domain_change_progress
+    save_as: response
+    on_error: continue
+    params:
+      domainNamDomainName: '{{ item.domainNamDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.ChangeProgressStatus }}'
+- discovery_id: aws.es.list_packages_for_domain
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: list_packages_for_domain
+    save_as: response
+    on_error: continue
+    params:
+      domainNamDomainName: '{{ item.domainNamDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.DomainPackageDetailsList }}'
+- discovery_id: aws.es.get_upgrade_history
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: get_upgrade_history
+    save_as: response
+    on_error: continue
+    params:
+      domainNamDomainName: '{{ item.domainNamDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.UpgradeHistories }}'
+- discovery_id: aws.es.list_vpc_endpoint_access
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: list_vpc_endpoint_access
+    save_as: response
+    on_error: continue
+    params:
+      domainNamDomainName: '{{ item.domainNamDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.AuthorizedPrincipalList }}'
+- discovery_id: aws.es.describe_domain_auto_tunes
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_domain_auto_tunes
+    save_as: response
+    on_error: continue
+    params:
+      domainNamDomainName: '{{ item.domainNamDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.AutoTunes }}'
+- discovery_id: aws.es.list_tags
+  for_each: aws.es.describe_elasticsearch_domains
+  calls:
+  - action: list_tags
+    save_as: response
+    on_error: continue
+    params:
+      domainStatuArn: '{{ item.domainStatuArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+- discovery_id: aws.es.describe_vpc_endpoints
+  calls:
+  - action: describe_vpc_endpoints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VpcEndpoints }}'
+- discovery_id: aws.es.get_package_version_history
+  for_each: aws.es.describe_packages
+  calls:
+  - action: get_package_version_history
+    save_as: response
+    on_error: continue
+    params:
+      packageDetailsListPackageId: '{{ item.packageDetailsListPackageId }}'
+  emit:
+    as: item
+    items_for: '{{ response.PackageVersionHistoryList }}'
+checks: []

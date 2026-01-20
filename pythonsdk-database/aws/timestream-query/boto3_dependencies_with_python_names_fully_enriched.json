@@ -13,57 +13,196 @@
         "output_fields": {
           "MaxQueryTCU": {
             "type": "integer",
-            "description": "MaxQueryTCU details",
-            "compliance_category": "general",
+            "description": "<p>The maximum number of <a href=\"https://docs.aws.amazon.com/timestream/latest/developerguide/tcu.html\">Timestream compute units</a> (TCUs) the service will use at any point in time to serve your queries. To run queries, you must set a minimum capacity of 4 TCU. You can set the maximum number of TCU in multiples of 4, for example, 4, 8, 16, 32, and so on. This configuration is applicable only for on-demand usage of (TCUs). </p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "QueryPricingModel": {
             "type": "string",
-            "description": "QueryPricingModel details",
-            "compliance_category": "general",
-            "operators": [
-              "equals",
-              "not_equals",
-              "contains"
-            ],
+            "description": "<p>The pricing model for queries in your account.</p> <note> <p>The <code>QueryPricingModel</code> parameter is used by several Timestream operations; however, the <code>UpdateAccountSettings</code> API operation doesn't recognize any values other than <code>COMPUTE_UNITS</code>.</p> </note>",
             "enum": true,
             "possible_values": [
               "BYTES_SCANNED",
               "COMPUTE_UNITS"
-            ]
-          },
-          "QueryCompute": {
-            "type": "string",
-            "description": "QueryCompute details",
-            "compliance_category": "general",
+            ],
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "general"
+          },
+          "QueryCompute": {
+            "type": "structure",
+            "description": "<p>An object that contains the usage settings for Timestream Compute Units (TCUs) in your account for the query workload. </p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "QueryCompute",
         "item_fields": {
           "ComputeMode": {
             "type": "string",
-            "description": "Compute mode",
-            "compliance_category": "general",
+            "description": "<p>The mode in which Timestream Compute Units (TCUs) are allocated and utilized within an account. Note that in the Asia Pacific (Mumbai) region, the API operation only recognizes the value <code>PROVISIONED</code>.</p>",
             "enum": true,
             "possible_values": [
               "ON_DEMAND",
               "PROVISIONED"
-            ]
+            ],
+            "operators": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "general"
           },
           "ProvisionedCapacity": {
-            "type": "string",
-            "description": "Provisioned capacity",
+            "type": "structure",
+            "description": "<p>Configuration object that contains settings for provisioned Timestream Compute Units (TCUs) in your account.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "ActiveQueryTCU": {
+                "type": "integer",
+                "description": "<p>The number of Timestream Compute Units (TCUs) provisioned in the account. This field is only visible when the compute mode is <code>PROVISIONED</code>.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "greater_than",
+                  "less_than",
+                  "greater_than_or_equal",
+                  "less_than_or_equal"
+                ],
+                "compliance_category": "general"
+              },
+              "NotificationConfiguration": {
+                "type": "structure",
+                "description": "<p>An object that contains settings for notifications that are sent whenever the provisioned capacity settings are modified. This field is only visible when the compute mode is <code>PROVISIONED</code>.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "SnsConfiguration": {
+                    "type": "structure",
+                    "description": "<p>Details on SNS that are required to send the notification.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "TopicArn": {
+                        "type": "string",
+                        "description": "<p>SNS topic ARN that the scheduled query status notifications will be sent to.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "contains",
+                          "in",
+                          "exists"
+                        ],
+                        "compliance_category": "identity"
+                      }
+                    }
+                  },
+                  "RoleArn": {
+                    "type": "string",
+                    "description": "<p>An Amazon Resource Name (ARN) that grants Timestream permission to publish notifications. This field is only visible if SNS Topic is provided when updating the account settings.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  }
+                }
+              },
+              "LastUpdate": {
+                "type": "structure",
+                "description": "<p>Information about the last update to the provisioned capacity settings.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "TargetQueryTCU": {
+                    "type": "integer",
+                    "description": "<p>The number of TimeStream Compute Units (TCUs) requested in the last account settings update.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "Status": {
+                    "type": "string",
+                    "description": "<p>The status of the last update. Can be either <code>PENDING</code>, <code>FAILED</code>, or <code>SUCCEEDED</code>.</p>",
+                    "enum": true,
+                    "possible_values": [
+                      "PENDING",
+                      "FAILED",
+                      "SUCCEEDED"
+                    ],
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "in",
+                      "not_in"
+                    ],
+                    "compliance_category": "security",
+                    "security_impact": "medium"
+                  },
+                  "StatusMessage": {
+                    "type": "string",
+                    "description": "<p>Error message describing the last account settings update status, visible only if an error occurred.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "security",
+                    "security_impact": "medium"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -76,26 +215,43 @@
         "total_optional": 0,
         "output_fields": {
           "Endpoints": {
-            "type": "string",
-            "description": "Endpoints details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p>An <code>Endpoints</code> object is returned when a <code>DescribeEndpoints</code> request is made.</p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "Endpoints",
         "item_fields": {
           "Address": {
             "type": "string",
-            "description": "Address",
+            "description": "<p>An endpoint address.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
             "compliance_category": "general"
           },
           "CachePeriodInMinutes": {
-            "type": "string",
-            "description": "Cache period in minutes",
+            "type": "long",
+            "description": "<p>The TTL for the endpoint, in minutes.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
             "compliance_category": "general"
           }
         }
@@ -112,99 +268,250 @@
         "total_optional": 2,
         "output_fields": {
           "ScheduledQueries": {
-            "type": "string",
-            "description": "ScheduledQueries details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p>A list of scheduled queries.</p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           },
           "NextToken": {
             "type": "string",
-            "description": "NextToken details",
-            "compliance_category": "general",
-            "operators": [
-              "equals",
-              "not_equals",
-              "contains"
-            ],
-            "security_impact": "high"
-          }
-        },
-        "main_output_field": "ScheduledQueries",
-        "item_fields": {
-          "Arn": {
-            "type": "string",
-            "description": "Arn",
-            "compliance_category": "identity",
+            "description": "<p>A token to specify where to start paginating. This is the NextToken from a previously truncated response.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
               "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "general"
+          }
+        },
+        "main_output_field": "ScheduledQueries",
+        "item_fields": {
+          "Arn": {
+            "type": "string",
+            "description": "<p>The Amazon Resource Name.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "Name": {
             "type": "string",
-            "description": "Name",
-            "compliance_category": "general"
+            "description": "<p>The name of the scheduled query.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "CreationTime": {
-            "type": "string",
-            "description": "Creation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>The creation time of the scheduled query.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "State": {
             "type": "string",
-            "description": "State",
-            "compliance_category": "general",
-            "format": "date-time",
+            "description": "<p>State of scheduled query. </p>",
             "enum": true,
             "possible_values": [
               "ENABLED",
               "DISABLED"
-            ]
+            ],
+            "operators": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "security",
+            "security_impact": "medium"
           },
           "PreviousInvocationTime": {
-            "type": "string",
-            "description": "Previous invocation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>The last time the scheduled query was run.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "NextInvocationTime": {
-            "type": "string",
-            "description": "Next invocation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>The next time the scheduled query is to be run.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "ErrorReportConfiguration": {
-            "type": "string",
-            "description": "Error report configuration",
+            "type": "structure",
+            "description": "<p>Configuration for scheduled query error reporting.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "S3Configuration": {
+                "type": "structure",
+                "description": "<p>The S3 configuration for the error reports.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "BucketName": {
+                    "type": "string",
+                    "description": "<p> Name of the S3 bucket under which error reports will be created.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "ObjectKeyPrefix": {
+                    "type": "string",
+                    "description": "<p> Prefix for the error report key. Timestream by default adds the following prefix to the error report path. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "EncryptionOption": {
+                    "type": "string",
+                    "description": "<p> Encryption at rest options for the error reports. If no encryption option is specified, Timestream will choose SSE_S3 as default. </p>",
+                    "enum": true,
+                    "possible_values": [
+                      "SSE_S3",
+                      "SSE_KMS"
+                    ],
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "in",
+                      "not_in"
+                    ],
+                    "compliance_category": "general"
+                  }
+                }
+              }
+            }
           },
           "TargetDestination": {
-            "type": "string",
-            "description": "Target destination",
+            "type": "structure",
+            "description": "<p>Target data source where final scheduled query result will be written.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "TimestreamDestination": {
+                "type": "structure",
+                "description": "<p>Query result destination details for Timestream data source.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "DatabaseName": {
+                    "type": "string",
+                    "description": "<p>Timestream database name. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "TableName": {
+                    "type": "string",
+                    "description": "<p>Timestream table name. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  }
+                }
+              }
+            }
           },
           "LastRunStatus": {
             "type": "string",
-            "description": "Last run status",
-            "compliance_category": "general",
-            "format": "date-time",
+            "description": "<p>Status of the last scheduled query run.</p>",
             "enum": true,
             "possible_values": [
               "AUTO_TRIGGER_SUCCESS",
               "AUTO_TRIGGER_FAILURE",
               "MANUAL_TRIGGER_SUCCESS",
               "MANUAL_TRIGGER_FAILURE"
-            ]
+            ],
+            "operators": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "security",
+            "security_impact": "medium"
           }
         }
       },
@@ -222,57 +529,196 @@
         "output_fields": {
           "MaxQueryTCU": {
             "type": "integer",
-            "description": "MaxQueryTCU details",
-            "compliance_category": "general",
+            "description": "<p>The configured maximum number of compute units the service will use at any point in time to serve your queries.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "QueryPricingModel": {
             "type": "string",
-            "description": "QueryPricingModel details",
-            "compliance_category": "general",
-            "operators": [
-              "equals",
-              "not_equals",
-              "contains"
-            ],
+            "description": "<p>The pricing model for an account.</p>",
             "enum": true,
             "possible_values": [
               "BYTES_SCANNED",
               "COMPUTE_UNITS"
-            ]
-          },
-          "QueryCompute": {
-            "type": "string",
-            "description": "QueryCompute details",
-            "compliance_category": "general",
+            ],
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "general"
+          },
+          "QueryCompute": {
+            "type": "structure",
+            "description": "<p>Confirms the updated account settings for querying data in your account.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "QueryCompute",
         "item_fields": {
           "ComputeMode": {
             "type": "string",
-            "description": "Compute mode",
-            "compliance_category": "general",
+            "description": "<p>The mode in which Timestream Compute Units (TCUs) are allocated and utilized within an account. Note that in the Asia Pacific (Mumbai) region, the API operation only recognizes the value <code>PROVISIONED</code>.</p>",
             "enum": true,
             "possible_values": [
               "ON_DEMAND",
               "PROVISIONED"
-            ]
+            ],
+            "operators": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "general"
           },
           "ProvisionedCapacity": {
-            "type": "string",
-            "description": "Provisioned capacity",
+            "type": "structure",
+            "description": "<p>Configuration object that contains settings for provisioned Timestream Compute Units (TCUs) in your account.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "ActiveQueryTCU": {
+                "type": "integer",
+                "description": "<p>The number of Timestream Compute Units (TCUs) provisioned in the account. This field is only visible when the compute mode is <code>PROVISIONED</code>.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "greater_than",
+                  "less_than",
+                  "greater_than_or_equal",
+                  "less_than_or_equal"
+                ],
+                "compliance_category": "general"
+              },
+              "NotificationConfiguration": {
+                "type": "structure",
+                "description": "<p>An object that contains settings for notifications that are sent whenever the provisioned capacity settings are modified. This field is only visible when the compute mode is <code>PROVISIONED</code>.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "SnsConfiguration": {
+                    "type": "structure",
+                    "description": "<p>Details on SNS that are required to send the notification.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "TopicArn": {
+                        "type": "string",
+                        "description": "<p>SNS topic ARN that the scheduled query status notifications will be sent to.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "contains",
+                          "in",
+                          "exists"
+                        ],
+                        "compliance_category": "identity"
+                      }
+                    }
+                  },
+                  "RoleArn": {
+                    "type": "string",
+                    "description": "<p>An Amazon Resource Name (ARN) that grants Timestream permission to publish notifications. This field is only visible if SNS Topic is provided when updating the account settings.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  }
+                }
+              },
+              "LastUpdate": {
+                "type": "structure",
+                "description": "<p>Information about the last update to the provisioned capacity settings.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "TargetQueryTCU": {
+                    "type": "integer",
+                    "description": "<p>The number of TimeStream Compute Units (TCUs) requested in the last account settings update.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "Status": {
+                    "type": "string",
+                    "description": "<p>The status of the last update. Can be either <code>PENDING</code>, <code>FAILED</code>, or <code>SUCCEEDED</code>.</p>",
+                    "enum": true,
+                    "possible_values": [
+                      "PENDING",
+                      "FAILED",
+                      "SUCCEEDED"
+                    ],
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "in",
+                      "not_in"
+                    ],
+                    "compliance_category": "security",
+                    "security_impact": "medium"
+                  },
+                  "StatusMessage": {
+                    "type": "string",
+                    "description": "<p>Error message describing the last account settings update status, visible only if an error occurred.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "security",
+                    "security_impact": "medium"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -290,18 +736,20 @@
         "output_fields": {
           "CancellationMessage": {
             "type": "string",
-            "description": "CancellationMessage details",
-            "compliance_category": "general",
-            "format": "date-time",
+            "description": "<p> A <code>CancellationMessage</code> is returned when a <code>CancelQuery</code> request for the query specified by <code>QueryId</code> has already been issued. </p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "CancellationMessage",
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "CreateScheduledQuery",
@@ -325,19 +773,20 @@
         "output_fields": {
           "Arn": {
             "type": "string",
-            "description": "Arn details",
-            "compliance_category": "identity",
+            "description": "<p>ARN for the created scheduled query.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
               "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "identity"
           }
         },
         "main_output_field": "Arn",
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "DeleteScheduledQuery",
@@ -350,7 +799,7 @@
         "total_optional": 0,
         "output_fields": {},
         "main_output_field": null,
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "DescribeScheduledQuery",
@@ -363,124 +812,725 @@
         "total_optional": 0,
         "output_fields": {
           "ScheduledQuery": {
-            "type": "string",
-            "description": "ScheduledQuery details",
-            "compliance_category": "general",
+            "type": "structure",
+            "description": "<p>The scheduled query.</p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "ScheduledQuery",
         "item_fields": {
           "Arn": {
             "type": "string",
-            "description": "Arn",
-            "compliance_category": "identity",
+            "description": "<p>Scheduled query ARN.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
               "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "identity"
           },
           "Name": {
             "type": "string",
-            "description": "Name",
-            "compliance_category": "general"
+            "description": "<p>Name of the scheduled query.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "QueryString": {
             "type": "string",
-            "description": "Query string",
+            "description": "<p>The query to be run.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
             "compliance_category": "general"
           },
           "CreationTime": {
-            "type": "string",
-            "description": "Creation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>Creation time of the scheduled query.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "State": {
             "type": "string",
-            "description": "State",
-            "compliance_category": "general",
-            "format": "date-time",
+            "description": "<p>State of the scheduled query. </p>",
             "enum": true,
             "possible_values": [
               "ENABLED",
               "DISABLED"
-            ]
+            ],
+            "operators": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in"
+            ],
+            "compliance_category": "security",
+            "security_impact": "medium"
           },
           "PreviousInvocationTime": {
-            "type": "string",
-            "description": "Previous invocation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>Last time the query was run.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "NextInvocationTime": {
-            "type": "string",
-            "description": "Next invocation time",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "timestamp",
+            "description": "<p>The next time the scheduled query is scheduled to run.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "less_than",
+              "greater_than_or_equal",
+              "less_than_or_equal"
+            ],
+            "compliance_category": "general"
           },
           "ScheduleConfiguration": {
-            "type": "string",
-            "description": "Schedule configuration",
+            "type": "structure",
+            "description": "<p>Schedule configuration.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "ScheduleExpression": {
+                "type": "string",
+                "description": "<p>An expression that denotes when to trigger the scheduled query run. This can be a cron expression or a rate expression. </p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "contains",
+                  "in",
+                  "exists"
+                ],
+                "compliance_category": "general"
+              }
+            }
           },
           "NotificationConfiguration": {
-            "type": "string",
-            "description": "Notification configuration",
+            "type": "structure",
+            "description": "<p>Notification configuration.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "SnsConfiguration": {
+                "type": "structure",
+                "description": "<p>Details about the Amazon Simple Notification Service (SNS) configuration. This field is visible only when SNS Topic is provided when updating the account settings. </p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "TopicArn": {
+                    "type": "string",
+                    "description": "<p>SNS topic ARN that the scheduled query status notifications will be sent to.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  }
+                }
+              }
+            }
           },
           "TargetConfiguration": {
-            "type": "string",
-            "description": "Target configuration",
+            "type": "structure",
+            "description": "<p>Scheduled query target store configuration.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "TimestreamConfiguration": {
+                "type": "structure",
+                "description": "<p>Configuration needed to write data into the Timestream database and table.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "DatabaseName": {
+                    "type": "string",
+                    "description": "<p>Name of Timestream database to which the query result will be written.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "TableName": {
+                    "type": "string",
+                    "description": "<p>Name of Timestream table that the query result will be written to. The table should be within the same database that is provided in Timestream configuration.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "TimeColumn": {
+                    "type": "string",
+                    "description": "<p>Column from query result that should be used as the time column in destination table. Column type for this should be TIMESTAMP.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "DimensionMappings": {
+                    "type": "list",
+                    "description": "<p> This is to allow mapping column(s) from the query result to the dimension in the destination table. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "MultiMeasureMappings": {
+                    "type": "structure",
+                    "description": "<p>Multi-measure mappings.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "TargetMultiMeasureName": {
+                        "type": "string",
+                        "description": "<p>The name of the target multi-measure name in the derived table. This input is required when measureNameColumn is not provided. If MeasureNameColumn is provided, then value from that column will be used as multi-measure name.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "contains",
+                          "in",
+                          "exists"
+                        ],
+                        "compliance_category": "identity"
+                      },
+                      "MultiMeasureAttributeMappings": {
+                        "type": "list",
+                        "description": "<p>Required. Attribute mappings to be used for mapping query results to ingest data for multi-measure attributes.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  },
+                  "MixedMeasureMappings": {
+                    "type": "list",
+                    "description": "<p>Specifies how to map measures to multi-measure records.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "MeasureNameColumn": {
+                    "type": "string",
+                    "description": "<p>Name of the measure column.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  }
+                }
+              }
+            }
           },
           "ScheduledQueryExecutionRoleArn": {
             "type": "string",
-            "description": "Scheduled query execution role arn",
-            "compliance_category": "identity",
+            "description": "<p>IAM role that Timestream uses to run the schedule query.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
               "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "identity"
           },
           "KmsKeyId": {
             "type": "string",
-            "description": "Kms key id",
-            "compliance_category": "identity",
+            "description": "<p>A customer provided KMS key used to encrypt the scheduled query resource.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
+              "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "identity"
           },
           "ErrorReportConfiguration": {
-            "type": "string",
-            "description": "Error report configuration",
+            "type": "structure",
+            "description": "<p>Error-reporting configuration for the scheduled query.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general",
-            "format": "date-time"
+            "nested_fields": {
+              "S3Configuration": {
+                "type": "structure",
+                "description": "<p>The S3 configuration for the error reports.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "BucketName": {
+                    "type": "string",
+                    "description": "<p> Name of the S3 bucket under which error reports will be created.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "ObjectKeyPrefix": {
+                    "type": "string",
+                    "description": "<p> Prefix for the error report key. Timestream by default adds the following prefix to the error report path. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "EncryptionOption": {
+                    "type": "string",
+                    "description": "<p> Encryption at rest options for the error reports. If no encryption option is specified, Timestream will choose SSE_S3 as default. </p>",
+                    "enum": true,
+                    "possible_values": [
+                      "SSE_S3",
+                      "SSE_KMS"
+                    ],
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "in",
+                      "not_in"
+                    ],
+                    "compliance_category": "general"
+                  }
+                }
+              }
+            }
           },
           "LastRunSummary": {
-            "type": "string",
-            "description": "Last run summary",
-            "compliance_category": "general"
+            "type": "structure",
+            "description": "<p>Runtime summary for the last scheduled query run. </p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general",
+            "nested_fields": {
+              "InvocationTime": {
+                "type": "timestamp",
+                "description": "<p>InvocationTime for this run. This is the time at which the query is scheduled to run. Parameter <code>@scheduled_runtime</code> can be used in the query to get the value. </p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "greater_than",
+                  "less_than",
+                  "greater_than_or_equal",
+                  "less_than_or_equal"
+                ],
+                "compliance_category": "general"
+              },
+              "TriggerTime": {
+                "type": "timestamp",
+                "description": "<p>The actual time when the query was run.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "greater_than",
+                  "less_than",
+                  "greater_than_or_equal",
+                  "less_than_or_equal"
+                ],
+                "compliance_category": "general"
+              },
+              "RunStatus": {
+                "type": "string",
+                "description": "<p>The status of a scheduled query run.</p>",
+                "enum": true,
+                "possible_values": [
+                  "AUTO_TRIGGER_SUCCESS",
+                  "AUTO_TRIGGER_FAILURE",
+                  "MANUAL_TRIGGER_SUCCESS",
+                  "MANUAL_TRIGGER_FAILURE"
+                ],
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "in",
+                  "not_in"
+                ],
+                "compliance_category": "security",
+                "security_impact": "medium"
+              },
+              "ExecutionStats": {
+                "type": "structure",
+                "description": "<p>Runtime statistics for a scheduled run.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "ExecutionTimeInMillis": {
+                    "type": "long",
+                    "description": "<p>Total time, measured in milliseconds, that was needed for the scheduled query run to complete.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "DataWrites": {
+                    "type": "long",
+                    "description": "<p>Data writes metered for records ingested in a single scheduled query run.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "BytesMetered": {
+                    "type": "long",
+                    "description": "<p>Bytes metered for a single scheduled query run.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "CumulativeBytesScanned": {
+                    "type": "long",
+                    "description": "<p>Bytes scanned for a single scheduled query run.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "RecordsIngested": {
+                    "type": "long",
+                    "description": "<p>The number of records ingested for a single scheduled query run. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "QueryResultRows": {
+                    "type": "long",
+                    "description": "<p>Number of rows present in the output from running a query before ingestion to destination data source.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  }
+                }
+              },
+              "QueryInsightsResponse": {
+                "type": "structure",
+                "description": "<p>Provides various insights and metrics related to the run summary of the scheduled query.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "QuerySpatialCoverage": {
+                    "type": "structure",
+                    "description": "<p>Provides insights into the spatial coverage of the query, including the table with sub-optimal (max) spatial pruning. This information can help you identify areas for improvement in your partitioning strategy to enhance spatial pruning.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "Max": {
+                        "type": "structure",
+                        "description": "<p>Provides insights into the spatial coverage of the executed query and the table with the most inefficient spatial pruning.</p> <ul> <li> <p> <code>Value</code> – The maximum ratio of spatial coverage.</p> </li> <li> <p> <code>TableArn</code> – The Amazon Resource Name (ARN) of the table with sub-optimal spatial pruning.</p> </li> <li> <p> <code>PartitionKey</code> – The partition key used for partitioning, which can be a default <code>measure_name</code> or a CDPK.</p> </li> </ul>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  },
+                  "QueryTemporalRange": {
+                    "type": "structure",
+                    "description": "<p>Provides insights into the temporal range of the query, including the table with the largest (max) time range. Following are some of the potential options for optimizing time-based pruning:</p> <ul> <li> <p>Add missing time-predicates.</p> </li> <li> <p>Remove functions around the time predicates.</p> </li> <li> <p>Add time predicates to all the sub-queries.</p> </li> </ul>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "Max": {
+                        "type": "structure",
+                        "description": "<p>Encapsulates the following properties that provide insights into the most sub-optimal performing table on the temporal axis:</p> <ul> <li> <p> <code>Value</code> – The maximum duration in nanoseconds between the start and end of the query.</p> </li> <li> <p> <code>TableArn</code> – The Amazon Resource Name (ARN) of the table which is queried with the largest time range.</p> </li> </ul>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  },
+                  "QueryTableCount": {
+                    "type": "long",
+                    "description": "<p>Indicates the number of tables in the query.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "OutputRows": {
+                    "type": "long",
+                    "description": "<p>Indicates the total number of rows returned as part of the query result set. You can use this data to validate if the number of rows in the result set have changed as part of the query tuning exercise.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  },
+                  "OutputBytes": {
+                    "type": "long",
+                    "description": "<p>Indicates the size of query result set in bytes. You can use this data to validate if the result set has changed as part of the query tuning exercise.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "greater_than",
+                      "less_than",
+                      "greater_than_or_equal",
+                      "less_than_or_equal"
+                    ],
+                    "compliance_category": "general"
+                  }
+                }
+              },
+              "ErrorReportLocation": {
+                "type": "structure",
+                "description": "<p>S3 location for error report.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "S3ReportLocation": {
+                    "type": "structure",
+                    "description": "<p>The S3 location where error reports are written.</p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "BucketName": {
+                        "type": "string",
+                        "description": "<p> S3 bucket name. </p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "contains",
+                          "in",
+                          "exists"
+                        ],
+                        "compliance_category": "identity"
+                      },
+                      "ObjectKey": {
+                        "type": "string",
+                        "description": "<p>S3 key. </p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "contains",
+                          "in",
+                          "exists"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  }
+                }
+              },
+              "FailureReason": {
+                "type": "string",
+                "description": "<p>Error message for the scheduled query in case of failure. You might have to look at the error report to get more detailed error reasons. </p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "contains",
+                  "in",
+                  "exists"
+                ],
+                "compliance_category": "general"
+              }
+            }
           },
           "RecentlyFailedRuns": {
-            "type": "string",
-            "description": "Recently failed runs",
+            "type": "list",
+            "description": "<p>Runtime summary for the last five failed scheduled query runs.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
             "compliance_category": "general"
           }
         }
@@ -500,7 +1550,7 @@
         "total_optional": 2,
         "output_fields": {},
         "main_output_field": null,
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "ListTagsForResource",
@@ -516,38 +1566,55 @@
         "total_optional": 2,
         "output_fields": {
           "Tags": {
-            "type": "string",
-            "description": "Tags details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p>The tags currently associated with the Timestream resource. </p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           },
           "NextToken": {
             "type": "string",
-            "description": "NextToken details",
-            "compliance_category": "general",
+            "description": "<p>A pagination token to resume pagination with a subsequent call to <code>ListTagsForResourceResponse</code>.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
+              "contains",
+              "in",
+              "exists"
             ],
-            "security_impact": "high"
+            "compliance_category": "general"
           }
         },
         "main_output_field": "Tags",
         "item_fields": {
           "Key": {
             "type": "string",
-            "description": "Key",
-            "compliance_category": "security",
-            "security_impact": "high"
+            "description": "<p>The key of the tag. Tag keys are case sensitive. </p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "general"
           },
           "Value": {
             "type": "string",
-            "description": "Value",
+            "description": "<p>The value of the tag. Tag values are case sensitive and can be null. </p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
             "compliance_category": "general"
           }
         }
@@ -566,62 +1633,323 @@
         "output_fields": {
           "QueryString": {
             "type": "string",
-            "description": "QueryString details",
-            "compliance_category": "general",
+            "description": "<p>The query string that you want prepare.</p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
-            ]
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "general"
           },
           "Columns": {
-            "type": "string",
-            "description": "Columns details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p>A list of SELECT clause columns of the submitted query string. </p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           },
           "Parameters": {
-            "type": "string",
-            "description": "Parameters details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p>A list of parameters used in the submitted query string. </p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "Columns",
         "item_fields": {
           "Name": {
             "type": "string",
-            "description": "Name",
-            "compliance_category": "general"
+            "description": "<p>Name of the column.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "Type": {
-            "type": "string",
-            "description": "Type",
-            "compliance_category": "general"
+            "type": "structure",
+            "description": "<p>Contains the data type of a column in a query result set. The data type can be scalar or complex. The supported scalar data types are integers, Boolean, string, double, timestamp, date, time, and intervals. The supported complex data types are arrays, rows, and timeseries.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general",
+            "nested_fields": {
+              "ScalarType": {
+                "type": "string",
+                "description": "<p>Indicates if the column is of type string, integer, Boolean, double, timestamp, date, time. For more information, see <a href=\"https://docs.aws.amazon.com/timestream/latest/developerguide/supported-data-types.html\">Supported data types</a>.</p>",
+                "enum": true,
+                "possible_values": [
+                  "VARCHAR",
+                  "BOOLEAN",
+                  "BIGINT",
+                  "DOUBLE",
+                  "TIMESTAMP",
+                  "DATE",
+                  "TIME",
+                  "INTERVAL_DAY_TO_SECOND",
+                  "INTERVAL_YEAR_TO_MONTH",
+                  "UNKNOWN",
+                  "INTEGER"
+                ],
+                "operators": [
+                  "equals",
+                  "not_equals",
+                  "in",
+                  "not_in"
+                ],
+                "compliance_category": "general"
+              },
+              "ArrayColumnInfo": {
+                "type": "structure",
+                "description": "<p>Indicates if the column is an array.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "Name": {
+                    "type": "string",
+                    "description": "<p> The name of the result set column. The name of the result set is available for columns of all data types except for arrays. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "Type": {
+                    "type": "structure",
+                    "description": "<p>The data type of the result set column. The data type can be a scalar or complex. Scalar data types are integers, strings, doubles, Booleans, and others. Complex data types are types such as arrays, rows, and others. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "ScalarType": {
+                        "type": "string",
+                        "description": "<p>Indicates if the column is of type string, integer, Boolean, double, timestamp, date, time. For more information, see <a href=\"https://docs.aws.amazon.com/timestream/latest/developerguide/supported-data-types.html\">Supported data types</a>.</p>",
+                        "enum": true,
+                        "possible_values": [
+                          "VARCHAR",
+                          "BOOLEAN",
+                          "BIGINT",
+                          "DOUBLE",
+                          "TIMESTAMP",
+                          "DATE",
+                          "TIME",
+                          "INTERVAL_DAY_TO_SECOND",
+                          "INTERVAL_YEAR_TO_MONTH",
+                          "UNKNOWN",
+                          "INTEGER"
+                        ],
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "in",
+                          "not_in"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "ArrayColumnInfo": {
+                        "type": "structure",
+                        "description": "<p>Indicates if the column is an array.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "TimeSeriesMeasureValueColumnInfo": {
+                        "type": "structure",
+                        "description": "<p>Indicates if the column is a timeseries data type.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "RowColumnInfo": {
+                        "type": "list",
+                        "description": "<p>Indicates if the column is a row.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  }
+                }
+              },
+              "TimeSeriesMeasureValueColumnInfo": {
+                "type": "structure",
+                "description": "<p>Indicates if the column is a timeseries data type.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general",
+                "nested_fields": {
+                  "Name": {
+                    "type": "string",
+                    "description": "<p> The name of the result set column. The name of the result set is available for columns of all data types except for arrays. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals",
+                      "contains",
+                      "in",
+                      "exists"
+                    ],
+                    "compliance_category": "identity"
+                  },
+                  "Type": {
+                    "type": "structure",
+                    "description": "<p>The data type of the result set column. The data type can be a scalar or complex. Scalar data types are integers, strings, doubles, Booleans, and others. Complex data types are types such as arrays, rows, and others. </p>",
+                    "enum": false,
+                    "operators": [
+                      "equals",
+                      "not_equals"
+                    ],
+                    "compliance_category": "general",
+                    "nested_fields": {
+                      "ScalarType": {
+                        "type": "string",
+                        "description": "<p>Indicates if the column is of type string, integer, Boolean, double, timestamp, date, time. For more information, see <a href=\"https://docs.aws.amazon.com/timestream/latest/developerguide/supported-data-types.html\">Supported data types</a>.</p>",
+                        "enum": true,
+                        "possible_values": [
+                          "VARCHAR",
+                          "BOOLEAN",
+                          "BIGINT",
+                          "DOUBLE",
+                          "TIMESTAMP",
+                          "DATE",
+                          "TIME",
+                          "INTERVAL_DAY_TO_SECOND",
+                          "INTERVAL_YEAR_TO_MONTH",
+                          "UNKNOWN",
+                          "INTEGER"
+                        ],
+                        "operators": [
+                          "equals",
+                          "not_equals",
+                          "in",
+                          "not_in"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "ArrayColumnInfo": {
+                        "type": "structure",
+                        "description": "<p>Indicates if the column is an array.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "TimeSeriesMeasureValueColumnInfo": {
+                        "type": "structure",
+                        "description": "<p>Indicates if the column is a timeseries data type.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      },
+                      "RowColumnInfo": {
+                        "type": "list",
+                        "description": "<p>Indicates if the column is a row.</p>",
+                        "enum": false,
+                        "operators": [
+                          "equals",
+                          "not_equals"
+                        ],
+                        "compliance_category": "general"
+                      }
+                    }
+                  }
+                }
+              },
+              "RowColumnInfo": {
+                "type": "list",
+                "description": "<p>Indicates if the column is a row.</p>",
+                "enum": false,
+                "operators": [
+                  "equals",
+                  "not_equals"
+                ],
+                "compliance_category": "general"
+              }
+            }
           },
           "DatabaseName": {
             "type": "string",
-            "description": "Database name",
-            "compliance_category": "general",
-            "format": "date-time"
+            "description": "<p> Database that has this column.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "TableName": {
             "type": "string",
-            "description": "Table name",
-            "compliance_category": "general"
+            "description": "<p>Table within the database that has this column. </p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals",
+              "contains",
+              "in",
+              "exists"
+            ],
+            "compliance_category": "identity"
           },
           "Aliased": {
-            "type": "string",
-            "description": "Aliased",
-            "compliance_category": "general"
+            "type": "boolean",
+            "description": "<p>True, if the column name was aliased by the query. False otherwise.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general",
+            "possible_values": [
+              true,
+              false
+            ]
           }
         }
       },
@@ -642,76 +1970,83 @@
         "output_fields": {
           "QueryId": {
             "type": "string",
-            "description": "QueryId details",
-            "compliance_category": "identity",
+            "description": "<p> A unique ID for the given query. </p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
               "contains",
               "in",
               "exists"
-            ]
+            ],
+            "compliance_category": "identity"
           },
           "NextToken": {
             "type": "string",
-            "description": "NextToken details",
-            "compliance_category": "general",
+            "description": "<p> A pagination token that can be used again on a <code>Query</code> call to get the next set of results. </p>",
+            "enum": false,
             "operators": [
               "equals",
               "not_equals",
-              "contains"
+              "contains",
+              "in",
+              "exists"
             ],
-            "security_impact": "high"
+            "compliance_category": "general"
           },
           "Rows": {
-            "type": "string",
-            "description": "Rows details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p> The result set rows returned by the query. </p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           },
           "ColumnInfo": {
-            "type": "string",
-            "description": "ColumnInfo details",
-            "compliance_category": "general",
+            "type": "list",
+            "description": "<p> The column data types of the returned result set. </p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           },
           "QueryStatus": {
-            "type": "string",
-            "description": "QueryStatus details",
-            "compliance_category": "general",
-            "format": "date-time",
+            "type": "structure",
+            "description": "<p>Information about the status of the query, including progress and bytes scanned.</p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "security",
+            "security_impact": "medium"
           },
           "QueryInsightsResponse": {
-            "type": "string",
-            "description": "QueryInsightsResponse details",
-            "compliance_category": "general",
+            "type": "structure",
+            "description": "<p>Encapsulates <code>QueryInsights</code> containing insights and metrics related to the query that you executed.</p>",
+            "enum": false,
             "operators": [
               "equals",
-              "not_equals",
-              "contains"
-            ]
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         },
         "main_output_field": "Rows",
         "item_fields": {
           "Data": {
-            "type": "string",
-            "description": "Data",
-            "compliance_category": "general",
-            "format": "date-time"
+            "type": "list",
+            "description": "<p>List of data points in a single row of the result set.</p>",
+            "enum": false,
+            "operators": [
+              "equals",
+              "not_equals"
+            ],
+            "compliance_category": "general"
           }
         }
       },
@@ -727,7 +2062,7 @@
         "total_optional": 0,
         "output_fields": {},
         "main_output_field": null,
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "UntagResource",
@@ -741,7 +2076,7 @@
         "total_optional": 0,
         "output_fields": {},
         "main_output_field": null,
-        "item_fields": []
+        "item_fields": {}
       },
       {
         "operation": "UpdateScheduledQuery",
@@ -755,7 +2090,7 @@
         "total_optional": 0,
         "output_fields": {},
         "main_output_field": null,
-        "item_fields": []
+        "item_fields": {}
       }
     ],
     "independent_count": 4,

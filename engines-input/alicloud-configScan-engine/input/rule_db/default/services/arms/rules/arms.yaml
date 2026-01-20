@@ -1,0 +1,201 @@
+version: '1.0'
+provider: alicloud
+service: arms
+discovery:
+- discovery_id: alicloud.arms.api
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeApis
+    params: {}
+    save_as: api_response
+  emit:
+    items_for: '{ api_response.Apis.Api }'
+    as: r
+    item:
+      id: '{{ r.ApiId }}'
+      name: '{{ r.ApiId }}'
+      resource_type: api
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.arms.ml
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeMls
+    params: {}
+    save_as: ml_response
+  emit:
+    items_for: '{ ml_response.Mls.Ml }'
+    as: r
+    item:
+      id: '{{ r.MlId }}'
+      name: '{{ r.MlId }}'
+      resource_type: ml
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.arms.tracing_analysis
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeTracingAnalysiss
+    params: {}
+    save_as: tracing_analysis_response
+  emit:
+    items_for: '{ tracing_analysis_response.TracingAnalysiss.TracingAnalysis }'
+    as: r
+    item:
+      id: '{{ r.TracingAnalysisId }}'
+      name: '{{ r.TracingAnalysisId }}'
+      resource_type: tracing_analysis
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.arms.tracing_sampling_rule
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeTracingSamplingRules
+    params: {}
+    save_as: tracing_sampling_rule_response
+  emit:
+    items_for: '{ tracing_sampling_rule_response.TracingSamplingRules.TracingSamplingRule }'
+    as: r
+    item:
+      id: '{{ r.TracingSamplingRuleId }}'
+      name: '{{ r.TracingSamplingRuleId }}'
+      resource_type: tracing_sampling_rule
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.arms.api.monitoring_api_access_log_fields_identity_present
+  title: Application Real-Time Monitoring Service API Access Logs Must Include Identity Fields
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.api
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.arms.api.monitoring_api_access_log_sink_configured
+  title: Application Real-Time Monitoring Service API Access Log Sink Must Be Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.api
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.arms.api.monitoring_api_access_logging_enabled
+  title: Application Real-Time Monitoring Service (ARMS) API Access Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.api
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.arms.ml.monitoring_logs_enabled
+  title: Application Real-Time Monitoring Service Machine Learning Monitoring Logs Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.ml
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.arms.ml.monitoring_outputs_encrypted_and_private
+  title: Application Real-Time Monitoring Service (ARMS) Machine Learning monitoring outputs should be encrypted and configured
+    for private access
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.ml
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.arms.ml.monitoring_private_networking_enforced
+  title: Application Real-Time Monitoring Service Machine Learning Private Networking Enforced
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.arms.ml
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.arms.ml.monitoring_roles_least_privilege
+  title: Application Real-Time Monitoring Service Machine Learning Monitoring Roles Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.arms.ml
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.arms.tracing_analysis.trace_access_rbac_least_privilege
+  title: Application Real-Time Monitoring Service Tracing Analysis Should Implement RBAC Least Privilege Access Controls
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.arms.tracing_analysis
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.arms.tracing_analysis.trace_store_encrypted
+  title: Application Real-Time Monitoring Service (ARMS) Tracing Analysis Trace Store Should Be Encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.arms.tracing_analysis
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.logging_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.arms.tracing_sampling_rule.sampling_rule_access_rbac_least_privilege
+  title: Application Real-Time Monitoring Service (ARMS) Tracing Sampling Rule Access Should Follow RBAC Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.arms.tracing_sampling_rule
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.arms.tracing_sampling_rule.sampling_rule_storage_encrypted
+  title: Application Real-Time Monitoring Service (ARMS) Tracing Sampling Rule Storage Should Be Encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.arms.tracing_sampling_rule
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true

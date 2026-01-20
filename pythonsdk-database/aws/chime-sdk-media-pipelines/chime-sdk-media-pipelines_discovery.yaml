@@ -1,0 +1,80 @@
+version: '1.0'
+provider: aws
+service: chime-sdk-media-pipelines
+services:
+  client: chime-sdk-media-pipelines
+  module: boto3.client
+discovery:
+- discovery_id: aws.chime-sdk-media-pipelines.list_media_pipeline_kinesis_video_stream_pools
+  calls:
+  - action: list_media_pipeline_kinesis_video_stream_pools
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.KinesisVideoStreamPools }}'
+- discovery_id: aws.chime-sdk-media-pipelines.list_media_insights_pipeline_configurations
+  calls:
+  - action: list_media_insights_pipeline_configurations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MediaInsightsPipelineConfigurations }}'
+- discovery_id: aws.chime-sdk-media-pipelines.list_media_pipelines
+  calls:
+  - action: list_media_pipelines
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MediaPipelines }}'
+- discovery_id: aws.chime-sdk-media-pipelines.get_media_capture_pipeline
+  for_each: aws.chime-sdk-media-pipelines.list_media_pipelines
+  calls:
+  - action: get_media_capture_pipeline
+    save_as: response
+    on_error: continue
+    params:
+      mediaCapturePipelinMediaPipelineId: '{{ item.mediaCapturePipelinMediaPipelineId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.MediaCapturePipeline }}'
+- discovery_id: aws.chime-sdk-media-pipelines.get_media_pipeline
+  for_each: aws.chime-sdk-media-pipelines.list_media_pipelines
+  calls:
+  - action: get_media_pipeline
+    save_as: response
+    on_error: continue
+    params:
+      mediaCapturePipelinMediaPipelineId: '{{ item.mediaCapturePipelinMediaPipelineId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.MediaPipeline }}'
+- discovery_id: aws.chime-sdk-media-pipelines.get_media_insights_pipeline_configuration
+  calls:
+  - action: get_media_insights_pipeline_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MediaInsightsPipelineConfiguration }}'
+- discovery_id: aws.chime-sdk-media-pipelines.get_media_pipeline_kinesis_video_stream_pool
+  calls:
+  - action: get_media_pipeline_kinesis_video_stream_pool
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.KinesisVideoStreamPoolConfiguration }}'
+- discovery_id: aws.chime-sdk-media-pipelines.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

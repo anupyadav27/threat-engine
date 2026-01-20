@@ -1,0 +1,36 @@
+version: '1.0'
+provider: alicloud
+service: fnf
+discovery:
+- discovery_id: alicloud.fnf.statemachine
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeStatemachines
+    params: {}
+    save_as: statemachine_response
+  emit:
+    items_for: '{ statemachine_response.Statemachines.Statemachine }'
+    as: r
+    item:
+      id: '{{ r.StatemachineId }}'
+      name: '{{ r.StatemachineId }}'
+      resource_type: statemachine
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.fnf.statemachine.logging_enabled
+  title: Ensure AliCloud Serverless Workflow State Machine has logging enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.fnf.statemachine
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true

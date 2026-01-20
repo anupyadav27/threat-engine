@@ -1,0 +1,56 @@
+version: '1.0'
+provider: aws
+service: migrationhuborchestrator
+services:
+  client: migrationhuborchestrator
+  module: boto3.client
+discovery:
+- discovery_id: aws.migrationhuborchestrator.list_workflows
+  calls:
+  - action: list_workflows
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.migrationWorkflowSummary }}'
+- discovery_id: aws.migrationhuborchestrator.list_plugins
+  calls:
+  - action: list_plugins
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.plugins }}'
+- discovery_id: aws.migrationhuborchestrator.list_templates
+  calls:
+  - action: list_templates
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.templateSummary }}'
+- discovery_id: aws.migrationhuborchestrator.get_template
+  for_each: aws.migrationhuborchestrator.list_workflows
+  calls:
+  - action: get_template
+    save_as: response
+    on_error: continue
+    params:
+      templateSummaryId: '{{ item.templateSummaryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.inputs }}'
+- discovery_id: aws.migrationhuborchestrator.get_template_step_group
+  for_each: aws.migrationhuborchestrator.list_workflows
+  calls:
+  - action: get_template_step_group
+    save_as: response
+    on_error: continue
+    params:
+      migrationWorkflowSummaryTemplateId: '{{ item.migrationWorkflowSummaryTemplateId
+        }}'
+      templateSummaryId: '{{ item.templateSummaryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.tools }}'
+checks: []

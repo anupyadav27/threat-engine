@@ -1,0 +1,50 @@
+version: '1.0'
+provider: aws
+service: keyspacesstreams
+services:
+  client: keyspacesstreams
+  module: boto3.client
+discovery:
+- discovery_id: aws.keyspacesstreams.list_streams
+  calls:
+  - action: list_streams
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.streams }}'
+- discovery_id: aws.keyspacesstreams.get_stream
+  for_each: aws.keyspacesstreams.list_streams
+  calls:
+  - action: get_stream
+    save_as: response
+    on_error: continue
+    params:
+      streamStreamArn: '{{ item.streamStreamArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.shards }}'
+- discovery_id: aws.keyspacesstreams.get_shard_iterator
+  for_each: aws.keyspacesstreams.get_stream
+  calls:
+  - action: get_shard_iterator
+    save_as: response
+    on_error: continue
+    params:
+      shardShardId: '{{ item.shardShardId }}'
+      streamStreamArn: '{{ item.streamStreamArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.shardIterator }}'
+- discovery_id: aws.keyspacesstreams.get_records
+  for_each: aws.keyspacesstreams.get_shard_iterator
+  calls:
+  - action: get_records
+    save_as: response
+    on_error: continue
+    params:
+      shardIteratorShardIterator: '{{ item.shardIteratorShardIterator }}'
+  emit:
+    as: item
+    items_for: '{{ response.changeRecords }}'
+checks: []

@@ -1,0 +1,83 @@
+version: '1.0'
+provider: aws
+service: connectcampaignsv2
+services:
+  client: connectcampaignsv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: list_campaigns
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.campaignSummaryList }}'
+- discovery_id: aws.connectcampaignsv2.describe_campaign
+  for_each: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: describe_campaign
+    save_as: response
+    on_error: continue
+    params:
+      campaignSummaryListId: '{{ item.campaignSummaryListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.campaign }}'
+- discovery_id: aws.connectcampaignsv2.get_connect_instance_config
+  for_each: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: get_connect_instance_config
+    save_as: response
+    on_error: continue
+    params:
+      campaignSummaryListConnectInstanceId: '{{ item.campaignSummaryListConnectInstanceId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.connectInstanceConfig }}'
+- discovery_id: aws.connectcampaignsv2.get_instance_onboarding_job_status
+  for_each: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: get_instance_onboarding_job_status
+    save_as: response
+    on_error: continue
+    params:
+      campaignSummaryListConnectInstanceId: '{{ item.campaignSummaryListConnectInstanceId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.connectInstanceOnboardingJobStatus }}'
+- discovery_id: aws.connectcampaignsv2.get_campaign_state_batch
+  calls:
+  - action: get_campaign_state_batch
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.successfulRequests }}'
+- discovery_id: aws.connectcampaignsv2.list_connect_instance_integrations
+  for_each: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: list_connect_instance_integrations
+    save_as: response
+    on_error: continue
+    params:
+      campaignSummaryListConnectInstanceId: '{{ item.campaignSummaryListConnectInstanceId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.integrationSummaryList }}'
+- discovery_id: aws.connectcampaignsv2.get_instance_communication_limits
+  for_each: aws.connectcampaignsv2.list_campaigns
+  calls:
+  - action: get_instance_communication_limits
+    save_as: response
+    on_error: continue
+    params:
+      campaignSummaryListConnectInstanceId: '{{ item.campaignSummaryListConnectInstanceId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.communicationLimitsConfig }}'
+checks: []

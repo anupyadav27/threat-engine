@@ -1,0 +1,44 @@
+# S3 Sync Sidecar Container
+# Add this as a second container to any engine deployment
+
+- name: s3-sync
+  image: amazon/aws-cli:latest
+  command:
+    - /bin/sh
+    - -c
+    - |
+      while true; do
+        if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+          echo "$(date): Syncing /output to s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/"
+          aws s3 sync /output "s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/" \
+            --delete \
+            --exclude "*.tmp" \
+            --exclude "*.lock" \
+            --region "${AWS_REGION:-ap-south-1}" || true
+        fi
+        sleep 30
+      done
+  env:
+  - name: S3_BUCKET
+    valueFrom:
+      configMapKeyRef:
+        name: s3-mount-config
+        key: s3-bucket
+  - name: S3_OUTPUT_PATH
+    valueFrom:
+      configMapKeyRef:
+        name: s3-mount-config
+        key: aws-output-path
+  - name: AWS_REGION
+    value: "ap-south-1"
+  volumeMounts:
+  - name: output-volume
+    mountPath: /output
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+

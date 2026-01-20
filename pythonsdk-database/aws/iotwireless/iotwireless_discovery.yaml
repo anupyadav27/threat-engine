@@ -1,0 +1,304 @@
+version: '1.0'
+provider: aws
+service: iotwireless
+services:
+  client: iotwireless
+  module: boto3.client
+discovery:
+- discovery_id: aws.iotwireless.get_metrics
+  calls:
+  - action: get_metrics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SummaryMetricQueryResults }}'
+- discovery_id: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: list_wireless_device_import_tasks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WirelessDeviceImportTaskList }}'
+- discovery_id: aws.iotwireless.list_wireless_devices
+  calls:
+  - action: list_wireless_devices
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WirelessDeviceList }}'
+- discovery_id: aws.iotwireless.get_log_levels_by_resource_types
+  calls:
+  - action: get_log_levels_by_resource_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WirelessGatewayLogOptions }}'
+- discovery_id: aws.iotwireless.get_event_configuration_by_resource_types
+  calls:
+  - action: get_event_configuration_by_resource_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DeviceRegistrationState }}'
+- discovery_id: aws.iotwireless.list_wireless_gateways
+  calls:
+  - action: list_wireless_gateways
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WirelessGatewayList }}'
+- discovery_id: aws.iotwireless.list_destinations
+  calls:
+  - action: list_destinations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DestinationList }}'
+- discovery_id: aws.iotwireless.list_partner_accounts
+  calls:
+  - action: list_partner_accounts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Sidewalk }}'
+- discovery_id: aws.iotwireless.list_position_configurations
+  calls:
+  - action: list_position_configurations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PositionConfigurationList }}'
+- discovery_id: aws.iotwireless.get_service_endpoint
+  calls:
+  - action: get_service_endpoint
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ServiceType }}'
+- discovery_id: aws.iotwireless.get_metric_configuration
+  calls:
+  - action: get_metric_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SummaryMetric }}'
+- discovery_id: aws.iotwireless.get_position_estimate
+  calls:
+  - action: get_position_estimate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.GeoJsonPayload }}'
+- discovery_id: aws.iotwireless.get_service_profile
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_service_profile
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_device_profile
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_device_profile
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_multicast_group
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_multicast_group
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_multicast_group_session
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_multicast_group_session
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.list_queued_messages
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: list_queued_messages
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.DownlinkQueueMessagesList }}'
+- discovery_id: aws.iotwireless.list_event_configurations
+  for_each: aws.iotwireless.list_position_configurations
+  calls:
+  - action: list_event_configurations
+    save_as: response
+    on_error: continue
+    params:
+      positionConfigurationListResourceType: '{{ item.positionConfigurationListResourceType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.EventConfigurationsList }}'
+- discovery_id: aws.iotwireless.get_wireless_device
+  for_each: aws.iotwireless.list_event_configurations
+  calls:
+  - action: get_wireless_device
+    save_as: response
+    on_error: continue
+    params:
+      eventConfigurationsListIdentifier: '{{ item.eventConfigurationsListIdentifier
+        }}'
+      eventConfigurationsListIdentifierType: '{{ item.eventConfigurationsListIdentifierType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_wireless_gateway
+  for_each: aws.iotwireless.list_event_configurations
+  calls:
+  - action: get_wireless_gateway
+    save_as: response
+    on_error: continue
+    params:
+      eventConfigurationsListIdentifier: '{{ item.eventConfigurationsListIdentifier
+        }}'
+      eventConfigurationsListIdentifierType: '{{ item.eventConfigurationsListIdentifierType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_position
+  for_each: aws.iotwireless.list_position_configurations
+  calls:
+  - action: get_position
+    save_as: response
+    on_error: continue
+    params:
+      positionConfigurationListResourceIdentifier: '{{ item.positionConfigurationListResourceIdentifier
+        }}'
+      positionConfigurationListResourceType: '{{ item.positionConfigurationListResourceType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Position }}'
+- discovery_id: aws.iotwireless.get_wireless_device_import_task
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_wireless_device_import_task
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Sidewalk }}'
+- discovery_id: aws.iotwireless.get_fuota_task
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_fuota_task
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+- discovery_id: aws.iotwireless.get_wireless_gateway_task_definition
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_wireless_gateway_task_definition
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Update }}'
+- discovery_id: aws.iotwireless.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.iotwireless.get_resource_event_configuration
+  for_each: aws.iotwireless.list_event_configurations
+  calls:
+  - action: get_resource_event_configuration
+    save_as: response
+    on_error: continue
+    params:
+      eventConfigurationsListIdentifier: '{{ item.eventConfigurationsListIdentifier
+        }}'
+      eventConfigurationsListIdentifierType: '{{ item.eventConfigurationsListIdentifierType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.DeviceRegistrationState }}'
+- discovery_id: aws.iotwireless.get_position_configuration
+  for_each: aws.iotwireless.list_position_configurations
+  calls:
+  - action: get_position_configuration
+    save_as: response
+    on_error: continue
+    params:
+      positionConfigurationListResourceIdentifier: '{{ item.positionConfigurationListResourceIdentifier
+        }}'
+      positionConfigurationListResourceType: '{{ item.positionConfigurationListResourceType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Solvers }}'
+- discovery_id: aws.iotwireless.get_wireless_gateway_task
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_wireless_gateway_task
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.WirelessGatewayId }}'
+- discovery_id: aws.iotwireless.get_wireless_gateway_firmware_information
+  for_each: aws.iotwireless.list_wireless_device_import_tasks
+  calls:
+  - action: get_wireless_gateway_firmware_information
+    save_as: response
+    on_error: continue
+    params:
+      deviceProfileListId: '{{ item.deviceProfileListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoRaWAN }}'
+checks: []

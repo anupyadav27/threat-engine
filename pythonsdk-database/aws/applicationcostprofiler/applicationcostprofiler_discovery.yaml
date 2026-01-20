@@ -1,0 +1,27 @@
+version: '1.0'
+provider: aws
+service: applicationcostprofiler
+services:
+  client: applicationcostprofiler
+  module: boto3.client
+discovery:
+- discovery_id: aws.applicationcostprofiler.list_report_definitions
+  calls:
+  - action: list_report_definitions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.reportDefinitions }}'
+- discovery_id: aws.applicationcostprofiler.get_report_definition
+  for_each: aws.applicationcostprofiler.list_report_definitions
+  calls:
+  - action: get_report_definition
+    save_as: response
+    on_error: continue
+    params:
+      reportDefinitionReportId: '{{ item.reportDefinitionReportId }}'
+  emit:
+    as: item
+    items_for: '{{ response.destinationS3Location }}'
+checks: []

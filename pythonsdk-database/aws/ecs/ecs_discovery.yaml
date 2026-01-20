@@ -1,0 +1,124 @@
+version: '1.0'
+provider: aws
+service: ecs
+services:
+  client: ecs
+  module: boto3.client
+discovery:
+- discovery_id: aws.ecs.describe_clusters
+  calls:
+  - action: describe_clusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.clusters }}'
+- discovery_id: aws.ecs.describe_capacity_providers
+  calls:
+  - action: describe_capacity_providers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.capacityProviders }}'
+- discovery_id: aws.ecs.list_account_settings
+  calls:
+  - action: list_account_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.settings }}'
+- discovery_id: aws.ecs.describe_tasks
+  calls:
+  - action: describe_tasks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tasks }}'
+- discovery_id: aws.ecs.describe_services
+  calls:
+  - action: describe_services
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.services }}'
+- discovery_id: aws.ecs.describe_service_deployments
+  calls:
+  - action: describe_service_deployments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.serviceDeployments }}'
+- discovery_id: aws.ecs.describe_service_revisions
+  calls:
+  - action: describe_service_revisions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.serviceRevisions }}'
+- discovery_id: aws.ecs.describe_task_sets
+  for_each: aws.ecs.describe_capacity_providers
+  calls:
+  - action: describe_task_sets
+    save_as: response
+    on_error: continue
+    params:
+      capacityProviderCluster: '{{ item.capacityProviderCluster }}'
+  emit:
+    as: item
+    items_for: '{{ response.taskSets }}'
+- discovery_id: aws.ecs.describe_container_instances
+  calls:
+  - action: describe_container_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.containerInstances }}'
+- discovery_id: aws.ecs.describe_express_gateway_service
+  for_each: aws.ecs.describe_services
+  calls:
+  - action: describe_express_gateway_service
+    save_as: response
+    on_error: continue
+    params:
+      serviceServiceArn: '{{ item.serviceServiceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.service }}'
+- discovery_id: aws.ecs.get_task_protection
+  for_each: aws.ecs.describe_capacity_providers
+  calls:
+  - action: get_task_protection
+    save_as: response
+    on_error: continue
+    params:
+      capacityProviderCluster: '{{ item.capacityProviderCluster }}'
+  emit:
+    as: item
+    items_for: '{{ response.protectedTasks }}'
+- discovery_id: aws.ecs.list_service_deployments
+  calls:
+  - action: list_service_deployments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.serviceDeployments }}'
+- discovery_id: aws.ecs.describe_task_definition
+  for_each: aws.ecs.describe_services
+  calls:
+  - action: describe_task_definition
+    save_as: response
+    on_error: continue
+    params:
+      serviceRevisionTaskDefinition: '{{ item.serviceRevisionTaskDefinition }}'
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

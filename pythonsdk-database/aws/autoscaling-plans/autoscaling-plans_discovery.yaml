@@ -1,0 +1,45 @@
+version: '1.0'
+provider: aws
+service: autoscaling-plans
+services:
+  client: autoscaling-plans
+  module: boto3.client
+discovery:
+- discovery_id: aws.autoscaling-plans.describe_scaling_plans
+  calls:
+  - action: describe_scaling_plans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScalingPlans }}'
+- discovery_id: aws.autoscaling-plans.describe_scaling_plan_resources
+  for_each: aws.autoscaling-plans.describe_scaling_plans
+  calls:
+  - action: describe_scaling_plan_resources
+    save_as: response
+    on_error: continue
+    params:
+      scalingPlanScalingPlanName: '{{ item.scalingPlanScalingPlanName }}'
+      scalingPlanScalingPlanVersion: '{{ item.scalingPlanScalingPlanVersion }}'
+  emit:
+    as: item
+    items_for: '{{ response.ScalingPlanResources }}'
+- discovery_id: aws.autoscaling-plans.get_scaling_plan_resource_forecast_data
+  for_each: aws.autoscaling-plans.describe_scaling_plan_resources
+  calls:
+  - action: get_scaling_plan_resource_forecast_data
+    save_as: response
+    on_error: continue
+    params:
+      scalingPlanResourcResourceId: '{{ item.scalingPlanResourcResourceId }}'
+      scalingPlanResourcScalableDimension: '{{ item.scalingPlanResourcScalableDimension
+        }}'
+      scalingPlanResourcServiceNamespace: '{{ item.scalingPlanResourcServiceNamespace
+        }}'
+      scalingPlanScalingPlanName: '{{ item.scalingPlanScalingPlanName }}'
+      scalingPlanScalingPlanVersion: '{{ item.scalingPlanScalingPlanVersion }}'
+  emit:
+    as: item
+    items_for: '{{ response.Datapoints }}'
+checks: []

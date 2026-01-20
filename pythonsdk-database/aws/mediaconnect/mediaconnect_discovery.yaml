@@ -1,0 +1,190 @@
+version: '1.0'
+provider: aws
+service: mediaconnect
+services:
+  client: mediaconnect
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediaconnect.list_router_outputs
+  calls:
+  - action: list_router_outputs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RouterOutputs }}'
+- discovery_id: aws.mediaconnect.list_router_inputs
+  calls:
+  - action: list_router_inputs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RouterInputs }}'
+- discovery_id: aws.mediaconnect.list_reservations
+  calls:
+  - action: list_reservations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Reservations }}'
+- discovery_id: aws.mediaconnect.list_router_network_interfaces
+  calls:
+  - action: list_router_network_interfaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RouterNetworkInterfaces }}'
+- discovery_id: aws.mediaconnect.list_flows
+  calls:
+  - action: list_flows
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Flows }}'
+- discovery_id: aws.mediaconnect.list_bridges
+  calls:
+  - action: list_bridges
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Bridges }}'
+- discovery_id: aws.mediaconnect.list_entitlements
+  calls:
+  - action: list_entitlements
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Entitlements }}'
+- discovery_id: aws.mediaconnect.list_gateway_instances
+  calls:
+  - action: list_gateway_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Instances }}'
+- discovery_id: aws.mediaconnect.list_gateways
+  calls:
+  - action: list_gateways
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Gateways }}'
+- discovery_id: aws.mediaconnect.describe_flow
+  for_each: aws.mediaconnect.list_flows
+  calls:
+  - action: describe_flow
+    save_as: response
+    on_error: continue
+    params:
+      flowFlowArn: '{{ item.flowFlowArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Flow }}'
+- discovery_id: aws.mediaconnect.get_router_input
+  for_each: aws.mediaconnect.list_router_outputs
+  calls:
+  - action: get_router_input
+    save_as: response
+    on_error: continue
+    params:
+      routerInputArn: '{{ item.routerInputArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.RouterInput }}'
+- discovery_id: aws.mediaconnect.describe_gateway_instance
+  for_each: aws.mediaconnect.list_gateway_instances
+  calls:
+  - action: describe_gateway_instance
+    save_as: response
+    on_error: continue
+    params:
+      instancGatewayInstanceArn: '{{ item.instancGatewayInstanceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.GatewayInstance }}'
+- discovery_id: aws.mediaconnect.describe_gateway
+  for_each: aws.mediaconnect.list_gateway_instances
+  calls:
+  - action: describe_gateway
+    save_as: response
+    on_error: continue
+    params:
+      instancGatewayArn: '{{ item.instancGatewayArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Gateway }}'
+- discovery_id: aws.mediaconnect.get_router_input_thumbnail
+  for_each: aws.mediaconnect.list_router_outputs
+  calls:
+  - action: get_router_input_thumbnail
+    save_as: response
+    on_error: continue
+    params:
+      routerInputArn: '{{ item.routerInputArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.ThumbnailDetails }}'
+- discovery_id: aws.mediaconnect.describe_bridge
+  for_each: aws.mediaconnect.list_bridges
+  calls:
+  - action: describe_bridge
+    save_as: response
+    on_error: continue
+    params:
+      bridgBridgeArn: '{{ item.bridgBridgeArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Bridge }}'
+- discovery_id: aws.mediaconnect.describe_flow_source_metadata
+  for_each: aws.mediaconnect.list_flows
+  calls:
+  - action: describe_flow_source_metadata
+    save_as: response
+    on_error: continue
+    params:
+      flowFlowArn: '{{ item.flowFlowArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Messages }}'
+- discovery_id: aws.mediaconnect.get_router_input_source_metadata
+  for_each: aws.mediaconnect.list_router_outputs
+  calls:
+  - action: get_router_input_source_metadata
+    save_as: response
+    on_error: continue
+    params:
+      routerInputArn: '{{ item.routerInputArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.SourceMetadataDetails }}'
+- discovery_id: aws.mediaconnect.describe_reservation
+  for_each: aws.mediaconnect.list_reservations
+  calls:
+  - action: describe_reservation
+    save_as: response
+    on_error: continue
+    params:
+      reservationReservationArn: '{{ item.reservationReservationArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Reservation }}'
+- discovery_id: aws.mediaconnect.describe_offering
+  for_each: aws.mediaconnect.list_reservations
+  calls:
+  - action: describe_offering
+    save_as: response
+    on_error: continue
+    params:
+      offeringOfferingArn: '{{ item.offeringOfferingArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Offering }}'
+checks: []

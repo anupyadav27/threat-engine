@@ -1,0 +1,445 @@
+version: '1.0'
+provider: aws
+service: connect
+services:
+  client: connect
+  module: boto3.client
+discovery:
+- discovery_id: aws.connect.list_instances
+  calls:
+  - action: list_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InstanceSummaryList }}'
+- discovery_id: aws.connect.list_phone_numbers_v2
+  calls:
+  - action: list_phone_numbers_v2
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ListPhoneNumbersSummaryList }}'
+- discovery_id: aws.connect.list_traffic_distribution_groups
+  calls:
+  - action: list_traffic_distribution_groups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TrafficDistributionGroupSummaryList }}'
+- discovery_id: aws.connect.get_current_user_data
+  calls:
+  - action: get_current_user_data
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.UserDataList }}'
+- discovery_id: aws.connect.get_federation_token
+  calls:
+  - action: get_federation_token
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+- discovery_id: aws.connect.list_integration_associations
+  calls:
+  - action: list_integration_associations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IntegrationAssociationSummaryList }}'
+- discovery_id: aws.connect.describe_authentication_profile
+  calls:
+  - action: describe_authentication_profile
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AuthenticationProfile }}'
+- discovery_id: aws.connect.list_rules
+  calls:
+  - action: list_rules
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RuleSummaryList }}'
+- discovery_id: aws.connect.describe_user_hierarchy_structure
+  calls:
+  - action: describe_user_hierarchy_structure
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HierarchyStructure }}'
+- discovery_id: aws.connect.get_task_template
+  calls:
+  - action: get_task_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Fields }}'
+- discovery_id: aws.connect.describe_rule
+  for_each: aws.connect.list_rules
+  calls:
+  - action: describe_rule
+    save_as: response
+    on_error: continue
+    params:
+      ruleRuleId: '{{ item.ruleRuleId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Rule }}'
+- discovery_id: aws.connect.list_analytics_data_associations
+  calls:
+  - action: list_analytics_data_associations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+- discovery_id: aws.connect.describe_security_profile
+  calls:
+  - action: describe_security_profile
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SecurityProfile }}'
+- discovery_id: aws.connect.describe_evaluation_form
+  calls:
+  - action: describe_evaluation_form
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EvaluationForm }}'
+- discovery_id: aws.connect.get_current_metric_data
+  calls:
+  - action: get_current_metric_data
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MetricResults }}'
+- discovery_id: aws.connect.describe_instance
+  calls:
+  - action: describe_instance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Instance }}'
+- discovery_id: aws.connect.list_routing_profile_queues
+  calls:
+  - action: list_routing_profile_queues
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RoutingProfileQueueConfigSummaryList }}'
+- discovery_id: aws.connect.list_use_cases
+  for_each: aws.connect.list_integration_associations
+  calls:
+  - action: list_use_cases
+    save_as: response
+    on_error: continue
+    params:
+      integrationAssociationSummaryListIntegrationAssociationId: '{{ item.integrationAssociationSummaryListIntegrationAssociationId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.UseCaseSummaryList }}'
+- discovery_id: aws.connect.describe_contact_evaluation
+  calls:
+  - action: describe_contact_evaluation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Evaluation }}'
+- discovery_id: aws.connect.list_security_keys
+  calls:
+  - action: list_security_keys
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SecurityKeys }}'
+- discovery_id: aws.connect.list_user_proficiencies
+  for_each: aws.connect.get_federation_token
+  calls:
+  - action: list_user_proficiencies
+    save_as: response
+    on_error: continue
+    params:
+      trafficDistributionGroupUserSummaryListUserId: '{{ item.trafficDistributionGroupUserSummaryListUserId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.UserProficiencyList }}'
+- discovery_id: aws.connect.list_contact_flows
+  calls:
+  - action: list_contact_flows
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ContactFlowSummaryList }}'
+- discovery_id: aws.connect.list_flow_associations
+  calls:
+  - action: list_flow_associations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.FlowAssociationSummaryList }}'
+- discovery_id: aws.connect.list_instance_storage_configs
+  for_each: aws.connect.list_flow_associations
+  calls:
+  - action: list_instance_storage_configs
+    save_as: response
+    on_error: continue
+    params:
+      flowAssociationSummaryListResourceType: '{{ item.flowAssociationSummaryListResourceType
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.StorageConfigs }}'
+- discovery_id: aws.connect.list_instance_attributes
+  calls:
+  - action: list_instance_attributes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Attributes }}'
+- discovery_id: aws.connect.get_effective_hours_of_operations
+  calls:
+  - action: get_effective_hours_of_operations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EffectiveHoursOfOperationList }}'
+- discovery_id: aws.connect.list_default_vocabularies
+  calls:
+  - action: list_default_vocabularies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DefaultVocabularyList }}'
+- discovery_id: aws.connect.get_attached_file
+  calls:
+  - action: get_attached_file
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CreatedBy }}'
+- discovery_id: aws.connect.list_security_profile_applications
+  calls:
+  - action: list_security_profile_applications
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+- discovery_id: aws.connect.list_bots
+  calls:
+  - action: list_bots
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LexBots }}'
+- discovery_id: aws.connect.describe_email_address
+  calls:
+  - action: describe_email_address
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AliasConfigurations }}'
+- discovery_id: aws.connect.describe_phone_number
+  for_each: aws.connect.list_phone_numbers_v2
+  calls:
+  - action: describe_phone_number
+    save_as: response
+    on_error: continue
+    params:
+      listPhoneNumbersSummaryListPhoneNumberId: '{{ item.listPhoneNumbersSummaryListPhoneNumberId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.ClaimedPhoneNumberSummary }}'
+- discovery_id: aws.connect.get_metric_data_v2
+  calls:
+  - action: get_metric_data_v2
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MetricResults }}'
+- discovery_id: aws.connect.describe_instance_attribute
+  for_each: aws.connect.list_instance_attributes
+  calls:
+  - action: describe_instance_attribute
+    save_as: response
+    on_error: continue
+    params:
+      attributeAttributeType: '{{ item.attributeAttributeType }}'
+  emit:
+    as: item
+    items_for: '{{ response.Attribute }}'
+- discovery_id: aws.connect.list_analytics_data_lake_data_sets
+  calls:
+  - action: list_analytics_data_lake_data_sets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+- discovery_id: aws.connect.list_lex_bots
+  calls:
+  - action: list_lex_bots
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LexBots }}'
+- discovery_id: aws.connect.list_queue_quick_connects
+  calls:
+  - action: list_queue_quick_connects
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QuickConnectSummaryList }}'
+- discovery_id: aws.connect.describe_traffic_distribution_group
+  calls:
+  - action: describe_traffic_distribution_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TrafficDistributionGroup }}'
+- discovery_id: aws.connect.list_queues
+  calls:
+  - action: list_queues
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QueueSummaryList }}'
+- discovery_id: aws.connect.describe_view
+  calls:
+  - action: describe_view
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.View }}'
+- discovery_id: aws.connect.describe_prompt
+  calls:
+  - action: describe_prompt
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Prompt }}'
+- discovery_id: aws.connect.describe_vocabulary
+  for_each: aws.connect.list_default_vocabularies
+  calls:
+  - action: describe_vocabulary
+    save_as: response
+    on_error: continue
+    params:
+      defaultVocabularyListVocabularyId: '{{ item.defaultVocabularyListVocabularyId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Vocabulary }}'
+- discovery_id: aws.connect.describe_agent_status
+  calls:
+  - action: describe_agent_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AgentStatus }}'
+- discovery_id: aws.connect.describe_hours_of_operation_override
+  calls:
+  - action: describe_hours_of_operation_override
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HoursOfOperationOverride }}'
+- discovery_id: aws.connect.describe_user_hierarchy_group
+  calls:
+  - action: describe_user_hierarchy_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HierarchyGroup }}'
+- discovery_id: aws.connect.describe_queue
+  calls:
+  - action: describe_queue
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Queue }}'
+- discovery_id: aws.connect.describe_quick_connect
+  calls:
+  - action: describe_quick_connect
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QuickConnect }}'
+- discovery_id: aws.connect.describe_hours_of_operation
+  calls:
+  - action: describe_hours_of_operation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HoursOfOperation }}'
+- discovery_id: aws.connect.get_traffic_distribution
+  calls:
+  - action: get_traffic_distribution
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TelephonyConfig }}'
+- discovery_id: aws.connect.describe_predefined_attribute
+  calls:
+  - action: describe_predefined_attribute
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PredefinedAttribute }}'
+- discovery_id: aws.connect.describe_contact_flow
+  for_each: aws.connect.get_task_template
+  calls:
+  - action: describe_contact_flow
+    save_as: response
+    on_error: continue
+    params:
+      contactFlowIdContactFlowId: '{{ item.contactFlowIdContactFlowId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ContactFlow }}'
+checks: []

@@ -1,0 +1,271 @@
+version: '1.0'
+provider: alicloud
+service: cas
+discovery:
+- discovery_id: alicloud.cas.cas
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCass
+    params: {}
+    save_as: cas_response
+  emit:
+    items_for: '{ cas_response.Cass.Cas }'
+    as: r
+    item:
+      id: '{{ r.CasId }}'
+      name: '{{ r.CasId }}'
+      resource_type: cas
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cas.cas_private_ca
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCasPrivateCas
+    params: {}
+    save_as: cas_private_ca_response
+  emit:
+    items_for: '{ cas_private_ca_response.CasPrivateCas.CasPrivateCa }'
+    as: r
+    item:
+      id: '{{ r.CasPrivateCaId }}'
+      name: '{{ r.CasPrivateCaId }}'
+      resource_type: cas_private_ca
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cas.certificate
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCertificates
+    params: {}
+    save_as: certificate_response
+  emit:
+    items_for: '{ certificate_response.Certificates.Certificate }'
+    as: r
+    item:
+      id: '{{ r.CertificateId }}'
+      name: '{{ r.CertificateId }}'
+      resource_type: certificate
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cas.certificates
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCertificatess
+    params: {}
+    save_as: certificates_response
+  emit:
+    items_for: '{ certificates_response.Certificatess.Certificates }'
+    as: r
+    item:
+      id: '{{ r.CertificatesId }}'
+      name: '{{ r.CertificatesId }}'
+      resource_type: certificates
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cas.kubernetes
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeKubernetess
+    params: {}
+    save_as: kubernetes_response
+  emit:
+    items_for: '{ kubernetes_response.Kubernetess.Kubernetes }'
+    as: r
+    item:
+      id: '{{ r.KubernetesId }}'
+      name: '{{ r.KubernetesId }}'
+      resource_type: kubernetes
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cas.kubernetes_cluster
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeKubernetesClusters
+    params: {}
+    save_as: kubernetes_cluster_response
+  emit:
+    items_for: '{ kubernetes_cluster_response.KubernetesClusters.KubernetesCluster }'
+    as: r
+    item:
+      id: '{{ r.KubernetesClusterId }}'
+      name: '{{ r.KubernetesClusterId }}'
+      resource_type: kubernetes_cluster
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.cas.cas.certificate_key_length_minimum
+  title: Alibaba Cloud Certificate Authority Service Certificate Key Length Minimum Requirements
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cas.cas
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cas.cas.certificate_not_expired
+  title: AliCloud Certificate Authority Service (CAS) Certificate Not Expired
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cas.cas
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cas.cas.certificate_trusted_issuer
+  title: AliCloud Certificate Authority Service Certificate Must Use Trusted Issuer
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cas.cas
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_access_rbac_least_privilege
+  title: Certificate Authority Service Private CA Should Implement RBAC Least Privilege Access Controls
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cas.cas_private_ca
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_key_in_hsm_where_supported
+  title: Certificate Authority Service Private CA Keys Should Be Stored in Hardware Security Modules Where Supported
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cas.cas_private_ca
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cas.cas_private_ca.private_ca_crl_or_ocsp_configured
+  title: Certificate Authority Service Private CA Should Have CRL or OCSP Configuration Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cas.cas_private_ca
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cas.certificate.expiration
+  title: Certificate Authority Service (CAS) certificates should not be expired or nearing expiration
+  severity: medium
+  assertion_id: rbi_bank_multi_cloud_7.1_0023
+  for_each: alicloud.cas.certificate
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cas.certificates.expiration_check
+  title: Certificate Authority Service (CAS) SSL/TLS Certificate Expiration Monitoring
+  severity: medium
+  assertion_id: gdpr_multi_cloud_Article_32_Security_of_processing_0003
+  for_each: alicloud.cas.certificates
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_alb_ssl_listeners_alicloud_slb_ssl_listeners_alicloud_cdn_distributions_using_deprecated_ssl_protocols
+  title: Certificate Authority Service certificates should not be used by Application Load Balancer SSL listeners, Server
+    Load Balancer SSL listeners, or Content Delivery Network distributions using deprecated SSL protocols
+  severity: medium
+  assertion_id: gdpr_multi_cloud_Article_32_Security_of_processing_0003
+  for_each: alicloud.cas.certificates
+  params: {}
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_oss_bucket_enforces_ssl_alicloud_alb_ssl_listeners_alicloud_elasticsearch_service_domains_node_to_node_encryption_enabled_alicloud_slb_ssl_listeners_alicloud_elasticsearch_service_domains_https_communications_enforced_alicloud_cdn_distributions_using_deprecated_ssl_protocols_alicloud_cdn_distributions_origin_traffic_encrypted_alicloud_vpc_flow_logs_enabled
+  title: Certificate Authority Service Certificate Expiration and Multi-Service SSL/TLS Security Configuration Check
+  severity: high
+  assertion_id: pci_dss_v4_multi_cloud_4.1.1_0058
+  for_each: alicloud.cas.certificates
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.logging_enabled
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.cas.certificates.not_expired_and_valid
+  title: AliCloud Certificate Authority Service certificates must not be expired and remain valid
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cas.certificates
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cas.kubernetes.cluster_confidential_computing_enabled
+  title: Container Service for Kubernetes Cluster Should Have Confidential Computing Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cas.kubernetes
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cas.kubernetes_cluster.confidential_computing_enforced
+  title: Container Service for Kubernetes Cluster Must Have Confidential Computing Enforced
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cas.kubernetes_cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

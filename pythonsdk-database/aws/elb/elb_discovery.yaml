@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: elb
+services:
+  client: elb
+  module: boto3.client
+discovery:
+- discovery_id: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancerDescriptions }}'
+- discovery_id: aws.elb.describe_account_limits
+  calls:
+  - action: describe_account_limits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Limits }}'
+- discovery_id: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancer_attributes
+    save_as: response
+    on_error: continue
+    params:
+      loadBalancerLoadBalancerName: '{{ item.loadBalancerLoadBalancerName }}'
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancerAttributes }}'
+- discovery_id: aws.elb.describe_tags
+  calls:
+  - action: describe_tags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagDescriptions }}'
+- discovery_id: aws.elb.describe_instance_health
+  for_each: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_instance_health
+    save_as: response
+    on_error: continue
+    params:
+      loadBalancerLoadBalancerName: '{{ item.loadBalancerLoadBalancerName }}'
+  emit:
+    as: item
+    items_for: '{{ response.InstanceStates }}'
+checks: []

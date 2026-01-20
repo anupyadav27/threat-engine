@@ -1,0 +1,58 @@
+version: '1.0'
+provider: aws
+service: internetmonitor
+services:
+  client: internetmonitor
+  module: boto3.client
+discovery:
+- discovery_id: aws.internetmonitor.list_internet_events
+  calls:
+  - action: list_internet_events
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InternetEvents }}'
+- discovery_id: aws.internetmonitor.list_monitors
+  calls:
+  - action: list_monitors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Monitors }}'
+- discovery_id: aws.internetmonitor.get_health_event
+  for_each: aws.internetmonitor.list_internet_events
+  calls:
+  - action: get_health_event
+    save_as: response
+    on_error: continue
+    params:
+      internetEventEventId: '{{ item.internetEventEventId }}'
+      monitorMonitorName: '{{ item.monitorMonitorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.ImpactedLocations }}'
+- discovery_id: aws.internetmonitor.get_query_results
+  for_each: aws.internetmonitor.list_monitors
+  calls:
+  - action: get_query_results
+    save_as: response
+    on_error: continue
+    params:
+      monitorMonitorName: '{{ item.monitorMonitorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Fields }}'
+- discovery_id: aws.internetmonitor.get_monitor
+  for_each: aws.internetmonitor.list_monitors
+  calls:
+  - action: get_monitor
+    save_as: response
+    on_error: continue
+    params:
+      monitorMonitorName: '{{ item.monitorMonitorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Resources }}'
+checks: []

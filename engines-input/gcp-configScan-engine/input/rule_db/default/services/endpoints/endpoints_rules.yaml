@@ -1,0 +1,194 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+endpoints:
+  version: '1.0'
+  provider: gcp
+  service: endpoints
+  scope: global
+  discovery:
+  - discovery_id: list_endpoints_resources
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: resource_name
+      - path: serviceName
+        var: service_name
+      - path: serviceConfig
+        var: service_config
+  - discovery_id: get_endpoints_service_configs
+    for_each: list_endpoints_resources
+    calls:
+    - action: get_service_config
+      fields:
+      - path: name
+        var: config_name
+      - path: logs
+        var: logging_config
+      - path: monitoring
+        var: monitoring_config
+      - path: usage
+        var: usage_config
+  - discovery_id: get_endpoints_logging_sinks
+    for_each: list_endpoints_resources
+    calls:
+    - action: get_logging_sinks
+      fields:
+      - path: name
+        var: sink_name
+      - path: destination
+        var: sink_destination
+      - path: filter
+        var: sink_filter
+      - path: includeChildren
+        var: include_children
+  checks:
+  - check_id: gcp.endpoints.endpoint.api_monitoring_api_access_logging_enabled
+    title: Enable API Monitoring API Access Logging on Endpoints
+    severity: high
+    for_each: get_endpoints_service_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].name
+        operator: contains
+        expected: endpoints.googleapis.com/api_request
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].name
+        operator: contains
+        expected: endpoints.googleapis.com/api_response
+  - check_id: gcp.endpoints.endpoint.api_monitoring_api_access_log_fields_identity_present
+    title: Ensure API Access Log Fields Include Identity Information
+    severity: medium
+    for_each: get_endpoints_service_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].logEntryFields
+        operator: contains
+        expected: request_headers.authorization
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].logEntryFields
+        operator: contains
+        expected: request_headers.x-goog-authenticated-user-email
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].logEntryFields
+        operator: contains
+        expected: api_key_uid
+  - check_id: gcp.endpoints.endpoint.api_monitoring_api_access_log_sink_configured
+    title: Ensure API Monitoring Access Logs are Configured for Endpoints
+    severity: high
+    for_each: get_endpoints_logging_sinks
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: sink_filter
+        operator: contains
+        expected: protoPayload.serviceName
+    - action: eval
+      fields:
+      - path: sink_filter
+        operator: contains
+        expected: resource.type="api"
+    - action: eval
+      fields:
+      - path: sink_destination
+        operator: exists
+        expected: true
+  - check_id: gcp.endpoints.endpoint.api_monitoring_api_execution_logging_level_minimum_error
+    title: Ensure API Execution Logs at Minimum Error Level for Endpoints
+    severity: medium
+    for_each: get_endpoints_service_configs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].level
+        operator: equals
+        expected: ERROR
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].level
+        operator: equals
+        expected: CRITICAL
+    - action: eval
+      fields:
+      - path: logging_config.producers[].logs[].level
+        operator: equals
+        expected: ALERT
+  - check_id: gcp.endpoints.endpoint.api_monitoring_api_logs_retention_days_minimum
+    title: Ensure Minimum Retention of API Monitoring Logs
+    severity: medium
+    for_each: get_endpoints_logging_sinks
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: sink_destination
+        operator: exists
+        expected: true
+    - action: get_log_bucket_retention
+      fields:
+      - path: retentionDays
+        operator: equals
+        expected: 30
+    - action: eval
+      fields:
+      - path: retentionDays
+        operator: contains
+        expected: '30'
+  api_name: servicemanagement
+  api_version: v1

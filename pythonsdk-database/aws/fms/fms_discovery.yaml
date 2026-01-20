@@ -1,0 +1,170 @@
+version: '1.0'
+provider: aws
+service: fms
+services:
+  client: fms
+  module: boto3.client
+discovery:
+- discovery_id: aws.fms.list_policies
+  calls:
+  - action: list_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyList }}'
+- discovery_id: aws.fms.list_resource_sets
+  calls:
+  - action: list_resource_sets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceSets }}'
+- discovery_id: aws.fms.list_admin_accounts_for_organization
+  calls:
+  - action: list_admin_accounts_for_organization
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AdminAccounts }}'
+- discovery_id: aws.fms.get_notification_channel
+  calls:
+  - action: get_notification_channel
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SnsTopicArn }}'
+- discovery_id: aws.fms.get_admin_account
+  calls:
+  - action: get_admin_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AdminAccount }}'
+- discovery_id: aws.fms.get_policy
+  for_each: aws.fms.list_policies
+  calls:
+  - action: get_policy
+    save_as: response
+    on_error: continue
+    params:
+      policyListPolicyId: '{{ item.policyListPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.fms.list_compliance_status
+  for_each: aws.fms.list_policies
+  calls:
+  - action: list_compliance_status
+    save_as: response
+    on_error: continue
+    params:
+      policyListPolicyId: '{{ item.policyListPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.PolicyComplianceStatusList }}'
+- discovery_id: aws.fms.get_admin_scope
+  for_each: aws.fms.list_admin_accounts_for_organization
+  calls:
+  - action: get_admin_scope
+    save_as: response
+    on_error: continue
+    params:
+      adminAccountAdminAccount: '{{ item.adminAccountAdminAccount }}'
+  emit:
+    as: item
+    items_for: '{{ response.AdminScope }}'
+- discovery_id: aws.fms.list_protocols_lists
+  calls:
+  - action: list_protocols_lists
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ProtocolsLists }}'
+- discovery_id: aws.fms.get_apps_list
+  for_each: aws.fms.list_protocols_lists
+  calls:
+  - action: get_apps_list
+    save_as: response
+    on_error: continue
+    params:
+      appsListListId: '{{ item.appsListListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.AppsList }}'
+- discovery_id: aws.fms.get_compliance_detail
+  for_each: aws.fms.list_compliance_status
+  calls:
+  - action: get_compliance_detail
+    save_as: response
+    on_error: continue
+    params:
+      policyComplianceDetailMemberAccount: '{{ item.policyComplianceDetailMemberAccount
+        }}'
+      policyListPolicyId: '{{ item.policyListPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.PolicyComplianceDetail }}'
+- discovery_id: aws.fms.list_discovered_resources
+  for_each: aws.fms.list_policies
+  calls:
+  - action: list_discovered_resources
+    save_as: response
+    on_error: continue
+    params:
+      policyListResourceType: '{{ item.policyListResourceType }}'
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.fms.list_third_party_firewall_firewall_policies
+  calls:
+  - action: list_third_party_firewall_firewall_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ThirdPartyFirewallFirewallPolicies }}'
+- discovery_id: aws.fms.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+- discovery_id: aws.fms.get_resource_set
+  calls:
+  - action: get_resource_set
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceSet }}'
+- discovery_id: aws.fms.get_protocols_list
+  for_each: aws.fms.list_protocols_lists
+  calls:
+  - action: get_protocols_list
+    save_as: response
+    on_error: continue
+    params:
+      appsListListId: '{{ item.appsListListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ProtocolsList }}'
+- discovery_id: aws.fms.get_protection_status
+  for_each: aws.fms.list_policies
+  calls:
+  - action: get_protection_status
+    save_as: response
+    on_error: continue
+    params:
+      policyListPolicyId: '{{ item.policyListPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.AdminAccountId }}'
+checks: []

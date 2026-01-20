@@ -1,0 +1,101 @@
+version: '1.0'
+provider: aws
+service: kinesisanalyticsv2
+services:
+  client: kinesisanalyticsv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: list_applications
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationSummaries }}'
+- discovery_id: aws.kinesisanalyticsv2.describe_application
+  for_each: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: describe_application
+    save_as: response
+    on_error: continue
+    params:
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationDetail }}'
+- discovery_id: aws.kinesisanalyticsv2.list_application_operations
+  for_each: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: list_application_operations
+    save_as: response
+    on_error: continue
+    params:
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationOperationInfoList }}'
+- discovery_id: aws.kinesisanalyticsv2.list_application_snapshots
+  for_each: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: list_application_snapshots
+    save_as: response
+    on_error: continue
+    params:
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.SnapshotSummaries }}'
+- discovery_id: aws.kinesisanalyticsv2.describe_application_operation
+  for_each: aws.kinesisanalyticsv2.list_application_operations
+  calls:
+  - action: describe_application_operation
+    save_as: response
+    on_error: continue
+    params:
+      applicationOperationInfoListOperationId: '{{ item.applicationOperationInfoListOperationId
+        }}'
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationOperationInfoDetails }}'
+- discovery_id: aws.kinesisanalyticsv2.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.kinesisanalyticsv2.describe_application_version
+  for_each: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: describe_application_version
+    save_as: response
+    on_error: continue
+    params:
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+      applicationSummaryApplicationVersionId: '{{ item.applicationSummaryApplicationVersionId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationVersionDetail }}'
+- discovery_id: aws.kinesisanalyticsv2.describe_application_snapshot
+  for_each: aws.kinesisanalyticsv2.list_applications
+  calls:
+  - action: describe_application_snapshot
+    save_as: response
+    on_error: continue
+    params:
+      applicationSummaryApplicationName: '{{ item.applicationSummaryApplicationName
+        }}'
+      snapshotDetailSnapshotName: '{{ item.snapshotDetailSnapshotName }}'
+  emit:
+    as: item
+    items_for: '{{ response.SnapshotDetails }}'
+checks: []

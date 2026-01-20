@@ -1,0 +1,38 @@
+version: '1.0'
+provider: aws
+service: cognito-identity
+services:
+  client: cognito-identity
+  module: boto3.client
+discovery:
+- discovery_id: aws.cognito-identity.list_identity_pools
+  calls:
+  - action: list_identity_pools
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityPools }}'
+- discovery_id: aws.cognito-identity.list_identities
+  for_each: aws.cognito-identity.list_identity_pools
+  calls:
+  - action: list_identities
+    save_as: response
+    on_error: continue
+    params:
+      identityPoolIdentityPoolId: '{{ item.identityPoolIdentityPoolId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Identities }}'
+- discovery_id: aws.cognito-identity.get_credentials_for_identity
+  for_each: aws.cognito-identity.list_identities
+  calls:
+  - action: get_credentials_for_identity
+    save_as: response
+    on_error: continue
+    params:
+      identityIdentityId: '{{ item.identityIdentityId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+checks: []

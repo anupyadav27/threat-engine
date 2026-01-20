@@ -1,0 +1,182 @@
+version: '1.0'
+provider: aws
+service: license-manager
+services:
+  client: license-manager
+  module: boto3.client
+discovery:
+- discovery_id: aws.license-manager.list_license_configurations_for_organization
+  calls:
+  - action: list_license_configurations_for_organization
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LicenseConfigurations }}'
+- discovery_id: aws.license-manager.list_received_licenses
+  calls:
+  - action: list_received_licenses
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Licenses }}'
+- discovery_id: aws.license-manager.list_license_manager_report_generators
+  calls:
+  - action: list_license_manager_report_generators
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ReportGenerators }}'
+- discovery_id: aws.license-manager.list_resource_inventory
+  calls:
+  - action: list_resource_inventory
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceInventoryList }}'
+- discovery_id: aws.license-manager.list_distributed_grants
+  calls:
+  - action: list_distributed_grants
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Grants }}'
+- discovery_id: aws.license-manager.list_license_asset_groups
+  calls:
+  - action: list_license_asset_groups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LicenseAssetGroups }}'
+- discovery_id: aws.license-manager.list_license_conversion_tasks
+  calls:
+  - action: list_license_conversion_tasks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LicenseConversionTasks }}'
+- discovery_id: aws.license-manager.get_service_settings
+  calls:
+  - action: get_service_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CrossRegionDiscoverySourceRegions }}'
+- discovery_id: aws.license-manager.list_tokens
+  calls:
+  - action: list_tokens
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tokens }}'
+- discovery_id: aws.license-manager.list_license_asset_rulesets
+  calls:
+  - action: list_license_asset_rulesets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LicenseAssetRulesets }}'
+- discovery_id: aws.license-manager.list_failures_for_license_configuration_operations
+  for_each: aws.license-manager.list_license_configurations_for_organization
+  calls:
+  - action: list_failures_for_license_configuration_operations
+    save_as: response
+    on_error: continue
+    params:
+      licenseConfigurationLicenseConfigurationArn: '{{ item.licenseConfigurationLicenseConfigurationArn
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.LicenseOperationFailureList }}'
+- discovery_id: aws.license-manager.list_usage_for_license_configuration
+  for_each: aws.license-manager.list_license_configurations_for_organization
+  calls:
+  - action: list_usage_for_license_configuration
+    save_as: response
+    on_error: continue
+    params:
+      licenseConfigurationLicenseConfigurationArn: '{{ item.licenseConfigurationLicenseConfigurationArn
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.LicenseConfigurationUsageList }}'
+- discovery_id: aws.license-manager.list_tags_for_resource
+  for_each: aws.license-manager.list_resource_inventory
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      licenseConversionTaskResourceArn: '{{ item.licenseConversionTaskResourceArn
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.license-manager.list_assets_for_license_asset_group
+  for_each: aws.license-manager.list_license_asset_groups
+  calls:
+  - action: list_assets_for_license_asset_group
+    save_as: response
+    on_error: continue
+    params:
+      licenseAssetGroupLicenseAssetGroupArn: '{{ item.licenseAssetGroupLicenseAssetGroupArn
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Assets }}'
+- discovery_id: aws.license-manager.get_grant
+  for_each: aws.license-manager.list_distributed_grants
+  calls:
+  - action: get_grant
+    save_as: response
+    on_error: continue
+    params:
+      grantGrantArn: '{{ item.grantGrantArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Grant }}'
+- discovery_id: aws.license-manager.get_license_conversion_task
+  for_each: aws.license-manager.list_license_conversion_tasks
+  calls:
+  - action: get_license_conversion_task
+    save_as: response
+    on_error: continue
+    params:
+      licenseConversionTaskLicenseConversionTaskId: '{{ item.licenseConversionTaskLicenseConversionTaskId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.SourceLicenseContext }}'
+- discovery_id: aws.license-manager.list_associations_for_license_configuration
+  for_each: aws.license-manager.list_license_configurations_for_organization
+  calls:
+  - action: list_associations_for_license_configuration
+    save_as: response
+    on_error: continue
+    params:
+      licenseConfigurationLicenseConfigurationArn: '{{ item.licenseConfigurationLicenseConfigurationArn
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.LicenseConfigurationAssociations }}'
+- discovery_id: aws.license-manager.get_license_usage
+  for_each: aws.license-manager.list_received_licenses
+  calls:
+  - action: get_license_usage
+    save_as: response
+    on_error: continue
+    params:
+      grantLicenseArn: '{{ item.grantLicenseArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.LicenseUsage }}'
+checks: []

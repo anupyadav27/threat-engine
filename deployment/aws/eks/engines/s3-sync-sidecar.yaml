@@ -1,0 +1,29 @@
+# S3 Sync Sidecar Container Template
+# This can be added to any engine deployment to sync output to S3
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-sync-script
+  namespace: threat-engine-engines
+data:
+  sync.sh: |
+    #!/bin/bash
+    # Sync output directory to S3 every 30 seconds
+    
+    OUTPUT_DIR="/output"
+    S3_BUCKET="${S3_BUCKET:-cspm-lgtech}"
+    S3_PATH="${S3_OUTPUT_PATH:-output}"
+    
+    while true; do
+      if [ -d "${OUTPUT_DIR}" ] && [ "$(ls -A ${OUTPUT_DIR})" ]; then
+        echo "$(date): Syncing to s3://${S3_BUCKET}/${S3_PATH}/"
+        aws s3 sync "${OUTPUT_DIR}" "s3://${S3_BUCKET}/${S3_PATH}/" \
+          --delete \
+          --exclude "*.tmp" \
+          --exclude "*.lock" \
+          --region "${AWS_REGION:-ap-south-1}" || true
+      fi
+      sleep 30
+    done
+

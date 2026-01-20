@@ -1,0 +1,94 @@
+version: '1.0'
+provider: aws
+service: medical-imaging
+services:
+  client: medical-imaging
+  module: boto3.client
+discovery:
+- discovery_id: aws.medical-imaging.list_datastores
+  calls:
+  - action: list_datastores
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.datastoreSummaries }}'
+- discovery_id: aws.medical-imaging.list_dicom_import_jobs
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: list_dicom_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.jobSummaries }}'
+- discovery_id: aws.medical-imaging.get_image_set
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: get_image_set
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.overrides }}'
+- discovery_id: aws.medical-imaging.get_datastore
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: get_datastore
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.datastoreProperties }}'
+- discovery_id: aws.medical-imaging.get_dicom_import_job
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: get_dicom_import_job
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+      jobPropertyJobId: '{{ item.jobPropertyJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.jobProperties }}'
+- discovery_id: aws.medical-imaging.get_image_set_metadata
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: get_image_set_metadata
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.imageSetMetadataBlob }}'
+- discovery_id: aws.medical-imaging.list_image_set_versions
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: list_image_set_versions
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.imageSetPropertiesList }}'
+- discovery_id: aws.medical-imaging.get_image_frame
+  for_each: aws.medical-imaging.list_datastores
+  calls:
+  - action: get_image_frame
+    save_as: response
+    on_error: continue
+    params:
+      datastoreSummaryDatastoreId: '{{ item.datastoreSummaryDatastoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.imageFrameBlob }}'
+checks: []

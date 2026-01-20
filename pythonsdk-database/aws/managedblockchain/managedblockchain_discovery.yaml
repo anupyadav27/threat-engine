@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: managedblockchain
+services:
+  client: managedblockchain
+  module: boto3.client
+discovery:
+- discovery_id: aws.managedblockchain.list_networks
+  calls:
+  - action: list_networks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Networks }}'
+- discovery_id: aws.managedblockchain.list_invitations
+  calls:
+  - action: list_invitations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Invitations }}'
+- discovery_id: aws.managedblockchain.list_accessors
+  calls:
+  - action: list_accessors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Accessors }}'
+- discovery_id: aws.managedblockchain.get_accessor
+  for_each: aws.managedblockchain.list_networks
+  calls:
+  - action: get_accessor
+    save_as: response
+    on_error: continue
+    params:
+      AccessorId: '{{ item.accessorId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Accessor }}'
+checks: []

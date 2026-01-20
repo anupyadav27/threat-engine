@@ -1,0 +1,321 @@
+version: '1.0'
+provider: aws
+service: cloudformation
+services:
+  client: cloudformation
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudformation.describe_stacks
+  calls:
+  - action: describe_stacks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Stacks }}'
+- discovery_id: aws.cloudformation.describe_events
+  calls:
+  - action: describe_events
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.OperationEvents }}'
+- discovery_id: aws.cloudformation.get_hook_result
+  calls:
+  - action: get_hook_result
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Annotations }}'
+- discovery_id: aws.cloudformation.describe_type
+  calls:
+  - action: describe_type
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RequiredActivatedTypes }}'
+- discovery_id: aws.cloudformation.list_hook_results
+  calls:
+  - action: list_hook_results
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HookResults }}'
+- discovery_id: aws.cloudformation.list_types
+  calls:
+  - action: list_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TypeSummaries }}'
+- discovery_id: aws.cloudformation.list_stacks
+  calls:
+  - action: list_stacks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackSummaries }}'
+- discovery_id: aws.cloudformation.get_template_summary
+  calls:
+  - action: get_template_summary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Parameters }}'
+- discovery_id: aws.cloudformation.describe_stack_resources
+  calls:
+  - action: describe_stack_resources
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackResources }}'
+- discovery_id: aws.cloudformation.list_stack_sets
+  calls:
+  - action: list_stack_sets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Summaries }}'
+- discovery_id: aws.cloudformation.list_type_versions
+  calls:
+  - action: list_type_versions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TypeVersionSummaries }}'
+- discovery_id: aws.cloudformation.list_generated_templates
+  calls:
+  - action: list_generated_templates
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Summaries }}'
+- discovery_id: aws.cloudformation.list_resource_scans
+  calls:
+  - action: list_resource_scans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceScanSummaries }}'
+- discovery_id: aws.cloudformation.list_stack_refactors
+  calls:
+  - action: list_stack_refactors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackRefactorSummaries }}'
+- discovery_id: aws.cloudformation.list_exports
+  calls:
+  - action: list_exports
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Exports }}'
+- discovery_id: aws.cloudformation.get_template
+  calls:
+  - action: get_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StagesAvailable }}'
+- discovery_id: aws.cloudformation.describe_publisher
+  calls:
+  - action: describe_publisher
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PublisherId }}'
+- discovery_id: aws.cloudformation.describe_stack_set_operation
+  for_each: aws.cloudformation.describe_events
+  calls:
+  - action: describe_stack_set_operation
+    save_as: response
+    on_error: continue
+    params:
+      operationEventOperationId: '{{ item.operationEventOperationId }}'
+      summaryStackSetName: '{{ item.summaryStackSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackSetOperation }}'
+- discovery_id: aws.cloudformation.list_stack_refactor_actions
+  for_each: aws.cloudformation.list_stack_refactors
+  calls:
+  - action: list_stack_refactor_actions
+    save_as: response
+    on_error: continue
+    params:
+      stackRefactorSummaryStackRefactorId: '{{ item.stackRefactorSummaryStackRefactorId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackRefactorActions }}'
+- discovery_id: aws.cloudformation.describe_stack_resource_drifts
+  for_each: aws.cloudformation.describe_stacks
+  calls:
+  - action: describe_stack_resource_drifts
+    save_as: response
+    on_error: continue
+    params:
+      stackResourcStackName: '{{ item.stackResourcStackName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackResourceDrifts }}'
+- discovery_id: aws.cloudformation.list_change_sets
+  for_each: aws.cloudformation.describe_stacks
+  calls:
+  - action: list_change_sets
+    save_as: response
+    on_error: continue
+    params:
+      stackResourcStackName: '{{ item.stackResourcStackName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Summaries }}'
+- discovery_id: aws.cloudformation.list_stack_instances
+  for_each: aws.cloudformation.list_stack_sets
+  calls:
+  - action: list_stack_instances
+    save_as: response
+    on_error: continue
+    params:
+      summaryStackSetName: '{{ item.summaryStackSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Summaries }}'
+- discovery_id: aws.cloudformation.describe_change_set
+  for_each: aws.cloudformation.list_change_sets
+  calls:
+  - action: describe_change_set
+    save_as: response
+    on_error: continue
+    params:
+      summaryChangeSetName: '{{ item.summaryChangeSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Parameters }}'
+- discovery_id: aws.cloudformation.describe_stack_set
+  for_each: aws.cloudformation.list_stack_sets
+  calls:
+  - action: describe_stack_set
+    save_as: response
+    on_error: continue
+    params:
+      summaryStackSetName: '{{ item.summaryStackSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackSet }}'
+- discovery_id: aws.cloudformation.describe_change_set_hooks
+  for_each: aws.cloudformation.list_change_sets
+  calls:
+  - action: describe_change_set_hooks
+    save_as: response
+    on_error: continue
+    params:
+      summaryChangeSetName: '{{ item.summaryChangeSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Hooks }}'
+- discovery_id: aws.cloudformation.describe_stack_events
+  for_each: aws.cloudformation.describe_stacks
+  calls:
+  - action: describe_stack_events
+    save_as: response
+    on_error: continue
+    params:
+      stackResourcStackName: '{{ item.stackResourcStackName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackEvents }}'
+- discovery_id: aws.cloudformation.describe_generated_template
+  for_each: aws.cloudformation.list_generated_templates
+  calls:
+  - action: describe_generated_template
+    save_as: response
+    on_error: continue
+    params:
+      summaryGeneratedTemplateName: '{{ item.summaryGeneratedTemplateName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Resources }}'
+- discovery_id: aws.cloudformation.describe_stack_instance
+  for_each: aws.cloudformation.list_stack_instances
+  calls:
+  - action: describe_stack_instance
+    save_as: response
+    on_error: continue
+    params:
+      StackInstanceAccount: '{{ item.stackInstanceAccount }}'
+      StackInstanceRegion: '{{ item.stackInstanceRegion }}'
+      summaryStackSetName: '{{ item.summaryStackSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackInstance }}'
+- discovery_id: aws.cloudformation.describe_stack_resource
+  for_each: aws.cloudformation.describe_events
+  calls:
+  - action: describe_stack_resource
+    save_as: response
+    on_error: continue
+    params:
+      operationEventLogicalResourceId: '{{ item.operationEventLogicalResourceId }}'
+      stackResourcStackName: '{{ item.stackResourcStackName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StackResourceDetail }}'
+- discovery_id: aws.cloudformation.list_stack_set_operation_results
+  for_each: aws.cloudformation.describe_events
+  calls:
+  - action: list_stack_set_operation_results
+    save_as: response
+    on_error: continue
+    params:
+      operationEventOperationId: '{{ item.operationEventOperationId }}'
+      summaryStackSetName: '{{ item.summaryStackSetName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Summaries }}'
+- discovery_id: aws.cloudformation.list_resource_scan_resources
+  for_each: aws.cloudformation.list_resource_scans
+  calls:
+  - action: list_resource_scan_resources
+    save_as: response
+    on_error: continue
+    params:
+      resourceScanSummaryResourceScanId: '{{ item.resourceScanSummaryResourceScanId
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.Resources }}'
+- discovery_id: aws.cloudformation.describe_stack_drift_detection_status
+  calls:
+  - action: describe_stack_drift_detection_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackId }}'
+- discovery_id: aws.cloudformation.describe_type_registration
+  calls:
+  - action: describe_type_registration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ProgressStatus }}'
+checks: []

@@ -1,0 +1,263 @@
+version: '1.0'
+provider: aws
+service: macie2
+services:
+  client: macie2
+  module: boto3.client
+discovery:
+- discovery_id: aws.macie2.describe_buckets
+  calls:
+  - action: describe_buckets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.buckets }}'
+- discovery_id: aws.macie2.get_bucket_statistics
+  calls:
+  - action: get_bucket_statistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.bucketCountByEffectivePermission }}'
+- discovery_id: aws.macie2.list_members
+  calls:
+  - action: list_members
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.members }}'
+- discovery_id: aws.macie2.list_classification_jobs
+  calls:
+  - action: list_classification_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.macie2.list_allow_lists
+  calls:
+  - action: list_allow_lists
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.allowLists }}'
+- discovery_id: aws.macie2.get_automated_discovery_configuration
+  calls:
+  - action: get_automated_discovery_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.autoEnableOrganizationMembers }}'
+- discovery_id: aws.macie2.get_usage_statistics
+  calls:
+  - action: get_usage_statistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.records }}'
+- discovery_id: aws.macie2.list_findings_filters
+  calls:
+  - action: list_findings_filters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findingsFilterListItems }}'
+- discovery_id: aws.macie2.get_macie_session
+  calls:
+  - action: get_macie_session
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.createdAt }}'
+- discovery_id: aws.macie2.get_master_account
+  calls:
+  - action: get_master_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.master }}'
+- discovery_id: aws.macie2.get_administrator_account
+  calls:
+  - action: get_administrator_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.administrator }}'
+- discovery_id: aws.macie2.get_usage_totals
+  calls:
+  - action: get_usage_totals
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.usageTotals }}'
+- discovery_id: aws.macie2.get_reveal_configuration
+  calls:
+  - action: get_reveal_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.configuration }}'
+- discovery_id: aws.macie2.list_managed_data_identifiers
+  calls:
+  - action: list_managed_data_identifiers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.macie2.get_findings_publication_configuration
+  calls:
+  - action: get_findings_publication_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.securityHubConfiguration }}'
+- discovery_id: aws.macie2.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.autoEnable }}'
+- discovery_id: aws.macie2.get_classification_export_configuration
+  calls:
+  - action: get_classification_export_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.configuration }}'
+- discovery_id: aws.macie2.get_invitations_count
+  calls:
+  - action: get_invitations_count
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.invitationsCount }}'
+- discovery_id: aws.macie2.describe_classification_job
+  for_each: aws.macie2.list_classification_jobs
+  calls:
+  - action: describe_classification_job
+    save_as: response
+    on_error: continue
+    params:
+      itemJobId: '{{ item.itemJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.allowListIds }}'
+- discovery_id: aws.macie2.get_findings
+  calls:
+  - action: get_findings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+- discovery_id: aws.macie2.get_resource_profile
+  calls:
+  - action: get_resource_profile
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.statistics }}'
+- discovery_id: aws.macie2.get_allow_list
+  for_each: aws.macie2.list_allow_lists
+  calls:
+  - action: get_allow_list
+    save_as: response
+    on_error: continue
+    params:
+      allowListId: '{{ item.allowListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.criteria }}'
+- discovery_id: aws.macie2.get_findings_filter
+  for_each: aws.macie2.list_allow_lists
+  calls:
+  - action: get_findings_filter
+    save_as: response
+    on_error: continue
+    params:
+      allowListId: '{{ item.allowListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.findingCriteria }}'
+- discovery_id: aws.macie2.get_sensitivity_inspection_template
+  for_each: aws.macie2.list_allow_lists
+  calls:
+  - action: get_sensitivity_inspection_template
+    save_as: response
+    on_error: continue
+    params:
+      allowListId: '{{ item.allowListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.excludes }}'
+- discovery_id: aws.macie2.list_resource_profile_artifacts
+  calls:
+  - action: list_resource_profile_artifacts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.artifacts }}'
+- discovery_id: aws.macie2.get_sensitive_data_occurrences_availability
+  calls:
+  - action: get_sensitive_data_occurrences_availability
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.reasons }}'
+- discovery_id: aws.macie2.list_resource_profile_detections
+  calls:
+  - action: list_resource_profile_detections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.detections }}'
+- discovery_id: aws.macie2.get_classification_scope
+  for_each: aws.macie2.list_allow_lists
+  calls:
+  - action: get_classification_scope
+    save_as: response
+    on_error: continue
+    params:
+      allowListId: '{{ item.allowListId }}'
+  emit:
+    as: item
+    items_for: '{{ response.s3 }}'
+- discovery_id: aws.macie2.get_sensitive_data_occurrences
+  calls:
+  - action: get_sensitive_data_occurrences
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.error }}'
+- discovery_id: aws.macie2.get_finding_statistics
+  calls:
+  - action: get_finding_statistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.countsByGroup }}'
+checks: []

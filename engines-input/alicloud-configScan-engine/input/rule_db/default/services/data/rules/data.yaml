@@ -1,0 +1,66 @@
+version: '1.0'
+provider: alicloud
+service: data
+discovery:
+- discovery_id: alicloud.data.lake_formation_catalog
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeLakeFormationCatalogs
+    params: {}
+    save_as: lake_formation_catalog_response
+  emit:
+    items_for: '{ lake_formation_catalog_response.LakeFormationCatalogs.LakeFormationCatalog }'
+    as: r
+    item:
+      id: '{{ r.LakeFormationCatalogId }}'
+      name: '{{ r.LakeFormationCatalogId }}'
+      resource_type: lake_formation_catalog
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.data.lake_formation_catalog.catalog_audit_logging_enabled
+  title: Ensure AliCloud Data Lake Formation Catalog has audit logging enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.data.lake_formation_catalog
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.data.lake_formation_catalog.catalog_cross_account_sharing_restricted
+  title: AliCloud Data Lake Formation Catalog Cross Account Sharing Should Be Restricted
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.data.lake_formation_catalog
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.data.lake_formation_catalog.catalog_metadata_encryption_enabled
+  title: AliCloud Data Lake Formation Catalog Metadata Encryption Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.data.lake_formation_catalog
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.data.lake_formation_catalog.catalog_rbac_least_privilege
+  title: AliCloud Data Lake Formation Catalog RBAC Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.data.lake_formation_catalog
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'

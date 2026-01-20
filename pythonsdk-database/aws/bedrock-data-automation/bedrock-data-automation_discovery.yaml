@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: bedrock-data-automation
+services:
+  client: bedrock-data-automation
+  module: boto3.client
+discovery:
+- discovery_id: aws.bedrock-data-automation.list_blueprints
+  calls:
+  - action: list_blueprints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.blueprints }}'
+- discovery_id: aws.bedrock-data-automation.list_data_automation_projects
+  calls:
+  - action: list_data_automation_projects
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+- discovery_id: aws.bedrock-data-automation.get_data_automation_project
+  for_each: aws.bedrock-data-automation.list_data_automation_projects
+  calls:
+  - action: get_data_automation_project
+    save_as: response
+    on_error: continue
+    params:
+      projectProjectArn: '{{ item.projectProjectArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.project }}'
+- discovery_id: aws.bedrock-data-automation.get_blueprint
+  for_each: aws.bedrock-data-automation.list_blueprints
+  calls:
+  - action: get_blueprint
+    save_as: response
+    on_error: continue
+    params:
+      blueprintBlueprintArn: '{{ item.blueprintBlueprintArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.blueprint }}'
+- discovery_id: aws.bedrock-data-automation.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

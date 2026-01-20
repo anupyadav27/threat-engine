@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: account
+services:
+  client: account
+  module: boto3.client
+discovery:
+- discovery_id: aws.account.get_contact_information
+  calls:
+  - action: get_contact_information
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ContactInformation }}'
+- discovery_id: aws.account.list_regions
+  calls:
+  - action: list_regions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Regions }}'
+- discovery_id: aws.account.get_account_information
+  calls:
+  - action: get_account_information
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AccountCreatedDate }}'
+- discovery_id: aws.account.get_primary_email
+  for_each: aws.account.get_account_information
+  calls:
+  - action: get_primary_email
+    save_as: response
+    on_error: continue
+    params:
+      accountCreatedDate: '{{ item.accountCreatedDate }}'
+  emit:
+    as: item
+    items_for: '{{ response.PrimaryEmail }}'
+checks: []

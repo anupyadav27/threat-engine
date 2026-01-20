@@ -1,0 +1,252 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+notebooks:
+  version: '1.0'
+  provider: gcp
+  service: notebooks
+  scope: regional
+  discovery:
+  - discovery_id: list_notebooks_instances
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: resource_name
+      - path: location
+        var: location
+      - path: state
+        var: instance_state
+  checks:
+  - check_id: gcp.notebooks.instance.data_governance_ai_notebook_encrypted
+    title: Ensure AI Notebook Instances are Encrypted at Rest
+    severity: high
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryption
+        operator: equals
+        expected: CMEK
+    - action: eval
+      fields:
+      - path: bootDiskEncryption
+        operator: equals
+        expected: CMEK
+  - check_id: gcp.notebooks.instance.data_governance_ai_notebook_execution_role_least_privilege
+    title: Ensure Least Privilege for AI Notebook Execution Role
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: exists
+    - action: eval
+      fields:
+      - path: serviceAccountScopes
+        operator: contains
+        expected: https://www.googleapis.com/auth/cloud-platform
+  - check_id: gcp.notebooks.instance.data_governance_ai_notebook_idle_shutdown_configured
+    title: Configure Idle Shutdown for AI Notebook Instances
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: shieldedInstanceConfig.enableIntegrityMonitoring
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: metadata.idle-timeout-seconds
+        operator: exists
+  - check_id: gcp.notebooks.instance.data_governance_ai_notebook_no_public_access
+    title: Restrict Public Access to AI Notebooks
+    severity: critical
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: noPublicIp
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: noProxyAccess
+        operator: equals
+        expected: false
+  - check_id: gcp.notebooks.instance.data_privacy_ai_notebook_encrypted
+    title: Ensure AI Notebooks Have Encryption at Rest Enabled
+    severity: high
+    for_each: list_notebooks_instances
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryption
+        operator: equals
+        expected: GMEK
+    - action: eval
+      fields:
+      - path: kmsKey
+        operator: exists
+  - check_id: gcp.notebooks.instance.data_privacy_ai_notebook_execution_role_least_privilege
+    title: Ensure Least Privilege for AI Notebook Execution Roles
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: exists
+    - action: eval
+      fields:
+      - path: metadata.disable-mixer
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.notebooks.instance.data_privacy_ai_notebook_idle_shutdown_configured
+    title: Configure Idle Shutdown for AI Notebooks to Protect Data
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.enable-oslogin
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: metadata.shutdown-script
+        operator: exists
+  - check_id: gcp.notebooks.instance.data_privacy_ai_notebook_no_public_access
+    title: Disable Public Access to AI Notebooks for Data Privacy
+    severity: critical
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkInterface.accessConfigs
+        operator: not_exists
+    - action: eval
+      fields:
+      - path: noPublicIp
+        operator: equals
+        expected: true
+  - check_id: gcp.notebooks.instance.machine_learning_notebook_encrypted
+    title: Ensure Encryption of Machine Learning Notebooks at Rest
+    severity: high
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bootDiskType
+        operator: equals
+        expected: PD_SSD
+    - action: eval
+      fields:
+      - path: dataDiskEncryption
+        operator: exists
+  - check_id: gcp.notebooks.instance.machine_learning_notebook_execution_role_least_privilege
+    title: Ensure Least Privilege for ML Notebook Execution Roles
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: exists
+    - action: eval
+      fields:
+      - path: metadata.enable-ip-forwarding
+        operator: equals
+        expected: 'false'
+  - check_id: gcp.notebooks.instance.machine_learning_notebook_idle_shutdown_configured
+    title: Configure Idle Shutdown for ML Notebooks
+    severity: medium
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata.install-monitoring-agent
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: scheduling.automaticRestart
+        operator: equals
+        expected: false
+  - check_id: gcp.notebooks.instance.machine_learning_notebook_no_public_access
+    title: Disable Public Access for ML Notebooks Instances
+    severity: critical
+    for_each: list_notebooks_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: subnet
+        operator: exists
+    - action: eval
+      fields:
+      - path: networkInterface.subnetwork
+        operator: contains
+        expected: projects/
+  api_name: notebooks
+  api_version: v1
+  project_param_format: projects/{{project_id}}

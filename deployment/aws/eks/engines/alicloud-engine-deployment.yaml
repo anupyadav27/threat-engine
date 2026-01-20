@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alicloud-compliance-engine
+  namespace: threat-engine-engines
+  labels:
+    app: alicloud-compliance-engine
+    tier: engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alicloud-compliance-engine
+  template:
+    metadata:
+      labels:
+        app: alicloud-compliance-engine
+        tier: engine
+    spec:
+      containers:
+      - name: alicloud-engine
+        image: yadavanup84/threat-engine-alicloud-compliance:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PYTHONPATH
+          value: /app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alicloud-compliance-engine
+  namespace: threat-engine-engines
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+  selector:
+    app: alicloud-compliance-engine
+

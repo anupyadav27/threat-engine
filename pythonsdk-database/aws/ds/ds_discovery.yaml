@@ -1,0 +1,249 @@
+version: '1.0'
+provider: aws
+service: ds
+services:
+  client: ds
+  module: boto3.client
+discovery:
+- discovery_id: aws.ds.describe_directories
+  calls:
+  - action: describe_directories
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DirectoryDescriptions }}'
+- discovery_id: aws.ds.describe_trusts
+  calls:
+  - action: describe_trusts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Trusts }}'
+- discovery_id: aws.ds.get_directory_limits
+  calls:
+  - action: get_directory_limits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DirectoryLimits }}'
+- discovery_id: aws.ds.list_ad_assessments
+  calls:
+  - action: list_ad_assessments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Assessments }}'
+- discovery_id: aws.ds.describe_snapshots
+  calls:
+  - action: describe_snapshots
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Snapshots }}'
+- discovery_id: aws.ds.describe_event_topics
+  calls:
+  - action: describe_event_topics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EventTopics }}'
+- discovery_id: aws.ds.list_log_subscriptions
+  calls:
+  - action: list_log_subscriptions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LogSubscriptions }}'
+- discovery_id: aws.ds.describe_settings
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_settings
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.SettingEntries }}'
+- discovery_id: aws.ds.describe_domain_controllers
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_domain_controllers
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.DomainControllers }}'
+- discovery_id: aws.ds.describe_update_directory
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_update_directory
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.UpdateActivities }}'
+- discovery_id: aws.ds.list_ip_routes
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: list_ip_routes
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.IpRoutesInfo }}'
+- discovery_id: aws.ds.list_schema_extensions
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: list_schema_extensions
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.SchemaExtensionsInfo }}'
+- discovery_id: aws.ds.list_certificates
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: list_certificates
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CertificatesInfo }}'
+- discovery_id: aws.ds.describe_certificate
+  for_each: aws.ds.list_certificates
+  calls:
+  - action: describe_certificate
+    save_as: response
+    on_error: continue
+    params:
+      certificateCertificateId: '{{ item.certificateCertificateId }}'
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Certificate }}'
+- discovery_id: aws.ds.get_snapshot_limits
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: get_snapshot_limits
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.SnapshotLimits }}'
+- discovery_id: aws.ds.describe_regions
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_regions
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.RegionsDescription }}'
+- discovery_id: aws.ds.describe_ca_enrollment_policy
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_ca_enrollment_policy
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.DirectoryId }}'
+- discovery_id: aws.ds.describe_ldaps_settings
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_ldaps_settings
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LDAPSSettingsInfo }}'
+- discovery_id: aws.ds.describe_conditional_forwarders
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_conditional_forwarders
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ConditionalForwarders }}'
+- discovery_id: aws.ds.describe_hybrid_ad_update
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_hybrid_ad_update
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.UpdateActivities }}'
+- discovery_id: aws.ds.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.ds.describe_ad_assessment
+  for_each: aws.ds.list_ad_assessments
+  calls:
+  - action: describe_ad_assessment
+    save_as: response
+    on_error: continue
+    params:
+      assessmentAssessmentId: '{{ item.assessmentAssessmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.AssessmentReports }}'
+- discovery_id: aws.ds.describe_client_authentication_settings
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_client_authentication_settings
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ClientAuthenticationSettingsInfo }}'
+- discovery_id: aws.ds.describe_directory_data_access
+  for_each: aws.ds.describe_directories
+  calls:
+  - action: describe_directory_data_access
+    save_as: response
+    on_error: continue
+    params:
+      directoryDescriptionDirectoryId: '{{ item.directoryDescriptionDirectoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.DataAccessStatus }}'
+checks: []

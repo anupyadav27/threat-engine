@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: codeguru-security
+services:
+  client: codeguru-security
+  module: boto3.client
+discovery:
+- discovery_id: aws.codeguru-security.list_scans
+  calls:
+  - action: list_scans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.summaries }}'
+- discovery_id: aws.codeguru-security.get_account_configuration
+  calls:
+  - action: get_account_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.encryptionConfig }}'
+- discovery_id: aws.codeguru-security.get_findings
+  for_each: aws.codeguru-security.list_scans
+  calls:
+  - action: get_findings
+    save_as: response
+    on_error: continue
+    params:
+      summaryScanName: '{{ item.summaryScanName }}'
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+- discovery_id: aws.codeguru-security.list_findings_metrics
+  calls:
+  - action: list_findings_metrics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findingsMetrics }}'
+- discovery_id: aws.codeguru-security.get_metrics_summary
+  for_each: aws.codeguru-security.list_findings_metrics
+  calls:
+  - action: get_metrics_summary
+    save_as: response
+    on_error: continue
+    params:
+      metricsSummaryDate: '{{ item.metricsSummaryDate }}'
+  emit:
+    as: item
+    items_for: '{{ response.metricsSummary }}'
+checks: []

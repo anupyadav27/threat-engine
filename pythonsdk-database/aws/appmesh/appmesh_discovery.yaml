@@ -1,0 +1,165 @@
+version: '1.0'
+provider: aws
+service: appmesh
+services:
+  client: appmesh
+  module: boto3.client
+discovery:
+- discovery_id: aws.appmesh.list_meshes
+  calls:
+  - action: list_meshes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.meshes }}'
+- discovery_id: aws.appmesh.describe_mesh
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: describe_mesh
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.mesh }}'
+- discovery_id: aws.appmesh.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.appmesh.list_virtual_gateways
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: list_virtual_gateways
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualGateways }}'
+- discovery_id: aws.appmesh.list_gateway_routes
+  for_each: aws.appmesh.list_virtual_gateways
+  calls:
+  - action: list_gateway_routes
+    save_as: response
+    on_error: continue
+    params:
+      gatewayRouteVirtualGatewayName: '{{ item.gatewayRouteVirtualGatewayName }}'
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.gatewayRoutes }}'
+- discovery_id: aws.appmesh.list_virtual_routers
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: list_virtual_routers
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualRouters }}'
+- discovery_id: aws.appmesh.list_routes
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: list_routes
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+      routeVirtualRouterName: '{{ item.routeVirtualRouterName }}'
+  emit:
+    as: item
+    items_for: '{{ response.routes }}'
+- discovery_id: aws.appmesh.list_virtual_services
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: list_virtual_services
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualServices }}'
+- discovery_id: aws.appmesh.list_virtual_nodes
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: list_virtual_nodes
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualNodes }}'
+- discovery_id: aws.appmesh.describe_gateway_route
+  for_each: aws.appmesh.list_gateway_routes
+  calls:
+  - action: describe_gateway_route
+    save_as: response
+    on_error: continue
+    params:
+      gatewayRouteGatewayRouteName: '{{ item.gatewayRouteGatewayRouteName }}'
+      gatewayRouteVirtualGatewayName: '{{ item.gatewayRouteVirtualGatewayName }}'
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.gatewayRoute }}'
+- discovery_id: aws.appmesh.describe_virtual_gateway
+  for_each: aws.appmesh.list_virtual_gateways
+  calls:
+  - action: describe_virtual_gateway
+    save_as: response
+    on_error: continue
+    params:
+      gatewayRouteVirtualGatewayName: '{{ item.gatewayRouteVirtualGatewayName }}'
+      meshMeshName: '{{ item.meshMeshName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualGateway }}'
+- discovery_id: aws.appmesh.describe_virtual_router
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: describe_virtual_router
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+      routeVirtualRouterName: '{{ item.routeVirtualRouterName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualRouter }}'
+- discovery_id: aws.appmesh.describe_virtual_node
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: describe_virtual_node
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+      virtualNodeVirtualNodeName: '{{ item.virtualNodeVirtualNodeName }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualNode }}'
+- discovery_id: aws.appmesh.describe_virtual_service
+  for_each: aws.appmesh.list_meshes
+  calls:
+  - action: describe_virtual_service
+    save_as: response
+    on_error: continue
+    params:
+      meshMeshName: '{{ item.meshMeshName }}'
+      virtualServiceVirtualServiceName: '{{ item.virtualServiceVirtualServiceName
+        }}'
+  emit:
+    as: item
+    items_for: '{{ response.virtualService }}'
+checks: []

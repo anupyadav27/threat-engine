@@ -1,0 +1,77 @@
+version: '1.0'
+provider: aws
+service: bcm-data-exports
+services:
+  client: bcm-data-exports
+  module: boto3.client
+discovery:
+- discovery_id: aws.bcm-data-exports.list_tables
+  calls:
+  - action: list_tables
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tables }}'
+- discovery_id: aws.bcm-data-exports.list_exports
+  calls:
+  - action: list_exports
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Exports }}'
+- discovery_id: aws.bcm-data-exports.get_export
+  for_each: aws.bcm-data-exports.list_exports
+  calls:
+  - action: get_export
+    save_as: response
+    on_error: continue
+    params:
+      exportExportArn: '{{ item.exportExportArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Export }}'
+- discovery_id: aws.bcm-data-exports.get_table
+  for_each: aws.bcm-data-exports.list_tables
+  calls:
+  - action: get_table
+    save_as: response
+    on_error: continue
+    params:
+      tablTableName: '{{ item.tablTableName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Schema }}'
+- discovery_id: aws.bcm-data-exports.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTags }}'
+- discovery_id: aws.bcm-data-exports.list_executions
+  for_each: aws.bcm-data-exports.list_exports
+  calls:
+  - action: list_executions
+    save_as: response
+    on_error: continue
+    params:
+      exportExportArn: '{{ item.exportExportArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Executions }}'
+- discovery_id: aws.bcm-data-exports.get_execution
+  for_each: aws.bcm-data-exports.list_executions
+  calls:
+  - action: get_execution
+    save_as: response
+    on_error: continue
+    params:
+      executionExecutionId: '{{ item.executionExecutionId }}'
+      exportExportArn: '{{ item.exportExportArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.ExecutionStatus }}'
+checks: []

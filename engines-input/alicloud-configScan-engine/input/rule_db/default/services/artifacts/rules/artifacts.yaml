@@ -1,0 +1,35 @@
+version: '1.0'
+provider: alicloud
+service: artifacts
+discovery:
+- discovery_id: alicloud.artifacts.container
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeContainers
+    params: {}
+    save_as: container_response
+  emit:
+    items_for: '{ container_response.Containers.Container }'
+    as: r
+    item:
+      id: '{{ r.ContainerId }}'
+      name: '{{ r.ContainerId }}'
+      resource_type: container
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.artifacts.container.analysis_enabled
+  title: Alibaba Cloud Container Registry vulnerability analysis should be enabled
+  severity: low
+  assertion_id: soc2_multi_cloud_cc_3_1_0003
+  for_each: alicloud.artifacts.container
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

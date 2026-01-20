@@ -1,0 +1,106 @@
+version: '1.0'
+provider: aws
+service: greengrassv2
+services:
+  client: greengrassv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.greengrassv2.list_deployments
+  calls:
+  - action: list_deployments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.deployments }}'
+- discovery_id: aws.greengrassv2.list_core_devices
+  calls:
+  - action: list_core_devices
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.coreDevices }}'
+- discovery_id: aws.greengrassv2.list_components
+  calls:
+  - action: list_components
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.components }}'
+- discovery_id: aws.greengrassv2.get_service_role_for_account
+  calls:
+  - action: get_service_role_for_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.associatedAt }}'
+- discovery_id: aws.greengrassv2.list_installed_components
+  for_each: aws.greengrassv2.list_core_devices
+  calls:
+  - action: list_installed_components
+    save_as: response
+    on_error: continue
+    params:
+      coreDevicCoreDeviceThingName: '{{ item.coreDevicCoreDeviceThingName }}'
+  emit:
+    as: item
+    items_for: '{{ response.installedComponents }}'
+- discovery_id: aws.greengrassv2.list_effective_deployments
+  for_each: aws.greengrassv2.list_core_devices
+  calls:
+  - action: list_effective_deployments
+    save_as: response
+    on_error: continue
+    params:
+      coreDevicCoreDeviceThingName: '{{ item.coreDevicCoreDeviceThingName }}'
+  emit:
+    as: item
+    items_for: '{{ response.effectiveDeployments }}'
+- discovery_id: aws.greengrassv2.describe_component
+  for_each: aws.greengrassv2.list_components
+  calls:
+  - action: describe_component
+    save_as: response
+    on_error: continue
+    params:
+      componentArn: '{{ item.componentArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.platforms }}'
+- discovery_id: aws.greengrassv2.get_deployment
+  for_each: aws.greengrassv2.list_deployments
+  calls:
+  - action: get_deployment
+    save_as: response
+    on_error: continue
+    params:
+      deploymentDeploymentId: '{{ item.deploymentDeploymentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.deploymentPolicies }}'
+- discovery_id: aws.greengrassv2.list_client_devices_associated_with_core_device
+  for_each: aws.greengrassv2.list_core_devices
+  calls:
+  - action: list_client_devices_associated_with_core_device
+    save_as: response
+    on_error: continue
+    params:
+      coreDevicCoreDeviceThingName: '{{ item.coreDevicCoreDeviceThingName }}'
+  emit:
+    as: item
+    items_for: '{{ response.associatedClientDevices }}'
+- discovery_id: aws.greengrassv2.get_connectivity_info
+  for_each: aws.greengrassv2.list_client_devices_associated_with_core_device
+  calls:
+  - action: get_connectivity_info
+    save_as: response
+    on_error: continue
+    params:
+      associatedClientDevicThingName: '{{ item.associatedClientDevicThingName }}'
+  emit:
+    as: item
+    items_for: '{{ response.connectivityInfo }}'
+checks: []

@@ -1,0 +1,119 @@
+{
+  "service": "kinesisanalytics",
+  "review_date": "2026-01-08",
+  "review_summary": {
+    "total_rules": 3,
+    "rules_reviewed": 3,
+    "consolidation_opportunities": 0,
+    "cross_service_suggestions": 0
+  },
+  "consolidation_suggestions": {
+    "duplicates": []
+  },
+  "cross_service_suggestions": [],
+  "confidence_scores": {
+    "consolidation_opportunities": 0,
+    "cross_service_placement": 0
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "action": "fix_critical_issues",
+      "rule_ids": [
+        "aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured",
+        "aws.kinesisanalytics.application.role_least_privilege"
+      ],
+      "description": "Fix 2 rule(s) with critical configuration validation issues",
+      "impact": "CRITICAL - Ensures rules correctly validate compliance requirements as specified in rule names"
+    }
+  ],
+  "quality_analysis": {
+    "analysis_date": "2026-01-03",
+    "overall_quality_score": 85,
+    "critical_issues": [
+      {
+        "severity": "high",
+        "rule_id": "aws.kinesisanalytics.application.role_least_privilege",
+        "issue_type": "wrong_field",
+        "description": "Rule checks if ServiceExecutionRole exists instead of validating least privilege IAM policies",
+        "current_mapping": {
+          "field_path": "ServiceExecutionRole",
+          "expected_value": "Should check IAM role policies for least privilege"
+        },
+        "problem": "Rule checks if ServiceExecutionRole exists instead of validating least privilege IAM policies",
+        "impact": "HIGH - Rule may not validate compliance requirements correctly",
+        "recommendation": "Add IAM policy validation or clarify rule scope"
+      },
+      {
+        "severity": "critical",
+        "rule_id": "aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured",
+        "issue_type": "missing_field",
+        "description": "Rule name mentions encryption but doesn't check any encryption configuration fields. Checks checkpoint/output settings but not encryption.",
+        "current_mapping": {
+          "field_path": "Missing encryption configuration fields",
+          "expected_value": "Should check encryption configuration for checkpoints and outputs"
+        },
+        "problem": "Rule name mentions encryption but doesn't check any encryption configuration fields. Checks checkpoint/output settings but not encryption.",
+        "impact": "CRITICAL - Rule doesn't validate what it claims to validate",
+        "recommendation": "Review and fix field paths/operators to check actual configuration"
+      }
+    ],
+    "type_mismatches": [],
+    "field_path_issues": [],
+    "method_verification_issues": [],
+    "cross_service_analysis": {
+      "note": "Note: All methods used are kinesisanalytics service methods",
+      "explanation": "All python_methods (describe_application) belong to kinesisanalytics service. No cross-service issues found.",
+      "recommendation": "No action needed - rules correctly use kinesisanalytics API methods"
+    }
+  },
+  "quality_metrics": {
+    "total_rules": 3,
+    "critical_bugs": 2,
+    "type_mismatches": 0,
+    "field_path_issues": 0,
+    "consolidation_opportunities": 0,
+    "yaml_alignment": "100%",
+    "cross_service_suggestions": 0,
+    "overall_score": 85
+  },
+  "validation_summary": {
+    "rules_validated": 3,
+    "rules_passing": 3,
+    "rules_fixed": 0,
+    "test_results": {
+      "total_checks": 15,
+      "pass": 0,
+      "fail": 15,
+      "execution_errors": 0,
+      "test_status": "PASS"
+    },
+    "validation_details": {
+      "yaml_structure": {
+        "status": "PASS",
+        "discoveries": "All discovery chains correct",
+        "field_paths": "All field paths match emit structure",
+        "operators": "All operators correctly used",
+        "for_each_dependencies": "All dependencies correctly configured"
+      },
+      "known_limitations": {
+        "role_least_privilege": {
+          "rule_id": "aws.kinesisanalytics.application.role_least_privilege",
+          "issue": "Rule checks if ServiceExecutionRole exists instead of validating least privilege IAM policies",
+          "current_implementation": "Checks item.ServiceExecutionRole exists",
+          "metadata_intent": "Should validate that IAM role has least privilege policies",
+          "reason": "IAM policy validation would require cross-service calls to IAM service, which is beyond the scope of this rule",
+          "recommendation": "This is a limitation - IAM policy validation would require additional API calls to IAM service. Consider this a placeholder check that verifies a role is configured."
+        },
+        "encryption_check_missing": {
+          "rule_id": "aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured",
+          "issue": "Rule name mentions encryption but doesn't check any encryption configuration fields",
+          "current_implementation": "Checks checkpoint and output configuration (CodeContentType, SnapshotsEnabled, CheckpointingEnabled, etc.) but not encryption",
+          "metadata_intent": "Should check that checkpoints and outputs are encrypted",
+          "reason": "Kinesis Analytics v1 API may not expose encryption fields in describe_application response, or encryption is configured at the resource level (Kinesis streams, S3 buckets) rather than at the application level",
+          "recommendation": "Review AWS Kinesis Analytics v1 API documentation to determine if encryption fields are available. If not, this rule may need to be renamed or the encryption check may need to be performed at the resource level (checking Kinesis streams and S3 buckets for encryption)."
+        }
+      }
+    }
+  }
+}

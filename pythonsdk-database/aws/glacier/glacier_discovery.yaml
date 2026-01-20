@@ -1,0 +1,111 @@
+version: '1.0'
+provider: aws
+service: glacier
+services:
+  client: glacier
+  module: boto3.client
+discovery:
+- discovery_id: aws.glacier.list_vaults
+  calls:
+  - action: list_vaults
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VaultList }}'
+- discovery_id: aws.glacier.list_jobs
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: list_jobs
+    save_as: response
+    on_error: continue
+    params:
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.JobList }}'
+- discovery_id: aws.glacier.describe_job
+  for_each: aws.glacier.list_jobs
+  calls:
+  - action: describe_job
+    save_as: response
+    on_error: continue
+    params:
+      jobListJobId: '{{ item.jobListJobId }}'
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.InventoryRetrievalParameters }}'
+- discovery_id: aws.glacier.list_parts
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: list_parts
+    save_as: response
+    on_error: continue
+    params:
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Parts }}'
+- discovery_id: aws.glacier.get_vault_lock
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: get_vault_lock
+    save_as: response
+    on_error: continue
+    params:
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.glacier.get_job_output
+  for_each: aws.glacier.list_jobs
+  calls:
+  - action: get_job_output
+    save_as: response
+    on_error: continue
+    params:
+      jobListJobId: '{{ item.jobListJobId }}'
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.body }}'
+- discovery_id: aws.glacier.list_provisioned_capacity
+  calls:
+  - action: list_provisioned_capacity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ProvisionedCapacityList }}'
+- discovery_id: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: get_vault_access_policy
+    save_as: response
+    on_error: continue
+    params:
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.policy }}'
+- discovery_id: aws.glacier.get_vault_notifications
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: get_vault_notifications
+    save_as: response
+    on_error: continue
+    params:
+      vaultListVaultName: '{{ item.vaultListVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.vaultNotificationConfig }}'
+- discovery_id: aws.glacier.get_data_retrieval_policy
+  calls:
+  - action: get_data_retrieval_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+checks: []

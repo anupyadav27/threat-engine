@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: docdb-elastic
+services:
+  client: docdb-elastic
+  module: boto3.client
+discovery:
+- discovery_id: aws.docdb-elastic.list_cluster_snapshots
+  calls:
+  - action: list_cluster_snapshots
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.snapshots }}'
+- discovery_id: aws.docdb-elastic.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.clusters }}'
+- discovery_id: aws.docdb-elastic.list_pending_maintenance_actions
+  calls:
+  - action: list_pending_maintenance_actions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourcePendingMaintenanceActions }}'
+- discovery_id: aws.docdb-elastic.get_cluster
+  for_each: aws.docdb-elastic.list_cluster_snapshots
+  calls:
+  - action: get_cluster
+    save_as: response
+    on_error: continue
+    params:
+      snapshotClusterArn: '{{ item.snapshotClusterArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.cluster }}'
+- discovery_id: aws.docdb-elastic.get_cluster_snapshot
+  for_each: aws.docdb-elastic.list_cluster_snapshots
+  calls:
+  - action: get_cluster_snapshot
+    save_as: response
+    on_error: continue
+    params:
+      snapshotSnapshotArn: '{{ item.snapshotSnapshotArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.snapshot }}'
+checks: []
