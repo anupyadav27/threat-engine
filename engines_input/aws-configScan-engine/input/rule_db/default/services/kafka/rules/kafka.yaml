@@ -1,0 +1,52 @@
+version: '1.0'
+provider: aws
+service: kafka
+services:
+  client: kafka
+  module: boto3.client
+discovery:
+- discovery_id: aws.kafka.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+  emit:
+    items_for: '{{ response.ClusterInfoList }}'
+    as: item
+    item:
+      ClusterArn: '{{ item.ClusterArn }}'
+      ClusterName: '{{ item.ClusterName }}'
+      State: '{{ item.State }}'
+      CreationTime: '{{ item.CreationTime }}'
+      CurrentVersion: '{{ item.CurrentVersion }}'
+      EncryptionInfo: '{{ item.EncryptionInfo }}'
+- discovery_id: aws.kafka.describe_cluster
+  for_each: aws.kafka.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterArn: '{{ item.ClusterArn }}'
+    save_as: response
+  emit:
+    item:
+      ClusterArn: '{{ response.ClusterInfo.ClusterArn }}'
+      ClusterName: '{{ response.ClusterInfo.ClusterName }}'
+      ActiveOperationArn: '{{ response.ClusterInfo.ActiveOperationArn }}'
+      BrokerNodeGroupInfo: '{{ response.ClusterInfo.BrokerNodeGroupInfo }}'
+      Rebalancing: '{{ response.ClusterInfo.Rebalancing }}'
+      ClientAuthentication: '{{ response.ClusterInfo.ClientAuthentication }}'
+      CreationTime: '{{ response.ClusterInfo.CreationTime }}'
+      CurrentBrokerSoftwareInfo: '{{ response.ClusterInfo.CurrentBrokerSoftwareInfo
+        }}'
+      CurrentVersion: '{{ response.ClusterInfo.CurrentVersion }}'
+      EncryptionInfo: '{{ response.ClusterInfo.EncryptionInfo }}'
+      EnhancedMonitoring: '{{ response.ClusterInfo.EnhancedMonitoring }}'
+      OpenMonitoring: '{{ response.ClusterInfo.OpenMonitoring }}'
+      LoggingInfo: '{{ response.ClusterInfo.LoggingInfo }}'
+      NumberOfBrokerNodes: '{{ response.ClusterInfo.NumberOfBrokerNodes }}'
+      State: '{{ response.ClusterInfo.State }}'
+      StateInfo: '{{ response.ClusterInfo.StateInfo }}'
+      Tags: '{{ response.ClusterInfo.Tags }}'
+      ZookeeperConnectString: '{{ response.ClusterInfo.ZookeeperConnectString }}'
+      ZookeeperConnectStringTls: '{{ response.ClusterInfo.ZookeeperConnectStringTls
+        }}'
+      StorageMode: '{{ response.ClusterInfo.StorageMode }}'

@@ -1,0 +1,276 @@
+version: '1.0'
+provider: aws
+service: workmail
+services:
+  client: workmail
+  module: boto3.client
+discovery:
+- discovery_id: aws.workmail.list_organizations
+  calls:
+  - action: list_organizations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.OrganizationSummaries }}'
+- discovery_id: aws.workmail.list_mobile_device_access_rules
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_mobile_device_access_rules
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.workmail.list_access_control_rules
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_access_control_rules
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.workmail.list_users
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_users
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Users }}'
+- discovery_id: aws.workmail.list_mailbox_export_jobs
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_mailbox_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+- discovery_id: aws.workmail.describe_organization
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_organization
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.OrganizationId }}'
+- discovery_id: aws.workmail.list_personal_access_tokens
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_personal_access_tokens
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PersonalAccessTokenSummaries }}'
+- discovery_id: aws.workmail.describe_user
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_user
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.overridUserId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.UserId }}'
+- discovery_id: aws.workmail.describe_identity_provider_configuration
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_identity_provider_configuration
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IdentityCenterConfiguration }}'
+- discovery_id: aws.workmail.describe_resource
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_resource
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BookingOptions }}'
+- discovery_id: aws.workmail.list_availability_configurations
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_availability_configurations
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AvailabilityConfigurations }}'
+- discovery_id: aws.workmail.get_mail_domain
+  for_each: aws.workmail.list_availability_configurations
+  calls:
+  - action: get_mail_domain
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Records }}'
+- discovery_id: aws.workmail.get_default_retention_policy
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: get_default_retention_policy
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.FolderConfigurations }}'
+- discovery_id: aws.workmail.list_mailbox_permissions
+  for_each: aws.workmail.list_mailbox_export_jobs
+  calls:
+  - action: list_mailbox_permissions
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Permissions }}'
+- discovery_id: aws.workmail.describe_email_monitoring_configuration
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_email_monitoring_configuration
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RoleArn }}'
+- discovery_id: aws.workmail.list_groups_for_entity
+  for_each: aws.workmail.list_mailbox_export_jobs
+  calls:
+  - action: list_groups_for_entity
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Groups }}'
+- discovery_id: aws.workmail.list_mobile_device_access_overrides
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_mobile_device_access_overrides
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Overrides }}'
+- discovery_id: aws.workmail.list_impersonation_roles
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_impersonation_roles
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Roles }}'
+- discovery_id: aws.workmail.get_impersonation_role
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: get_impersonation_role
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.rolImpersonationRoleId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.workmail.get_impersonation_role_effect
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: get_impersonation_role_effect
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.rolImpersonationRoleId }}'
+  emit:
+    as: item
+    items_for: '{{ response.MatchedRules }}'
+- discovery_id: aws.workmail.list_mail_domains
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: list_mail_domains
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.MailDomains }}'
+- discovery_id: aws.workmail.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.workmail.describe_inbound_dmarc_settings
+  for_each: aws.workmail.list_organizations
+  calls:
+  - action: describe_inbound_dmarc_settings
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.organizationSummaryOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Enforced }}'
+checks: []

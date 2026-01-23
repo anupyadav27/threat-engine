@@ -1,0 +1,36 @@
+version: '1.0'
+provider: aws
+service: ivschat
+services:
+  client: ivschat
+  module: boto3.client
+discovery:
+- discovery_id: aws.ivschat.list_logging_configurations
+  calls:
+  - action: list_logging_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.loggingConfigurations }}'
+- discovery_id: aws.ivschat.list_rooms
+  calls:
+  - action: list_rooms
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.rooms }}'
+- discovery_id: aws.ivschat.get_logging_configuration
+  calls:
+  - action: get_logging_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.destinationConfiguration }}'
+checks: []

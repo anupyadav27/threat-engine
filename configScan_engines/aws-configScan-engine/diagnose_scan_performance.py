@@ -238,12 +238,20 @@ if __name__ == "__main__":
     else:
         # Find latest scan log
         base_dir = "engines-output/aws-configScan-engine/output"
+        discoveries_dir = os.path.join(base_dir, "discoveries")
         latest_scan = None
         latest_time = 0
         
+        # Check both discoveries subdirectory (new) and root (old for backward compatibility)
+        search_dirs = []
+        if os.path.exists(discoveries_dir):
+            search_dirs.append(discoveries_dir)
         if os.path.exists(base_dir):
-            for item in os.listdir(base_dir):
-                scan_dir = os.path.join(base_dir, item)
+            search_dirs.append(base_dir)
+        
+        for search_dir in search_dirs:
+            for item in os.listdir(search_dir):
+                scan_dir = os.path.join(search_dir, item)
                 log_path = os.path.join(scan_dir, "logs", "scan.log")
                 if os.path.exists(log_path):
                     mtime = os.path.getmtime(log_path)

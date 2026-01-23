@@ -1,0 +1,42 @@
+version: '1.0'
+provider: aws
+service: kinesisanalytics
+checks:
+- rule_id: aws.kinesisanalytics.application.role_least_privilege
+  for_each: aws.kinesisanalytics.describe_application
+  conditions:
+    var: item.ServiceExecutionRole
+    op: exists
+    value: null
+- rule_id: aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured
+  for_each: aws.kinesisanalytics.describe_application
+  conditions:
+    all:
+    - var: item.ApplicationConfigurationDescription.ApplicationCodeConfigurationDescription.CodeContentDescription.CodeContentType
+      op: equals
+      value: ZIPFILE
+    - var: item.ApplicationConfigurationDescription.EnvironmentPropertiesDescription.PropertyGroups
+      op: exists
+      value: null
+    - var: item.ApplicationConfigurationDescription.ApplicationSnapshotConfigurationDescription.SnapshotsEnabled
+      op: equals
+      value: 'true'
+    - var: item.ApplicationConfigurationDescription.CheckpointConfigurationDescription.CheckpointingEnabled
+      op: equals
+      value: 'true'
+    - var: item.ApplicationConfigurationDescription.CheckpointConfigurationDescription.CheckpointInterval
+      op: greater_than
+      value: '60000'
+    - var: item.ApplicationConfigurationDescription.CheckpointConfigurationDescription.MinPauseBetweenCheckpoints
+      op: greater_than
+      value: '5000'
+    - var: item.ApplicationConfigurationDescription.OutputDescriptions
+      op: exists
+      value: null
+- rule_id: aws.kinesisanalytics.application.network_private_only_configured
+  for_each: aws.kinesisanalytics.describe_application
+  conditions:
+    all:
+    - var: item.ApplicationConfigurationDescription.VpcConfigurationDescriptions
+      op: exists
+      value: null

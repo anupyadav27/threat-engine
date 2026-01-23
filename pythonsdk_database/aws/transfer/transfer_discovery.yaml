@@ -1,0 +1,296 @@
+version: '1.0'
+provider: aws
+service: transfer
+services:
+  client: transfer
+  module: boto3.client
+discovery:
+- discovery_id: aws.transfer.list_servers
+  calls:
+  - action: list_servers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Servers }}'
+- discovery_id: aws.transfer.list_certificates
+  calls:
+  - action: list_certificates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Certificates }}'
+- discovery_id: aws.transfer.list_web_apps
+  calls:
+  - action: list_web_apps
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WebApps }}'
+- discovery_id: aws.transfer.list_profiles
+  calls:
+  - action: list_profiles
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Profiles }}'
+- discovery_id: aws.transfer.list_workflows
+  calls:
+  - action: list_workflows
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Workflows }}'
+- discovery_id: aws.transfer.list_connectors
+  calls:
+  - action: list_connectors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Connectors }}'
+- discovery_id: aws.transfer.describe_server
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: describe_server
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Server }}'
+- discovery_id: aws.transfer.describe_connector
+  for_each: aws.transfer.list_connectors
+  calls:
+  - action: describe_connector
+    save_as: response
+    on_error: continue
+    params:
+      ConnectorId: '{{ item.connectorConnectorId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Connector }}'
+- discovery_id: aws.transfer.describe_security_policy
+  for_each: aws.transfer.describe_server
+  calls:
+  - action: describe_security_policy
+    save_as: response
+    on_error: continue
+    params:
+      SecurityPolicyName: '{{ item.connectorSecurityPolicyName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SecurityPolicy }}'
+- discovery_id: aws.transfer.list_users
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: list_users
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Users }}'
+- discovery_id: aws.transfer.describe_user
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: describe_user
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.userUserName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.User }}'
+- discovery_id: aws.transfer.describe_certificate
+  for_each: aws.transfer.list_certificates
+  calls:
+  - action: describe_certificate
+    save_as: response
+    on_error: continue
+    params:
+      CertificateId: '{{ item.certificatCertificateId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Certificate }}'
+- discovery_id: aws.transfer.describe_web_app
+  for_each: aws.transfer.list_web_apps
+  calls:
+  - action: describe_web_app
+    save_as: response
+    on_error: continue
+    params:
+      WebAppId: '{{ item.webAppWebAppId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WebApp }}'
+- discovery_id: aws.transfer.list_file_transfer_results
+  for_each: aws.transfer.list_connectors
+  calls:
+  - action: list_file_transfer_results
+    save_as: response
+    on_error: continue
+    params:
+      ConnectorId: '{{ item.connectorConnectorId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FileTransferResults }}'
+- discovery_id: aws.transfer.list_host_keys
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: list_host_keys
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.HostKeys }}'
+- discovery_id: aws.transfer.describe_workflow
+  for_each: aws.transfer.list_workflows
+  calls:
+  - action: describe_workflow
+    save_as: response
+    on_error: continue
+    params:
+      WorkflowId: '{{ item.workflowWorkflowId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Workflow }}'
+- discovery_id: aws.transfer.list_agreements
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: list_agreements
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Agreements }}'
+- discovery_id: aws.transfer.describe_agreement
+  for_each: aws.transfer.list_agreements
+  calls:
+  - action: describe_agreement
+    save_as: response
+    on_error: continue
+    params:
+      AgreementId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Agreement }}'
+- discovery_id: aws.transfer.list_executions
+  for_each: aws.transfer.list_workflows
+  calls:
+  - action: list_executions
+    save_as: response
+    on_error: continue
+    params:
+      WorkflowId: '{{ item.workflowWorkflowId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Executions }}'
+- discovery_id: aws.transfer.describe_execution
+  for_each: aws.transfer.list_executions
+  calls:
+  - action: describe_execution
+    save_as: response
+    on_error: continue
+    params:
+      ExecutionId: '{{ item.workflowWorkflowId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Execution }}'
+- discovery_id: aws.transfer.describe_web_app_customization
+  for_each: aws.transfer.list_web_apps
+  calls:
+  - action: describe_web_app_customization
+    save_as: response
+    on_error: continue
+    params:
+      WebAppId: '{{ item.webAppWebAppId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WebAppCustomization }}'
+- discovery_id: aws.transfer.describe_profile
+  for_each: aws.transfer.list_profiles
+  calls:
+  - action: describe_profile
+    save_as: response
+    on_error: continue
+    params:
+      ProfileId: '{{ item.profilProfileId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Profile }}'
+- discovery_id: aws.transfer.list_tags_for_resource
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      Arn: '{{ item.certificatArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.transfer.list_accesses
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: list_accesses
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Accesses }}'
+- discovery_id: aws.transfer.describe_access
+  for_each: aws.transfer.list_accesses
+  calls:
+  - action: describe_access
+    save_as: response
+    on_error: continue
+    params:
+      ServerId: '{{ item.serverServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Access }}'
+checks: []

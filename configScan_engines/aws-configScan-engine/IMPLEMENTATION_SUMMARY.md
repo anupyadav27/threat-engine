@@ -1,145 +1,193 @@
-# Service Scanner Implementation Summary
+# Implementation Summary
 
-## ✅ Implemented Improvements
+## ✅ Completed Components
 
-### 1. Enhanced Pagination with Boto3 Paginators
-- **Uses `client.can_paginate()`** - No hardcoding, works for all services
-- **Auto-adds MaxResults** - Optimizes page size (1000 for most, 100 for SageMaker, 60 for Cognito)
-- **Multiple safeguards**:
-  - Circular token detection
-  - Max pages limit (100)
-  - Max items limit (100,000)
-  - Operation-level timeout (10 minutes)
-- **Fallback layers**:
-  1. Boto3 paginator (if available)
-  2. Manual token pagination (if tokens present)
-  3. Single call with timeout (if no pagination)
+### 1. Database Structure
+- ✅ PostgreSQL schema (`database/schema.sql`)
+  - Multi-tenant structure (customers → tenants → hierarchies)
+  - Discovery storage with drift detection
+  - Check results storage
+  - Historical tracking
+- ✅ Database README (`database/README.md`)
+- ✅ Secrets folder structure
 
-### 2. API-Level AWS-Managed Resource Filtering
-**Filters applied BEFORE API calls** (prevents fetching AWS-managed resources):
+### 2. Database Manager
+- ✅ `engine/database_manager.py`
+  - PostgreSQL connection pooling
+  - CRUD operations for all tables
+  - Drift detection logic
+  - Query methods
 
-- **EBS Snapshots**: `OwnerIds: ['self']` - Only customer snapshots
-- **EC2 AMIs**: `Owners: ['self']` - Only customer AMIs
-- **RDS/DocDB/Neptune Snapshots**: `IncludeShared: false`, `IncludePublic: false`
-- **IAM Policies**: `Scope: Local` - Only customer-managed policies
-- **SSM Documents**: `Owner: Self` - Only customer documents
-- **SSM Patch Baselines**: `Owner: Self` - Only customer baselines
-- **CloudFormation Stacks**: Active stacks only
+### 3. Discovery Engine
+- ✅ `engine/discovery_engine.py`
+  - Runs discoveries only (no checks)
+  - Stores results in database
+  - Supports all services, all regions
+  - Automatic drift detection
 
-**Post-filtering** (for resources that can't be filtered at API level):
-- KMS Aliases (`alias/aws/*`)
-- Secrets Manager (`aws/*`, `rds!*`)
-- EventBridge (default bus)
-- SSM Parameters (`/aws/*`)
-- EC2 FPGA Images (public/other-account)
+### 4. Check Engine
+- ✅ `engine/check_engine.py`
+  - Queries discoveries from database
+  - Evaluates checks against database data
+  - Stores results in database
+  - Supports default and custom checks
 
-### 3. Operation-Level Timeout Protection
-- **Per-operation timeout**: 10 minutes (configurable via `OPERATION_TIMEOUT`)
-- **Timeout protection**: All API calls wrapped with timeout
-- **Slow operation logging**: Logs operations taking >1 minute
-- **Warning for very slow**: Logs warning for operations >5 minutes
+### 5. Batch Processing Scripts
+- ✅ `enrich_all_services.py` - Enrich all service YAML files
+- ✅ `split_discoveries_checks.py` - Split discoveries and checks
 
-### 4. Removed Hardcoded Logic
-- **Removed EC2-specific logic** - Uses `can_paginate()` instead
-- **No service-specific code** - Works for all services automatically
-- **Database-driven** - Can be extended with YAML pagination metadata
+### 6. Main Workflow
+- ✅ `run_complete_scan_workflow.py`
+  - Orchestrates discovery + check phases
+  - Command-line interface
+  - Results export
 
-### 5. Enhanced Error Handling
-- **Adaptive retry mode** - Better handling of throttling
-- **Increased read timeout** - 120 seconds (was 60)
-- **Expected error detection** - Skips retry for NoSuch*, NotFound errors
+### 7. Documentation
+- ✅ `IMPLEMENTATION_GUIDE.md` - Complete setup and usage guide
+- ✅ `requirements_db.txt` - Additional Python dependencies
 
-## Architecture (Maintained)
+## Architecture Flow
 
 ```
-┌─────────────────────────────────────────┐
-│ Account + Region Parallel               │
-│ (max_total_workers = 100)               │
-└─────────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────────┐
-│ Phase 1: Independent Discoveries      │
-│ (MAX_DISCOVERY_WORKERS = 50)           │
-│ - API-level filtering applied           │
-│ - Boto3 paginator when available        │
-│ - Timeout protection (10 min max)       │
-└─────────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────────┐
-│ Phase 2: Dependent Discoveries        │
-│ (FOR_EACH_MAX_WORKERS = 50)            │
-│ - Uses results from Phase 1             │
-│ - Same safeguards as Phase 1            │
-└─────────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────────┐
-│ Phase 3: All Checks Parallel           │
-│ (MAX_CHECK_WORKERS = 50)               │
-│ - All checks run in parallel            │
-│ - Share discovery_results (reference)   │
-└─────────────────────────────────────────┘
+1. Enrich Services
+   └─> enrich_all_services.py
+       └─> Adds explicit emit fields to all YAML files
+
+2. Split YAML Files
+   └─> split_discoveries_checks.py
+       └─> Creates separate discoveries/ and checks/ folders
+
+3. Discovery Phase
+   └─> DiscoveryEngine.run_discovery_scan()
+       └─> Runs all discoveries (API calls)
+       └─> Stores in PostgreSQL database
+       └─> Detects drift automatically
+
+4. Check Phase
+   └─> CheckEngine.run_check_scan()
+       └─> Queries discoveries from database
+       └─> Evaluates checks (no API calls)
+       └─> Stores results in database
+
+5. Results
+   └─> Stored in PostgreSQL
+   └─> Can be exported as JSON
+   └─> Supports drift detection queries
 ```
 
-## Key Functions
+## File Structure
 
-### `_paginate_api_call()`
-- Multi-layer pagination with safeguards
-- Uses boto3 paginator when available
-- Falls back to manual pagination or single call
-- Includes timeout, circular token detection, item limits
+```
+configScan_engines/aws-configScan-engine/
+├── database/
+│   ├── schema.sql                    # PostgreSQL schema
+│   ├── README.md                     # Database documentation
+│   ├── secrets/                      # Database credentials (gitignored)
+│   │   └── db_config.json
+│   └── migrations/                   # Future schema migrations
+│
+├── services/
+│   ├── s3/
+│   │   ├── discoveries/              # NEW: Split discoveries
+│   │   │   └── s3.discoveries.yaml
+│   │   ├── checks/                   # NEW: Split checks
+│   │   │   ├── default/
+│   │   │   │   └── s3.checks.yaml
+│   │   │   └── custom/               # Future: customer custom checks
+│   │   └── rules/
+│   │       └── s3.nested.yaml        # Original (kept for backward compat)
+│   └── [other services]/            # Same structure
+│
+├── engine/
+│   ├── database_manager.py          # NEW: PostgreSQL operations
+│   ├── discovery_engine.py           # NEW: Discovery phase
+│   ├── check_engine.py               # NEW: Check phase
+│   └── service_scanner.py             # Updated: Supports discovery-only mode
+│
+├── enrich_all_services.py            # NEW: Batch enrichment
+├── split_discoveries_checks.py       # NEW: Split YAML files
+├── run_complete_scan_workflow.py     # NEW: Main workflow
+├── requirements_db.txt                # NEW: Database dependencies
+├── IMPLEMENTATION_GUIDE.md           # NEW: Setup guide
+└── IMPLEMENTATION_SUMMARY.md         # This file
+```
 
-### `_apply_aws_managed_filters_at_api_level()`
-- Applies filters BEFORE API calls
-- Prevents fetching AWS-managed resources
-- Reduces API response size and time
+## Next Steps
 
-### `_call_with_timeout()`
-- Wraps all API calls with timeout protection
-- Prevents stuck operations
-- Logs slow operations
+### 1. Setup PostgreSQL
+```bash
+createdb cspm_db
+psql -d cspm_db -f database/schema.sql
+```
 
-### `_filter_aws_managed_resources()`
-- Post-filters resources that can't be filtered at API level
-- Applied during emit phase
-- Ensures only customer-managed resources in inventory
+### 2. Configure Database
+Create `database/secrets/db_config.json` with credentials
 
-## Configuration
+### 3. Install Dependencies
+```bash
+pip install -r requirements_db.txt
+```
 
-### Environment Variables
-- `OPERATION_TIMEOUT`: Max time per operation (default: 600s = 10 min)
-- `MAX_ITEMS_PER_DISCOVERY`: Safety limit for items (default: 100,000)
-- `BOTO_READ_TIMEOUT`: Boto3 read timeout (default: 120s)
-- `BOTO_RETRY_MODE`: Retry mode (default: 'adaptive')
+### 4. Enrich All Services
+```bash
+python3 enrich_all_services.py
+```
 
-## Expected Impact
+### 5. Split Discoveries and Checks
+```bash
+python3 split_discoveries_checks.py
+```
 
-### Performance
-- **Faster scans**: API-level filtering reduces data fetched
-- **Fewer API calls**: Optimal page sizes (1000 vs 50-100 default)
-- **No stuck cases**: Timeout protection prevents hangs
+### 6. Run Test Scan
+```bash
+python3 run_complete_scan_workflow.py \
+  --customer-id test_cust \
+  --tenant-id test_tenant \
+  --provider aws \
+  --hierarchy-id 588989875114 \
+  --hierarchy-type account \
+  --services s3 iam \
+  --regions ap-south-1
+```
 
-### Reliability
-- **No hardcoding**: Works for all services automatically
-- **Multiple safeguards**: Timeout, circular tokens, item limits
-- **Graceful degradation**: Falls back if paginator not available
+### 7. Run Full Scan (All Services, All Regions)
+```bash
+python3 run_complete_scan_workflow.py \
+  --customer-id cust_001 \
+  --tenant-id aws_tenant_001 \
+  --provider aws \
+  --hierarchy-id 588989875114 \
+  --hierarchy-type account \
+  --all-services \
+  --all-regions
+```
 
-### Resource Reduction
-- **No AWS-managed resources**: Filtered at API level
-- **Smaller inventory**: Only customer-managed resources
-- **Faster processing**: Less data to process
+## Key Features
 
-## Testing Recommendations
+1. **Two-Phase Architecture**: Discovery → Database → Checks
+2. **Multi-Tenant Support**: Customer → Tenant → Hierarchy
+3. **Drift Detection**: Automatic configuration change tracking
+4. **Scalable**: PostgreSQL with proper indexing
+5. **Flexible**: Supports default and custom checks
+6. **Efficient**: Discoveries run once, checks query database
 
-1. **Test with large accounts**: Verify pagination handles 10K+ resources
-2. **Test timeout protection**: Verify operations timeout after 10 minutes
-3. **Verify filtering**: Check inventory contains only customer-managed resources
-4. **Monitor slow operations**: Check logs for operations >5 minutes
-5. **Test all services**: Verify no service-specific issues
+## Database Schema Highlights
 
-## Next Steps (Optional)
+- **customers**: Top-level customer records
+- **tenants**: Per-CSP tenant records
+- **csp_hierarchies**: Account/Project/Subscription/etc.
+- **scans**: Scan execution records
+- **discoveries**: Current discovery results
+- **discovery_history**: Historical data for drift detection
+- **checks**: Check metadata (default + custom)
+- **check_results**: Check execution results
+- **drift_detections**: Configuration drift alerts
 
-1. **Enrich YAML files**: Add pagination metadata to YAML discoveries
-2. **Add metrics**: Track pagination performance per service
-3. **Optimize further**: Use Filters for non-paginated operations where possible
-4. **Add circuit breakers**: Skip service if multiple timeouts occur
+## Benefits
 
+1. **Separation of Concerns**: Discoveries and checks are decoupled
+2. **Performance**: Discoveries run once, checks query database
+3. **Scalability**: PostgreSQL handles large datasets efficiently
+4. **Drift Detection**: Track configuration changes over time
+5. **Multi-Tenant**: Support multiple customers and CSPs
+6. **Flexibility**: Easy to add custom checks per customer

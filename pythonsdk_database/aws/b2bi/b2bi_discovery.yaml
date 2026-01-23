@@ -1,0 +1,91 @@
+version: '1.0'
+provider: aws
+service: b2bi
+services:
+  client: b2bi
+  module: boto3.client
+discovery:
+- discovery_id: aws.b2bi.list_transformers
+  calls:
+  - action: list_transformers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.transformers }}'
+- discovery_id: aws.b2bi.list_partnerships
+  calls:
+  - action: list_partnerships
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.partnerships }}'
+- discovery_id: aws.b2bi.list_profiles
+  calls:
+  - action: list_profiles
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.profiles }}'
+- discovery_id: aws.b2bi.list_capabilities
+  calls:
+  - action: list_capabilities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.capabilities }}'
+- discovery_id: aws.b2bi.get_capability
+  for_each: aws.b2bi.list_capabilities
+  calls:
+  - action: get_capability
+    save_as: response
+    on_error: continue
+    params:
+      capabilityId: '{{ item.capabilityCapabilityId }}'
+  emit:
+    as: item
+    items_for: '{{ response.instructionsDocuments }}'
+- discovery_id: aws.b2bi.get_partnership
+  for_each: aws.b2bi.list_partnerships
+  calls:
+  - action: get_partnership
+    save_as: response
+    on_error: continue
+    params:
+      partnershipId: '{{ item.partnershipPartnershipId }}'
+  emit:
+    as: item
+    items_for: '{{ response.capabilities }}'
+- discovery_id: aws.b2bi.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.b2bi.get_transformer
+  for_each: aws.b2bi.list_transformers
+  calls:
+  - action: get_transformer
+    save_as: response
+    on_error: continue
+    params:
+      transformerId: '{{ item.transformerTransformerId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ediType }}'
+checks: []

@@ -1,0 +1,109 @@
+version: '1.0'
+provider: aws
+service: apigatewayv2
+services:
+  client: apigatewayv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.apigatewayv2.get_apis
+  calls:
+  - action: get_apis
+    save_as: response
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+    item:
+      ApiId: '{{ item.ApiId }}'
+      ApiEndpoint: '{{ item.ApiEndpoint }}'
+      ApiGatewayManaged: '{{ item.ApiGatewayManaged }}'
+      ApiKeySelectionExpression: '{{ item.ApiKeySelectionExpression }}'
+      CorsConfiguration: '{{ item.CorsConfiguration }}'
+      CreatedDate: '{{ item.CreatedDate }}'
+      Description: '{{ item.Description }}'
+      DisableSchemaValidation: '{{ item.DisableSchemaValidation }}'
+      DisableExecuteApiEndpoint: '{{ item.DisableExecuteApiEndpoint }}'
+      ImportInfo: '{{ item.ImportInfo }}'
+      IpAddressType: '{{ item.IpAddressType }}'
+      Name: '{{ item.Name }}'
+      ProtocolType: '{{ item.ProtocolType }}'
+      RouteSelectionExpression: '{{ item.RouteSelectionExpression }}'
+      Tags: '{{ item.Tags }}'
+      Version: '{{ item.Version }}'
+      Warnings: '{{ item.Warnings }}'
+- discovery_id: aws.apigatewayv2.get_stages
+  calls:
+  - action: get_stages
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+    for_each: aws.apigatewayv2.get_apis
+    on_error: continue
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+    item:
+      StageName: '{{ item.StageName }}'
+      AccessLogSettings: '{{ item.AccessLogSettings }}'
+      ApiGatewayManaged: '{{ item.ApiGatewayManaged }}'
+      AutoDeploy: '{{ item.AutoDeploy }}'
+      ClientCertificateId: '{{ item.ClientCertificateId }}'
+      CreatedDate: '{{ item.CreatedDate }}'
+      DefaultRouteSettings: '{{ item.DefaultRouteSettings }}'
+      DeploymentId: '{{ item.DeploymentId }}'
+      Description: '{{ item.Description }}'
+      LastDeploymentStatusMessage: '{{ item.LastDeploymentStatusMessage }}'
+      LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+      RouteSettings: '{{ item.RouteSettings }}'
+      StageVariables: '{{ item.StageVariables }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.apigatewayv2.get_stage
+  calls:
+  - action: get_stage
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+      StageName: '{{ item.StageName }}'
+    for_each: aws.apigatewayv2.get_stages
+    on_error: continue
+  emit:
+    item:
+      ApiId: '{{ item.ApiId }}'
+      StageName: '{{ item.StageName }}'
+      AccessLogSettings: '{{ response.AccessLogSettings }}'
+      ApiGatewayManaged: '{{ response.ApiGatewayManaged }}'
+      AutoDeploy: '{{ response.AutoDeploy }}'
+      ClientCertificateId: '{{ response.ClientCertificateId }}'
+      CreatedDate: '{{ response.CreatedDate }}'
+      DefaultRouteSettings: '{{ response.DefaultRouteSettings }}'
+      DeploymentId: '{{ response.DeploymentId }}'
+      Description: '{{ response.Description }}'
+      LastDeploymentStatusMessage: '{{ response.LastDeploymentStatusMessage }}'
+      LastUpdatedDate: '{{ response.LastUpdatedDate }}'
+      RouteSettings: '{{ response.RouteSettings }}'
+      StageVariables: '{{ response.StageVariables }}'
+      Tags: '{{ response.Tags }}'
+- discovery_id: aws.apigatewayv2.get_routes
+  calls:
+  - action: get_routes
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+    for_each: aws.apigatewayv2.get_apis
+    on_error: continue
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+    item:
+      RouteId: '{{ item.RouteId }}'
+      ApiKeyRequired: '{{ item.ApiKeyRequired }}'
+      ApiGatewayManaged: '{{ item.ApiGatewayManaged }}'
+      AuthorizationType: '{{ item.AuthorizationType }}'
+      AuthorizerId: '{{ item.AuthorizerId }}'
+      ModelSelectionExpression: '{{ item.ModelSelectionExpression }}'
+      OperationName: '{{ item.OperationName }}'
+      RequestModels: '{{ item.RequestModels }}'
+      RequestParameters: '{{ item.RequestParameters }}'
+      RouteKey: '{{ item.RouteKey }}'
+      RouteResponseSelectionExpression: '{{ item.RouteResponseSelectionExpression
+        }}'
+      Target: '{{ item.Target }}'

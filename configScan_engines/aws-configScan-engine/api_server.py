@@ -56,6 +56,8 @@ class ScanRequest(BaseModel):
     credentials: Optional[Dict[str, Any]] = None
     max_workers: int = 10
     max_account_workers: int = 3  # Allow parallel account scanning (default: 3)
+    tenant_id: Optional[str] = None  # Tenant identifier for multi-tenant support
+    scan_run_id: Optional[str] = None  # Unified scan identifier from onboarding engine
 
 
 class ScanResponse(BaseModel):
@@ -67,11 +69,14 @@ class ScanResponse(BaseModel):
 @app.post("/api/v1/scan", response_model=ScanResponse)
 async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
     """Create and run a compliance scan"""
-    scan_id = str(uuid.uuid4())
+    # Use scan_run_id if provided (from onboarding), otherwise generate new scan_id
+    scan_id = request.scan_run_id if request.scan_run_id else str(uuid.uuid4())
     
     # Log received parameters for debugging
     print(f"[Scan {scan_id}] Received scan request:")
     print(f"  Account: {request.account}")
+    print(f"  Tenant ID: {request.tenant_id}")
+    print(f"  Scan Run ID: {request.scan_run_id}")
     print(f"  Include Regions: {request.include_regions}")
     print(f"  Include Services: {request.include_services}")
     print(f"  Exclude Services: {request.exclude_services}")
@@ -95,6 +100,8 @@ async def create_scan(request: ScanRequest, background_tasks: BackgroundTasks):
         },
         "cancelled": False,
         "account": request.account,
+        "tenant_id": request.tenant_id,
+        "scan_run_id": request.scan_run_id,
         "regions": request.include_regions or [],
         "services": request.include_services or []
     }

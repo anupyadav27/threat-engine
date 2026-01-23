@@ -1,0 +1,382 @@
+version: '1.0'
+provider: aws
+service: lexv2-models
+services:
+  client: lexv2-models
+  module: boto3.client
+discovery:
+- discovery_id: aws.lexv2-models.list_imports
+  calls:
+  - action: list_imports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.importSummaries }}'
+- discovery_id: aws.lexv2-models.list_test_sets
+  calls:
+  - action: list_test_sets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.testSets }}'
+- discovery_id: aws.lexv2-models.list_test_executions
+  calls:
+  - action: list_test_executions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.testExecutions }}'
+- discovery_id: aws.lexv2-models.list_exports
+  calls:
+  - action: list_exports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.exportSummaries }}'
+- discovery_id: aws.lexv2-models.list_bots
+  calls:
+  - action: list_bots
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botSummaries }}'
+- discovery_id: aws.lexv2-models.list_utterance_analytics_data
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_utterance_analytics_data
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.utterances }}'
+- discovery_id: aws.lexv2-models.describe_bot_locale
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_bot_locale
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.failureReasons }}'
+- discovery_id: aws.lexv2-models.describe_bot
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_bot
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botMembers }}'
+- discovery_id: aws.lexv2-models.describe_bot_alias
+  for_each: aws.lexv2-models.list_utterance_analytics_data
+  calls:
+  - action: describe_bot_alias
+    save_as: response
+    on_error: continue
+    params:
+      botAliasId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botAliasHistoryEvents }}'
+- discovery_id: aws.lexv2-models.list_intents
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_intents
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.intentSummaries }}'
+- discovery_id: aws.lexv2-models.list_session_analytics_data
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_session_analytics_data
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.sessions }}'
+- discovery_id: aws.lexv2-models.list_slots
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_slots
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.intentSummaryIntentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.slotSummaries }}'
+- discovery_id: aws.lexv2-models.describe_slot_type
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_slot_type
+    save_as: response
+    on_error: continue
+    params:
+      slotTypeId: '{{ item.slotTypeSummarySlotTypeId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.slotTypeValues }}'
+- discovery_id: aws.lexv2-models.describe_slot
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_slot
+    save_as: response
+    on_error: continue
+    params:
+      slotId: '{{ item.slotSummarySlotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.valueElicitationSetting }}'
+- discovery_id: aws.lexv2-models.list_aggregated_utterances
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_aggregated_utterances
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aggregatedUtterancesSummaries }}'
+- discovery_id: aws.lexv2-models.list_test_execution_result_items
+  for_each: aws.lexv2-models.list_test_executions
+  calls:
+  - action: list_test_execution_result_items
+    save_as: response
+    on_error: continue
+    params:
+      testExecutionId: '{{ item.testExecutionTestExecutionId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.testExecutionResults }}'
+- discovery_id: aws.lexv2-models.list_custom_vocabulary_items
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_custom_vocabulary_items
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.customVocabularyItems }}'
+- discovery_id: aws.lexv2-models.list_utterance_metrics
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_utterance_metrics
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.results }}'
+- discovery_id: aws.lexv2-models.list_test_set_records
+  for_each: aws.lexv2-models.list_test_sets
+  calls:
+  - action: list_test_set_records
+    save_as: response
+    on_error: continue
+    params:
+      testSetId: '{{ item.testExecutionTestSetId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.testSetRecords }}'
+- discovery_id: aws.lexv2-models.describe_test_set
+  for_each: aws.lexv2-models.list_test_sets
+  calls:
+  - action: describe_test_set
+    save_as: response
+    on_error: continue
+    params:
+      testSetId: '{{ item.testExecutionTestSetId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.storageLocation }}'
+- discovery_id: aws.lexv2-models.list_bot_replicas
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_bot_replicas
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botReplicaSummaries }}'
+- discovery_id: aws.lexv2-models.list_bot_resource_generations
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_bot_resource_generations
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.generationSummaries }}'
+- discovery_id: aws.lexv2-models.list_bot_recommendations
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_bot_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botRecommendationSummaries }}'
+- discovery_id: aws.lexv2-models.describe_bot_recommendation
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_bot_recommendation
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.failureReasons }}'
+- discovery_id: aws.lexv2-models.list_slot_types
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_slot_types
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.slotTypeSummaries }}'
+- discovery_id: aws.lexv2-models.list_bot_alias_replicas
+  for_each: aws.lexv2-models.list_bot_replicas
+  calls:
+  - action: list_bot_alias_replicas
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botAliasReplicaSummaries }}'
+- discovery_id: aws.lexv2-models.describe_export
+  for_each: aws.lexv2-models.list_exports
+  calls:
+  - action: describe_export
+    save_as: response
+    on_error: continue
+    params:
+      exportId: '{{ item.exportSummaryExportId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.failureReasons }}'
+- discovery_id: aws.lexv2-models.list_recommended_intents
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_recommended_intents
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.summaryList }}'
+- discovery_id: aws.lexv2-models.list_bot_version_replicas
+  for_each: aws.lexv2-models.list_bot_replicas
+  calls:
+  - action: list_bot_version_replicas
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botVersionReplicaSummaries }}'
+- discovery_id: aws.lexv2-models.describe_custom_vocabulary_metadata
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: describe_custom_vocabulary_metadata
+    save_as: response
+    on_error: continue
+    params:
+      botId: '{{ item.botSummaryBotId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.botId }}'
+- discovery_id: aws.lexv2-models.list_built_in_intents
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_built_in_intents
+    save_as: response
+    on_error: continue
+    params:
+      localeId: '{{ item.botLocaleSummaryLocaleId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.builtInIntentSummaries }}'
+- discovery_id: aws.lexv2-models.list_built_in_slot_types
+  for_each: aws.lexv2-models.list_imports
+  calls:
+  - action: list_built_in_slot_types
+    save_as: response
+    on_error: continue
+    params:
+      localeId: '{{ item.botLocaleSummaryLocaleId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.builtInSlotTypeSummaries }}'
+checks: []

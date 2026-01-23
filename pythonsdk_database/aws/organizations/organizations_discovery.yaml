@@ -1,0 +1,130 @@
+version: '1.0'
+provider: aws
+service: organizations
+services:
+  client: organizations
+  module: boto3.client
+discovery:
+- discovery_id: aws.organizations.list_delegated_administrators
+  calls:
+  - action: list_delegated_administrators
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DelegatedAdministrators }}'
+- discovery_id: aws.organizations.list_create_account_status
+  calls:
+  - action: list_create_account_status
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CreateAccountStatuses }}'
+- discovery_id: aws.organizations.describe_organization
+  calls:
+  - action: describe_organization
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Organization }}'
+- discovery_id: aws.organizations.list_handshakes_for_account
+  calls:
+  - action: list_handshakes_for_account
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Handshakes }}'
+- discovery_id: aws.organizations.list_roots
+  calls:
+  - action: list_roots
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Roots }}'
+- discovery_id: aws.organizations.describe_resource_policy
+  calls:
+  - action: describe_resource_policy
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourcePolicy }}'
+- discovery_id: aws.organizations.list_aws_service_access_for_organization
+  calls:
+  - action: list_aws_service_access_for_organization
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EnabledServicePrincipals }}'
+- discovery_id: aws.organizations.describe_responsibility_transfer
+  for_each: aws.organizations.list_delegated_administrators
+  calls:
+  - action: describe_responsibility_transfer
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.organizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResponsibilityTransfer }}'
+- discovery_id: aws.organizations.list_policies
+  calls:
+  - action: list_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+- discovery_id: aws.organizations.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.organizations.list_targets_for_policy
+  calls:
+  - action: list_targets_for_policy
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Targets }}'
+- discovery_id: aws.organizations.describe_policy
+  calls:
+  - action: describe_policy
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+checks: []

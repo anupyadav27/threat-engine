@@ -1,0 +1,110 @@
+version: '1.0'
+provider: aws
+service: wisdom
+services:
+  client: wisdom
+  module: boto3.client
+discovery:
+- discovery_id: aws.wisdom.list_knowledge_bases
+  calls:
+  - action: list_knowledge_bases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.knowledgeBaseSummaries }}'
+- discovery_id: aws.wisdom.list_assistants
+  calls:
+  - action: list_assistants
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assistantSummaries }}'
+- discovery_id: aws.wisdom.get_recommendations
+  calls:
+  - action: get_recommendations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.recommendations }}'
+- discovery_id: aws.wisdom.list_assistant_associations
+  calls:
+  - action: list_assistant_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assistantAssociationSummaries }}'
+- discovery_id: aws.wisdom.list_import_jobs
+  calls:
+  - action: list_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.importJobSummaries }}'
+- discovery_id: aws.wisdom.get_import_job
+  for_each: aws.wisdom.list_import_jobs
+  calls:
+  - action: get_import_job
+    save_as: response
+    on_error: continue
+    params:
+      importJobId: '{{ item.importJobImportJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.importJob }}'
+- discovery_id: aws.wisdom.get_knowledge_base
+  calls:
+  - action: get_knowledge_base
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.knowledgeBase }}'
+- discovery_id: aws.wisdom.get_assistant_association
+  for_each: aws.wisdom.list_assistant_associations
+  calls:
+  - action: get_assistant_association
+    save_as: response
+    on_error: continue
+    params:
+      assistantAssociationId: '{{ item.assistantAssociationAssistantAssociationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.assistantAssociation }}'
+- discovery_id: aws.wisdom.get_assistant
+  calls:
+  - action: get_assistant
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.assistant }}'
+- discovery_id: aws.wisdom.get_content
+  calls:
+  - action: get_content
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.content }}'
+- discovery_id: aws.wisdom.get_content_summary
+  calls:
+  - action: get_content_summary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.contentSummary }}'
+checks: []

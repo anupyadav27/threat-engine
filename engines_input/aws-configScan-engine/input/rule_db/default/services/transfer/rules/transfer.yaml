@@ -1,0 +1,38 @@
+version: '1.0'
+provider: aws
+service: transfer
+services:
+  client: transfer
+  module: boto3.client
+discovery:
+- discovery_id: aws.transfer.list_servers
+  calls:
+  - action: list_servers
+    save_as: response
+  emit:
+    items_for: '{{ response.Servers }}'
+    as: item
+    item:
+      ServerId: '{{ item.ServerId }}'
+      Arn: '{{ item.Arn }}'
+      Domain: '{{ item.Domain }}'
+      IdentityProviderType: '{{ item.IdentityProviderType }}'
+      EndpointType: '{{ item.EndpointType }}'
+      LoggingRole: '{{ item.LoggingRole }}'
+- discovery_id: aws.transfer.describe_server
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: describe_server
+    params:
+      ServerId: '{{ item.ServerId }}'
+    save_as: response
+  emit:
+    item:
+      ServerId: '{{ item.ServerId }}'
+      Arn: '{{ response.Server.Arn }}'
+      Protocols: '{{ response.Server.Protocols }}'
+      SecurityPolicyName: '{{ response.Server.SecurityPolicyName }}'
+      Domain: '{{ response.Server.Domain }}'
+      IdentityProviderType: '{{ response.Server.IdentityProviderType }}'
+      EndpointType: '{{ response.Server.EndpointType }}'
+      LoggingRole: '{{ response.Server.LoggingRole }}'

@@ -1,0 +1,263 @@
+version: '1.0'
+provider: aws
+service: qconnect
+services:
+  client: qconnect
+  module: boto3.client
+discovery:
+- discovery_id: aws.qconnect.list_assistants
+  calls:
+  - action: list_assistants
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assistantSummaries }}'
+- discovery_id: aws.qconnect.list_knowledge_bases
+  calls:
+  - action: list_knowledge_bases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.knowledgeBaseSummaries }}'
+- discovery_id: aws.qconnect.list_ai_prompts
+  calls:
+  - action: list_ai_prompts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiPromptSummaries }}'
+- discovery_id: aws.qconnect.get_recommendations
+  calls:
+  - action: get_recommendations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.recommendations }}'
+- discovery_id: aws.qconnect.get_message_template
+  calls:
+  - action: get_message_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.messageTemplate }}'
+- discovery_id: aws.qconnect.list_assistant_associations
+  calls:
+  - action: list_assistant_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assistantAssociationSummaries }}'
+- discovery_id: aws.qconnect.list_messages
+  calls:
+  - action: list_messages
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.messages }}'
+- discovery_id: aws.qconnect.list_import_jobs
+  calls:
+  - action: list_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.importJobSummaries }}'
+- discovery_id: aws.qconnect.get_knowledge_base
+  calls:
+  - action: get_knowledge_base
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.knowledgeBase }}'
+- discovery_id: aws.qconnect.get_import_job
+  for_each: aws.qconnect.list_import_jobs
+  calls:
+  - action: get_import_job
+    save_as: response
+    on_error: continue
+    params:
+      importJobId: '{{ item.importJobImportJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.importJob }}'
+- discovery_id: aws.qconnect.list_ai_agents
+  calls:
+  - action: list_ai_agents
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiAgentSummaries }}'
+- discovery_id: aws.qconnect.get_ai_prompt
+  for_each: aws.qconnect.list_ai_prompts
+  calls:
+  - action: get_ai_prompt
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiPromptAiPromptId }}'
+  emit:
+    as: item
+    items_for: '{{ response.aiPrompt }}'
+- discovery_id: aws.qconnect.list_ai_guardrails
+  calls:
+  - action: list_ai_guardrails
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiGuardrailSummaries }}'
+- discovery_id: aws.qconnect.get_ai_guardrail
+  for_each: aws.qconnect.list_ai_guardrails
+  calls:
+  - action: get_ai_guardrail
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiGuardrailAiGuardrailId }}'
+  emit:
+    as: item
+    items_for: '{{ response.aiGuardrail }}'
+- discovery_id: aws.qconnect.get_next_message
+  calls:
+  - action: get_next_message
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.conversationSessionData }}'
+- discovery_id: aws.qconnect.list_content_associations
+  calls:
+  - action: list_content_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.contentAssociationSummaries }}'
+- discovery_id: aws.qconnect.get_ai_agent
+  for_each: aws.qconnect.list_ai_agents
+  calls:
+  - action: get_ai_agent
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiAgentAiAgentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.aiAgent }}'
+- discovery_id: aws.qconnect.get_assistant
+  calls:
+  - action: get_assistant
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.assistant }}'
+- discovery_id: aws.qconnect.get_assistant_association
+  for_each: aws.qconnect.list_assistant_associations
+  calls:
+  - action: get_assistant_association
+    save_as: response
+    on_error: continue
+    params:
+      assistantAssociationId: '{{ item.assistantAssociationAssistantAssociationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.assistantAssociation }}'
+- discovery_id: aws.qconnect.get_session
+  calls:
+  - action: get_session
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.session }}'
+- discovery_id: aws.qconnect.get_content
+  calls:
+  - action: get_content
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.content }}'
+- discovery_id: aws.qconnect.list_message_templates
+  calls:
+  - action: list_message_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.messageTemplateSummaries }}'
+- discovery_id: aws.qconnect.list_ai_agent_versions
+  for_each: aws.qconnect.list_ai_agents
+  calls:
+  - action: list_ai_agent_versions
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiAgentAiAgentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiAgentVersionSummaries }}'
+- discovery_id: aws.qconnect.get_content_summary
+  calls:
+  - action: get_content_summary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.contentSummary }}'
+- discovery_id: aws.qconnect.list_ai_guardrail_versions
+  for_each: aws.qconnect.list_ai_guardrails
+  calls:
+  - action: list_ai_guardrail_versions
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiGuardrailAiGuardrailId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiGuardrailVersionSummaries }}'
+- discovery_id: aws.qconnect.list_ai_prompt_versions
+  for_each: aws.qconnect.list_ai_prompts
+  calls:
+  - action: list_ai_prompt_versions
+    save_as: response
+    on_error: continue
+    params:
+      assistantId: '{{ item.aiPromptAiPromptId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.aiPromptVersionSummaries }}'
+checks: []

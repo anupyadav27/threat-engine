@@ -1,0 +1,74 @@
+version: '1.0'
+provider: aws
+service: mediapackagev2
+services:
+  client: mediapackagev2
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: list_channel_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediapackagev2.list_harvest_jobs
+  for_each: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: list_harvest_jobs
+    save_as: response
+    on_error: continue
+    params:
+      ChannelGroupName: '{{ item.itemChannelGroupName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+- discovery_id: aws.mediapackagev2.get_origin_endpoint
+  for_each: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: get_origin_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      ChannelGroupName: '{{ item.itemOriginEndpointName }}'
+  emit:
+    as: item
+    items_for: '{{ response.HlsManifests }}'
+- discovery_id: aws.mediapackagev2.get_origin_endpoint_policy
+  for_each: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: get_origin_endpoint_policy
+    save_as: response
+    on_error: continue
+    params:
+      ChannelGroupName: '{{ item.itemOriginEndpointName }}'
+  emit:
+    as: item
+    items_for: '{{ response.CdnAuthConfiguration }}'
+- discovery_id: aws.mediapackagev2.get_channel
+  for_each: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: get_channel
+    save_as: response
+    on_error: continue
+    params:
+      ChannelGroupName: '{{ item.itemChannelName }}'
+  emit:
+    as: item
+    items_for: '{{ response.IngestEndpoints }}'
+- discovery_id: aws.mediapackagev2.get_harvest_job
+  for_each: aws.mediapackagev2.list_channel_groups
+  calls:
+  - action: get_harvest_job
+    save_as: response
+    on_error: continue
+    params:
+      ChannelGroupName: '{{ item.itemOriginEndpointName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Destination }}'
+checks: []

@@ -1,0 +1,44 @@
+version: '1.0'
+provider: aws
+service: autoscaling
+checks:
+- rule_id: aws.autoscaling.group.auto_scaling_group_configured
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  conditions:
+    all:
+    - var: item.AutoScalingGroupName
+      op: exists
+      value: null
+    - var: item.LaunchConfigurationName
+      op: exists
+      value: null
+    - var: item.MinSize
+      op: greater_than
+      value: '1'
+    - var: item.MaxSize
+      op: greater_than
+      value: '1'
+    - var: item.HealthCheckType
+      op: equals
+      value: EC2
+    - var: item.NewInstancesProtectedFromScaleIn
+      op: equals
+      value: 'true'
+- rule_id: aws.autoscaling.group.autoscaling_capacity_rebalance_enabled
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  conditions:
+    var: item.CapacityRebalance
+    op: equals
+    value: 'true'
+- rule_id: aws.autoscaling.group.autoscaling_multiple_az_configured
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  conditions:
+    var: item.AvailabilityZones
+    op: exists
+    value: null
+- rule_id: aws.autoscaling.group.security_check_health_check_enabled
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  conditions:
+    var: item.HealthCheckType
+    op: equals
+    value: EC2

@@ -1,0 +1,39 @@
+version: '1.0'
+provider: aws
+service: bcm-dashboards
+services:
+  client: bcm-dashboards
+  module: boto3.client
+discovery:
+- discovery_id: aws.bcm-dashboards.list_dashboards
+  calls:
+  - action: list_dashboards
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dashboards }}'
+- discovery_id: aws.bcm-dashboards.get_dashboard
+  for_each: aws.bcm-dashboards.list_dashboards
+  calls:
+  - action: get_dashboard
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.dashboardArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.widgets }}'
+- discovery_id: aws.bcm-dashboards.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resourceTags }}'
+checks: []

@@ -1,0 +1,91 @@
+version: '1.0'
+provider: aws
+service: cleanroomsml
+services:
+  client: cleanroomsml
+  module: boto3.client
+discovery:
+- discovery_id: aws.cleanroomsml.list_audience_generation_jobs
+  calls:
+  - action: list_audience_generation_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.audienceGenerationJobs }}'
+- discovery_id: aws.cleanroomsml.list_audience_export_jobs
+  calls:
+  - action: list_audience_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.audienceExportJobs }}'
+- discovery_id: aws.cleanroomsml.list_configured_audience_models
+  calls:
+  - action: list_configured_audience_models
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.configuredAudienceModels }}'
+- discovery_id: aws.cleanroomsml.list_audience_models
+  calls:
+  - action: list_audience_models
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.audienceModels }}'
+- discovery_id: aws.cleanroomsml.list_configured_model_algorithms
+  calls:
+  - action: list_configured_model_algorithms
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.configuredModelAlgorithms }}'
+- discovery_id: aws.cleanroomsml.get_configured_model_algorithm
+  for_each: aws.cleanroomsml.list_configured_model_algorithms
+  calls:
+  - action: get_configured_model_algorithm
+    save_as: response
+    on_error: continue
+    params:
+      configuredModelAlgorithmArn: '{{ item.configuredModelAlgorithmConfiguredModelAlgorithmArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.trainingContainerConfig }}'
+- discovery_id: aws.cleanroomsml.get_audience_generation_job
+  for_each: aws.cleanroomsml.list_audience_generation_jobs
+  calls:
+  - action: get_audience_generation_job
+    save_as: response
+    on_error: continue
+    params:
+      audienceGenerationJobArn: '{{ item.audienceExportJobAudienceGenerationJobArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.statusDetails }}'
+- discovery_id: aws.cleanroomsml.get_training_dataset
+  for_each: aws.cleanroomsml.list_audience_models
+  calls:
+  - action: get_training_dataset
+    save_as: response
+    on_error: continue
+    params:
+      trainingDatasetArn: '{{ item.audienceModelTrainingDatasetArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.trainingData }}'
+checks: []

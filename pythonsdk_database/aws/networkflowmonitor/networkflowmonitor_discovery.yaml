@@ -1,0 +1,83 @@
+version: '1.0'
+provider: aws
+service: networkflowmonitor
+services:
+  client: networkflowmonitor
+  module: boto3.client
+discovery:
+- discovery_id: aws.networkflowmonitor.list_monitors
+  calls:
+  - action: list_monitors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.monitors }}'
+- discovery_id: aws.networkflowmonitor.list_scopes
+  calls:
+  - action: list_scopes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scopes }}'
+- discovery_id: aws.networkflowmonitor.get_query_results_monitor_top_contributors
+  for_each: aws.networkflowmonitor.list_monitors
+  calls:
+  - action: get_query_results_monitor_top_contributors
+    save_as: response
+    on_error: continue
+    params:
+      monitorName: '{{ item.monitorMonitorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.topContributors }}'
+- discovery_id: aws.networkflowmonitor.get_monitor
+  for_each: aws.networkflowmonitor.list_monitors
+  calls:
+  - action: get_monitor
+    save_as: response
+    on_error: continue
+    params:
+      monitorName: '{{ item.monitorMonitorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.localResources }}'
+- discovery_id: aws.networkflowmonitor.get_query_results_workload_insights_top_contributors_data
+  for_each: aws.networkflowmonitor.list_scopes
+  calls:
+  - action: get_query_results_workload_insights_top_contributors_data
+    save_as: response
+    on_error: continue
+    params:
+      scopeId: '{{ item.scopScopeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.datapoints }}'
+- discovery_id: aws.networkflowmonitor.get_scope
+  for_each: aws.networkflowmonitor.list_scopes
+  calls:
+  - action: get_scope
+    save_as: response
+    on_error: continue
+    params:
+      scopeId: '{{ item.scopScopeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.targets }}'
+- discovery_id: aws.networkflowmonitor.get_query_results_workload_insights_top_contributors
+  for_each: aws.networkflowmonitor.list_scopes
+  calls:
+  - action: get_query_results_workload_insights_top_contributors
+    save_as: response
+    on_error: continue
+    params:
+      scopeId: '{{ item.scopScopeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.topContributors }}'
+checks: []

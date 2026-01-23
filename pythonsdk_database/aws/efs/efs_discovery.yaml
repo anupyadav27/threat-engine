@@ -1,0 +1,106 @@
+version: '1.0'
+provider: aws
+service: efs
+services:
+  client: efs
+  module: boto3.client
+discovery:
+- discovery_id: aws.efs.describe_file_systems
+  calls:
+  - action: describe_file_systems
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FileSystems }}'
+- discovery_id: aws.efs.describe_mount_targets
+  calls:
+  - action: describe_mount_targets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.MountTargets }}'
+- discovery_id: aws.efs.describe_access_points
+  calls:
+  - action: describe_access_points
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AccessPoints }}'
+- discovery_id: aws.efs.describe_replication_configurations
+  calls:
+  - action: describe_replication_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Replications }}'
+- discovery_id: aws.efs.describe_account_preferences
+  calls:
+  - action: describe_account_preferences
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceIdPreference }}'
+- discovery_id: aws.efs.describe_lifecycle_configuration
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_lifecycle_configuration
+    save_as: response
+    on_error: continue
+    params:
+      FileSystemId: '{{ item.accessPointFileSystemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LifecyclePolicies }}'
+- discovery_id: aws.efs.describe_tags
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_tags
+    save_as: response
+    on_error: continue
+    params:
+      FileSystemId: '{{ item.accessPointFileSystemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.efs.describe_backup_policy
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_backup_policy
+    save_as: response
+    on_error: continue
+    params:
+      FileSystemId: '{{ item.accessPointFileSystemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupPolicy }}'
+- discovery_id: aws.efs.describe_file_system_policy
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_file_system_policy
+    save_as: response
+    on_error: continue
+    params:
+      FileSystemId: '{{ item.accessPointFileSystemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FileSystemId }}'
+checks: []

@@ -1,0 +1,245 @@
+version: '1.0'
+provider: aws
+service: forecast
+services:
+  client: forecast
+  module: boto3.client
+discovery:
+- discovery_id: aws.forecast.list_forecasts
+  calls:
+  - action: list_forecasts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Forecasts }}'
+- discovery_id: aws.forecast.list_predictors
+  calls:
+  - action: list_predictors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Predictors }}'
+- discovery_id: aws.forecast.list_dataset_import_jobs
+  calls:
+  - action: list_dataset_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DatasetImportJobs }}'
+- discovery_id: aws.forecast.list_what_if_forecast_exports
+  calls:
+  - action: list_what_if_forecast_exports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WhatIfForecastExports }}'
+- discovery_id: aws.forecast.list_explainabilities
+  calls:
+  - action: list_explainabilities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Explainabilities }}'
+- discovery_id: aws.forecast.list_what_if_analyses
+  calls:
+  - action: list_what_if_analyses
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WhatIfAnalyses }}'
+- discovery_id: aws.forecast.list_explainability_exports
+  calls:
+  - action: list_explainability_exports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ExplainabilityExports }}'
+- discovery_id: aws.forecast.list_what_if_forecasts
+  calls:
+  - action: list_what_if_forecasts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WhatIfForecasts }}'
+- discovery_id: aws.forecast.list_predictor_backtest_export_jobs
+  calls:
+  - action: list_predictor_backtest_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PredictorBacktestExportJobs }}'
+- discovery_id: aws.forecast.list_forecast_export_jobs
+  calls:
+  - action: list_forecast_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ForecastExportJobs }}'
+- discovery_id: aws.forecast.list_monitors
+  calls:
+  - action: list_monitors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Monitors }}'
+- discovery_id: aws.forecast.list_datasets
+  calls:
+  - action: list_datasets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Datasets }}'
+- discovery_id: aws.forecast.list_dataset_groups
+  calls:
+  - action: list_dataset_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DatasetGroups }}'
+- discovery_id: aws.forecast.list_monitor_evaluations
+  for_each: aws.forecast.list_monitors
+  calls:
+  - action: list_monitor_evaluations
+    save_as: response
+    on_error: continue
+    params:
+      MonitorArn: '{{ item.monitorMonitorArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PredictorMonitorEvaluations }}'
+- discovery_id: aws.forecast.describe_explainability
+  for_each: aws.forecast.list_explainabilities
+  calls:
+  - action: describe_explainability
+    save_as: response
+    on_error: continue
+    params:
+      ExplainabilityArn: '{{ item.explainabilityExplainabilityArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ExplainabilityConfig }}'
+- discovery_id: aws.forecast.describe_monitor
+  for_each: aws.forecast.list_monitors
+  calls:
+  - action: describe_monitor
+    save_as: response
+    on_error: continue
+    params:
+      MonitorArn: '{{ item.monitorMonitorArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Baseline }}'
+- discovery_id: aws.forecast.describe_what_if_forecast
+  for_each: aws.forecast.list_what_if_forecasts
+  calls:
+  - action: describe_what_if_forecast
+    save_as: response
+    on_error: continue
+    params:
+      WhatIfForecastArn: '{{ item.whatIfForecastWhatIfForecastArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TimeSeriesTransformations }}'
+- discovery_id: aws.forecast.get_accuracy_metrics
+  for_each: aws.forecast.list_forecasts
+  calls:
+  - action: get_accuracy_metrics
+    save_as: response
+    on_error: continue
+    params:
+      PredictorArn: '{{ item.forecastPredictorArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.PredictorEvaluationResults }}'
+- discovery_id: aws.forecast.list_tags_for_resource
+  for_each: aws.forecast.list_explainabilities
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.explainabilityResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.forecast.describe_dataset_import_job
+  for_each: aws.forecast.list_dataset_import_jobs
+  calls:
+  - action: describe_dataset_import_job
+    save_as: response
+    on_error: continue
+    params:
+      DatasetImportJobArn: '{{ item.datasetImportJobDatasetImportJobArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DataSource }}'
+- discovery_id: aws.forecast.describe_dataset
+  for_each: aws.forecast.list_datasets
+  calls:
+  - action: describe_dataset
+    save_as: response
+    on_error: continue
+    params:
+      DatasetArn: '{{ item.datasetDatasetArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Schema }}'
+- discovery_id: aws.forecast.describe_what_if_analysis
+  for_each: aws.forecast.list_what_if_analyses
+  calls:
+  - action: describe_what_if_analysis
+    save_as: response
+    on_error: continue
+    params:
+      WhatIfAnalysisArn: '{{ item.whatIfAnalysWhatIfAnalysisArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TimeSeriesSelector }}'
+checks: []

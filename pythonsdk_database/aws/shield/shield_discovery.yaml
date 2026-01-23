@@ -1,0 +1,110 @@
+version: '1.0'
+provider: aws
+service: shield
+services:
+  client: shield
+  module: boto3.client
+discovery:
+- discovery_id: aws.shield.describe_subscription
+  calls:
+  - action: describe_subscription
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Subscription }}'
+- discovery_id: aws.shield.describe_protection
+  calls:
+  - action: describe_protection
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Protection }}'
+- discovery_id: aws.shield.list_protection_groups
+  calls:
+  - action: list_protection_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProtectionGroups }}'
+- discovery_id: aws.shield.list_attacks
+  calls:
+  - action: list_attacks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AttackSummaries }}'
+- discovery_id: aws.shield.describe_emergency_contact_settings
+  calls:
+  - action: describe_emergency_contact_settings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EmergencyContactList }}'
+- discovery_id: aws.shield.describe_attack_statistics
+  calls:
+  - action: describe_attack_statistics
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DataItems }}'
+- discovery_id: aws.shield.describe_drt_access
+  calls:
+  - action: describe_drt_access
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LogBucketList }}'
+- discovery_id: aws.shield.get_subscription_state
+  calls:
+  - action: get_subscription_state
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SubscriptionState }}'
+- discovery_id: aws.shield.describe_attack
+  for_each: aws.shield.list_attacks
+  calls:
+  - action: describe_attack
+    save_as: response
+    on_error: continue
+    params:
+      AttackId: '{{ item.attackSummaryAttackId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Attack }}'
+- discovery_id: aws.shield.list_tags_for_resource
+  for_each: aws.shield.describe_protection
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      ResourceARN: '{{ item.protectionResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

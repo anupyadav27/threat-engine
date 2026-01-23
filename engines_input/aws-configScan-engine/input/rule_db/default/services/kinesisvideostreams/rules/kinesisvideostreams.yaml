@@ -1,0 +1,38 @@
+version: '1.0'
+provider: aws
+service: kinesisvideostreams
+services:
+  client: kinesisvideo
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesisvideostreams.list_streams
+  calls:
+  - action: list_streams
+    save_as: response
+  emit:
+    items_for: '{{ response.StreamInfoList }}'
+    as: item
+    item:
+      StreamName: '{{ item.StreamName }}'
+      StreamARN: '{{ item.StreamARN }}'
+      Status: '{{ item.Status }}'
+      DataRetentionInHours: '{{ item.DataRetentionInHours }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+- discovery_id: aws.kinesisvideostreams.describe_stream
+  for_each: aws.kinesisvideostreams.list_streams
+  calls:
+  - action: describe_stream
+    params:
+      StreamName: '{{ item.StreamName }}'
+    save_as: response
+  emit:
+    item:
+      DeviceName: '{{ response.StreamInfo.DeviceName }}'
+      StreamName: '{{ response.StreamInfo.StreamName }}'
+      StreamARN: '{{ response.StreamInfo.StreamARN }}'
+      MediaType: '{{ response.StreamInfo.MediaType }}'
+      KmsKeyId: '{{ response.StreamInfo.KmsKeyId }}'
+      Version: '{{ response.StreamInfo.Version }}'
+      Status: '{{ response.StreamInfo.Status }}'
+      CreationTime: '{{ response.StreamInfo.CreationTime }}'
+      DataRetentionInHours: '{{ response.StreamInfo.DataRetentionInHours }}'

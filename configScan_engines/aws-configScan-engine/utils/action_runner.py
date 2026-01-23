@@ -41,21 +41,27 @@ def _load_reporting(report_folder: str) -> Tuple[List[Dict[str, Any]], List[Dict
 
 
 def _build_indexes(inv: Dict[str, Any]) -> Dict[str, Any]:
-    indexes = {
-        'ec2_instances': {},  # (account, region, instance_id) -> {}
-        's3_buckets': {},     # (account, bucket_name) -> {}
-    }
+    """
+    Build generic indexes for all services.
+    Indexes are built dynamically based on service and resource type.
+    """
+    indexes = {}
     for entry in inv.get('inventories', []) or []:
         acct = entry.get('account')
         service = entry.get('service')
         region = entry.get('scope_region') or entry.get('region')
         data = entry.get('inventory') or {}
-        if service == 'ec2':
-            # If inventory contains instance ids, index them (depends on discovery)
-            pass
-        elif service == 's3':
-            # If inventory contains bucket names, index them
-            pass
+        
+        # Generic indexing - create index key based on service
+        index_key = f'{service}_resources'
+        if index_key not in indexes:
+            indexes[index_key] = {}
+        
+        # Index by (account, region, resource_id) tuple
+        # Resource ID extraction is handled generically by extract_resource_identifier
+        # This is a placeholder - actual indexing would depend on discovery structure
+        pass
+    
     return indexes
 
 
@@ -66,46 +72,81 @@ def _ensure_actions(item: Dict[str, Any], selected: Dict[str, List[str]], catalo
     return [{"action": n, "args": (catalog.get(n) or {})} for n in names]
 
 
-def _execute_ec2_stop(enforce: bool, account: str, region: str, instance_id: str) -> Tuple[str, str]:
+def _execute_boto3_action(service: str, operation: str, enforce: bool, 
+                          region: str, params: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    Generic boto3 action executor.
+    Executes any boto3 operation for any service.
+    """
     if not enforce:
-        return ("DRY_RUN", f"ec2.stop_instances account={account} region={region} instance_id={instance_id}")
+        return ("DRY_RUN", f"{service}.{operation} region={region} params={params}")
+    
     try:
         session = get_boto3_session(profile_name=os.getenv('AWS_PROFILE'))
-        ec2 = session.client('ec2', region_name=region)
-        resp = ec2.stop_instances(InstanceIds=[instance_id])
+        client = session.client(service, region_name=region)
+        
+        # Get the operation method dynamically
+        operation_method = getattr(client, operation)
+        resp = operation_method(**params)
+        
         return ("SUCCESS", json.dumps(resp, default=str))
     except Exception as e:
         return ("ERROR", str(e))
 
 
 def _run_action(item: Dict[str, Any], action: Dict[str, Any], enforce: bool) -> Dict[str, Any]:
+    """
+    Generic action runner - works with any service and action type.
+    Uses action configuration from actions.yaml to determine execution method.
+    """
     service = item.get('service')
     account = item.get('account')
     region = item.get('region')
-    resource = item.get('resource') or item.get('instanceId') or item.get('bucket')
+    resource = item.get('resource') or item.get('resource_id') or item.get('resource_arn')
     name = action.get('action')
     args = action.get('args') or {}
 
     status = 'NOT_IMPLEMENTED'
     details = ''
 
-    if service == 'ec2':
-        if name == 'stop':
-            status, details = _execute_ec2_stop(enforce, account or '', region or 'us-east-1', resource or '')
-        elif name in ('tag', 'untag', 'quarantine'):
-            status, details = ('DRY_RUN', f"{name} for ec2 instance {resource}")
-        elif name in ('notify', 'invoke_function'):
-            status, details = ('DRY_RUN', json.dumps(args))
-    elif service == 's3':
-        if name in ('notify', 'invoke_function'):
-            status, details = ('DRY_RUN', json.dumps(args))
-        else:
-            status, details = ('DRY_RUN', f"{name} for s3 bucket {resource}")
+    # Check if action has boto3 operation defined in args
+    operation = args.get('operation')
+    
+    if operation:
+        # Action has boto3 operation - execute generically
+        # Build parameters from args and item data
+        params = {}
+        for key, value in args.items():
+            if key == 'operation':
+                continue
+            # Resolve template variables like {{resource_id}}
+            if isinstance(value, str) and '{{' in value:
+                # Simple template resolution
+                value = value.replace('{{resource_id}}', str(resource or ''))
+                value = value.replace('{{resource_arn}}', str(item.get('resource_arn', '')))
+                value = value.replace('{{account}}', str(account or ''))
+                value = value.replace('{{region}}', str(region or ''))
+            params[key] = value
+        
+        # Add resource identifier if not in params
+        if 'Id' not in params and 'ResourceId' not in params and resource:
+            # Try common parameter names
+            if service in ['ec2', 'rds', 'lambda']:
+                params['Ids'] = [resource] if not isinstance(resource, list) else resource
+            elif service == 's3':
+                params['Bucket'] = resource
+            else:
+                params['ResourceId'] = resource
+        
+        status, details = _execute_boto3_action(service, operation, enforce, region or 'us-east-1', params)
+    
+    elif name in ('notify', 'invoke_function', 'webhook'):
+        # Generic notification/invocation actions
+        status, details = ('DRY_RUN', json.dumps(args))
+    
     else:
-        if name in ('notify', 'invoke_function'):
-            status, details = ('DRY_RUN', json.dumps(args))
-        else:
-            status, details = ('NOT_IMPLEMENTED', f"service {service} action {name}")
+        # Fallback for actions without boto3 operation
+        status, details = ('NOT_IMPLEMENTED', f"Action '{name}' for service '{service}' requires operation definition in actions.yaml")
 
     return {
         'check_id': item.get('check_id'),

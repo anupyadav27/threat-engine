@@ -1,0 +1,285 @@
+version: '1.0'
+provider: aws
+service: proton
+services:
+  client: proton
+  module: boto3.client
+discovery:
+- discovery_id: aws.proton.list_environments
+  calls:
+  - action: list_environments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.environments }}'
+- discovery_id: aws.proton.list_deployments
+  calls:
+  - action: list_deployments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.deployments }}'
+- discovery_id: aws.proton.list_service_instances
+  calls:
+  - action: list_service_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.serviceInstances }}'
+- discovery_id: aws.proton.list_components
+  calls:
+  - action: list_components
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.components }}'
+- discovery_id: aws.proton.list_services
+  calls:
+  - action: list_services
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.services }}'
+- discovery_id: aws.proton.list_environment_templates
+  calls:
+  - action: list_environment_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.templates }}'
+- discovery_id: aws.proton.get_resources_summary
+  calls:
+  - action: get_resources_summary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.counts }}'
+- discovery_id: aws.proton.list_service_templates
+  calls:
+  - action: list_service_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.templates }}'
+- discovery_id: aws.proton.list_repositories
+  calls:
+  - action: list_repositories
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.repositories }}'
+- discovery_id: aws.proton.get_account_settings
+  calls:
+  - action: get_account_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountSettings }}'
+- discovery_id: aws.proton.get_service
+  for_each: aws.proton.list_environments
+  calls:
+  - action: get_service
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.componentName }}'
+  emit:
+    as: item
+    items_for: '{{ response.service }}'
+- discovery_id: aws.proton.get_service_instance_sync_status
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: get_service_instance_sync_status
+    save_as: response
+    on_error: continue
+    params:
+      serviceInstanceName: '{{ item.componentServiceName }}'
+  emit:
+    as: item
+    items_for: '{{ response.desiredState }}'
+- discovery_id: aws.proton.get_environment_account_connection
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: get_environment_account_connection
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.deploymentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.environmentAccountConnection }}'
+- discovery_id: aws.proton.get_component
+  for_each: aws.proton.list_environments
+  calls:
+  - action: get_component
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.componentName }}'
+  emit:
+    as: item
+    items_for: '{{ response.component }}'
+- discovery_id: aws.proton.list_service_template_versions
+  for_each: aws.proton.list_environments
+  calls:
+  - action: list_service_template_versions
+    save_as: response
+    on_error: continue
+    params:
+      templateName: '{{ item.environmentTemplateName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.templateVersions }}'
+- discovery_id: aws.proton.get_service_template_version
+  for_each: aws.proton.list_environments
+  calls:
+  - action: get_service_template_version
+    save_as: response
+    on_error: continue
+    params:
+      majorVersion: '{{ item.environmentTemplateVersionMinorVersion }}'
+  emit:
+    as: item
+    items_for: '{{ response.serviceTemplateVersion }}'
+- discovery_id: aws.proton.get_environment
+  for_each: aws.proton.list_environments
+  calls:
+  - action: get_environment
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.componentName }}'
+  emit:
+    as: item
+    items_for: '{{ response.environment }}'
+- discovery_id: aws.proton.get_deployment
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: get_deployment
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.deploymentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.deployment }}'
+- discovery_id: aws.proton.get_service_sync_blocker_summary
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: get_service_sync_blocker_summary
+    save_as: response
+    on_error: continue
+    params:
+      serviceName: '{{ item.componentServiceName }}'
+  emit:
+    as: item
+    items_for: '{{ response.serviceSyncBlockerSummary }}'
+- discovery_id: aws.proton.list_repository_sync_definitions
+  for_each: aws.proton.get_service_instance_sync_status
+  calls:
+  - action: list_repository_sync_definitions
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.desiredStateRepositoryName }}'
+      repositoryProvider: '{{ item.repositoryProvider }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.syncDefinitions }}'
+- discovery_id: aws.proton.list_service_instance_provisioned_resources
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: list_service_instance_provisioned_resources
+    save_as: response
+    on_error: continue
+    params:
+      serviceInstanceName: '{{ item.componentServiceName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.provisionedResources }}'
+- discovery_id: aws.proton.get_repository_sync_status
+  for_each: aws.proton.get_service_instance_sync_status
+  calls:
+  - action: get_repository_sync_status
+    save_as: response
+    on_error: continue
+    params:
+      branch: '{{ item.desiredStateRepositoryName }}'
+      repositoryProvider: '{{ item.repositoryProvider }}'
+  emit:
+    as: item
+    items_for: '{{ response.latestSync }}'
+- discovery_id: aws.proton.list_service_pipeline_outputs
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: list_service_pipeline_outputs
+    save_as: response
+    on_error: continue
+    params:
+      serviceName: '{{ item.componentServiceName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.outputs }}'
+- discovery_id: aws.proton.get_environment_template
+  for_each: aws.proton.list_environments
+  calls:
+  - action: get_environment_template
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.componentName }}'
+  emit:
+    as: item
+    items_for: '{{ response.environmentTemplate }}'
+- discovery_id: aws.proton.get_service_sync_config
+  for_each: aws.proton.list_deployments
+  calls:
+  - action: get_service_sync_config
+    save_as: response
+    on_error: continue
+    params:
+      serviceName: '{{ item.componentServiceName }}'
+  emit:
+    as: item
+    items_for: '{{ response.serviceSyncConfig }}'
+- discovery_id: aws.proton.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

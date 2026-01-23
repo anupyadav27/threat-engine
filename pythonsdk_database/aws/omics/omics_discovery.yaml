@@ -1,0 +1,174 @@
+version: '1.0'
+provider: aws
+service: omics
+services:
+  client: omics
+  module: boto3.client
+discovery:
+- discovery_id: aws.omics.list_runs
+  calls:
+  - action: list_runs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.list_annotation_stores
+  calls:
+  - action: list_annotation_stores
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.annotationStores }}'
+- discovery_id: aws.omics.list_sequence_stores
+  calls:
+  - action: list_sequence_stores
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.sequenceStores }}'
+- discovery_id: aws.omics.list_annotation_import_jobs
+  calls:
+  - action: list_annotation_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.annotationImportJobs }}'
+- discovery_id: aws.omics.list_workflows
+  calls:
+  - action: list_workflows
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.list_run_groups
+  calls:
+  - action: list_run_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.list_run_caches
+  calls:
+  - action: list_run_caches
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.get_annotation_store_version
+  for_each: aws.omics.list_annotation_import_jobs
+  calls:
+  - action: get_annotation_store_version
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.annotationStorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.versionOptions }}'
+- discovery_id: aws.omics.list_run_tasks
+  for_each: aws.omics.list_runs
+  calls:
+  - action: list_run_tasks
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.annotationImportJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.list_shares
+  calls:
+  - action: list_shares
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.shares }}'
+- discovery_id: aws.omics.get_workflow
+  for_each: aws.omics.list_runs
+  calls:
+  - action: get_workflow
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.annotationImportJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.containerRegistryMap }}'
+- discovery_id: aws.omics.get_run_task
+  for_each: aws.omics.list_runs
+  calls:
+  - action: get_run_task
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.itemTaskId }}'
+  emit:
+    as: item
+    items_for: '{{ response.imageDetails }}'
+- discovery_id: aws.omics.get_annotation_import_job
+  calls:
+  - action: get_annotation_import_job
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.omics.get_run
+  for_each: aws.omics.list_runs
+  calls:
+  - action: get_run
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.annotationImportJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.parameters }}'
+- discovery_id: aws.omics.get_annotation_store
+  for_each: aws.omics.list_runs
+  calls:
+  - action: get_annotation_store
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.annotationStorName }}'
+  emit:
+    as: item
+    items_for: '{{ response.reference }}'
+- discovery_id: aws.omics.get_reference_store
+  for_each: aws.omics.list_runs
+  calls:
+  - action: get_reference_store
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.annotationImportJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.sseConfig }}'
+checks: []

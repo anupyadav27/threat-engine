@@ -1,0 +1,56 @@
+version: '1.0'
+provider: aws
+service: storagegateway
+services:
+  client: storagegateway
+  module: boto3.client
+discovery:
+- discovery_id: aws.storagegateway.list_volumes
+  calls:
+  - action: list_volumes
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.VolumeInfos }}'
+    as: item
+- discovery_id: aws.storagegateway.list_gateways
+  calls:
+  - action: list_gateways
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Gateways }}'
+    as: item
+- discovery_id: aws.storagegateway.describe_tape_archives
+  calls:
+  - action: describe_tape_archives
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.TapeArchives }}'
+    as: item
+- discovery_id: aws.storagegateway.list_file_shares
+  calls:
+  - action: list_file_shares
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.FileShareInfoList }}'
+    as: item
+- discovery_id: aws.storagegateway.describe_nfs_file_shares
+  for_each: aws.storagegateway.list_file_shares
+  calls:
+  - action: describe_nfs_file_shares
+    params:
+      FileShareARNList:
+      - '{{ item.FileShareARN }}'
+      MaxResults: 1000
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.NFSFileShareInfoList }}'
+    as: item

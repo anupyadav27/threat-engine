@@ -1,0 +1,99 @@
+version: '1.0'
+provider: aws
+service: tnb
+services:
+  client: tnb
+  module: boto3.client
+discovery:
+- discovery_id: aws.tnb.list_sol_network_packages
+  calls:
+  - action: list_sol_network_packages
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.networkPackages }}'
+- discovery_id: aws.tnb.list_sol_function_packages
+  calls:
+  - action: list_sol_function_packages
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.functionPackages }}'
+- discovery_id: aws.tnb.list_sol_network_operations
+  calls:
+  - action: list_sol_network_operations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.networkOperations }}'
+- discovery_id: aws.tnb.list_sol_function_instances
+  calls:
+  - action: list_sol_function_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.functionInstances }}'
+- discovery_id: aws.tnb.list_sol_network_instances
+  calls:
+  - action: list_sol_network_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.networkInstances }}'
+- discovery_id: aws.tnb.get_sol_function_package
+  for_each: aws.tnb.list_sol_function_instances
+  calls:
+  - action: get_sol_function_package
+    save_as: response
+    on_error: continue
+    params:
+      vnfPkgId: '{{ item.functionInstancVnfPkgId }}'
+  emit:
+    as: item
+    items_for: '{{ response.metadata }}'
+- discovery_id: aws.tnb.get_sol_function_instance
+  calls:
+  - action: get_sol_function_instance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.instantiatedVnfInfo }}'
+- discovery_id: aws.tnb.get_sol_network_instance
+  for_each: aws.tnb.list_sol_network_operations
+  calls:
+  - action: get_sol_network_instance
+    save_as: response
+    on_error: continue
+    params:
+      nsInstanceId: '{{ item.functionInstancNsInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.lcmOpInfo }}'
+- discovery_id: aws.tnb.get_sol_network_operation
+  for_each: aws.tnb.get_sol_network_instance
+  calls:
+  - action: get_sol_network_operation
+    save_as: response
+    on_error: continue
+    params:
+      nsLcmOpOccId: '{{ item.lcmOpInfoNsLcmOpOccId }}'
+  emit:
+    as: item
+    items_for: '{{ response.tasks }}'
+checks: []

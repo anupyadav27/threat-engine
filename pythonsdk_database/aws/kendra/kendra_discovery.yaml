@@ -1,0 +1,154 @@
+version: '1.0'
+provider: aws
+service: kendra
+services:
+  client: kendra
+  module: boto3.client
+discovery:
+- discovery_id: aws.kendra.list_indices
+  calls:
+  - action: list_indices
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IndexConfigurationSummaryItems }}'
+- discovery_id: aws.kendra.describe_data_source
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_data_source
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Configuration }}'
+- discovery_id: aws.kendra.list_data_source_sync_jobs
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: list_data_source_sync_jobs
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.History }}'
+- discovery_id: aws.kendra.list_featured_results_sets
+  calls:
+  - action: list_featured_results_sets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FeaturedResultsSetSummaryItems }}'
+- discovery_id: aws.kendra.describe_faq
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_faq
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.S3Path }}'
+- discovery_id: aws.kendra.describe_experience
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_experience
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+- discovery_id: aws.kendra.get_query_suggestions
+  calls:
+  - action: get_query_suggestions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Suggestions }}'
+- discovery_id: aws.kendra.list_experience_entities
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: list_experience_entities
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SummaryItems }}'
+- discovery_id: aws.kendra.describe_index
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_index
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DocumentMetadataConfigurations }}'
+- discovery_id: aws.kendra.describe_access_control_configuration
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_access_control_configuration
+    save_as: response
+    on_error: continue
+    params:
+      IndexId: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AccessControlList }}'
+- discovery_id: aws.kendra.describe_query_suggestions_config
+  calls:
+  - action: describe_query_suggestions_config
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AttributeSuggestionsConfig }}'
+- discovery_id: aws.kendra.describe_query_suggestions_block_list
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: describe_query_suggestions_block_list
+    save_as: response
+    on_error: continue
+    params:
+      IndexId: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SourceS3Path }}'
+- discovery_id: aws.kendra.list_entity_personas
+  for_each: aws.kendra.list_indices
+  calls:
+  - action: list_entity_personas
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.indexConfigurationSummaryItemId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SummaryItems }}'
+checks: []

@@ -1,0 +1,222 @@
+version: '1.0'
+provider: aws
+service: quicksight
+services:
+  client: quicksight
+  module: boto3.client
+discovery:
+- discovery_id: aws.quicksight.get_account_id
+  calls:
+  - action: get_caller_identity
+    client: sts
+    save_as: account_info
+  emit: {}
+- discovery_id: aws.quicksight.describe_action_connector_permissions
+  calls:
+  - action: describe_action_connector_permissions
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.quicksight.describe_account_settings
+  calls:
+  - action: describe_account_settings
+    params:
+      AwsAccountId: '{{ account_info.Account }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.quicksight.list_users
+  calls:
+  - action: list_users
+    params:
+      AwsAccountId: '{{ account_info.Account }}'
+      Namespace: default
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.UserList }}'
+    as: item
+- discovery_id: aws.quicksight.list_topic_refresh_schedules
+  calls:
+  - action: list_topic_refresh_schedules
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.RefreshSchedules }}'
+    as: item
+- discovery_id: aws.quicksight.list_data_sets
+  calls:
+  - action: list_data_sets
+    params:
+      AwsAccountId: '{{ account_info.Account }}'
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.DataSetSummaries }}'
+    as: item
+- discovery_id: aws.quicksight.list_groups
+  calls:
+  - action: list_groups
+    params:
+      AwsAccountId: '{{ account_info.Account }}'
+      Namespace: default
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.GroupList }}'
+    as: item
+- discovery_id: aws.quicksight.list_dashboards
+  calls:
+  - action: list_dashboards
+    params:
+      AwsAccountId: '{{ account_info.Account }}'
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.DashboardSummaryList }}'
+    as: item
+checks:
+- rule_id: aws.quicksight.dataset.public_sharing_disabled
+  for_each: aws.quicksight.list_data_sets
+  conditions:
+    var: item.Permissions[].Principal
+    op: not_equals
+    value: arn:aws:quicksight::aws:root
+- rule_id: aws.quicksight.dashboard.logs_retention_days_minimum
+  for_each: aws.quicksight.describe_account_settings
+  conditions:
+    var: item.AccountSettings.DefaultNamespace.LogsRetentionDays
+    op: greater_than
+    value: '30'
+- rule_id: aws.quicksight.user.quicksight_sso_required
+  for_each: aws.quicksight.list_users
+  conditions:
+    var: item.IdentityType
+    op: equals
+    value: QUICKSIGHT
+- rule_id: aws.quicksight.dashboard.quicksight_sharing_restricted_to_org_configured
+  for_each: aws.quicksight.describe_action_connector_permissions
+  conditions:
+    all:
+    - var: item.Principal
+      op: equals
+      value: arn:aws:quicksight::123456789012:namespace/default
+    - var: item.Actions
+      op: contains
+      value:
+      - quicksight:DescribeDashboard
+      - quicksight:ListDashboardVersions
+- rule_id: aws.quicksight.group.roles_minimal_configured
+  for_each: aws.quicksight.list_users
+  conditions:
+    all:
+    - var: item.Role
+      op: equals
+      value: READER
+    - var: item.Role
+      op: equals
+      value: AUTHOR
+    - var: item.Role
+      op: equals
+      value: ADMIN
+- rule_id: aws.quicksight.dataset.encryption_at_rest_enabled
+  for_each: aws.quicksight.list_data_sets
+  conditions:
+    all:
+    - var: item.DataSetId
+      op: exists
+      value: null
+    - var: item.Arn
+      op: exists
+      value: null
+    - var: item.ImportMode
+      op: equals
+      value: SPICE
+- rule_id: aws.quicksight.dashboard.admin_activity_logging_enabled
+  for_each: aws.quicksight.describe_action_connector_permissions
+  conditions:
+    all:
+    - var: item.Principal
+      op: equals
+      value: arn:aws:quicksight:us-east-1:123456789012:group/default/Admin
+    - var: item.Actions
+      op: contains
+      value:
+      - quicksight:DescribeDashboard
+      - quicksight:ListDashboardVersions
+      - quicksight:UpdateDashboardPermissions
+      - quicksight:UpdateDashboardPublishedVersion
+- rule_id: aws.quicksight.dataset.row_level_security_enabled
+  for_each: aws.quicksight.list_data_sets
+  conditions:
+    var: item.RowLevelPermissionDataSet
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dataset.access_policies_least_privilege
+  for_each: aws.quicksight.list_data_sets
+  conditions:
+    all:
+    - var: item.Permissions[].Principal
+      op: exists
+      value: null
+    - var: item.Permissions[].Actions
+      op: exists
+      value: null
+- rule_id: aws.quicksight.group.quicksight_external_sharing_restricted
+  for_each: aws.quicksight.list_groups
+  conditions:
+    var: item.GroupName
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dashboard.quicksight_export_controls_enabled
+  for_each: aws.quicksight.describe_action_connector_permissions
+  conditions:
+    var: item.Actions
+    op: contains
+    value: quicksight:ExportToCSV
+- rule_id: aws.quicksight.dashboard.public_embeds_disabled
+  for_each: aws.quicksight.describe_action_connector_permissions
+  conditions:
+    var: item.Principal
+    op: not_equals
+    value: arn:aws:quicksight::aws:root
+- rule_id: aws.quicksight.dashboard.query_access_logging_enabled
+  for_each: aws.quicksight.describe_action_connector_permissions
+  conditions:
+    all:
+    - var: item.Principal
+      op: exists
+      value: null
+    - var: item.Actions
+      op: contains
+      value: quicksight:DescribeDashboard
+- rule_id: aws.quicksight.dashboard.quicksight_sso_required
+  for_each: aws.quicksight.list_dashboards
+  conditions:
+    var: item.DashboardId
+    op: exists
+    value: null
+- rule_id: aws.quicksight.user.external_access_reviewed_configured
+  for_each: aws.quicksight.list_users
+  conditions:
+    all:
+    - var: item.UserName
+      op: exists
+      value: null
+    - var: item.ExternalLoginFederationProviderType
+      op: exists
+      value: null
+    - var: item.ExternalLoginFederationProviderType
+      op: equals
+      value: SAML
+- rule_id: aws.quicksight.user.roles_minimal_configured
+  for_each: aws.quicksight.list_users
+  conditions:
+    var: item.Role
+    op: in
+    value:
+    - READER
+    - AUTHOR
+    - ADMIN

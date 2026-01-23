@@ -1,0 +1,406 @@
+version: '1.0'
+provider: aws
+service: cloudtrail
+services:
+  client: cloudtrail
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudtrail.describe_trails
+  calls:
+  - action: describe_trails
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.trailList }}'
+    as: item
+- discovery_id: aws.cloudtrail.get_insight_selectors
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_insight_selectors
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.cloudtrail.get_event_selectors
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_event_selectors
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.cloudtrail.get_event_configuration
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_event_configuration
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.cloudtrail.list_event_data_stores
+  calls:
+  - action: list_event_data_stores
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.EventDataStores }}'
+    as: item
+checks:
+- rule_id: aws.cloudtrail.account.usage_monitoring_config_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.HasInsightSelectors
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudtrail.bucket.access_logging_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.S3BucketName
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.bucket.is_not_publicly_accessible_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.S3BucketName
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.cloudwatch.logging_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.cloudwatch_monitor_no_mfa_console_signin.cloudwatch_monitor_no_mfa_console_signin_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.config_changes_monitoring.config_changes_monitoring_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.SnsTopicARN
+      op: exists
+      value: null
+    - var: item.HasInsightSelectors
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudtrail.console_auth_failures_monitoring.console_auth_failures_monitoring_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.group.change_alerts_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.SnsTopicName
+      op: exists
+      value: null
+    - var: item.SnsTopicARN
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.group.trail_cloudtrail_configuration_changes_monitored
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.kms.encryption_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.log.file_validation_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.LogFileValidationEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.cloudtrail.logs.s3_bucket_access_logging_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.S3BucketName
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.logs.s3_bucket_is_not_publicly_accessible_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.S3BucketName
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.monitor_organizations_changes_metric_filter.trail_cloudtrail_monitor_organizations_changes_metric_filter_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.IsOrganizationTrail
+      op: equals
+      value: 'true'
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.multi.trail_cloudtrail_region_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.IsMultiRegionTrail
+    op: equals
+    value: 'true'
+- rule_id: aws.cloudtrail.nacl_event_selectors_monitoring.nacl_event_selectors_monitoring_configured
+  for_each: aws.cloudtrail.get_event_selectors
+  conditions:
+    all:
+    - var: item.EventSelectors.ReadWriteType
+      op: equals
+      value: All
+    - var: item.EventSelectors.IncludeManagementEvents
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudtrail.network.gateway_change_monitoring_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    all:
+    - var: item.InsightType
+      op: equals
+      value: ApiCallRateInsight
+    - var: item.EventCategories
+      op: exists
+      value:
+      - Management
+      - Data
+- rule_id: aws.cloudtrail.network.gateway_changes_configured
+  for_each: aws.cloudtrail.get_event_selectors
+  conditions:
+    all:
+    - var: item.EventSelectors.IncludeManagementEvents
+      op: equals
+      value: 'true'
+    - var: item.EventSelectors.DataResources
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.organizations_changes_monitoring_setup.organizations_changes_monitoring_setup_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.IsOrganizationTrail
+      op: equals
+      value: 'true'
+    - var: item.HasInsightSelectors
+      op: equals
+      value: 'true'
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.policy.change_monitoring_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    all:
+    - var: item.InsightType
+      op: equals
+      value: ApiCallRateInsight
+    - var: item.EventCategories
+      op: exists
+      value:
+      - Management
+      - Data
+- rule_id: aws.cloudtrail.resource.cloudwatch_logging_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.resource.kms_encryption_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudtrail.resource.nacl_change_monitoring_configuration_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.resource.trail_cloudtrail_log_file_validation_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.LogFileValidationEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.cloudtrail.resource.trail_cloudtrail_multi_region_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.IsMultiRegionTrail
+    op: equals
+    value: 'true'
+- rule_id: aws.cloudtrail.resource.trail_cloudtrail_s3_dataevents_read_enabled
+  for_each: aws.cloudtrail.get_event_configuration
+  conditions:
+    any:
+    - var: item.DataResources.Type
+      op: equals
+      value: AWS::S3::Object
+    - var: item.ReadWriteType
+      op: equals
+      value: ReadOnly
+- rule_id: aws.cloudtrail.resource.trail_cloudtrail_s3_dataevents_write_enabled
+  for_each: aws.cloudtrail.get_event_selectors
+  conditions:
+    all:
+    - var: item.EventSelectors.ReadWriteType
+      op: equals
+      value: WriteOnly
+    - var: item.EventSelectors.DataResources.Type
+      op: equals
+      value: AWS::S3::Object
+- rule_id: aws.cloudtrail.resource.vpc_changes_monitoring_enabled
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm.route_table_changes_metric_filter_alarm_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.route_table_changes_metric_filter_alarm_monitoring.route_table_changes_monitored
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_read_enabled
+  for_each: aws.cloudtrail.get_event_selectors
+  conditions:
+    all:
+    - var: item.EventSelectors.ReadWriteType
+      op: equals
+      value: ReadOnly
+    - var: item.EventSelectors.DataResources.Type
+      op: equals
+      value: AWS::S3::Object
+- rule_id: aws.cloudtrail.s3.trail_cloudtrail_dataevents_write_enabled
+  for_each: aws.cloudtrail.get_event_selectors
+  conditions:
+    all:
+    - var: item.EventSelectors.ReadWriteType
+      op: equals
+      value: WriteOnly
+    - var: item.EventSelectors.DataResources.Type
+      op: equals
+      value: AWS::S3::Object
+- rule_id: aws.cloudtrail.threat_detection_enumeration.trail_cloudtrail_threat_detection_enumeration_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.threat_detection_llm_jacking.trail_cloudtrail_threat_detection_llm_jacking_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    all:
+    - var: item.InsightType
+      op: equals
+      value: CloudTrailInsight
+    - var: item.EventCategories
+      op: equals
+      value:
+      - ApiCallRateInsight
+- rule_id: aws.cloudtrail.threat_detection_privilege_escalation.trail_cloudtrail_threat_detection_privilege_escalation_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    all:
+    - var: item.InsightType
+      op: equals
+      value: ApiCallRateInsight
+    - var: item.EventCategories
+      op: equals
+      value:
+      - Management
+- rule_id: aws.cloudtrail.trail.alert_destinations_configured
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.SnsTopicARN
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.trail.alerts_for_anomalies_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight
+- rule_id: aws.cloudtrail.trail.cloudtrail_trail_ids_ips_enabled_if_supported
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    var: item.HasInsightSelectors
+    op: equals
+    value: 'true'
+- rule_id: aws.cloudtrail.trail.flow_logging_enabled
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.CloudWatchLogsLogGroupArn
+      op: exists
+      value: null
+    - var: item.CloudWatchLogsRoleArn
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.trail.log_trail_logs_centralized_and_encrypted
+  for_each: aws.cloudtrail.describe_trails
+  conditions:
+    all:
+    - var: item.IsOrganizationTrail
+      op: equals
+      value: 'true'
+    - var: item.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.cloudtrail.trail.retention_days_minimum
+  for_each: aws.cloudtrail.list_event_data_stores
+  conditions:
+    var: item.RetentionPeriod
+    op: greater_than
+    value: '90'
+- rule_id: aws.cloudtrail.unauthorized_api_calls_monitoring_configured.unauthorized_api_calls_monitoring_configured_configured
+  for_each: aws.cloudtrail.get_insight_selectors
+  conditions:
+    var: item.InsightType
+    op: equals
+    value: ApiCallRateInsight

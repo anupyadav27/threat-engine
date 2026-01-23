@@ -1,0 +1,89 @@
+version: '1.0'
+provider: aws
+service: cloudtrail
+services:
+  client: cloudtrail
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudtrail.describe_trails
+  calls:
+  - action: describe_trails
+    save_as: response
+  emit:
+    items_for: '{{ response.trailList }}'
+    as: item
+    item:
+      Name: '{{ item.Name }}'
+      S3BucketName: '{{ item.S3BucketName }}'
+      S3KeyPrefix: '{{ item.S3KeyPrefix }}'
+      SnsTopicName: '{{ item.SnsTopicName }}'
+      SnsTopicARN: '{{ item.SnsTopicARN }}'
+      IncludeGlobalServiceEvents: '{{ item.IncludeGlobalServiceEvents }}'
+      IsMultiRegionTrail: '{{ item.IsMultiRegionTrail }}'
+      HomeRegion: '{{ item.HomeRegion }}'
+      TrailARN: '{{ item.TrailARN }}'
+      LogFileValidationEnabled: '{{ item.LogFileValidationEnabled }}'
+      CloudWatchLogsLogGroupArn: '{{ item.CloudWatchLogsLogGroupArn }}'
+      CloudWatchLogsRoleArn: '{{ item.CloudWatchLogsRoleArn }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+      HasCustomEventSelectors: '{{ item.HasCustomEventSelectors }}'
+      HasInsightSelectors: '{{ item.HasInsightSelectors }}'
+      IsOrganizationTrail: '{{ item.IsOrganizationTrail }}'
+- discovery_id: aws.cloudtrail.get_insight_selectors
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_insight_selectors
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit:
+    item:
+      TrailName: '{{ item.Name }}'
+      TrailARN: '{{ item.TrailARN }}'
+      InsightType: '{{ response.InsightSelectors[0].InsightType if response.InsightSelectors
+        else null }}'
+      EventCategories: '{{ response.InsightSelectors[0].EventCategories if response.InsightSelectors
+        else null }}'
+- discovery_id: aws.cloudtrail.get_event_selectors
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_event_selectors
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit:
+    item:
+      TrailName: '{{ item.Name }}'
+      TrailARN: '{{ item.TrailARN }}'
+      EventSelectors: '{{ response.EventSelectors }}'
+      AdvancedEventSelectors: '{{ response.AdvancedEventSelectors }}'
+- discovery_id: aws.cloudtrail.get_event_configuration
+  for_each: aws.cloudtrail.describe_trails
+  calls:
+  - action: get_event_configuration
+    params:
+      TrailName: '{{ item.Name }}'
+    save_as: response
+  emit:
+    item:
+      TrailName: '{{ item.Name }}'
+      TrailARN: '{{ item.TrailARN }}'
+      AggregationConfigurations: '{{ response.AggregationConfigurations }}'
+- discovery_id: aws.cloudtrail.list_event_data_stores
+  calls:
+  - action: list_event_data_stores
+    save_as: response
+  emit:
+    items_for: '{{ response.EventDataStores }}'
+    as: item
+    item:
+      EventDataStoreArn: '{{ item.EventDataStoreArn }}'
+      Name: '{{ item.Name }}'
+      TerminationProtectionEnabled: '{{ item.TerminationProtectionEnabled }}'
+      Status: '{{ item.Status }}'
+      AdvancedEventSelectors: '{{ item.AdvancedEventSelectors }}'
+      MultiRegionEnabled: '{{ item.MultiRegionEnabled }}'
+      OrganizationEnabled: '{{ item.OrganizationEnabled }}'
+      RetentionPeriod: '{{ item.RetentionPeriod }}'
+      CreatedTimestamp: '{{ item.CreatedTimestamp }}'
+      UpdatedTimestamp: '{{ item.UpdatedTimestamp }}'

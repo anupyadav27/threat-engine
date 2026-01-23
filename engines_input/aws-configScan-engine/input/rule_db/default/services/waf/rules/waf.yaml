@@ -1,0 +1,144 @@
+version: '1.0'
+provider: aws
+service: waf
+services:
+  client: waf
+  module: boto3.client
+discovery:
+- discovery_id: aws.waf.list_regex_pattern_sets
+  calls:
+  - action: list_regex_pattern_sets
+    save_as: response
+  emit:
+    items_for: '{{ response.RegexPatternSets }}'
+    as: item
+    item:
+      RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_regex_pattern_set
+  for_each: aws.waf.list_regex_pattern_sets
+  calls:
+  - action: get_regex_pattern_set
+    params:
+      RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+    save_as: response
+  emit:
+    item:
+      RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+      Name: '{{ item.Name }}'
+      RegexPatternStrings: '{{ response.RegexPatternSet.RegexPatternStrings }}'
+      RegularExpressionList: '{{ response.RegexPatternSet.RegexPatternStrings }}'
+- discovery_id: aws.waf.list_ip_sets
+  calls:
+  - action: list_ip_sets
+    save_as: response
+  emit:
+    items_for: '{{ response.IPSets }}'
+    as: item
+    item:
+      IPSetId: '{{ item.IPSetId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_i_p_set
+  for_each: aws.waf.list_ip_sets
+  calls:
+  - action: get_ip_set
+    params:
+      IPSetId: '{{ item.IPSetId }}'
+    save_as: response
+  emit:
+    item:
+      IPSetId: '{{ item.IPSetId }}'
+      Name: '{{ item.Name }}'
+      IPSetDescriptors: '{{ response.IPSet.IPSetDescriptors }}'
+      Addresses: '{{ response.IPSet.IPSetDescriptors }}'
+- discovery_id: aws.waf.list_activated_rules_in_rule_group
+  for_each: aws.waf.list_rule_groups
+  calls:
+  - action: list_activated_rules_in_rule_group
+    params:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.ActivatedRules }}'
+    as: item
+    item:
+      Priority: '{{ item.Priority }}'
+      RuleId: '{{ item.RuleId }}'
+      Action: '{{ item.Action }}'
+      OverrideAction: '{{ item.OverrideAction }}'
+      Type: '{{ item.Type }}'
+      ExcludedRules: '{{ item.ExcludedRules }}'
+      RuleGroupId: '{{ parent.item.RuleGroupId }}'
+- discovery_id: aws.waf.list_subscribed_rule_groups
+  calls:
+  - action: list_rule_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.RuleGroups }}'
+    as: item
+    item:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_web_acl
+  for_each: aws.waf.list_web_acls
+  calls:
+  - action: get_web_acl
+    params:
+      WebACLId: '{{ item.WebACLId }}'
+    save_as: response
+  emit:
+    item:
+      WebACLId: '{{ item.WebACLId }}'
+      Name: '{{ item.Name }}'
+      WebACLArn: '{{ response.WebACL.WebACLArn }}'
+      Rules: '{{ response.WebACL.Rules }}'
+      DefaultAction: '{{ response.WebACL.DefaultAction }}'
+      MetricName: '{{ response.WebACL.MetricName }}'
+- discovery_id: aws.waf.get_logging_configuration
+  for_each: aws.waf.get_web_acl
+  calls:
+  - action: get_logging_configuration
+    params:
+      ResourceArn: '{{ item.WebACLArn }}'
+    save_as: response
+  emit:
+    item:
+      WebACLId: '{{ item.WebACLId }}'
+      WebACLArn: '{{ item.WebACLArn }}'
+      ResourceArn: '{{ response.LoggingConfiguration.ResourceArn }}'
+      LogDestinationConfigs: '{{ response.LoggingConfiguration.LogDestinationConfigs
+        }}'
+- discovery_id: aws.waf.list_web_acls
+  calls:
+  - action: list_web_acls
+    save_as: response
+  emit:
+    items_for: '{{ response.WebACLs }}'
+    as: item
+    item:
+      WebACLId: '{{ item.WebACLId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.list_rule_groups
+  calls:
+  - action: list_rule_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.RuleGroups }}'
+    as: item
+    item:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_rule_group
+  for_each: aws.waf.list_rule_groups
+  calls:
+  - action: get_rule_group
+    params:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+    save_as: response
+  emit:
+    item:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+      Name: '{{ item.Name }}'
+      Rules: '{{ response.RuleGroup.Rules }}'
+      VisibilityConfig: '{{ response.RuleGroup.VisibilityConfig }}'

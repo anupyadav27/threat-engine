@@ -1,0 +1,37 @@
+version: '1.0'
+provider: aws
+service: servicecatalog
+services:
+  client: servicecatalog
+  module: boto3.client
+discovery:
+- discovery_id: aws.servicecatalog.list_portfolios
+  calls:
+  - action: list_portfolios
+    save_as: response
+  emit:
+    items_for: '{{ response.PortfolioDetails }}'
+    as: item
+    item:
+      Id: '{{ item.Id }}'
+      ARN: '{{ item.ARN }}'
+      DisplayName: '{{ item.DisplayName }}'
+      Description: '{{ item.Description }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      ProviderName: '{{ item.ProviderName }}'
+- discovery_id: aws.servicecatalog.describe_portfolio_shares
+  for_each: aws.servicecatalog.list_portfolios
+  calls:
+  - action: describe_portfolio_shares
+    params:
+      PortfolioId: '{{ item.Id }}'
+      Type: ACCOUNT
+    save_as: response
+  emit:
+    items_for: '{{ response.PortfolioShareDetails }}'
+    as: share_item
+    item:
+      PortfolioId: '{{ item.Id }}'
+      PrincipalId: '{{ share_item.PrincipalId }}'
+      Type: '{{ share_item.Type }}'
+      Accepted: '{{ share_item.Accepted }}'

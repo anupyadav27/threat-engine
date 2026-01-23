@@ -1,0 +1,104 @@
+version: '1.0'
+provider: aws
+service: compute-optimizer-automation
+services:
+  client: compute-optimizer-automation
+  module: boto3.client
+discovery:
+- discovery_id: aws.compute-optimizer-automation.list_recommended_actions
+  calls:
+  - action: list_recommended_actions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recommendedActions }}'
+- discovery_id: aws.compute-optimizer-automation.list_automation_events
+  calls:
+  - action: list_automation_events
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.automationEvents }}'
+- discovery_id: aws.compute-optimizer-automation.list_automation_rules
+  calls:
+  - action: list_automation_rules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.automationRules }}'
+- discovery_id: aws.compute-optimizer-automation.list_accounts
+  calls:
+  - action: list_accounts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.accounts }}'
+- discovery_id: aws.compute-optimizer-automation.list_automation_event_summaries
+  calls:
+  - action: list_automation_event_summaries
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.automationEventSummaries }}'
+- discovery_id: aws.compute-optimizer-automation.get_automation_event
+  for_each: aws.compute-optimizer-automation.list_automation_events
+  calls:
+  - action: get_automation_event
+    save_as: response
+    on_error: continue
+    params:
+      eventId: '{{ item.automationEventEventId }}'
+  emit:
+    as: item
+    items_for: '{{ response.estimatedMonthlySavings }}'
+- discovery_id: aws.compute-optimizer-automation.list_automation_event_steps
+  for_each: aws.compute-optimizer-automation.list_automation_events
+  calls:
+  - action: list_automation_event_steps
+    save_as: response
+    on_error: continue
+    params:
+      eventId: '{{ item.automationEventEventId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.automationEventSteps }}'
+- discovery_id: aws.compute-optimizer-automation.get_automation_rule
+  for_each: aws.compute-optimizer-automation.list_automation_rules
+  calls:
+  - action: get_automation_rule
+    save_as: response
+    on_error: continue
+    params:
+      ruleArn: '{{ item.automationRulRuleArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.recommendedActionTypes }}'
+- discovery_id: aws.compute-optimizer-automation.list_tags_for_resource
+  for_each: aws.compute-optimizer-automation.list_recommended_actions
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      resourceArn: '{{ item.automationEventResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

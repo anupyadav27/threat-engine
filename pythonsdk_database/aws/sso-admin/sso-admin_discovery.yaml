@@ -1,0 +1,251 @@
+version: '1.0'
+provider: aws
+service: sso-admin
+services:
+  client: sso-admin
+  module: boto3.client
+discovery:
+- discovery_id: aws.sso-admin.list_instances
+  calls:
+  - action: list_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Instances }}'
+- discovery_id: aws.sso-admin.list_application_providers
+  calls:
+  - action: list_application_providers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationProviders }}'
+- discovery_id: aws.sso-admin.describe_account_assignment_creation_status
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: describe_account_assignment_creation_status
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AccountAssignmentCreationStatus }}'
+- discovery_id: aws.sso-admin.describe_instance
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: describe_instance
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EncryptionConfigurationDetails }}'
+- discovery_id: aws.sso-admin.list_applications
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: list_applications
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+- discovery_id: aws.sso-admin.describe_application
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: describe_application
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.applicationAssignmentApplicationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PortalOptions }}'
+- discovery_id: aws.sso-admin.describe_application_provider
+  for_each: aws.sso-admin.list_application_providers
+  calls:
+  - action: describe_application_provider
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationProviderArn: '{{ item.applicationProviderApplicationProviderArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DisplayData }}'
+- discovery_id: aws.sso-admin.describe_permission_set_provisioning_status
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: describe_permission_set_provisioning_status
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PermissionSetProvisioningStatus }}'
+- discovery_id: aws.sso-admin.describe_permission_set
+  for_each: aws.sso-admin.describe_account_assignment_creation_status
+  calls:
+  - action: describe_permission_set
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PermissionSet }}'
+- discovery_id: aws.sso-admin.describe_instance_access_control_attribute_configuration
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: describe_instance_access_control_attribute_configuration
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InstanceAccessControlAttributeConfiguration }}'
+- discovery_id: aws.sso-admin.list_trusted_token_issuers
+  for_each: aws.sso-admin.list_instances
+  calls:
+  - action: list_trusted_token_issuers
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TrustedTokenIssuers }}'
+- discovery_id: aws.sso-admin.list_application_access_scopes
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: list_application_access_scopes
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.applicationAssignmentApplicationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Scopes }}'
+- discovery_id: aws.sso-admin.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.sso-admin.get_permissions_boundary_for_permission_set
+  for_each: aws.sso-admin.describe_account_assignment_creation_status
+  calls:
+  - action: get_permissions_boundary_for_permission_set
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.PermissionsBoundary }}'
+- discovery_id: aws.sso-admin.list_application_authentication_methods
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: list_application_authentication_methods
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.applicationAssignmentApplicationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AuthenticationMethods }}'
+- discovery_id: aws.sso-admin.list_application_grants
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: list_application_grants
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.applicationAssignmentApplicationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Grants }}'
+- discovery_id: aws.sso-admin.get_application_grant
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: get_application_grant
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.grantGrantType }}'
+  emit:
+    as: item
+    items_for: '{{ response.Grant }}'
+- discovery_id: aws.sso-admin.describe_trusted_token_issuer
+  for_each: aws.sso-admin.list_trusted_token_issuers
+  calls:
+  - action: describe_trusted_token_issuer
+    save_as: response
+    on_error: continue
+    params:
+      TrustedTokenIssuerArn: '{{ item.trustedTokenIssuerTrustedTokenIssuerArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TrustedTokenIssuerConfiguration }}'
+- discovery_id: aws.sso-admin.list_managed_policies_in_permission_set
+  for_each: aws.sso-admin.describe_account_assignment_creation_status
+  calls:
+  - action: list_managed_policies_in_permission_set
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AttachedManagedPolicies }}'
+- discovery_id: aws.sso-admin.get_application_authentication_method
+  for_each: aws.sso-admin.list_applications
+  calls:
+  - action: get_application_authentication_method
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationArn: '{{ item.authenticationMethodAuthenticationMethodType }}'
+  emit:
+    as: item
+    items_for: '{{ response.AuthenticationMethod }}'
+- discovery_id: aws.sso-admin.list_customer_managed_policy_references_in_permission_set
+  for_each: aws.sso-admin.describe_account_assignment_creation_status
+  calls:
+  - action: list_customer_managed_policy_references_in_permission_set
+    save_as: response
+    on_error: continue
+    params:
+      InstanceArn: '{{ item.instancInstanceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CustomerManagedPolicyReferences }}'
+checks: []

@@ -1,0 +1,44 @@
+version: '1.0'
+provider: aws
+service: timestream-influxdb
+services:
+  client: timestream-influxdb
+  module: boto3.client
+discovery:
+- discovery_id: aws.timestream-influxdb.list_db_clusters
+  calls:
+  - action: list_db_clusters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.timestream-influxdb.list_db_parameter_groups
+  calls:
+  - action: list_db_parameter_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.timestream-influxdb.get_db_parameter_group
+  calls:
+  - action: get_db_parameter_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.parameters }}'
+- discovery_id: aws.timestream-influxdb.get_db_instance
+  calls:
+  - action: get_db_instance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.vpcSubnetIds }}'
+checks: []

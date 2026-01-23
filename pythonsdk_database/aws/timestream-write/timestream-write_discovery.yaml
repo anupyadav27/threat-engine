@@ -1,0 +1,82 @@
+version: '1.0'
+provider: aws
+service: timestream-write
+services:
+  client: timestream-write
+  module: boto3.client
+discovery:
+- discovery_id: aws.timestream-write.list_tables
+  calls:
+  - action: list_tables
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tables }}'
+- discovery_id: aws.timestream-write.list_batch_load_tasks
+  calls:
+  - action: list_batch_load_tasks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BatchLoadTasks }}'
+- discovery_id: aws.timestream-write.list_databases
+  calls:
+  - action: list_databases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Databases }}'
+- discovery_id: aws.timestream-write.describe_endpoints
+  calls:
+  - action: describe_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+- discovery_id: aws.timestream-write.describe_batch_load_task
+  for_each: aws.timestream-write.list_batch_load_tasks
+  calls:
+  - action: describe_batch_load_task
+    save_as: response
+    on_error: continue
+    params:
+      TaskId: '{{ item.batchLoadTaskTaskId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BatchLoadTaskDescription }}'
+- discovery_id: aws.timestream-write.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.timestream-write.describe_table
+  for_each: aws.timestream-write.list_tables
+  calls:
+  - action: describe_table
+    save_as: response
+    on_error: continue
+    params:
+      DatabaseName: '{{ item.batchLoadTaskTableName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Table }}'
+checks: []

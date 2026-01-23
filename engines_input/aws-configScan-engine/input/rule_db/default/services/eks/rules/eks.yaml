@@ -1,0 +1,180 @@
+version: '1.0'
+provider: aws
+service: eks
+services:
+  client: eks
+  module: boto3.client
+discovery:
+- discovery_id: aws.eks.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+  emit:
+    items_for: '{{ response.clusters }}'
+    as: item
+    item:
+      clusterName: '{{ item }}'
+- discovery_id: aws.eks.describe_cluster
+  for_each: aws.eks.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      name: '{{ item.clusterName }}'
+    save_as: response
+  emit:
+    item:
+      name: '{{ response.cluster.name }}'
+      arn: '{{ response.cluster.arn }}'
+      createdAt: '{{ response.cluster.createdAt }}'
+      version: '{{ response.cluster.version }}'
+      endpoint: '{{ response.cluster.endpoint }}'
+      roleArn: '{{ response.cluster.roleArn }}'
+      resourcesVpcConfig: '{{ response.cluster.resourcesVpcConfig }}'
+      kubernetesNetworkConfig: '{{ response.cluster.kubernetesNetworkConfig }}'
+      logging: '{{ response.cluster.logging }}'
+      identity: '{{ response.cluster.identity }}'
+      status: '{{ response.cluster.status }}'
+      certificateAuthority: '{{ response.cluster.certificateAuthority }}'
+      clientRequestToken: '{{ response.cluster.clientRequestToken }}'
+      platformVersion: '{{ response.cluster.platformVersion }}'
+      tags: '{{ response.cluster.tags }}'
+      encryptionConfig: '{{ response.cluster.encryptionConfig }}'
+      connectorConfig: '{{ response.cluster.connectorConfig }}'
+      id: '{{ response.cluster.id }}'
+      health: '{{ response.cluster.health }}'
+      outpostConfig: '{{ response.cluster.outpostConfig }}'
+- discovery_id: aws.eks.list_addons
+  for_each: aws.eks.list_clusters
+  calls:
+  - action: list_addons
+    params:
+      clusterName: '{{ item.clusterName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.addons }}'
+    as: item
+    item:
+      addonName: '{{ item }}'
+      clusterName: '{{ item.clusterName }}'
+- discovery_id: aws.eks.describe_addon
+  for_each: aws.eks.list_addons
+  calls:
+  - action: describe_addon
+    params:
+      clusterName: '{{ item.clusterName }}'
+      addonName: '{{ item.addonName }}'
+    save_as: response
+  emit:
+    item:
+      addonName: '{{ response.addon.addonName }}'
+      clusterName: '{{ response.addon.clusterName }}'
+      status: '{{ response.addon.status }}'
+      addonVersion: '{{ response.addon.addonVersion }}'
+      health: '{{ response.addon.health }}'
+      addonArn: '{{ response.addon.addonArn }}'
+      createdAt: '{{ response.addon.createdAt }}'
+      modifiedAt: '{{ response.addon.modifiedAt }}'
+      serviceAccountRoleArn: '{{ response.addon.serviceAccountRoleArn }}'
+      tags: '{{ response.addon.tags }}'
+      publisher: '{{ response.addon.publisher }}'
+      owner: '{{ response.addon.owner }}'
+      marketplaceInformation: '{{ response.addon.marketplaceInformation }}'
+      configurationValues: '{{ response.addon.configurationValues }}'
+      podIdentityAssociations: '{{ response.addon.podIdentityAssociations }}'
+      namespaceConfig: '{{ response.addon.namespaceConfig }}'
+- discovery_id: aws.eks.list_access_entries
+  for_each: aws.eks.list_clusters
+  calls:
+  - action: list_access_entries
+    params:
+      clusterName: '{{ item.clusterName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.accessEntries }}'
+    as: item
+    item:
+      clusterName: '{{ item.clusterName }}'
+      principalArn: '{{ item.principalArn }}'
+      kubernetesGroups: '{{ item.kubernetesGroups }}'
+      accessEntryArn: '{{ item.accessEntryArn }}'
+      createdAt: '{{ item.createdAt }}'
+      modifiedAt: '{{ item.modifiedAt }}'
+      tags: '{{ item.tags }}'
+      username: '{{ item.username }}'
+      type: '{{ item.type }}'
+- discovery_id: aws.eks.list_nodegroups
+  for_each: aws.eks.list_clusters
+  calls:
+  - action: list_nodegroups
+    params:
+      clusterName: '{{ item.clusterName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.nodegroups }}'
+    as: item
+    item:
+      nodegroupName: '{{ item }}'
+      clusterName: '{{ item.clusterName }}'
+- discovery_id: aws.eks.describe_nodegroup
+  for_each: aws.eks.list_nodegroups
+  calls:
+  - action: describe_nodegroup
+    params:
+      clusterName: '{{ item.clusterName }}'
+      nodegroupName: '{{ item.nodegroupName }}'
+    save_as: response
+  emit:
+    item:
+      nodegroupName: '{{ response.nodegroup.nodegroupName }}'
+      nodegroupArn: '{{ response.nodegroup.nodegroupArn }}'
+      clusterName: '{{ response.nodegroup.clusterName }}'
+      version: '{{ response.nodegroup.version }}'
+      releaseVersion: '{{ response.nodegroup.releaseVersion }}'
+      createdAt: '{{ response.nodegroup.createdAt }}'
+      modifiedAt: '{{ response.nodegroup.modifiedAt }}'
+      status: '{{ response.nodegroup.status }}'
+      capacityType: '{{ response.nodegroup.capacityType }}'
+      scalingConfig: '{{ response.nodegroup.scalingConfig }}'
+      instanceTypes: '{{ response.nodegroup.instanceTypes }}'
+      subnets: '{{ response.nodegroup.subnets }}'
+      remoteAccess: '{{ response.nodegroup.remoteAccess }}'
+      amiType: '{{ response.nodegroup.amiType }}'
+      nodeRole: '{{ response.nodegroup.nodeRole }}'
+      labels: '{{ response.nodegroup.labels }}'
+      taints: '{{ response.nodegroup.taints }}'
+      resources: '{{ response.nodegroup.resources }}'
+      diskSize: '{{ response.nodegroup.diskSize }}'
+      health: '{{ response.nodegroup.health }}'
+- discovery_id: aws.eks.list_fargate_profiles
+  for_each: aws.eks.list_clusters
+  calls:
+  - action: list_fargate_profiles
+    params:
+      clusterName: '{{ item.clusterName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.fargateProfileNames }}'
+    as: item
+    item:
+      fargateProfileName: '{{ item }}'
+      clusterName: '{{ item.clusterName }}'
+- discovery_id: aws.eks.describe_fargate_profile
+  for_each: aws.eks.list_fargate_profiles
+  calls:
+  - action: describe_fargate_profile
+    params:
+      clusterName: '{{ item.clusterName }}'
+      fargateProfileName: '{{ item.fargateProfileName }}'
+    save_as: response
+  emit:
+    item:
+      fargateProfileName: '{{ response.fargateProfile.fargateProfileName }}'
+      fargateProfileArn: '{{ response.fargateProfile.fargateProfileArn }}'
+      clusterName: '{{ response.fargateProfile.clusterName }}'
+      createdAt: '{{ response.fargateProfile.createdAt }}'
+      podExecutionRoleArn: '{{ response.fargateProfile.podExecutionRoleArn }}'
+      subnets: '{{ response.fargateProfile.subnets }}'
+      selectors: '{{ response.fargateProfile.selectors }}'
+      status: '{{ response.fargateProfile.status }}'
+      tags: '{{ response.fargateProfile.tags }}'
+      health: '{{ response.fargateProfile.health }}'

@@ -1373,10 +1373,31 @@ def _retry_call(func, *args, **kwargs):
             if _is_expected_aws_error(e):
                 logger.debug(f"Skipping retry for expected error: {e}")
                 raise  # Re-raise immediately without retrying
+            
+            # Check if this is a throttling error - use longer delays
+            error_code = ''
+            error_message = str(e).lower()
+            if hasattr(e, 'response'):
+                error_code = e.response.get('Error', {}).get('Code', '') if hasattr(e, 'response') else ''
+            
+            is_throttling = (
+                'ThrottlingException' in str(type(e).__name__) or
+                'ThrottlingException' in error_code or
+                'throttling' in error_message or
+                'rate exceeded' in error_message
+            )
+            
             if attempt == MAX_RETRIES - 1:
                 raise
-            delay = BASE_DELAY * (BACKOFF_FACTOR ** attempt)
-            logger.debug(f"Retrying after error: {e} (attempt {attempt+1}/{MAX_RETRIES}, sleep {delay:.2f}s)")
+            
+            # Use longer delay for throttling errors (exponential backoff with higher multiplier)
+            if is_throttling:
+                delay = max(BASE_DELAY * 2, BASE_DELAY * (BACKOFF_FACTOR ** attempt) * 2)
+                logger.debug(f"Throttling detected, using longer delay: {delay:.2f}s (attempt {attempt+1}/{MAX_RETRIES})")
+            else:
+                delay = BASE_DELAY * (BACKOFF_FACTOR ** attempt)
+                logger.debug(f"Retrying after error: {e} (attempt {attempt+1}/{MAX_RETRIES}, sleep {delay:.2f}s)")
+            
             sleep(delay)
 
 def _call_with_timeout(client, action: str, params: Dict[str, Any], timeout: int = OPERATION_TIMEOUT) -> Dict[str, Any]:
@@ -2478,8 +2499,15 @@ def _run_single_check(
     
     return check_results
 
-def run_global_service(service_name, session_override: Optional[boto3.session.Session] = None):
-    """Run compliance checks for a global service"""
+def run_global_service(service_name, session_override: Optional[boto3.session.Session] = None, skip_checks: bool = False):
+    """
+    Run discoveries for a global service, optionally run checks
+    
+    Args:
+        service_name: Service name (e.g., 'iam')
+        session_override: Optional boto3 session
+        skip_checks: If True, skip check phase (discovery only)
+    """
     try:
         service_rules = load_service_rules(service_name)
         session = session_override or get_boto3_session(default_region='us-east-1')
@@ -2568,8 +2596,25 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                                 context = saved_data.copy()
                             
                             def resolve_params_recursive(obj, context):
+                                """Recursively resolve template variables in params, with validation for QuickSight AwsAccountId"""
                                 if isinstance(obj, dict):
-                                    return {k: resolve_params_recursive(v, context) for k, v in obj.items()}
+                                    resolved = {}
+                                    for key, value in obj.items():
+                                        resolved_value = resolve_params_recursive(value, context)
+                                        # Validate QuickSight AwsAccountId - ensure it's not 0 or empty
+                                        if key == 'AwsAccountId' and service_name == 'quicksight':
+                                            if resolved_value == '0' or resolved_value == 0 or resolved_value == '':
+                                                # Try to get account ID from STS if account_info is invalid
+                                                try:
+                                                    sts_client = session.client('sts', region_name='us-east-1', config=BOTO_CONFIG)
+                                                    account_id_from_sts = sts_client.get_caller_identity().get('Account')
+                                                    if account_id_from_sts:
+                                                        resolved_value = str(account_id_from_sts)
+                                                        logger.debug(f"QuickSight: Fixed invalid AwsAccountId (was {obj.get('AwsAccountId')}), using {resolved_value}")
+                                                except Exception as e:
+                                                    logger.warning(f"QuickSight: Could not get account ID from STS: {e}")
+                                        resolved[key] = resolved_value
+                                    return resolved
                                 elif isinstance(obj, list):
                                     return [resolve_params_recursive(item, context) for item in obj]
                                 elif isinstance(obj, str):
@@ -2675,11 +2720,18 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                             
                             if response_items:
                                 for response_item in response_items:
-                                    emit_context = {'item': item, 'response': response, as_var: response_item}
-                                    emit_context.update(context)
-                                    item_data = {}
-                                    for field_name, field_template in emit_config.get('item', {}).items():
-                                        item_data[field_name] = resolve_template(field_template, emit_context)
+                                    # Store the FULL response_item object (all fields from API response)
+                                    if isinstance(response_item, dict):
+                                        item_data = response_item.copy()  # Store entire item object
+                                        
+                                        # Add ARN and Name fields if they don't exist (for matching/enrichment)
+                                        auto_fields = auto_emit_arn_and_name(response_item, service=service_name, region=None, account_id=account_id)
+                                        for key, value in auto_fields.items():
+                                            if key not in item_data:
+                                                item_data[key] = value
+                                    else:
+                                        # Non-dict item (shouldn't happen, but handle gracefully)
+                                        item_data = {'_raw_item': response_item}
                                     
                                     # CRITICAL: Preserve resource_arn from parent item for ARN-based matching (GLOBAL)
                                     # ARN is the universal matching key across all AWS services
@@ -2702,23 +2754,15 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                                 logger.warning(f"[EMIT] {discovery_id}: response is not a dict (type={type(response).__name__}), skipping emit")
                                 continue
                             
-                            item_data = {}
-                            emit_context = {'response': response, 'item': item}
-                            emit_context.update(context)
-                            for field_name, field_template in emit_config.get('item', {}).items():
-                                resolved_value = resolve_template(field_template, emit_context)
-                                
-                                # Handle empty list results (generic fix for all services)
-                                if resolved_value == '[]':
-                                    # Try direct access as fallback (for simple paths like response.Status)
-                                    if field_template.startswith('{{ response.') and field_template.endswith(' }}'):
-                                        field_path = field_template.replace('{{ response.', '').replace(' }}', '').strip()
-                                        if field_path in response:
-                                            resolved_value = str(response[field_path]) if response[field_path] is not None else ''
-                                        else:
-                                            resolved_value = ''  # Field doesn't exist in response
-                                
-                                item_data[field_name] = resolved_value
+                            # Store the FULL API response (excluding ResponseMetadata)
+                            item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                            
+                            # CRITICAL: Preserve resource_arn from parent item for ARN-based matching
+                            if isinstance(item, dict):
+                                parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
+                                if parent_arn and isinstance(parent_arn, str) and parent_arn.startswith('arn:aws:'):
+                                    item_data['resource_arn'] = parent_arn
+                            
                             results.append(item_data)
                     
                     # Thread-safe write to discovery_results
@@ -2735,22 +2779,19 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                     results = []
                     if items:
                         for item in items:
-                            context = {as_var: item}
-                            context.update(saved_data_copy)
-                            item_data = {}
-                            for field_name, field_template in emit_config.get('item', {}).items():
-                                resolved_value = resolve_template(field_template, context)
-                                item_data[field_name] = resolved_value
-                                # #region agent log
-                                if discovery_id == 'aws.kms.list_keys' and field_name == 'KeyId' and len(results) < 2:
-                                    with open('/Users/apple/Desktop/threat-engine/.cursor/debug.log', 'a') as f:
-                                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"service_scanner.py:2668","message":"Independent emit: KeyId resolved","data":{"discovery_id":discovery_id,"field_name":field_name,"resolved_value":str(resolved_value)[:100],"item_has_KeyId":'KeyId' in item if isinstance(item, dict) else False,"item_keys":list(item.keys())[:10] if isinstance(item, dict) else "not_dict"},"timestamp":int(time.time()*1000)}) + '\n')
-                                # #endregion
+                            # Store the FULL item object (all fields from API response)
                             if isinstance(item, dict):
+                                # Copy the entire item object
+                                item_data = item.copy()
+                                
+                                # Add ARN and Name fields if they don't exist (for matching/enrichment)
                                 auto_fields = auto_emit_arn_and_name(item, service=service_name, region=None, account_id=account_id)
                                 for key, value in auto_fields.items():
                                     if key not in item_data:
                                         item_data[key] = value
+                            else:
+                                # Non-dict item (shouldn't happen, but handle gracefully)
+                                item_data = {'_raw_item': item}
                             # #region agent log
                             if discovery_id == 'aws.kms.list_keys' and len(results) < 2:
                                 with open('/Users/apple/Desktop/threat-engine/.cursor/debug.log', 'a') as f:
@@ -2766,9 +2807,14 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                     with discovery_results_lock:
                         discovery_results[discovery_id] = results
                 elif 'item' in emit_config:
-                    item_data = {}
-                    for field_name, field_template in emit_config['item'].items():
-                        item_data[field_name] = resolve_template(field_template, saved_data_copy)
+                    # Store the FULL API response (excluding ResponseMetadata)
+                    response = saved_data_copy.get('response', {})
+                    if isinstance(response, dict):
+                        item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                    else:
+                        item_data = {'_raw_response': response}
+                    
+                    # Add ARN and Name fields if they don't exist (for matching/enrichment)
                     auto_fields = auto_emit_arn_and_name(saved_data_copy, service=service_name, region=None, account_id=account_id)
                     for key, value in auto_fields.items():
                         if key not in item_data:
@@ -3136,19 +3182,18 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                         
                         if response_items:
                             for response_item in response_items:
-                                # Build context with both original item and response item
-                                emit_context = {
-                                    'item': item,  # Original for_each item (e.g., bucket)
-                                    'response': response,
-                                    as_var: response_item  # Item from items_for (e.g., grant)
-                                }
-                                emit_context.update(context)
-                                
-                                # Build item data from emit config
-                                item_data = {}
-                                for field_name, field_template in emit_config.get('item', {}).items():
-                                    resolved_value = resolve_template(field_template, emit_context)
-                                    item_data[field_name] = resolved_value
+                                # Store the FULL response_item object (all fields from API response)
+                                if isinstance(response_item, dict):
+                                    item_data = response_item.copy()  # Store entire item object
+                                    
+                                    # Add ARN and Name fields if they don't exist (for matching/enrichment)
+                                    auto_fields = auto_emit_arn_and_name(response_item, service=service_name, region=None, account_id=account_id)
+                                    for key, value in auto_fields.items():
+                                        if key not in item_data:
+                                            item_data[key] = value
+                                else:
+                                    # Non-dict item (shouldn't happen, but handle gracefully)
+                                    item_data = {'_raw_item': response_item}
                                 
                                 # CRITICAL: Preserve resource_arn from parent item for ARN-based matching (GLOBAL - items_for)
                                 # ARN is the universal matching key across all AWS services
@@ -3243,41 +3288,19 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                     if logger.isEnabledFor(logging.DEBUG):
                         logger.debug("Processing %d items for %s", len(items), discovery_id)
                     for item in items:
-                        context = {as_var: item}
-                        context.update(saved_data)
-                        # Avoid expensive stringification of full context at INFO level
-                        if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug("Emit context var=%s keys=%s", as_var, list(context.keys()))
-                            logger.debug("Saved data keys: %s", list(saved_data.keys()))
-                        
-                        item_data = {}
-                        # First, emit explicitly configured fields
-                        for field_name, field_template in emit_config.get('item', {}).items():
-                            if logger.isEnabledFor(logging.DEBUG):
-                                logger.debug("Processing field %s with template: %s", field_name, field_template)
-                            resolved_value = resolve_template(field_template, context)
-                            item_data[field_name] = resolved_value
-                            if logger.isEnabledFor(logging.DEBUG):
-                                logger.debug("Resolved %s: %s", field_name, resolved_value)
-                        
-                        # Then, automatically add ARN and Name fields if they exist in the item
+                        # Store the FULL item object (all fields from API response)
                         if isinstance(item, dict):
+                            # Copy the entire item object
+                            item_data = item.copy()
+                            
+                            # Add ARN and Name fields if they don't exist (for matching/enrichment)
                             auto_fields = auto_emit_arn_and_name(item, service=service_name, region=None, account_id=account_id)
-                            # Only add if not already explicitly configured
                             for key, value in auto_fields.items():
                                 if key not in item_data:
                                     item_data[key] = value
-                        
-                        # CRITICAL: Ensure resource_arn is always present for ARN-based matching
-                        # auto_emit_arn_and_name() should have added it, but ensure it's present
-                        if isinstance(item, dict):
-                            # Ensure resource_arn is preserved (auto_emit_arn_and_name should have added it)
-                            if 'resource_arn' not in item_data:
-                                # Try to get from auto_fields or item
-                                arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
-                                if arn and isinstance(arn, str) and arn.startswith('arn:aws:'):
-                                    item_data['resource_arn'] = arn
-                                    logger.debug(f"[EMIT-ARN] {discovery_id}: Added resource_arn for independent discovery: {arn[:80]}")
+                        else:
+                            # Non-dict item (shouldn't happen, but handle gracefully)
+                            item_data = {'_raw_item': item}
                         
                         results.append(item_data)
                 
@@ -3286,16 +3309,15 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
                     logger.info(f"[EMIT-TRACE] {discovery_id}: emit done, emitted_count={len(results)}")
             
             elif 'item' in emit_config:
-                # Single item
-                item_data = {}
-                # First, emit explicitly configured fields
-                for field_name, field_template in emit_config['item'].items():
-                    resolved_value = resolve_template(field_template, saved_data)
-                    item_data[field_name] = resolved_value
+                # Store the FULL API response (excluding ResponseMetadata)
+                response = saved_data.get('response', {})
+                if isinstance(response, dict):
+                    item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                else:
+                    item_data = {'_raw_response': response}
                 
-                # Then, automatically add ARN and Name fields if they exist
+                # Add ARN and Name fields if they don't exist (for matching/enrichment)
                 auto_fields = auto_emit_arn_and_name(saved_data, service=service_name, region=None, account_id=account_id)
-                # Only add if not already explicitly configured
                 for key, value in auto_fields.items():
                     if key not in item_data:
                         item_data[key] = value
@@ -3347,11 +3369,12 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
         all_checks = service_rules.get('checks', [])
         checks_output = []
         
-        # Skip checks if MAX_CHECK_WORKERS is set to 0 (for raw data collection)
-        max_check_workers = int(os.getenv('MAX_CHECK_WORKERS', '50'))
-        if max_check_workers == 0:
-            logger.info("Skipping checks (MAX_CHECK_WORKERS=0 - discovery data collection only)")
+        # Skip checks if requested (for discovery-only mode)
+        if skip_checks:
+            logger.info("Skipping checks (discovery-only mode)")
             all_checks = []
+        else:
+            max_check_workers = int(os.getenv('MAX_CHECK_WORKERS', '50'))
         
         if all_checks:
             logger.info(f"Running {len(all_checks)} checks in parallel (max {max_check_workers} workers)")
@@ -3403,10 +3426,19 @@ def run_global_service(service_name, session_override: Optional[boto3.session.Se
             'error': str(e)
         }
 
-def run_regional_service(service_name, region, session_override: Optional[boto3.session.Session] = None):
-    """Run compliance checks for a regional service"""
+def run_regional_service(service_name, region, session_override: Optional[boto3.session.Session] = None, service_rules_override: Optional[Dict[str, Any]] = None, skip_checks: bool = False):
+    """
+    Run discoveries for a regional service, optionally run checks
+    
+    Args:
+        service_name: Service name (e.g., 'ec2')
+        region: AWS region
+        session_override: Optional boto3 session
+        service_rules_override: Optional service rules override
+        skip_checks: If True, skip check phase (discovery only)
+    """
     try:
-        service_rules = load_service_rules(service_name)
+        service_rules = service_rules_override or load_service_rules(service_name)
         session = session_override or get_boto3_session(default_region=region)
         boto3_client_name = get_boto3_client_name(service_name)
         client = session.client(boto3_client_name, region_name=region, config=BOTO_CONFIG)
@@ -3604,22 +3636,45 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                             response_items = extract_value(response, items_path)
                             if response_items:
                                 for response_item in response_items:
-                                    emit_context = {'item': item, 'response': response, as_var: response_item}
-                                    emit_context.update(context)
-                                    item_data = {}
-                                    for field_name, field_template in emit_config.get('item', {}).items():
-                                        item_data[field_name] = resolve_template(field_template, emit_context)
+                                    # Store the FULL response_item object (all fields from API response)
+                                    if isinstance(response_item, dict):
+                                        item_data = response_item.copy()  # Store entire item object
+                                        
+                                        # Add ARN and Name fields if they don't exist (for matching/enrichment)
+                                        auto_fields = auto_emit_arn_and_name(response_item, service=service_name, region=region, account_id=account_id)
+                                        for key, value in auto_fields.items():
+                                            if key not in item_data:
+                                                item_data[key] = value
+                                    else:
+                                        # Non-dict item (shouldn't happen, but handle gracefully)
+                                        item_data = {'_raw_item': response_item}
+                                    
+                                    # CRITICAL: Preserve resource_arn from parent item for ARN-based matching (REGIONAL)
+                                    if isinstance(item, dict):
+                                        parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
+                                        if parent_arn and isinstance(parent_arn, str) and parent_arn.startswith('arn:aws:'):
+                                            item_data['resource_arn'] = parent_arn
+                                            logger.debug(f"[EMIT-ARN] {discovery_id}: Preserved parent ARN for items_for emit: {parent_arn[:80]}")
+                                    
                                     results.append(item_data)
                     else:
                         for acc_data in accumulated_contexts:
                             response = acc_data['response']
                             item = acc_data['item']
                             context = acc_data['context']
-                            item_data = {}
-                            emit_context = {'response': response, 'item': item}
-                            emit_context.update(context)
-                            for field_name, field_template in emit_config.get('item', {}).items():
-                                item_data[field_name] = resolve_template(field_template, emit_context)
+                            
+                            # Store the FULL API response (excluding ResponseMetadata)
+                            if isinstance(response, dict):
+                                item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                            else:
+                                item_data = {'_raw_response': response}
+                            
+                            # CRITICAL: Preserve resource_arn from parent item for ARN-based matching
+                            if isinstance(item, dict):
+                                parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
+                                if parent_arn and isinstance(parent_arn, str) and parent_arn.startswith('arn:aws:'):
+                                    item_data['resource_arn'] = parent_arn
+                            
                             results.append(item_data)
                     with discovery_results_lock:
                         discovery_results[discovery_id] = results
@@ -3630,27 +3685,21 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                     results = []
                     if items:
                         for item in items:
-                            context = {as_var: item}
-                            context.update(saved_data_copy)
-                            item_data = {}
-                            for field_name, field_template in emit_config.get('item', {}).items():
-                                resolved_value = resolve_template(field_template, context)
-                                item_data[field_name] = resolved_value
-                                # #region agent log
-                                if discovery_id == 'aws.kms.list_keys' and field_name == 'KeyId' and len(results) < 2:
-                                    with open('/Users/apple/Desktop/threat-engine/.cursor/debug.log', 'a') as f:
-                                        f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"service_scanner.py:3607","message":"Independent emit (REGIONAL): KeyId resolved","data":{"discovery_id":discovery_id,"field_name":field_name,"resolved_value":str(resolved_value)[:100],"item_has_KeyId":'KeyId' in item if isinstance(item, dict) else False,"item_keys":list(item.keys())[:10] if isinstance(item, dict) else "not_dict"},"timestamp":int(time.time()*1000)}) + '\n')
-                                # #endregion
+                            # Store the FULL item object (all fields from API response)
                             if isinstance(item, dict):
+                                # Copy the entire item object
+                                item_data = item.copy()
+                                
+                                # Add ARN and Name fields if they don't exist (for matching/enrichment)
                                 auto_fields = auto_emit_arn_and_name(item, service=service_name, region=None, account_id=account_id)
                                 for key, value in auto_fields.items():
                                     if key not in item_data:
                                         item_data[key] = value
-                            # #region agent log
-                            if discovery_id == 'aws.kms.list_keys' and len(results) < 2:
-                                with open('/Users/apple/Desktop/threat-engine/.cursor/debug.log', 'a') as f:
-                                    f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"service_scanner.py:3613","message":"Independent emit (REGIONAL): item_data before append","data":{"discovery_id":discovery_id,"item_data_keys":list(item_data.keys()),"has_KeyId":"KeyId" in item_data,"KeyId_value":str(item_data.get('KeyId', 'MISSING'))[:100]},"timestamp":int(time.time()*1000)}) + '\n')
-                            # #endregion
+                            else:
+                                # Non-dict item (shouldn't happen, but handle gracefully)
+                                item_data = {'_raw_item': item}
+                            
+                            results.append(item_data)
                             results.append(item_data)
                     # #region agent log
                     if discovery_id == 'aws.kms.list_keys':
@@ -3661,9 +3710,14 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                     with discovery_results_lock:
                         discovery_results[discovery_id] = results
                 elif 'item' in emit_config:
-                    item_data = {}
-                    for field_name, field_template in emit_config['item'].items():
-                        item_data[field_name] = resolve_template(field_template, saved_data_copy)
+                    # Store the FULL API response (excluding ResponseMetadata)
+                    response = saved_data_copy.get('response', {})
+                    if isinstance(response, dict):
+                        item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                    else:
+                        item_data = {'_raw_response': response}
+                    
+                    # Add ARN and Name fields if they don't exist (for matching/enrichment)
                     auto_fields = auto_emit_arn_and_name(saved_data_copy, service=service_name, region=None, account_id=account_id)
                     for key, value in auto_fields.items():
                         if key not in item_data:
@@ -3910,6 +3964,28 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
             
             # Check if this discovery had for_each and accumulated responses
             discovery_for_each = discovery.get('for_each')
+            
+            # Debug logging for get_bucket_acl
+            if discovery_id == 'aws.s3.get_bucket_acl':
+                logger.info(f"[EMIT-DEBUG] {discovery_id}: emit_config={emit_config}")
+                logger.info(f"[EMIT-DEBUG] {discovery_id}: discovery_for_each={discovery_for_each}")
+                logger.info(f"[EMIT-DEBUG] {discovery_id}: discovery_save_as={discovery_save_as}")
+                logger.info(f"[EMIT-DEBUG] {discovery_id}: saved_data keys={list(saved_data.keys())[:20]}")
+                if discovery_save_as:
+                    contexts_key = f'{discovery_save_as}_contexts'
+                    logger.info(f"[EMIT-DEBUG] {discovery_id}: Looking for '{contexts_key}' in saved_data: {contexts_key in saved_data}")
+                    if contexts_key in saved_data:
+                        contexts = saved_data[contexts_key]
+                        logger.info(f"[EMIT-DEBUG] {discovery_id}: Found {len(contexts)} accumulated contexts")
+                        if contexts:
+                            first_context = contexts[0]
+                            logger.info(f"[EMIT-DEBUG] {discovery_id}: First context keys: {list(first_context.keys())}")
+                            if 'response' in first_context:
+                                resp = first_context['response']
+                                logger.info(f"[EMIT-DEBUG] {discovery_id}: First response type: {type(resp).__name__}")
+                                if isinstance(resp, dict):
+                                    logger.info(f"[EMIT-DEBUG] {discovery_id}: First response keys: {list(resp.keys())}")
+            
             if discovery_for_each and discovery_save_as and f'{discovery_save_as}_contexts' in saved_data:
                 # This discovery used for_each - process accumulated responses
                 accumulated_contexts = saved_data[f'{discovery_save_as}_contexts']
@@ -3934,19 +4010,18 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                         
                         if response_items:
                             for response_item in response_items:
-                                # Build context with both original item and response item
-                                emit_context = {
-                                    'item': item,  # Original for_each item (e.g., bucket)
-                                    'response': response,
-                                    as_var: response_item  # Item from items_for (e.g., grant)
-                                }
-                                emit_context.update(context)
-                                
-                                # Build item data from emit config
-                                item_data = {}
-                                for field_name, field_template in emit_config.get('item', {}).items():
-                                    resolved_value = resolve_template(field_template, emit_context)
-                                    item_data[field_name] = resolved_value
+                                # Store the FULL response_item object (all fields from API response)
+                                if isinstance(response_item, dict):
+                                    item_data = response_item.copy()  # Store entire item object
+                                    
+                                    # Add ARN and Name fields if they don't exist (for matching/enrichment)
+                                    auto_fields = auto_emit_arn_and_name(response_item, service=service_name, region=region, account_id=account_id)
+                                    for key, value in auto_fields.items():
+                                        if key not in item_data:
+                                            item_data[key] = value
+                                else:
+                                    # Non-dict item (shouldn't happen, but handle gracefully)
+                                    item_data = {'_raw_item': response_item}
                                 
                                 # CRITICAL: Preserve resource_arn from parent item for ARN-based matching (REGIONAL)
                                 # ARN is the universal matching key across all AWS services
@@ -3979,18 +4054,52 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                             with open('/Users/apple/Desktop/threat-engine/.cursor/debug.log', 'a') as f:
                                 f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"service_scanner.py:3930","message":"Dependent emit (REGIONAL): emit_config check","data":{"discovery_id":discovery_id,"idx":idx,"emit_config_keys":list(emit_config.keys()),"emit_config_empty":len(emit_config) == 0},"timestamp":int(time.time()*1000)}) + '\n')
                         # #endregion
-                        for field_name, field_template in emit_config.get('item', {}).items():
-                            # Create context with response and item
-                            emit_context = {'response': response, 'item': item}
-                            emit_context.update(context)
-                            resolved_value = resolve_template(field_template, emit_context)
-                            item_data[field_name] = resolved_value
+                        
+                        # Check if this is bundle approach (empty emit config)
+                        if not emit_config.get('item') and not emit_config.get('items_for'):
+                            # Bundle approach: Store entire response (excluding ResponseMetadata) under discovery name
+                            if not isinstance(response, dict):
+                                logger.warning(f"[EMIT] {discovery_id}: response is not a dict (type={type(response).__name__}), skipping emit")
+                                continue
+                            
+                            # Extract discovery name (e.g., "aws.s3.get_bucket_acl" -> "get_bucket_acl")
+                            discovery_name = discovery_id.split('.')[-1] if '.' in discovery_id else discovery_id
+                            
+                            # Store entire response data (excluding ResponseMetadata) under discovery name
+                            response_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                            
+                            # Debug logging for first few items
+                            if idx < 3:
+                                logger.info(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: Response type: {type(response).__name__}")
+                                logger.info(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: Response keys: {list(response.keys()) if isinstance(response, dict) else 'N/A'}")
+                                logger.info(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: Response data (excluding ResponseMetadata): {list(response_data.keys())}")
+                                logger.info(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: Response data count: {len(response_data)}")
+                            
+                            if response_data:
+                                item_data[discovery_name] = response_data
+                                if idx < 3:
+                                    logger.info(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: ✓ Stored entire response under '{discovery_name}' with {len(response_data)} fields")
+                                logger.debug(f"[EMIT] {discovery_id}[{idx}]: Stored entire response under '{discovery_name}' with {len(response_data)} fields: {list(response_data.keys())}")
+                            else:
+                                # Response only had ResponseMetadata - this might be normal for some APIs
+                                item_data[discovery_name] = {}
+                                if idx < 3:
+                                    logger.warning(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: ⚠ Response only contains ResponseMetadata (no data fields), storing empty dict")
+                                    logger.warning(f"[EMIT-BUNDLE-DEBUG] {discovery_id}[{idx}]: Full response keys: {list(response.keys()) if isinstance(response, dict) else 'N/A'}")
+                                logger.debug(f"[EMIT] {discovery_id}[{idx}]: Response only contains ResponseMetadata (no data fields), storing empty dict")
+                        else:
+                            # Store the FULL API response (excluding ResponseMetadata) - ALWAYS
+                            response_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                            if response_data:
+                                item_data[discovery_name] = response_data
+                            else:
+                                item_data[discovery_name] = {}
                         
                         # CRITICAL: Preserve resource_arn from parent item for ARN-based matching (bundle approach)
                         # When emit_config is empty (bundle approach), we still need to preserve
                         # the resource_arn from the parent item so that enrichment can match dependent items
                         # Check multiple possible ARN field names (resource_arn, Arn, arn)
-                        if not emit_config.get('item') and isinstance(item, dict):
+                        if isinstance(item, dict):
                             parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
                             if parent_arn and isinstance(parent_arn, str) and parent_arn.startswith('arn:aws:'):
                                 item_data['resource_arn'] = parent_arn
@@ -4009,36 +4118,34 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
                 if items:
                     # Keep debug logging cheap (no giant f-strings / context dumps)
                     for item in items:
-                        context = {as_var: item}
-                        context.update(saved_data)
-                        item_data = {}
-                        # First, emit explicitly configured fields
-                        for field_name, field_template in emit_config.get('item', {}).items():
-                            resolved_value = resolve_template(field_template, context)
-                            item_data[field_name] = resolved_value
-                        
-                        # Then, automatically add ARN and Name fields if they exist in the item
+                        # Store the FULL item object (all fields from API response)
                         if isinstance(item, dict):
+                            # Copy the entire item object
+                            item_data = item.copy()
+                            
+                            # Add ARN and Name fields if they don't exist (for matching/enrichment)
                             auto_fields = auto_emit_arn_and_name(item, service=service_name, region=region, account_id=account_id)
-                            # Only add if not already explicitly configured
                             for key, value in auto_fields.items():
                                 if key not in item_data:
                                     item_data[key] = value
+                        else:
+                            # Non-dict item (shouldn't happen, but handle gracefully)
+                            item_data = {'_raw_item': item}
                         
                         results.append(item_data)
                 
                 discovery_results[discovery_id] = results
             
             elif 'item' in emit_config:
-                item_data = {}
-                # First, emit explicitly configured fields
-                for field_name, field_template in emit_config['item'].items():
-                    resolved_value = resolve_template(field_template, saved_data)
-                    item_data[field_name] = resolved_value
+                # Store the FULL API response (excluding ResponseMetadata) - ALWAYS
+                response = saved_data.get('response', {})
+                if isinstance(response, dict):
+                    item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                else:
+                    item_data = {'_raw_response': response}
                 
-                # Then, automatically add ARN and Name fields if they exist
+                # Add ARN and Name fields if they don't exist (for matching/enrichment)
                 auto_fields = auto_emit_arn_and_name(saved_data, service=service_name, region=region, account_id=account_id)
-                # Only add if not already explicitly configured
                 for key, value in auto_fields.items():
                     if key not in item_data:
                         item_data[key] = value
@@ -4088,11 +4195,12 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
         all_checks = service_rules.get('checks', [])
         checks_output = []
         
-        # Skip checks if MAX_CHECK_WORKERS is set to 0 (for raw data collection)
-        max_check_workers = int(os.getenv('MAX_CHECK_WORKERS', '50'))
-        if max_check_workers == 0:
-            logger.info("Skipping checks (MAX_CHECK_WORKERS=0 - discovery data collection only)")
+        # Skip checks if requested (for discovery-only mode)
+        if skip_checks:
+            logger.info("Skipping checks (discovery-only mode)")
             all_checks = []
+        else:
+            max_check_workers = int(os.getenv('MAX_CHECK_WORKERS', '50'))
         
         if all_checks:
             logger.info(f"Running {len(all_checks)} checks in parallel (max {max_check_workers} workers)")
@@ -4129,7 +4237,8 @@ def run_regional_service(service_name, region, session_override: Optional[boto3.
             'service': service_name,
             'scope': 'regional',
             'region': region,
-            '_raw_data': saved_data  # Include raw API responses for saving to disk
+            '_raw_data': saved_data,  # Include raw API responses for saving to disk
+            '_raw_discoveries': discovery_results.copy() if os.getenv('COLLECT_RAW_DISCOVERIES') else None  # RAW discovery results before enrichment
         }
         
     except Exception as e:

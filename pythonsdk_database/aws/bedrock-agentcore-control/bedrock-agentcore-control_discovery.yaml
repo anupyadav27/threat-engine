@@ -1,0 +1,151 @@
+version: '1.0'
+provider: aws
+service: bedrock-agentcore-control
+services:
+  client: bedrock-agentcore-control
+  module: boto3.client
+discovery:
+- discovery_id: aws.bedrock-agentcore-control.list_gateways
+  calls:
+  - action: list_gateways
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.bedrock-agentcore-control.list_code_interpreters
+  calls:
+  - action: list_code_interpreters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.codeInterpreterSummaries }}'
+- discovery_id: aws.bedrock-agentcore-control.list_agent_runtimes
+  calls:
+  - action: list_agent_runtimes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.agentRuntimes }}'
+- discovery_id: aws.bedrock-agentcore-control.list_browsers
+  calls:
+  - action: list_browsers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.browserSummaries }}'
+- discovery_id: aws.bedrock-agentcore-control.list_memories
+  calls:
+  - action: list_memories
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.memories }}'
+- discovery_id: aws.bedrock-agentcore-control.get_token_vault
+  calls:
+  - action: get_token_vault
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.kmsConfiguration }}'
+- discovery_id: aws.bedrock-agentcore-control.list_oauth2_credential_providers
+  calls:
+  - action: list_oauth2_credential_providers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.credentialProviders }}'
+- discovery_id: aws.bedrock-agentcore-control.list_workload_identities
+  calls:
+  - action: list_workload_identities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.workloadIdentities }}'
+- discovery_id: aws.bedrock-agentcore-control.get_memory
+  for_each: aws.bedrock-agentcore-control.list_memories
+  calls:
+  - action: get_memory
+    save_as: response
+    on_error: continue
+    params:
+      memoryId: '{{ item.memoryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.memory }}'
+- discovery_id: aws.bedrock-agentcore-control.get_browser
+  for_each: aws.bedrock-agentcore-control.list_browsers
+  calls:
+  - action: get_browser
+    save_as: response
+    on_error: continue
+    params:
+      browserId: '{{ item.browserSummaryBrowserId }}'
+  emit:
+    as: item
+    items_for: '{{ response.networkConfiguration }}'
+- discovery_id: aws.bedrock-agentcore-control.get_agent_runtime_endpoint
+  for_each: aws.bedrock-agentcore-control.list_agent_runtimes
+  calls:
+  - action: get_agent_runtime_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      agentRuntimeId: '{{ item.agentRuntimAgentRuntimeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.liveVersion }}'
+- discovery_id: aws.bedrock-agentcore-control.get_agent_runtime
+  for_each: aws.bedrock-agentcore-control.list_agent_runtimes
+  calls:
+  - action: get_agent_runtime
+    save_as: response
+    on_error: continue
+    params:
+      agentRuntimeId: '{{ item.agentRuntimAgentRuntimeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.networkConfiguration }}'
+- discovery_id: aws.bedrock-agentcore-control.get_oauth2_credential_provider
+  for_each: aws.bedrock-agentcore-control.list_gateways
+  calls:
+  - action: get_oauth2_credential_provider
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.credentialProviderName }}'
+  emit:
+    as: item
+    items_for: '{{ response.clientSecretArn }}'
+- discovery_id: aws.bedrock-agentcore-control.list_gateway_targets
+  calls:
+  - action: list_gateway_targets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+checks: []

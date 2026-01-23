@@ -1,0 +1,161 @@
+version: '1.0'
+provider: aws
+service: ecr
+services:
+  client: ecr
+  module: boto3.client
+discovery:
+- discovery_id: aws.ecr.describe_repository_creation_templates
+  calls:
+  - action: describe_repository_creation_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.repositoryCreationTemplates }}'
+- discovery_id: aws.ecr.describe_repositories
+  calls:
+  - action: describe_repositories
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.repositories }}'
+- discovery_id: aws.ecr.describe_pull_through_cache_rules
+  calls:
+  - action: describe_pull_through_cache_rules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.pullThroughCacheRules }}'
+- discovery_id: aws.ecr.get_registry_scanning_configuration
+  calls:
+  - action: get_registry_scanning_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.scanningConfiguration }}'
+- discovery_id: aws.ecr.get_authorization_token
+  calls:
+  - action: get_authorization_token
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.authorizationData }}'
+- discovery_id: aws.ecr.get_signing_configuration
+  calls:
+  - action: get_signing_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.signingConfiguration }}'
+- discovery_id: aws.ecr.describe_registry
+  calls:
+  - action: describe_registry
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.replicationConfiguration }}'
+- discovery_id: aws.ecr.get_registry_policy
+  calls:
+  - action: get_registry_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.registryId }}'
+- discovery_id: aws.ecr.describe_images
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: describe_images
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.imageDetails }}'
+- discovery_id: aws.ecr.list_image_referrers
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: list_image_referrers
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.referrers }}'
+- discovery_id: aws.ecr.get_lifecycle_policy_preview
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: get_lifecycle_policy_preview
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.previewResults }}'
+- discovery_id: aws.ecr.describe_image_signing_status
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: describe_image_signing_status
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.signingStatuses }}'
+- discovery_id: aws.ecr.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.ecr.describe_image_scan_findings
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: describe_image_scan_findings
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.imageId }}'
+- discovery_id: aws.ecr.describe_image_replication_status
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: describe_image_replication_status
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.replicationStatuses }}'
+checks: []

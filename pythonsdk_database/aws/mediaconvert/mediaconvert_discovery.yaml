@@ -1,0 +1,85 @@
+version: '1.0'
+provider: aws
+service: mediaconvert
+services:
+  client: mediaconvert
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediaconvert.list_queues
+  calls:
+  - action: list_queues
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Queues }}'
+- discovery_id: aws.mediaconvert.list_job_templates
+  calls:
+  - action: list_job_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.JobTemplates }}'
+- discovery_id: aws.mediaconvert.get_policy
+  calls:
+  - action: get_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.mediaconvert.describe_endpoints
+  calls:
+  - action: describe_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+- discovery_id: aws.mediaconvert.list_versions
+  calls:
+  - action: list_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Versions }}'
+- discovery_id: aws.mediaconvert.search_jobs
+  calls:
+  - action: search_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+- discovery_id: aws.mediaconvert.get_preset
+  for_each: aws.mediaconvert.list_queues
+  calls:
+  - action: get_preset
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.jobTemplatName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Preset }}'
+- discovery_id: aws.mediaconvert.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTags }}'
+checks: []

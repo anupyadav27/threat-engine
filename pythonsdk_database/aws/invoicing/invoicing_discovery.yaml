@@ -1,0 +1,83 @@
+version: '1.0'
+provider: aws
+service: invoicing
+services:
+  client: invoicing
+  module: boto3.client
+discovery:
+- discovery_id: aws.invoicing.list_procurement_portal_preferences
+  calls:
+  - action: list_procurement_portal_preferences
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProcurementPortalPreferences }}'
+- discovery_id: aws.invoicing.list_invoice_units
+  calls:
+  - action: list_invoice_units
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InvoiceUnits }}'
+- discovery_id: aws.invoicing.list_invoice_summaries
+  for_each: aws.invoicing.list_procurement_portal_preferences
+  calls:
+  - action: list_invoice_summaries
+    save_as: response
+    on_error: continue
+    params:
+      Selector: '{{ item.procurementPortalPreferencSelector }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InvoiceSummaries }}'
+- discovery_id: aws.invoicing.get_procurement_portal_preference
+  for_each: aws.invoicing.list_procurement_portal_preferences
+  calls:
+  - action: get_procurement_portal_preference
+    save_as: response
+    on_error: continue
+    params:
+      ProcurementPortalPreferenceArn: '{{ item.procurementPortalPreferencProcurementPortalPreferenceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.ProcurementPortalPreference }}'
+- discovery_id: aws.invoicing.get_invoice_pdf
+  for_each: aws.invoicing.list_invoice_summaries
+  calls:
+  - action: get_invoice_pdf
+    save_as: response
+    on_error: continue
+    params:
+      InvoiceId: '{{ item.invoicePdfInvoiceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.InvoicePDF }}'
+- discovery_id: aws.invoicing.get_invoice_unit
+  for_each: aws.invoicing.list_invoice_units
+  calls:
+  - action: get_invoice_unit
+    save_as: response
+    on_error: continue
+    params:
+      InvoiceUnitArn: '{{ item.invoiceUnitInvoiceUnitArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Rule }}'
+- discovery_id: aws.invoicing.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTags }}'
+checks: []

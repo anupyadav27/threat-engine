@@ -1,0 +1,81 @@
+version: '1.0'
+provider: aws
+service: elasticbeanstalk
+services:
+  client: elasticbeanstalk
+  module: boto3.client
+discovery:
+- discovery_id: aws.elasticbeanstalk.describe_applications
+  calls:
+  - action: describe_applications
+    save_as: response
+  emit:
+    items_for: '{{ response.Applications }}'
+    as: item
+    item:
+      ApplicationArn: '{{ item.ApplicationArn }}'
+      ApplicationName: '{{ item.ApplicationName }}'
+      Description: '{{ item.Description }}'
+      DateCreated: '{{ item.DateCreated }}'
+      DateUpdated: '{{ item.DateUpdated }}'
+      Versions: '{{ item.Versions }}'
+      ConfigurationTemplates: '{{ item.ConfigurationTemplates }}'
+      ResourceLifecycleConfig: '{{ item.ResourceLifecycleConfig }}'
+- discovery_id: aws.elasticbeanstalk.describe_environments
+  calls:
+  - action: describe_environments
+    save_as: response
+  emit:
+    items_for: '{{ response.Environments }}'
+    as: item
+    item:
+      EnvironmentId: '{{ item.EnvironmentId }}'
+      EnvironmentName: '{{ item.EnvironmentName }}'
+      ApplicationName: '{{ item.ApplicationName }}'
+      VersionLabel: '{{ item.VersionLabel }}'
+      SolutionStackName: '{{ item.SolutionStackName }}'
+      PlatformArn: '{{ item.PlatformArn }}'
+      TemplateName: '{{ item.TemplateName }}'
+      Description: '{{ item.Description }}'
+      EndpointURL: '{{ item.EndpointURL }}'
+      CNAME: '{{ item.CNAME }}'
+      DateCreated: '{{ item.DateCreated }}'
+      DateUpdated: '{{ item.DateUpdated }}'
+      Status: '{{ item.Status }}'
+      Health: '{{ item.Health }}'
+      HealthStatus: '{{ item.HealthStatus }}'
+- discovery_id: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  for_each: aws.elasticbeanstalk.describe_environments
+  calls:
+  - action: describe_configuration_settings
+    params:
+      ApplicationName: '{{ item.ApplicationName }}'
+      EnvironmentName: '{{ item.EnvironmentName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.ConfigurationSettings }}'
+    as: config_item
+    item:
+      ApplicationName: '{{ item.ApplicationName }}'
+      EnvironmentName: '{{ item.EnvironmentName }}'
+      SolutionStackName: '{{ config_item.SolutionStackName }}'
+      PlatformArn: '{{ config_item.PlatformArn }}'
+      OptionSettings: '{{ config_item.OptionSettings }}'
+- discovery_id: aws.elasticbeanstalk.describe_application_versions
+  calls:
+  - action: describe_application_versions
+    save_as: response
+  emit:
+    items_for: '{{ response.ApplicationVersions }}'
+    as: item
+    item:
+      ApplicationVersionArn: '{{ item.ApplicationVersionArn }}'
+      ApplicationName: '{{ item.ApplicationName }}'
+      Description: '{{ item.Description }}'
+      VersionLabel: '{{ item.VersionLabel }}'
+      SourceBuildInformation: '{{ item.SourceBuildInformation }}'
+      BuildArn: '{{ item.BuildArn }}'
+      SourceBundle: '{{ item.SourceBundle }}'
+      DateCreated: '{{ item.DateCreated }}'
+      DateUpdated: '{{ item.DateUpdated }}'
+      Status: '{{ item.Status }}'

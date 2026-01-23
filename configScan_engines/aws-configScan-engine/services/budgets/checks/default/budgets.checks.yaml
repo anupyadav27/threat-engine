@@ -1,0 +1,40 @@
+version: '1.0'
+provider: aws
+service: budgets
+checks:
+- rule_id: aws.budgets.budget.alert_destinations_configured
+  for_each: aws.budgets.describe_budget_action
+  conditions:
+    var: item.Subscribers
+    op: exists
+    value: null
+- rule_id: aws.budgets.budget.alert_thresholds_configured
+  for_each: aws.budgets.describe_notifications_for_budget
+  conditions:
+    all:
+    - var: item.Threshold
+      op: exists
+      value: null
+    - var: item.NotificationType
+      op: exists
+      value: null
+- rule_id: aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured
+  for_each: aws.budgets.describe_budget
+  conditions:
+    all:
+    - var: item.BudgetName
+      op: exists
+      value: null
+    - var: item.BudgetLimit
+      op: exists
+      value: null
+- rule_id: aws.budgets.budget.modify_permissions_restricted
+  for_each: aws.budgets.describe_budget_action
+  conditions:
+    all:
+    - var: item.ExecutionRoleArn
+      op: exists
+      value: null
+    - var: item.ApprovalModel
+      op: equals
+      value: AUTOMATIC

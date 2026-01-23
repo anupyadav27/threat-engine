@@ -1,0 +1,56 @@
+version: '1.0'
+provider: aws
+service: trustedadvisor
+services:
+  client: trustedadvisor
+  module: boto3.client
+discovery:
+- discovery_id: aws.trustedadvisor.list_recommendations
+  calls:
+  - action: list_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recommendationSummaries }}'
+- discovery_id: aws.trustedadvisor.list_checks
+  calls:
+  - action: list_checks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.checkSummaries }}'
+- discovery_id: aws.trustedadvisor.get_recommendation
+  calls:
+  - action: get_recommendation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.recommendation }}'
+- discovery_id: aws.trustedadvisor.list_organization_recommendation_resources
+  calls:
+  - action: list_organization_recommendation_resources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.organizationRecommendationResourceSummaries }}'
+- discovery_id: aws.trustedadvisor.list_organization_recommendation_accounts
+  calls:
+  - action: list_organization_recommendation_accounts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.accountRecommendationLifecycleSummaries }}'
+checks: []

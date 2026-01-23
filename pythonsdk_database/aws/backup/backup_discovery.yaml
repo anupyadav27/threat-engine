@@ -1,0 +1,413 @@
+version: '1.0'
+provider: aws
+service: backup
+services:
+  client: backup
+  module: boto3.client
+discovery:
+- discovery_id: aws.backup.list_backup_jobs
+  calls:
+  - action: list_backup_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupJobs }}'
+- discovery_id: aws.backup.list_copy_jobs
+  calls:
+  - action: list_copy_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CopyJobs }}'
+- discovery_id: aws.backup.list_restore_jobs
+  calls:
+  - action: list_restore_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RestoreJobs }}'
+- discovery_id: aws.backup.list_scan_jobs
+  calls:
+  - action: list_scan_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ScanJobs }}'
+- discovery_id: aws.backup.list_backup_vaults
+  calls:
+  - action: list_backup_vaults
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupVaultList }}'
+- discovery_id: aws.backup.list_indexed_recovery_points
+  calls:
+  - action: list_indexed_recovery_points
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IndexedRecoveryPoints }}'
+- discovery_id: aws.backup.list_scan_job_summaries
+  calls:
+  - action: list_scan_job_summaries
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ScanJobSummaries }}'
+- discovery_id: aws.backup.list_report_plans
+  calls:
+  - action: list_report_plans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ReportPlans }}'
+- discovery_id: aws.backup.list_backup_plans
+  calls:
+  - action: list_backup_plans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupPlansList }}'
+- discovery_id: aws.backup.list_report_jobs
+  calls:
+  - action: list_report_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ReportJobs }}'
+- discovery_id: aws.backup.list_restore_testing_plans
+  calls:
+  - action: list_restore_testing_plans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RestoreTestingPlans }}'
+- discovery_id: aws.backup.list_legal_holds
+  calls:
+  - action: list_legal_holds
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LegalHolds }}'
+- discovery_id: aws.backup.list_frameworks
+  calls:
+  - action: list_frameworks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Frameworks }}'
+- discovery_id: aws.backup.list_protected_resources
+  calls:
+  - action: list_protected_resources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+- discovery_id: aws.backup.list_tiering_configurations
+  calls:
+  - action: list_tiering_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TieringConfigurations }}'
+- discovery_id: aws.backup.list_backup_plan_templates
+  calls:
+  - action: list_backup_plan_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupPlanTemplatesList }}'
+- discovery_id: aws.backup.describe_global_settings
+  calls:
+  - action: describe_global_settings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.GlobalSettings }}'
+- discovery_id: aws.backup.describe_region_settings
+  calls:
+  - action: describe_region_settings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTypeOptInPreference }}'
+- discovery_id: aws.backup.get_supported_resource_types
+  calls:
+  - action: get_supported_resource_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTypes }}'
+- discovery_id: aws.backup.describe_recovery_point
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: describe_recovery_point
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobRecoveryPointArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ScanResults }}'
+- discovery_id: aws.backup.describe_backup_job
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: describe_backup_job
+    save_as: response
+    on_error: continue
+    params:
+      BackupJobId: '{{ item.backupJobBackupJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RecoveryPointLifecycle }}'
+- discovery_id: aws.backup.get_legal_hold
+  for_each: aws.backup.list_legal_holds
+  calls:
+  - action: get_legal_hold
+    save_as: response
+    on_error: continue
+    params:
+      LegalHoldId: '{{ item.legalHoldLegalHoldId }}'
+  emit:
+    as: item
+    items_for: '{{ response.RecoveryPointSelection }}'
+- discovery_id: aws.backup.describe_framework
+  for_each: aws.backup.list_frameworks
+  calls:
+  - action: describe_framework
+    save_as: response
+    on_error: continue
+    params:
+      FrameworkName: '{{ item.frameworkFrameworkName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FrameworkControls }}'
+- discovery_id: aws.backup.list_restore_testing_selections
+  for_each: aws.backup.list_restore_testing_plans
+  calls:
+  - action: list_restore_testing_selections
+    save_as: response
+    on_error: continue
+    params:
+      RestoreTestingPlanName: '{{ item.restoreTestingPlanRestoreTestingPlanName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RestoreTestingSelections }}'
+- discovery_id: aws.backup.get_restore_testing_selection
+  for_each: aws.backup.list_restore_testing_plans
+  calls:
+  - action: get_restore_testing_selection
+    save_as: response
+    on_error: continue
+    params:
+      RestoreTestingPlanName: '{{ item.restoreTestingSelectionRestoreTestingSelectionName }}'
+  emit:
+    as: item
+    items_for: '{{ response.RestoreTestingSelection }}'
+- discovery_id: aws.backup.get_backup_plan_from_json
+  calls:
+  - action: get_backup_plan_from_json
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BackupPlan }}'
+- discovery_id: aws.backup.list_restore_access_backup_vaults
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: list_restore_access_backup_vaults
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobBackupVaultName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RestoreAccessBackupVaults }}'
+- discovery_id: aws.backup.describe_scan_job
+  for_each: aws.backup.list_scan_jobs
+  calls:
+  - action: describe_scan_job
+    save_as: response
+    on_error: continue
+    params:
+      ScanJobId: '{{ item.scanJobScanJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CreatedBy }}'
+- discovery_id: aws.backup.describe_backup_vault
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: describe_backup_vault
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobBackupVaultName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LatestMpaApprovalTeamUpdate }}'
+- discovery_id: aws.backup.list_recovery_points_by_resource
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: list_recovery_points_by_resource
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.backupJobResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RecoveryPoints }}'
+- discovery_id: aws.backup.describe_protected_resource
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: describe_protected_resource
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.backupJobResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceArn }}'
+- discovery_id: aws.backup.get_recovery_point_index_details
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: get_recovery_point_index_details
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobRecoveryPointArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.RecoveryPointArn }}'
+- discovery_id: aws.backup.list_backup_selections
+  for_each: aws.backup.list_backup_plans
+  calls:
+  - action: list_backup_selections
+    save_as: response
+    on_error: continue
+    params:
+      BackupPlanId: '{{ item.backupPlansListBackupPlanId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BackupSelectionsList }}'
+- discovery_id: aws.backup.get_backup_selection
+  for_each: aws.backup.list_backup_plans
+  calls:
+  - action: get_backup_selection
+    save_as: response
+    on_error: continue
+    params:
+      BackupPlanId: '{{ item.backupSelectionsListSelectionId }}'
+  emit:
+    as: item
+    items_for: '{{ response.BackupSelection }}'
+- discovery_id: aws.backup.describe_report_plan
+  for_each: aws.backup.list_report_plans
+  calls:
+  - action: describe_report_plan
+    save_as: response
+    on_error: continue
+    params:
+      ReportPlanName: '{{ item.reportPlanReportPlanName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ReportPlan }}'
+- discovery_id: aws.backup.get_tiering_configuration
+  for_each: aws.backup.list_tiering_configurations
+  calls:
+  - action: get_tiering_configuration
+    save_as: response
+    on_error: continue
+    params:
+      TieringConfigurationName: '{{ item.tieringConfigurationTieringConfigurationName }}'
+  emit:
+    as: item
+    items_for: '{{ response.TieringConfiguration }}'
+- discovery_id: aws.backup.get_backup_vault_access_policy
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: get_backup_vault_access_policy
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobBackupVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.BackupVaultName }}'
+- discovery_id: aws.backup.get_backup_vault_notifications
+  for_each: aws.backup.list_backup_jobs
+  calls:
+  - action: get_backup_vault_notifications
+    save_as: response
+    on_error: continue
+    params:
+      BackupVaultName: '{{ item.backupJobBackupVaultName }}'
+  emit:
+    as: item
+    items_for: '{{ response.BackupVaultEvents }}'
+checks: []

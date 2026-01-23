@@ -1,0 +1,62 @@
+version: '1.0'
+provider: oci
+service: lustre_file_storage
+services:
+  client: lustre_file_storage
+  module: oci.lustre_file_storage
+discovery:
+- discovery_id: oci.lustre_file_storage.get_lustre_file_system
+  calls:
+  - action: get_lustre_file_system
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.lustre_file_storage.get_object_storage_link
+  calls:
+  - action: get_object_storage_link
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.lustre_file_storage.get_sync_job
+  calls:
+  - action: get_sync_job
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.lustre_file_storage.get_work_request
+  calls:
+  - action: get_work_request
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.lustre_file_storage.list_work_request_errors
+  for_each: oci.lustre_file_storage.get_lustre_file_system
+  calls:
+  - action: list_work_request_errors
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.lustre_file_storage.list_work_request_logs
+  for_each: oci.lustre_file_storage.get_lustre_file_system
+  calls:
+  - action: list_work_request_logs
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

@@ -1,0 +1,122 @@
+version: '1.0'
+provider: aws
+service: supplychain
+services:
+  client: supplychain
+  module: boto3.client
+discovery:
+- discovery_id: aws.supplychain.list_instances
+  calls:
+  - action: list_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.instances }}'
+- discovery_id: aws.supplychain.list_data_integration_events
+  for_each: aws.supplychain.list_instances
+  calls:
+  - action: list_data_integration_events
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.events }}'
+- discovery_id: aws.supplychain.list_data_integration_flows
+  for_each: aws.supplychain.list_instances
+  calls:
+  - action: list_data_integration_flows
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.flows }}'
+- discovery_id: aws.supplychain.list_data_integration_flow_executions
+  for_each: aws.supplychain.list_data_integration_flows
+  calls:
+  - action: list_data_integration_flow_executions
+    save_as: response
+    on_error: continue
+    params:
+      flowName: '{{ item.flowName }}'
+      instanceId: '{{ item.instancInstanceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.flowExecutions }}'
+- discovery_id: aws.supplychain.get_data_lake_namespace
+  for_each: aws.supplychain.list_data_integration_flows
+  calls:
+  - action: get_data_lake_namespace
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.namespace }}'
+- discovery_id: aws.supplychain.get_data_lake_dataset
+  for_each: aws.supplychain.get_data_lake_namespace
+  calls:
+  - action: get_data_lake_dataset
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.dataset }}'
+- discovery_id: aws.supplychain.get_instance
+  for_each: aws.supplychain.list_instances
+  calls:
+  - action: get_instance
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.instance }}'
+- discovery_id: aws.supplychain.get_data_integration_flow_execution
+  for_each: aws.supplychain.list_data_integration_flow_executions
+  calls:
+  - action: get_data_integration_flow_execution
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+      flowName: '{{ item.flowName }}'
+  emit:
+    as: item
+    items_for: '{{ response.flowExecution }}'
+- discovery_id: aws.supplychain.get_data_integration_flow
+  for_each: aws.supplychain.list_data_integration_flows
+  calls:
+  - action: get_data_integration_flow
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.flow }}'
+- discovery_id: aws.supplychain.get_data_integration_event
+  for_each: aws.supplychain.list_data_integration_events
+  calls:
+  - action: get_data_integration_event
+    save_as: response
+    on_error: continue
+    params:
+      instanceId: '{{ item.instancInstanceId }}'
+  emit:
+    as: item
+    items_for: '{{ response.event }}'
+checks: []

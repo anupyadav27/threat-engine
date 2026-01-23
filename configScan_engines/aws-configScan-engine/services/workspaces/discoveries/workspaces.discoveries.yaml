@@ -1,0 +1,26 @@
+version: '1.0'
+provider: aws
+service: workspaces
+services:
+  client: workspaces
+  module: boto3.client
+discovery:
+- discovery_id: aws.workspaces.describe_workspace_directories
+  calls:
+  - action: describe_workspace_directories
+    params:
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.Directories }}'
+    as: item
+- discovery_id: aws.workspaces.describe_workspaces
+  calls:
+  - action: describe_workspaces
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Workspaces }}'
+    as: item

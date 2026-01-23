@@ -1,0 +1,76 @@
+version: '1.0'
+provider: aws
+service: service-quotas
+services:
+  client: service-quotas
+  module: boto3.client
+discovery:
+- discovery_id: aws.service-quotas.list_requested_service_quota_change_history
+  calls:
+  - action: list_requested_service_quota_change_history
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RequestedQuotas }}'
+- discovery_id: aws.service-quotas.list_service_quota_increase_requests_in_template
+  calls:
+  - action: list_service_quota_increase_requests_in_template
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ServiceQuotaIncreaseRequestInTemplateList }}'
+- discovery_id: aws.service-quotas.get_auto_management_configuration
+  calls:
+  - action: get_auto_management_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.OptInLevel }}'
+- discovery_id: aws.service-quotas.get_association_for_service_quota_template
+  calls:
+  - action: get_association_for_service_quota_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ServiceQuotaTemplateAssociationStatus }}'
+- discovery_id: aws.service-quotas.get_service_quota
+  for_each: aws.service-quotas.list_requested_service_quota_change_history
+  calls:
+  - action: get_service_quota
+    save_as: response
+    on_error: continue
+    params:
+      ServiceCode: '{{ item.requestedQuotaServiceCode }}'
+  emit:
+    as: item
+    items_for: '{{ response.Quota }}'
+- discovery_id: aws.service-quotas.get_service_quota_increase_request_from_template
+  for_each: aws.service-quotas.list_requested_service_quota_change_history
+  calls:
+  - action: get_service_quota_increase_request_from_template
+    save_as: response
+    on_error: continue
+    params:
+      ServiceCode: '{{ item.serviceQuotaIncreaseRequestInTemplateListAwsRegion }}'
+  emit:
+    as: item
+    items_for: '{{ response.ServiceQuotaIncreaseRequestInTemplate }}'
+- discovery_id: aws.service-quotas.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

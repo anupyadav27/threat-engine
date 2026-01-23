@@ -1,0 +1,231 @@
+version: '1.0'
+provider: aws
+service: apigateway
+services:
+  client: apigateway
+  module: boto3.client
+discovery:
+- discovery_id: aws.apigateway.get_domain_names
+  calls:
+  - action: get_domain_names
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_rest_apis
+  calls:
+  - action: get_rest_apis
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_api_keys
+  calls:
+  - action: get_api_keys
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_usage_plans
+  calls:
+  - action: get_usage_plans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_vpc_links
+  calls:
+  - action: get_vpc_links
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_client_certificates
+  calls:
+  - action: get_client_certificates
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_domain_name_access_associations
+  calls:
+  - action: get_domain_name_access_associations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_sdk_types
+  calls:
+  - action: get_sdk_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_account
+  calls:
+  - action: get_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.features }}'
+- discovery_id: aws.apigateway.get_domain_name
+  for_each: aws.apigateway.get_domain_names
+  calls:
+  - action: get_domain_name
+    save_as: response
+    on_error: continue
+    params:
+      domainName: '{{ item.itemDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.endpointConfiguration }}'
+- discovery_id: aws.apigateway.get_base_path_mappings
+  for_each: aws.apigateway.get_domain_names
+  calls:
+  - action: get_base_path_mappings
+    save_as: response
+    on_error: continue
+    params:
+      domainName: '{{ item.itemDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_stages
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_stages
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.item }}'
+- discovery_id: aws.apigateway.get_authorizers
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_authorizers
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_documentation_part
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_documentation_part
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.location }}'
+- discovery_id: aws.apigateway.get_gateway_responses
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_gateway_responses
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_resources
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_resources
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_stage
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_stage
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemStageName }}'
+  emit:
+    as: item
+    items_for: '{{ response.accessLogSettings }}'
+- discovery_id: aws.apigateway.get_models
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_models
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_sdk_type
+  for_each: aws.apigateway.get_rest_apis
+  calls:
+  - action: get_sdk_type
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.itemId }}'
+  emit:
+    as: item
+    items_for: '{{ response.configurationProperties }}'
+- discovery_id: aws.apigateway.get_request_validators
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_request_validators
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_usage_plan
+  calls:
+  - action: get_usage_plan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.apiStages }}'
+- discovery_id: aws.apigateway.get_deployments
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_deployments
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.apigateway.get_method
+  for_each: aws.apigateway.get_base_path_mappings
+  calls:
+  - action: get_method
+    save_as: response
+    on_error: continue
+    params:
+      restApiId: '{{ item.itemRestApiId }}'
+  emit:
+    as: item
+    items_for: '{{ response.authorizationScopes }}'
+checks: []

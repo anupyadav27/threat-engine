@@ -1,0 +1,167 @@
+version: '1.0'
+provider: aws
+service: odb
+services:
+  client: odb
+  module: boto3.client
+discovery:
+- discovery_id: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: list_cloud_autonomous_vm_clusters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.cloudAutonomousVmClusters }}'
+- discovery_id: aws.odb.list_cloud_vm_clusters
+  calls:
+  - action: list_cloud_vm_clusters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.cloudVmClusters }}'
+- discovery_id: aws.odb.list_cloud_exadata_infrastructures
+  calls:
+  - action: list_cloud_exadata_infrastructures
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.cloudExadataInfrastructures }}'
+- discovery_id: aws.odb.list_db_system_shapes
+  calls:
+  - action: list_db_system_shapes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dbSystemShapes }}'
+- discovery_id: aws.odb.list_odb_networks
+  calls:
+  - action: list_odb_networks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.odbNetworks }}'
+- discovery_id: aws.odb.list_odb_peering_connections
+  calls:
+  - action: list_odb_peering_connections
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.odbPeeringConnections }}'
+- discovery_id: aws.odb.get_oci_onboarding_status
+  calls:
+  - action: get_oci_onboarding_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ociIdentityDomain }}'
+- discovery_id: aws.odb.list_gi_versions
+  calls:
+  - action: list_gi_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.giVersions }}'
+- discovery_id: aws.odb.list_db_nodes
+  for_each: aws.odb.list_cloud_vm_clusters
+  calls:
+  - action: list_db_nodes
+    save_as: response
+    on_error: continue
+    params:
+      cloudVmClusterId: '{{ item.cloudVmClusterCloudVmClusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dbNodes }}'
+- discovery_id: aws.odb.list_db_servers
+  for_each: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: list_db_servers
+    save_as: response
+    on_error: continue
+    params:
+      cloudExadataInfrastructureId: '{{ item.cloudAutonomousVmClusterCloudExadataInfrastructureId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dbServers }}'
+- discovery_id: aws.odb.get_cloud_exadata_infrastructure_unallocated_resources
+  for_each: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: get_cloud_exadata_infrastructure_unallocated_resources
+    save_as: response
+    on_error: continue
+    params:
+      cloudExadataInfrastructureId: '{{ item.cloudAutonomousVmClusterCloudExadataInfrastructureId }}'
+  emit:
+    as: item
+    items_for: '{{ response.cloudExadataInfrastructureUnallocatedResources }}'
+- discovery_id: aws.odb.list_autonomous_virtual_machines
+  for_each: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: list_autonomous_virtual_machines
+    save_as: response
+    on_error: continue
+    params:
+      cloudAutonomousVmClusterId: '{{ item.cloudAutonomousVmClusterCloudAutonomousVmClusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.autonomousVirtualMachines }}'
+- discovery_id: aws.odb.get_db_node
+  for_each: aws.odb.list_cloud_vm_clusters
+  calls:
+  - action: get_db_node
+    save_as: response
+    on_error: continue
+    params:
+      cloudVmClusterId: '{{ item.dbNodeDbNodeId }}'
+  emit:
+    as: item
+    items_for: '{{ response.dbNode }}'
+- discovery_id: aws.odb.get_cloud_autonomous_vm_cluster
+  for_each: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: get_cloud_autonomous_vm_cluster
+    save_as: response
+    on_error: continue
+    params:
+      cloudAutonomousVmClusterId: '{{ item.cloudAutonomousVmClusterCloudAutonomousVmClusterId }}'
+  emit:
+    as: item
+    items_for: '{{ response.cloudAutonomousVmCluster }}'
+- discovery_id: aws.odb.list_system_versions
+  for_each: aws.odb.list_cloud_autonomous_vm_clusters
+  calls:
+  - action: list_system_versions
+    save_as: response
+    on_error: continue
+    params:
+      giVersion: '{{ item.cloudVmClusterGiVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.systemVersions }}'
+checks: []

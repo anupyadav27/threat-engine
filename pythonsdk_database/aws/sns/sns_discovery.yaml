@@ -1,0 +1,76 @@
+version: '1.0'
+provider: aws
+service: sns
+services:
+  client: sns
+  module: boto3.client
+discovery:
+- discovery_id: aws.sns.list_origination_numbers
+  calls:
+  - action: list_origination_numbers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PhoneNumbers }}'
+- discovery_id: aws.sns.list_subscriptions
+  calls:
+  - action: list_subscriptions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Subscriptions }}'
+- discovery_id: aws.sns.list_platform_applications
+  calls:
+  - action: list_platform_applications
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PlatformApplications }}'
+- discovery_id: aws.sns.get_sms_attributes
+  calls:
+  - action: get_sms_attributes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.attributes }}'
+- discovery_id: aws.sns.get_sms_sandbox_account_status
+  calls:
+  - action: get_sms_sandbox_account_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IsInSandbox }}'
+- discovery_id: aws.sns.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.sns.list_endpoints_by_platform_application
+  for_each: aws.sns.list_platform_applications
+  calls:
+  - action: list_endpoints_by_platform_application
+    save_as: response
+    on_error: continue
+    params:
+      PlatformApplicationArn: '{{ item.platformApplicationPlatformApplicationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+checks: []

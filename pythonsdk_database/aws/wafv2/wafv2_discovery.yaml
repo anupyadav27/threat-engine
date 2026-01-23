@@ -1,0 +1,149 @@
+version: '1.0'
+provider: aws
+service: wafv2
+services:
+  client: wafv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.wafv2.get_web_acl
+  calls:
+  - action: get_web_acl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WebACL }}'
+- discovery_id: aws.wafv2.get_rule_group
+  calls:
+  - action: get_rule_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RuleGroup }}'
+- discovery_id: aws.wafv2.get_sampled_requests
+  calls:
+  - action: get_sampled_requests
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SampledRequests }}'
+- discovery_id: aws.wafv2.describe_all_managed_products
+  calls:
+  - action: describe_all_managed_products
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ManagedProducts }}'
+- discovery_id: aws.wafv2.list_logging_configurations
+  calls:
+  - action: list_logging_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LoggingConfigurations }}'
+- discovery_id: aws.wafv2.list_api_keys
+  calls:
+  - action: list_api_keys
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.APIKeySummaries }}'
+- discovery_id: aws.wafv2.get_managed_rule_set
+  for_each: aws.wafv2.get_web_acl
+  calls:
+  - action: get_managed_rule_set
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.ruleGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.ManagedRuleSet }}'
+- discovery_id: aws.wafv2.get_ip_set
+  for_each: aws.wafv2.get_web_acl
+  calls:
+  - action: get_ip_set
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.ruleGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.IPSet }}'
+- discovery_id: aws.wafv2.get_regex_pattern_set
+  for_each: aws.wafv2.get_web_acl
+  calls:
+  - action: get_regex_pattern_set
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.ruleGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.RegexPatternSet }}'
+- discovery_id: aws.wafv2.list_available_managed_rule_groups
+  calls:
+  - action: list_available_managed_rule_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ManagedRuleGroups }}'
+- discovery_id: aws.wafv2.list_available_managed_rule_group_versions
+  for_each: aws.wafv2.describe_all_managed_products
+  calls:
+  - action: list_available_managed_rule_group_versions
+    save_as: response
+    on_error: continue
+    params:
+      VendorName: '{{ item.ruleGroupName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Versions }}'
+- discovery_id: aws.wafv2.list_mobile_sdk_releases
+  calls:
+  - action: list_mobile_sdk_releases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ReleaseSummaries }}'
+- discovery_id: aws.wafv2.get_mobile_sdk_release
+  for_each: aws.wafv2.list_mobile_sdk_releases
+  calls:
+  - action: get_mobile_sdk_release
+    save_as: response
+    on_error: continue
+    params:
+      Platform: '{{ item.mobileSdkReleaseReleaseVersion }}'
+  emit:
+    as: item
+    items_for: '{{ response.MobileSdkRelease }}'
+- discovery_id: aws.wafv2.get_permission_policy
+  for_each: aws.wafv2.list_logging_configurations
+  calls:
+  - action: get_permission_policy
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.loggingConfigurationResourceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+checks: []

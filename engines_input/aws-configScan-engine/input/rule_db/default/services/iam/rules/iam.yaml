@@ -1,0 +1,377 @@
+version: '1.0'
+provider: aws
+service: iam
+services:
+  client: iam
+  module: boto3.client
+discovery:
+- discovery_id: aws.iam.get_account_password_policy
+  calls:
+  - action: get_account_password_policy
+    save_as: response
+  emit:
+    item:
+      MinimumPasswordLength: '{{ response.PasswordPolicy.MinimumPasswordLength }}'
+      RequireSymbols: '{{ response.PasswordPolicy.RequireSymbols }}'
+      RequireNumbers: '{{ response.PasswordPolicy.RequireNumbers }}'
+      RequireUppercaseCharacters: '{{ response.PasswordPolicy.RequireUppercaseCharacters
+        }}'
+      RequireLowercaseCharacters: '{{ response.PasswordPolicy.RequireLowercaseCharacters
+        }}'
+      AllowUsersToChangePassword: '{{ response.PasswordPolicy.AllowUsersToChangePassword
+        }}'
+      ExpirePasswords: '{{ response.PasswordPolicy.ExpirePasswords }}'
+      MaxPasswordAge: '{{ response.PasswordPolicy.MaxPasswordAge }}'
+      PasswordReusePrevention: '{{ response.PasswordPolicy.PasswordReusePrevention
+        }}'
+      HardExpiry: '{{ response.PasswordPolicy.HardExpiry }}'
+- discovery_id: aws.iam.get_instance_profile
+  for_each: aws.iam.list_instance_profiles_for_role
+  calls:
+  - action: get_instance_profile
+    params:
+      InstanceProfileName: '{{ item.InstanceProfileName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      Path: '{{ response.InstanceProfile.Path }}'
+      InstanceProfileName: '{{ response.InstanceProfile.InstanceProfileName }}'
+      InstanceProfileId: '{{ response.InstanceProfile.InstanceProfileId }}'
+      Arn: '{{ response.InstanceProfile.Arn }}'
+      CreateDate: '{{ response.InstanceProfile.CreateDate }}'
+      Roles: '{{ response.InstanceProfile.Roles }}'
+      Tags: '{{ response.InstanceProfile.Tags }}'
+- discovery_id: aws.iam.list_policies
+  calls:
+  - action: list_policies
+    save_as: response
+  emit:
+    items_for: '{{ response.Policies }}'
+    as: item
+    item:
+      PolicyName: '{{ item.PolicyName }}'
+      PolicyId: '{{ item.PolicyId }}'
+      Arn: '{{ item.Arn }}'
+      Path: '{{ item.Path }}'
+      DefaultVersionId: '{{ item.DefaultVersionId }}'
+      AttachmentCount: '{{ item.AttachmentCount }}'
+      PermissionsBoundaryUsageCount: '{{ item.PermissionsBoundaryUsageCount }}'
+      IsAttachable: '{{ item.IsAttachable }}'
+      Description: '{{ item.Description }}'
+      CreateDate: '{{ item.CreateDate }}'
+      UpdateDate: '{{ item.UpdateDate }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.iam.list_roles
+  calls:
+  - action: list_roles
+    save_as: response
+  emit:
+    items_for: '{{ response.Roles }}'
+    as: item
+    item:
+      Path: '{{ item.Path }}'
+      RoleName: '{{ item.RoleName }}'
+      RoleId: '{{ item.RoleId }}'
+      Arn: '{{ item.Arn }}'
+      CreateDate: '{{ item.CreateDate }}'
+      AssumeRolePolicyDocument: '{{ item.AssumeRolePolicyDocument }}'
+      Description: '{{ item.Description }}'
+      MaxSessionDuration: '{{ item.MaxSessionDuration }}'
+      PermissionsBoundary: '{{ item.PermissionsBoundary }}'
+      Tags: '{{ item.Tags }}'
+      RoleLastUsed: '{{ item.RoleLastUsed }}'
+- discovery_id: aws.iam.list_users
+  calls:
+  - action: list_users
+    save_as: response
+  emit:
+    items_for: '{{ response.Users }}'
+    as: item
+    item:
+      Path: '{{ item.Path }}'
+      UserName: '{{ item.UserName }}'
+      UserId: '{{ item.UserId }}'
+      Arn: '{{ item.Arn }}'
+      CreateDate: '{{ item.CreateDate }}'
+      PasswordLastUsed: '{{ item.PasswordLastUsed }}'
+      PermissionsBoundary: '{{ item.PermissionsBoundary }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.iam.list_user_policies
+  for_each: aws.iam.list_users
+  calls:
+  - action: list_user_policies
+    params:
+      UserName: '{{ item.UserName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.PolicyNames }}'
+    as: policy_name
+    item:
+      UserName: '{{ item.UserName }}'
+      PolicyNames: '{{ response.PolicyNames }}'
+- discovery_id: aws.iam.get_role
+  for_each: aws.iam.list_roles
+  calls:
+  - action: get_role
+    params:
+      RoleName: '{{ item.RoleName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      Path: '{{ response.Role.Path }}'
+      RoleName: '{{ response.Role.RoleName }}'
+      RoleId: '{{ response.Role.RoleId }}'
+      Arn: '{{ response.Role.Arn }}'
+      CreateDate: '{{ response.Role.CreateDate }}'
+      AssumeRolePolicyDocument: '{{ response.Role.AssumeRolePolicyDocument }}'
+      Description: '{{ response.Role.Description }}'
+      MaxSessionDuration: '{{ response.Role.MaxSessionDuration }}'
+      PermissionsBoundary: '{{ response.Role.PermissionsBoundary }}'
+      Tags: '{{ response.Role.Tags }}'
+      RoleLastUsed: '{{ response.Role.RoleLastUsed }}'
+- discovery_id: aws.iam.list_attached_user_policies
+  for_each: aws.iam.list_users
+  calls:
+  - action: list_attached_user_policies
+    params:
+      UserName: '{{ item.UserName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.AttachedPolicies }}'
+    as: policy
+    item:
+      UserName: '{{ item.UserName }}'
+      PolicyName: '{{ policy.PolicyName }}'
+      PolicyArn: '{{ policy.PolicyArn }}'
+- discovery_id: aws.iam.list_policy_versions
+  for_each: aws.iam.list_policies
+  calls:
+  - action: list_policy_versions
+    params:
+      PolicyArn: '{{ item.Arn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.Versions }}'
+    as: version
+    item:
+      PolicyArn: '{{ item.Arn }}'
+      PolicyName: '{{ item.PolicyName }}'
+      Document: '{{ version.Document }}'
+      VersionId: '{{ version.VersionId }}'
+      IsDefaultVersion: '{{ version.IsDefaultVersion }}'
+      CreateDate: '{{ version.CreateDate }}'
+- discovery_id: aws.iam.get_policy
+  for_each: aws.iam.list_policies
+  calls:
+  - action: get_policy
+    params:
+      PolicyArn: '{{ item.Arn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      PolicyName: '{{ response.Policy.PolicyName }}'
+      PolicyId: '{{ response.Policy.PolicyId }}'
+      Arn: '{{ response.Policy.Arn }}'
+      Path: '{{ response.Policy.Path }}'
+      DefaultVersionId: '{{ response.Policy.DefaultVersionId }}'
+      AttachmentCount: '{{ response.Policy.AttachmentCount }}'
+      PermissionsBoundaryUsageCount: '{{ response.Policy.PermissionsBoundaryUsageCount
+        }}'
+      IsAttachable: '{{ response.Policy.IsAttachable }}'
+      Description: '{{ response.Policy.Description }}'
+      CreateDate: '{{ response.Policy.CreateDate }}'
+      UpdateDate: '{{ response.Policy.UpdateDate }}'
+      Tags: '{{ response.Policy.Tags }}'
+- discovery_id: aws.iam.get_saml_provider
+  for_each: aws.iam.list_s_a_m_l_providers
+  calls:
+  - action: get_saml_provider
+    params:
+      SAMLProviderArn: '{{ item.Arn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      SAMLProviderArn: '{{ item.Arn }}'
+      SAMLMetadataDocument: '{{ response.SAMLProvider.SAMLMetadataDocument }}'
+      CreateDate: '{{ response.SAMLProvider.CreateDate }}'
+      ValidUntil: '{{ response.SAMLProvider.ValidUntil }}'
+- discovery_id: aws.iam.list_signing_certificates
+  for_each: aws.iam.list_users
+  calls:
+  - action: list_signing_certificates
+    params:
+      UserName: '{{ item.UserName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.Certificates }}'
+    as: cert
+    item:
+      UserName: '{{ item.UserName }}'
+      CertificateId: '{{ cert.CertificateId }}'
+      CertificateBody: '{{ cert.CertificateBody }}'
+      Status: '{{ cert.Status }}'
+      UploadDate: '{{ cert.UploadDate }}'
+- discovery_id: aws.iam.list_server_certificates
+  calls:
+  - action: list_server_certificates
+    save_as: response
+  emit:
+    items_for: '{{ response.ServerCertificateMetadataList }}'
+    as: item
+    item:
+      Path: '{{ item.Path }}'
+      ServerCertificateName: '{{ item.ServerCertificateName }}'
+      ServerCertificateId: '{{ item.ServerCertificateId }}'
+      Arn: '{{ item.Arn }}'
+      UploadDate: '{{ item.UploadDate }}'
+      Expiration: '{{ item.Expiration }}'
+- discovery_id: aws.iam.get_account_summary
+  calls:
+  - action: get_account_summary
+    save_as: response
+  emit:
+    item: {}
+- discovery_id: aws.iam.list_access_keys
+  for_each: aws.iam.list_users
+  calls:
+  - action: list_access_keys
+    params:
+      UserName: '{{ item.UserName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.AccessKeyMetadata }}'
+    as: key
+    item:
+      UserName: '{{ item.UserName }}'
+      AccessKeyId: '{{ key.AccessKeyId }}'
+      Status: '{{ key.Status }}'
+      CreateDate: '{{ key.CreateDate }}'
+- discovery_id: aws.iam.list_instance_profiles_for_role
+  calls:
+  - action: list_instance_profiles
+    save_as: response
+  emit:
+    items_for: '{{ response.InstanceProfiles }}'
+    as: item
+    item:
+      Path: '{{ item.Path }}'
+      InstanceProfileName: '{{ item.InstanceProfileName }}'
+      InstanceProfileId: '{{ item.InstanceProfileId }}'
+      Arn: '{{ item.Arn }}'
+      CreateDate: '{{ item.CreateDate }}'
+      Roles: '{{ item.Roles }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.iam.list_open_id_connect_providers
+  calls:
+  - action: list_open_id_connect_providers
+    save_as: response
+  emit:
+    items_for: '{{ response.OpenIDConnectProviderList }}'
+    as: item
+    item:
+      OpenIDConnectProviderList: '{{ item }}'
+- discovery_id: aws.iam.list_mfa_devices
+  calls:
+  - action: list_mfa_devices
+    save_as: response
+  emit:
+    items_for: '{{ response.MFADevices }}'
+    as: item
+    item:
+      MFADevices: '{{ item }}'
+- discovery_id: aws.iam.get_key_rotation_status
+  for_each: aws.iam.list_access_keys
+  calls:
+  - action: get_access_key_last_used
+    params:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+      UserName: '{{ item.UserName }}'
+      LastUsedDate: '{{ response.AccessKeyLastUsed.LastUsedDate }}'
+      LastUsedService: '{{ response.AccessKeyLastUsed.LastUsedService }}'
+      LastUsedRegion: '{{ response.AccessKeyLastUsed.LastUsedRegion }}'
+- discovery_id: aws.iam.list_groups_for_user
+  for_each: aws.iam.list_users
+  calls:
+  - action: list_groups_for_user
+    params:
+      UserName: '{{ item.UserName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.Groups }}'
+    as: group
+    item:
+      UserName: '{{ item.UserName }}'
+      Path: '{{ group.Path }}'
+      GroupName: '{{ group.GroupName }}'
+      GroupId: '{{ group.GroupId }}'
+      Arn: '{{ group.Arn }}'
+      CreateDate: '{{ group.CreateDate }}'
+- discovery_id: aws.iam.get_open_id_connect_provider
+  for_each: aws.iam.list_open_id_connect_providers
+  calls:
+  - action: get_open_id_connect_provider
+    params:
+      OpenIDConnectProviderArn: '{{ item }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      OpenIDConnectProviderArn: '{{ item }}'
+      Url: '{{ response.Url }}'
+      ClientIDList: '{{ response.ClientIDList }}'
+      ThumbprintList: '{{ response.ThumbprintList }}'
+      CreateDate: '{{ response.CreateDate }}'
+      Tags: '{{ response.Tags }}'
+- discovery_id: aws.iam.list_s_a_m_l_providers
+  calls:
+  - action: list_saml_providers
+    save_as: response
+  emit:
+    items_for: '{{ response.SAMLProviderList }}'
+    as: item
+    item:
+      Arn: '{{ item.Arn }}'
+      ValidUntil: '{{ item.ValidUntil }}'
+      CreateDate: '{{ item.CreateDate }}'
+- discovery_id: aws.iam.list_groups
+  calls:
+  - action: list_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.Groups }}'
+    as: item
+    item:
+      Path: '{{ item.Path }}'
+      GroupName: '{{ item.GroupName }}'
+      GroupId: '{{ item.GroupId }}'
+      Arn: '{{ item.Arn }}'
+      CreateDate: '{{ item.CreateDate }}'
+- discovery_id: aws.iam.list_group_policies
+  for_each: aws.iam.list_groups
+  calls:
+  - action: list_group_policies
+    params:
+      GroupName: '{{ item.GroupName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.PolicyNames }}'
+    as: policy_name
+    item:
+      GroupName: '{{ item.GroupName }}'
+      PolicyNames: '{{ response.PolicyNames }}'

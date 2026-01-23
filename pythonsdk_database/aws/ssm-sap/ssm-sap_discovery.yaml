@@ -1,0 +1,111 @@
+version: '1.0'
+provider: aws
+service: ssm-sap
+services:
+  client: ssm-sap
+  module: boto3.client
+discovery:
+- discovery_id: aws.ssm-sap.get_database
+  calls:
+  - action: get_database
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Database }}'
+- discovery_id: aws.ssm-sap.get_application
+  calls:
+  - action: get_application
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Application }}'
+- discovery_id: aws.ssm-sap.list_databases
+  calls:
+  - action: list_databases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Databases }}'
+- discovery_id: aws.ssm-sap.list_components
+  calls:
+  - action: list_components
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Components }}'
+- discovery_id: aws.ssm-sap.list_configuration_check_definitions
+  calls:
+  - action: list_configuration_check_definitions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationChecks }}'
+- discovery_id: aws.ssm-sap.get_component
+  for_each: aws.ssm-sap.get_application
+  calls:
+  - action: get_component
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationId: '{{ item.databaseComponentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Component }}'
+- discovery_id: aws.ssm-sap.get_operation
+  calls:
+  - action: get_operation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Operation }}'
+- discovery_id: aws.ssm-sap.get_configuration_check_operation
+  calls:
+  - action: get_configuration_check_operation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationCheckOperation }}'
+- discovery_id: aws.ssm-sap.list_operation_events
+  calls:
+  - action: list_operation_events
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.OperationEvents }}'
+- discovery_id: aws.ssm-sap.list_sub_check_rule_results
+  calls:
+  - action: list_sub_check_rule_results
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RuleResults }}'
+- discovery_id: aws.ssm-sap.list_sub_check_results
+  calls:
+  - action: list_sub_check_results
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SubCheckResults }}'
+checks: []

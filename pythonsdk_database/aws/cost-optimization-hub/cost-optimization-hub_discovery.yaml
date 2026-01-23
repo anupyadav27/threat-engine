@@ -1,0 +1,67 @@
+version: '1.0'
+provider: aws
+service: cost-optimization-hub
+services:
+  client: cost-optimization-hub
+  module: boto3.client
+discovery:
+- discovery_id: aws.cost-optimization-hub.list_recommendations
+  calls:
+  - action: list_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.cost-optimization-hub.get_preferences
+  calls:
+  - action: get_preferences
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.preferredCommitment }}'
+- discovery_id: aws.cost-optimization-hub.list_enrollment_statuses
+  calls:
+  - action: list_enrollment_statuses
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.cost-optimization-hub.list_efficiency_metrics
+  calls:
+  - action: list_efficiency_metrics
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.efficiencyMetricsByGroup }}'
+- discovery_id: aws.cost-optimization-hub.get_recommendation
+  for_each: aws.cost-optimization-hub.list_recommendations
+  calls:
+  - action: get_recommendation
+    save_as: response
+    on_error: continue
+    params:
+      recommendationId: '{{ item.itemRecommendationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.cost-optimization-hub.list_recommendation_summaries
+  calls:
+  - action: list_recommendation_summaries
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+checks: []

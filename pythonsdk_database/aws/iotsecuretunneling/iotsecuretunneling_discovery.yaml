@@ -1,0 +1,40 @@
+version: '1.0'
+provider: aws
+service: iotsecuretunneling
+services:
+  client: iotsecuretunneling
+  module: boto3.client
+discovery:
+- discovery_id: aws.iotsecuretunneling.list_tunnels
+  calls:
+  - action: list_tunnels
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tunnelSummaries }}'
+- discovery_id: aws.iotsecuretunneling.describe_tunnel
+  for_each: aws.iotsecuretunneling.list_tunnels
+  calls:
+  - action: describe_tunnel
+    save_as: response
+    on_error: continue
+    params:
+      tunnelId: '{{ item.tunnelSummaryTunnelId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tunnel }}'
+- discovery_id: aws.iotsecuretunneling.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

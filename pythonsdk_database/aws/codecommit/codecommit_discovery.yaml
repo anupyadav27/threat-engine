@@ -1,0 +1,138 @@
+version: '1.0'
+provider: aws
+service: codecommit
+services:
+  client: codecommit
+  module: boto3.client
+discovery:
+- discovery_id: aws.codecommit.list_repositories
+  calls:
+  - action: list_repositories
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.repositories }}'
+- discovery_id: aws.codecommit.get_branch
+  calls:
+  - action: get_branch
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.branch }}'
+- discovery_id: aws.codecommit.get_merge_conflicts
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_merge_conflicts
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.conflictMetadataList }}'
+- discovery_id: aws.codecommit.get_repository
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_repository
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.repositoryMetadata }}'
+- discovery_id: aws.codecommit.get_commit
+  for_each: aws.codecommit.get_branch
+  calls:
+  - action: get_commit
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.commit }}'
+- discovery_id: aws.codecommit.get_repository_triggers
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_repository_triggers
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.triggers }}'
+- discovery_id: aws.codecommit.get_differences
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_differences
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.differences }}'
+- discovery_id: aws.codecommit.describe_merge_conflicts
+  for_each: aws.codecommit.get_merge_conflicts
+  calls:
+  - action: describe_merge_conflicts
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.mergeHunks }}'
+- discovery_id: aws.codecommit.list_file_commit_history
+  for_each: aws.codecommit.get_merge_conflicts
+  calls:
+  - action: list_file_commit_history
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.revisionDag }}'
+- discovery_id: aws.codecommit.get_folder
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_folder
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.subFolders }}'
+- discovery_id: aws.codecommit.get_merge_commit
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_merge_commit
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.repositoryRepositoryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.sourceCommitId }}'
+- discovery_id: aws.codecommit.get_blob
+  for_each: aws.codecommit.list_repositories
+  calls:
+  - action: get_blob
+    save_as: response
+    on_error: continue
+    params:
+      repositoryName: '{{ item.revisionDagBlobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.content }}'
+checks: []

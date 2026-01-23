@@ -193,7 +193,12 @@ def compute_asset_hash(asset: Dict[str, Any]) -> str:
 
 
 def generate_arn(service: str, region: str, account_id: str, resource_id: str, resource_type: str = None) -> str:
-    """Generate ARN for any AWS resource based on service configuration"""
+    """
+    Generate ARN for any AWS resource based on service configuration.
+    Generic implementation - automatically detects required parameters from ARN pattern.
+    """
+    import re
+    
     config_path = os.path.join(_config_dir(), "service_list.json")
     with open(config_path, 'r') as f:
         config = json.load(f)
@@ -213,36 +218,39 @@ def generate_arn(service: str, region: str, account_id: str, resource_id: str, r
     if not arn_pattern:
         raise ValueError(f"ARN pattern not defined for service '{service}'")
     
-    # Determine if service is global or regional
+    # Determine scope
     scope = service_config.get("scope", "regional")
     
-    # For global services, region and account_id might be empty
-    if scope == "global":
-        if service == "s3":
-            # S3 buckets don't include region/account in ARN
-            return arn_pattern.format(resource_id=resource_id)
-        elif service in ["iam", "organizations", "budgets", "ce", "artifact", "trustedadvisor", "wellarchitected", "tag"]:
-            # These services use account_id but no region
-            return arn_pattern.format(account_id=account_id, resource_type=resource_type or "resource", resource_id=resource_id)
-        elif service == "route53":
-            # Route53 uses account_id but no region
-            return arn_pattern.format(account_id=account_id, resource_type=resource_type or "resource", resource_id=resource_id)
-        elif service == "cloudfront":
-            # CloudFront uses account_id but no region
-            return arn_pattern.format(account_id=account_id, resource_type=resource_type or "resource", resource_id=resource_id)
-    else:
-        # Regional services
-        if not region:
+    # Extract required parameters from ARN pattern using regex
+    # Find all {placeholder} patterns in the ARN pattern
+    required_params = set(re.findall(r'\{(\w+)\}', arn_pattern))
+    
+    # Build format parameters dict - only include what's needed
+    format_params = {}
+    
+    if 'resource_id' in required_params:
+        if not resource_id:
+            raise ValueError(f"resource_id is required for service '{service}' ARN")
+        format_params['resource_id'] = resource_id
+    
+    if 'region' in required_params:
+        if not region and scope == "regional":
             raise ValueError(f"Region is required for regional service '{service}'")
+        format_params['region'] = region or ""
+    
+    if 'account_id' in required_params:
         if not account_id:
-            raise ValueError(f"Account ID is required for regional service '{service}'")
-        
-        return arn_pattern.format(
-            region=region,
-            account_id=account_id,
-            resource_type=resource_type or "resource",
-            resource_id=resource_id
-        )
+            raise ValueError(f"account_id is required for service '{service}' ARN")
+        format_params['account_id'] = account_id
+    
+    if 'resource_type' in required_params:
+        format_params['resource_type'] = resource_type or "resource"
+    
+    # Format ARN pattern with only the required parameters
+    try:
+        return arn_pattern.format(**format_params)
+    except KeyError as e:
+        raise ValueError(f"Missing required parameter for ARN generation: {e}. Pattern: {arn_pattern}, Required: {required_params}")
 
 
 def parse_arn(arn: str) -> Dict[str, Any]:
@@ -993,11 +1001,11 @@ def extract_inventory_assets(
                 if not isinstance(item, dict):
                     continue
                 
-                # Debug: Check if enriched fields are present for S3 buckets
-                if service_from_discovery == 's3' and discovery_id == 'aws.s3.list_buckets':
-                    if 'Status' in item or 'MFADelete' in item:
-                        logger.info(f"[INVENTORY-DEBUG] S3 bucket {item.get('Name')} has enriched fields: Status={item.get('Status')}, MFADelete={item.get('MFADelete')}")
-                    break  # Only log first item
+                # Debug: Check if enriched fields are present (generic for any service)
+                # Only log first item to avoid spam
+                if items.index(item) == 0 and '_dependent_data' in item:
+                    dep_data = item.get('_dependent_data', {})
+                    logger.debug(f"[INVENTORY-DEBUG] {service_from_discovery} {discovery_id} has enriched fields from {len(dep_data)} dependent discoveries")
                 
                 # Use existing extract_resource_identifier function (handles all services generically)
                 try:
@@ -1197,9 +1205,9 @@ def extract_inventory_assets(
                         asset[key] = value
                         enriched_fields_added.append(key)
                     
-                    # Debug logging for S3 buckets
-                    if service_from_discovery == 's3' and discovery_id == 'aws.s3.list_buckets' and enriched_fields_added:
-                        logger.info(f"[INVENTORY-WRITE] S3 bucket {name}: Preserved {len(enriched_fields_added)} enriched fields: {enriched_fields_added[:10]}")
+                    # Debug logging for enriched fields (generic for any service)
+                    if enriched_fields_added:
+                        logger.debug(f"[INVENTORY-WRITE] {service_from_discovery} {name}: Preserved {len(enriched_fields_added)} enriched fields")
                     
                     # Preserve _enriched_from if present (for tracking)
                     if '_enriched_from' in item and item['_enriched_from']:
@@ -1208,12 +1216,11 @@ def extract_inventory_assets(
                     # Compute hash for drift detection
                     asset["hash_sha256"] = compute_asset_hash(asset)
                     
-                    # Debug: Verify _dependent_data is in asset before appending (for S3 buckets)
-                    if service_from_discovery == 's3' and discovery_id == 'aws.s3.list_buckets':
-                        if '_dependent_data' in asset:
-                            logger.info(f"[INVENTORY-WRITE] ✅ Asset for {name} has _dependent_data: {list(asset['_dependent_data'].keys())}")
-                        else:
-                            logger.warning(f"[INVENTORY-WRITE] ❌ Asset for {name} MISSING _dependent_data (asset keys: {list(asset.keys())[:15]})")
+                    # Debug: Verify _dependent_data is in asset (generic for any service)
+                    if '_dependent_data' in asset:
+                        logger.debug(f"[INVENTORY-WRITE] ✅ Asset for {service_from_discovery} {name} has _dependent_data: {len(asset['_dependent_data'])} dependent discoveries")
+                    elif items.index(item) == 0:  # Only log first item to avoid spam
+                        logger.debug(f"[INVENTORY-WRITE] ⚠️  Asset for {service_from_discovery} {name} has no _dependent_data")
                     
                     assets.append(asset)
                     
@@ -1226,9 +1233,9 @@ def extract_inventory_assets(
     inventory_path = os.path.join(scan_folder, "inventory.ndjson")
     with open(inventory_path, 'w') as f:
         for asset in assets:
-            # Debug: Check if _dependent_data is present before writing (for first S3 asset)
-            if asset.get('service') == 's3' and '_dependent_data' in asset:
-                logger.info(f"[INVENTORY-WRITE] Writing asset with _dependent_data: {asset.get('name')} - {list(asset['_dependent_data'].keys())}")
+            # Debug: Log first asset with _dependent_data for verification (generic)
+            if assets.index(asset) == 0 and '_dependent_data' in asset:
+                logger.debug(f"[INVENTORY-WRITE] Sample asset with _dependent_data: {asset.get('service')} {asset.get('name')} - {len(asset['_dependent_data'])} dependent discoveries")
             f.write(json.dumps(asset, default=str) + "\n")
     
     logger.info(f"Generated {len(assets)} inventory assets in {inventory_path}")

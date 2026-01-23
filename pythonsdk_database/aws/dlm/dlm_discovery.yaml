@@ -1,0 +1,27 @@
+version: '1.0'
+provider: aws
+service: dlm
+services:
+  client: dlm
+  module: boto3.client
+discovery:
+- discovery_id: aws.dlm.get_lifecycle_policies
+  calls:
+  - action: get_lifecycle_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+- discovery_id: aws.dlm.get_lifecycle_policy
+  for_each: aws.dlm.get_lifecycle_policies
+  calls:
+  - action: get_lifecycle_policy
+    save_as: response
+    on_error: continue
+    params:
+      PolicyId: '{{ item.policyPolicyId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+checks: []

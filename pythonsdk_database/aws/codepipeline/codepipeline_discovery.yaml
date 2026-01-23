@@ -1,0 +1,166 @@
+version: '1.0'
+provider: aws
+service: codepipeline
+services:
+  client: codepipeline
+  module: boto3.client
+discovery:
+- discovery_id: aws.codepipeline.list_webhooks
+  calls:
+  - action: list_webhooks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.webhooks }}'
+- discovery_id: aws.codepipeline.list_pipelines
+  calls:
+  - action: list_pipelines
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.pipelines }}'
+- discovery_id: aws.codepipeline.list_action_types
+  calls:
+  - action: list_action_types
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.actionTypes }}'
+- discovery_id: aws.codepipeline.list_rule_types
+  calls:
+  - action: list_rule_types
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ruleTypes }}'
+- discovery_id: aws.codepipeline.get_pipeline_state
+  for_each: aws.codepipeline.list_pipelines
+  calls:
+  - action: get_pipeline_state
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.pipelinName }}'
+  emit:
+    as: item
+    items_for: '{{ response.stageStates }}'
+- discovery_id: aws.codepipeline.list_pipeline_executions
+  for_each: aws.codepipeline.get_pipeline_state
+  calls:
+  - action: list_pipeline_executions
+    save_as: response
+    on_error: continue
+    params:
+      pipelineName: '{{ item.pipelineExecutionPipelineName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.pipelineExecutionSummaries }}'
+- discovery_id: aws.codepipeline.get_pipeline
+  for_each: aws.codepipeline.list_pipelines
+  calls:
+  - action: get_pipeline
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.pipelinName }}'
+  emit:
+    as: item
+    items_for: '{{ response.pipeline }}'
+- discovery_id: aws.codepipeline.list_rule_executions
+  for_each: aws.codepipeline.get_pipeline_state
+  calls:
+  - action: list_rule_executions
+    save_as: response
+    on_error: continue
+    params:
+      pipelineName: '{{ item.pipelineExecutionPipelineName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ruleExecutionDetails }}'
+- discovery_id: aws.codepipeline.get_action_type
+  for_each: aws.codepipeline.list_pipelines
+  calls:
+  - action: get_action_type
+    save_as: response
+    on_error: continue
+    params:
+      category: '{{ item.pipelinVersion }}'
+  emit:
+    as: item
+    items_for: '{{ response.actionType }}'
+- discovery_id: aws.codepipeline.get_job_details
+  calls:
+  - action: get_job_details
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.jobDetails }}'
+- discovery_id: aws.codepipeline.list_action_executions
+  for_each: aws.codepipeline.get_pipeline_state
+  calls:
+  - action: list_action_executions
+    save_as: response
+    on_error: continue
+    params:
+      pipelineName: '{{ item.pipelineExecutionPipelineName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.actionExecutionDetails }}'
+- discovery_id: aws.codepipeline.list_deploy_action_execution_targets
+  for_each: aws.codepipeline.list_action_executions
+  calls:
+  - action: list_deploy_action_execution_targets
+    save_as: response
+    on_error: continue
+    params:
+      actionExecutionId: '{{ item.actionExecutionDetailActionExecutionId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.targets }}'
+- discovery_id: aws.codepipeline.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.codepipeline.get_pipeline_execution
+  for_each: aws.codepipeline.list_pipeline_executions
+  calls:
+  - action: get_pipeline_execution
+    save_as: response
+    on_error: continue
+    params:
+      pipelineName: '{{ item.pipelineExecutionPipelineName }}'
+  emit:
+    as: item
+    items_for: '{{ response.pipelineExecution }}'
+- discovery_id: aws.codepipeline.get_third_party_job_details
+  calls:
+  - action: get_third_party_job_details
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.jobDetails }}'
+checks: []

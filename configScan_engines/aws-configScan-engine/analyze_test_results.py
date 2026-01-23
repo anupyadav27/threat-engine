@@ -11,7 +11,11 @@ from pathlib import Path
 def analyze_scan_results(scan_id='test_optimizations_s3_ec2_all_accounts'):
     """Analyze scan results"""
     
-    base_dir = Path(__file__).parent.parent.parent / 'engines-output' / 'aws-configScan-engine' / 'output' / scan_id
+    output_base = Path(__file__).parent.parent.parent / 'engines-output' / 'aws-configScan-engine' / 'output'
+    # Check both discoveries subdirectory (new) and root (old for backward compatibility)
+    discoveries_dir = output_base / 'discoveries' / scan_id
+    root_dir = output_base / scan_id
+    base_dir = discoveries_dir if discoveries_dir.exists() else root_dir
     
     print('='*80)
     print('SCAN RESULTS ANALYSIS')

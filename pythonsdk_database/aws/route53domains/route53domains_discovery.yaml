@@ -1,0 +1,80 @@
+version: '1.0'
+provider: aws
+service: route53domains
+services:
+  client: route53domains
+  module: boto3.client
+discovery:
+- discovery_id: aws.route53domains.list_operations
+  calls:
+  - action: list_operations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Operations }}'
+- discovery_id: aws.route53domains.list_prices
+  calls:
+  - action: list_prices
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Prices }}'
+- discovery_id: aws.route53domains.list_domains
+  calls:
+  - action: list_domains
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Domains }}'
+- discovery_id: aws.route53domains.get_contact_reachability_status
+  calls:
+  - action: get_contact_reachability_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.domainName }}'
+- discovery_id: aws.route53domains.get_domain_detail
+  for_each: aws.route53domains.list_operations
+  calls:
+  - action: get_domain_detail
+    save_as: response
+    on_error: continue
+    params:
+      DomainName: '{{ item.domainDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.StatusList }}'
+- discovery_id: aws.route53domains.get_domain_suggestions
+  for_each: aws.route53domains.list_operations
+  calls:
+  - action: get_domain_suggestions
+    save_as: response
+    on_error: continue
+    params:
+      DomainName: '{{ item.domainDomainName }}'
+  emit:
+    as: item
+    items_for: '{{ response.SuggestionsList }}'
+- discovery_id: aws.route53domains.list_tags_for_domain
+  for_each: aws.route53domains.list_operations
+  calls:
+  - action: list_tags_for_domain
+    save_as: response
+    on_error: continue
+    params:
+      DomainName: '{{ item.domainDomainName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+checks: []

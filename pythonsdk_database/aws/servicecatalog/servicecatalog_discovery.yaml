@@ -1,0 +1,286 @@
+version: '1.0'
+provider: aws
+service: servicecatalog
+services:
+  client: servicecatalog
+  module: boto3.client
+discovery:
+- discovery_id: aws.servicecatalog.list_record_history
+  calls:
+  - action: list_record_history
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RecordDetails }}'
+- discovery_id: aws.servicecatalog.describe_provisioning_artifact
+  calls:
+  - action: describe_provisioning_artifact
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifactParameters }}'
+- discovery_id: aws.servicecatalog.describe_provisioning_parameters
+  calls:
+  - action: describe_provisioning_parameters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifactOutputKeys }}'
+- discovery_id: aws.servicecatalog.list_provisioned_product_plans
+  calls:
+  - action: list_provisioned_product_plans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisionedProductPlans }}'
+- discovery_id: aws.servicecatalog.list_portfolios
+  calls:
+  - action: list_portfolios
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PortfolioDetails }}'
+- discovery_id: aws.servicecatalog.get_provisioned_product_outputs
+  calls:
+  - action: get_provisioned_product_outputs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Outputs }}'
+- discovery_id: aws.servicecatalog.describe_product_as_admin
+  calls:
+  - action: describe_product_as_admin
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifactSummaries }}'
+- discovery_id: aws.servicecatalog.list_service_actions
+  calls:
+  - action: list_service_actions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ServiceActionSummaries }}'
+- discovery_id: aws.servicecatalog.describe_product
+  calls:
+  - action: describe_product
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifacts }}'
+- discovery_id: aws.servicecatalog.list_tag_options
+  calls:
+  - action: list_tag_options
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TagOptionDetails }}'
+- discovery_id: aws.servicecatalog.get_aws_organizations_access_status
+  calls:
+  - action: get_aws_organizations_access_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AccessStatus }}'
+- discovery_id: aws.servicecatalog.describe_provisioned_product
+  calls:
+  - action: describe_provisioned_product
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CloudWatchDashboards }}'
+- discovery_id: aws.servicecatalog.describe_provisioned_product_plan
+  for_each: aws.servicecatalog.list_provisioned_product_plans
+  calls:
+  - action: describe_provisioned_product_plan
+    save_as: response
+    on_error: continue
+    params:
+      PlanId: '{{ item.provisionedProductPlanPlanId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceChanges }}'
+- discovery_id: aws.servicecatalog.list_stack_instances_for_provisioned_product
+  for_each: aws.servicecatalog.list_record_history
+  calls:
+  - action: list_stack_instances_for_provisioned_product
+    save_as: response
+    on_error: continue
+    params:
+      ProvisionedProductId: '{{ item.recordDetailProvisionedProductId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.StackInstances }}'
+- discovery_id: aws.servicecatalog.describe_service_action
+  calls:
+  - action: describe_service_action
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ServiceActionDetail }}'
+- discovery_id: aws.servicecatalog.describe_portfolio_share_status
+  calls:
+  - action: describe_portfolio_share_status
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ShareDetails }}'
+- discovery_id: aws.servicecatalog.describe_portfolio_shares
+  for_each: aws.servicecatalog.describe_portfolio_share_status
+  calls:
+  - action: describe_portfolio_shares
+    save_as: response
+    on_error: continue
+    params:
+      PortfolioId: '{{ item.constraintDetailPortfolioId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PortfolioShareDetails }}'
+- discovery_id: aws.servicecatalog.list_principals_for_portfolio
+  for_each: aws.servicecatalog.describe_portfolio_share_status
+  calls:
+  - action: list_principals_for_portfolio
+    save_as: response
+    on_error: continue
+    params:
+      PortfolioId: '{{ item.constraintDetailPortfolioId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Principals }}'
+- discovery_id: aws.servicecatalog.describe_portfolio
+  calls:
+  - action: describe_portfolio
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.servicecatalog.list_provisioning_artifacts
+  calls:
+  - action: list_provisioning_artifacts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifactDetails }}'
+- discovery_id: aws.servicecatalog.describe_record
+  calls:
+  - action: describe_record
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RecordOutputs }}'
+- discovery_id: aws.servicecatalog.describe_tag_option
+  calls:
+  - action: describe_tag_option
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TagOptionDetail }}'
+- discovery_id: aws.servicecatalog.list_constraints_for_portfolio
+  for_each: aws.servicecatalog.describe_portfolio_share_status
+  calls:
+  - action: list_constraints_for_portfolio
+    save_as: response
+    on_error: continue
+    params:
+      PortfolioId: '{{ item.constraintDetailPortfolioId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ConstraintDetails }}'
+- discovery_id: aws.servicecatalog.list_budgets_for_resource
+  calls:
+  - action: list_budgets_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Budgets }}'
+- discovery_id: aws.servicecatalog.list_provisioning_artifacts_for_service_action
+  calls:
+  - action: list_provisioning_artifacts_for_service_action
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ProvisioningArtifactViews }}'
+- discovery_id: aws.servicecatalog.describe_copy_product_status
+  calls:
+  - action: describe_copy_product_status
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CopyProductStatus }}'
+- discovery_id: aws.servicecatalog.describe_service_action_execution_parameters
+  for_each: aws.servicecatalog.list_record_history
+  calls:
+  - action: describe_service_action_execution_parameters
+    save_as: response
+    on_error: continue
+    params:
+      ProvisionedProductId: '{{ item.recordDetailProvisionedProductId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ServiceActionParameters }}'
+checks: []

@@ -1,0 +1,382 @@
+version: '1.0'
+provider: aws
+service: personalize
+services:
+  client: personalize
+  module: boto3.client
+discovery:
+- discovery_id: aws.personalize.list_recommenders
+  calls:
+  - action: list_recommenders
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recommenders }}'
+- discovery_id: aws.personalize.list_batch_inference_jobs
+  calls:
+  - action: list_batch_inference_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.batchInferenceJobs }}'
+- discovery_id: aws.personalize.list_dataset_groups
+  calls:
+  - action: list_dataset_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetGroups }}'
+- discovery_id: aws.personalize.list_solution_versions
+  calls:
+  - action: list_solution_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.solutionVersions }}'
+- discovery_id: aws.personalize.list_batch_segment_jobs
+  calls:
+  - action: list_batch_segment_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.batchSegmentJobs }}'
+- discovery_id: aws.personalize.list_dataset_import_jobs
+  calls:
+  - action: list_dataset_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetImportJobs }}'
+- discovery_id: aws.personalize.list_filters
+  calls:
+  - action: list_filters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Filters }}'
+- discovery_id: aws.personalize.list_data_deletion_jobs
+  calls:
+  - action: list_data_deletion_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dataDeletionJobs }}'
+- discovery_id: aws.personalize.list_campaigns
+  calls:
+  - action: list_campaigns
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.campaigns }}'
+- discovery_id: aws.personalize.list_solutions
+  calls:
+  - action: list_solutions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.solutions }}'
+- discovery_id: aws.personalize.list_metric_attributions
+  calls:
+  - action: list_metric_attributions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.metricAttributions }}'
+- discovery_id: aws.personalize.list_datasets
+  calls:
+  - action: list_datasets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasets }}'
+- discovery_id: aws.personalize.list_dataset_export_jobs
+  calls:
+  - action: list_dataset_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetExportJobs }}'
+- discovery_id: aws.personalize.list_schemas
+  calls:
+  - action: list_schemas
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.schemas }}'
+- discovery_id: aws.personalize.list_event_trackers
+  calls:
+  - action: list_event_trackers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.eventTrackers }}'
+- discovery_id: aws.personalize.list_metric_attribution_metrics
+  calls:
+  - action: list_metric_attribution_metrics
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.metrics }}'
+- discovery_id: aws.personalize.describe_solution
+  for_each: aws.personalize.list_solutions
+  calls:
+  - action: describe_solution
+    save_as: response
+    on_error: continue
+    params:
+      solutionArn: '{{ item.solutionSolutionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.solution }}'
+- discovery_id: aws.personalize.describe_batch_inference_job
+  for_each: aws.personalize.list_batch_inference_jobs
+  calls:
+  - action: describe_batch_inference_job
+    save_as: response
+    on_error: continue
+    params:
+      batchInferenceJobArn: '{{ item.batchInferenceJobBatchInferenceJobArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.batchInferenceJob }}'
+- discovery_id: aws.personalize.describe_recipe
+  for_each: aws.personalize.list_recommenders
+  calls:
+  - action: describe_recipe
+    save_as: response
+    on_error: continue
+    params:
+      recipeArn: '{{ item.recipRecipeArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recipe }}'
+- discovery_id: aws.personalize.describe_algorithm
+  for_each: aws.personalize.describe_recipe
+  calls:
+  - action: describe_algorithm
+    save_as: response
+    on_error: continue
+    params:
+      algorithmArn: '{{ item.algorithmAlgorithmArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.algorithm }}'
+- discovery_id: aws.personalize.describe_campaign
+  for_each: aws.personalize.list_campaigns
+  calls:
+  - action: describe_campaign
+    save_as: response
+    on_error: continue
+    params:
+      campaignArn: '{{ item.campaignCampaignArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.campaign }}'
+- discovery_id: aws.personalize.describe_solution_version
+  for_each: aws.personalize.list_batch_inference_jobs
+  calls:
+  - action: describe_solution_version
+    save_as: response
+    on_error: continue
+    params:
+      solutionVersionArn: '{{ item.batchInferenceJobSolutionVersionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.solutionVersion }}'
+- discovery_id: aws.personalize.describe_recommender
+  for_each: aws.personalize.list_recommenders
+  calls:
+  - action: describe_recommender
+    save_as: response
+    on_error: continue
+    params:
+      recommenderArn: '{{ item.recommenderRecommenderArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recommender }}'
+- discovery_id: aws.personalize.describe_dataset
+  for_each: aws.personalize.list_datasets
+  calls:
+  - action: describe_dataset
+    save_as: response
+    on_error: continue
+    params:
+      datasetArn: '{{ item.datasetDatasetArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dataset }}'
+- discovery_id: aws.personalize.describe_dataset_import_job
+  for_each: aws.personalize.list_dataset_import_jobs
+  calls:
+  - action: describe_dataset_import_job
+    save_as: response
+    on_error: continue
+    params:
+      datasetImportJobArn: '{{ item.datasetImportJobDatasetImportJobArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetImportJob }}'
+- discovery_id: aws.personalize.describe_filter
+  for_each: aws.personalize.list_filters
+  calls:
+  - action: describe_filter
+    save_as: response
+    on_error: continue
+    params:
+      filterArn: '{{ item.filterFilterArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.filter }}'
+- discovery_id: aws.personalize.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.personalize.describe_dataset_export_job
+  for_each: aws.personalize.list_dataset_export_jobs
+  calls:
+  - action: describe_dataset_export_job
+    save_as: response
+    on_error: continue
+    params:
+      datasetExportJobArn: '{{ item.datasetExportJobDatasetExportJobArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetExportJob }}'
+- discovery_id: aws.personalize.describe_data_deletion_job
+  for_each: aws.personalize.list_data_deletion_jobs
+  calls:
+  - action: describe_data_deletion_job
+    save_as: response
+    on_error: continue
+    params:
+      dataDeletionJobArn: '{{ item.dataDeletionJobDataDeletionJobArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.dataDeletionJob }}'
+- discovery_id: aws.personalize.describe_dataset_group
+  for_each: aws.personalize.list_recommenders
+  calls:
+  - action: describe_dataset_group
+    save_as: response
+    on_error: continue
+    params:
+      datasetGroupArn: '{{ item.dataDeletionJobDatasetGroupArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.datasetGroup }}'
+- discovery_id: aws.personalize.describe_event_tracker
+  for_each: aws.personalize.list_event_trackers
+  calls:
+  - action: describe_event_tracker
+    save_as: response
+    on_error: continue
+    params:
+      eventTrackerArn: '{{ item.eventTrackerEventTrackerArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.eventTracker }}'
+- discovery_id: aws.personalize.describe_metric_attribution
+  for_each: aws.personalize.list_metric_attributions
+  calls:
+  - action: describe_metric_attribution
+    save_as: response
+    on_error: continue
+    params:
+      metricAttributionArn: '{{ item.metricAttributionMetricAttributionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.metricAttribution }}'
+- discovery_id: aws.personalize.describe_feature_transformation
+  for_each: aws.personalize.describe_recipe
+  calls:
+  - action: describe_feature_transformation
+    save_as: response
+    on_error: continue
+    params:
+      featureTransformationArn: '{{ item.featureTransformationFeatureTransformationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.featureTransformation }}'
+- discovery_id: aws.personalize.describe_schema
+  for_each: aws.personalize.list_schemas
+  calls:
+  - action: describe_schema
+    save_as: response
+    on_error: continue
+    params:
+      schemaArn: '{{ item.schemaSchemaArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.schema }}'
+checks: []
