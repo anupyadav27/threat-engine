@@ -1,0 +1,44 @@
+{
+  "filename": "two_branches_in_a_conditional_structure_should_not_have_exactly_the_same_implementation_metadata.json",
+  "rule_id": "bug_detection_duplicate_implementation",
+  "title": "Avoid Duplicate Implementation in Conditional Structure",
+  "description": "Duplicate code in separate branches of a conditional structure can make the code harder to understand, maintain, and potentially introduce bugs if one instance of the code is changed but others are not. This rule checks for identical code snippets in different branches of a conditional structure.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Bug Detection",
+  "recommendation": "If the same logic is required in multiple branches, they should be combined in an if chain. For a switch, one should fall through to the other.",
+  "impact": "Improves code maintainability by eliminating duplicate code and potential errors due to inconsistent updates.",
+  "examples": {
+    "noncompliant": [
+      "if(a >= 0 && a < 10) { doFirstThing(); doTheThing(); } else if(a >= 10 && a < 20) { doTheOtherThing(); } else if(a >= 20 && a < 50) { doFirstThing(); doTheThing(); } else { doTheRest(); }",
+      "switch(i) { case 1: doFirstThing(); doSomething(); break; case 2: doSomethingDifferent(); break; case 3: doFirstThing(); doSomething(); break; default: doTheRest(); }"
+    ],
+    "compliant": [
+      "if((a >= 0 && a < 10) || (a >= 20 && a < 50)) { doFirstThing(); doTheThing(); } else if(a >= 10 && a < 20) { doTheOtherThing(); } else { doTheRest(); }",
+      "switch(i) { case 1: case 3: doFirstThing(); doSomething(); break; case 2: doSomethingDifferent(); break; default: doTheRest(); }"
+    ]
+  },
+  "references": [
+    {
+      "title": "RSPEC-1871",
+      "url": "https://rules.sonarsource.com/java/RSPEC-1871"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*doFirstThing\\(\\);[^}]*doTheThing\\(\\);[^}]*\\}\\s*else\\s+if[^{]*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*doFirstThing\\(\\);[^}]*doTheThing\\(\\);[^}]*\\}"
+        ],
+        "message": "Combine duplicate implementations in conditional branches."
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "filename": "empty_collections_should_not_be_accessed_or_iterat_metadata.json",
+  "rule_id": "empty_collections_accessed_iterated",
+  "title": "Empty collections should not be accessed or iterated",
+  "description": "Empty collections should not be accessed or iteratedAnalyze your codeintentionality-logicalreliabilityBugWhy is this an issue?More InfoWhen a collection is empty with absolute certainty, it makes no sense to access or iterate it. Doing so can lead to unexpected behavior or errors in the code. The most common cause is that population was accidentally omitted or removed.const strings = []; if (strings.includes(\"foo\")) {} // Noncompliant: strings is always empty for (const str of strings) {} // Noncompliant strings.forEach(str => doSomething(str)); // NoncompliantMake sure your code provides some way to populate the collection if their elements are to be accessed.const strings = []; strings.push(\"foo\"); if (strings.includes(\"foo\")) {} for (const str of strings) {} strings.forEach(str => doSom",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const emptyArray = [];\n\nif (emptyArray.includes(\"foo\")) {}  // Noncompliant: emptyArray is always empty\n\nfor (const item of emptyArray) {}  // Noncompliant\n\nemptyArray.forEach(item => doSomething(item)); // Noncompliant\n\nconst myList = [];\nmyList.map(x => x * 2); // Noncompliant\n\nconst data = [];\ndata.filter(d => d.active); // Noncompliant"
+    ],
+    "compliant": [
+      "const myArray = [];\n\nmyArray.push(\"foo\");\n\nif (myArray.includes(\"foo\")) {}  // OK: array might contain elements\n\nfor (const item of myArray) {}  // OK: array is populated\n\nmyArray.forEach(item => doSomething(item)); // OK: array has content"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-4158"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "ForOfStatement",
+      "ForInStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\.(includes|forEach|map|filter|find|indexOf|some|every|reduce|reduceRight|findIndex|findLast|findLastIndex|join|slice|concat|push|pop|shift|unshift|splice)\\s*\\(",
+        "message": "Empty collections should not be accessed or iterated"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "for\\s*\\(\\s*(?:const|let|var)\\s+\\w+\\s+(?:of|in)\\s+\\w+\\s*\\)",
+        "message": "Empty collections should not be accessed or iterated"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\[\\d*\\]",
+        "message": "Empty collections should not be accessed or iterated"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\.length",
+        "message": "Empty collections should not be accessed or iterated"
+      }
+    ]
+  }
+}

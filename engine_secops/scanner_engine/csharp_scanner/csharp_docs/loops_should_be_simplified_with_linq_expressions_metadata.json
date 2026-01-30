@@ -1,0 +1,66 @@
+{
+  "filename": "loops_should_be_simplified_with_linq_expressions_metadata.json",
+  "rule_id": "loops_simplified_linq_expressions",
+  "title": "Loops should be simplified with LINQ expressions",
+  "description": "Using explicit loops for filtering, selecting, or aggregating elements can make code more verbose and harder to read. LINQ expressions provide a more concise and expressive way to perform these operations, improving code clarity and maintainability. Performance Considerations If the affected code is part of a performance-critical hot path and that the fix would negatively impact performance, you can self-declare the PerformanceSensitiveAttribute in your codebase, or use the one provided by Microsoft.CodeAnalysis.PerformanceSensitiveAnalyzers: [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = true, Inherited = false)] public sealed class PerformanceSensitiveAttribute() : Attribute; [PerformanceSensitiveAttribute] List<string> Method(IEnumerable<string> collection, Predicate<string> condition) var result = new List<string>(); foreach (var element in collection) // Without the attribute, this would raise an issue if (condition(element)) The rule will respect the AllowGenericEnumeration property: [PerformanceSensitive(\"Enumeration\", AllowGenericEnumeration = true)] List<string> Method(IEnumerable<string> collection, Predicate<string> condition) { } In this case, the rule will not be disabled even if the method is marked with the PerformanceSensitiveAttribute attribute.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public List<string> FilterNames(IEnumerable<string> names)\n{\n    var result = new List<string>();\n    foreach (var name in names) // Noncompliant: can be replaced with LINQ\n    {\n        if (name.StartsWith(\"A\"))\n        {\n            result.Add(name);\n        }\n    }\n    return result;\n}"
+    ],
+    "compliant": [
+      "public List<string> FilterNames(IEnumerable<string> names)\n{\n    return names.Where(name => name.StartsWith(\"A\")).ToList(); // Compliant: using LINQ\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3267"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "foreach.*if.*\\.Add\\(",
+        "exclude_patterns": [
+          "PerformanceSensitive",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Assert\\."
+        ],
+        "source_exclude_patterns": [
+          "PerformanceSensitive"
+        ],
+        "context_exclude_patterns": ["\\[Fact\\]", "\\[Test\\]", "\\[PerformanceSensitive\\]"],
+        "context_lines_to_check": 3
+      }
+    ],
+    "triggering_conditions": "foreach loop with if condition and Add - can be replaced with LINQ Where",
+    "exclusion_conditions": [
+      "Methods marked with [PerformanceSensitive]",
+      "Test methods"
+    ],
+    "never_trigger_on": [
+      "Methods with [PerformanceSensitive] attribute",
+      "Unit tests with [Test] or Assert"
+    ],
+    "reasoning": "Detects foreach loops that filter and add items to a list - these can be simplified using LINQ Where().ToList(). Excludes performance-sensitive code and tests.",
+    "validation_examples": {
+      "should_trigger": [
+        "foreach (var item in items) { if (item.IsValid) { result.Add(item); } }"
+      ],
+      "should_not_trigger": [
+        "return items.Where(item => item.IsValid).ToList();"
+      ]
+    }
+  }
+}

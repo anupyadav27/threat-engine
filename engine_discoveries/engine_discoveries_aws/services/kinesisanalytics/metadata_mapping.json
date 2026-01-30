@@ -1,0 +1,83 @@
+{
+  "kinesisanalytics_metadata_mapping": [
+    {
+      "rule_id": "aws.kinesisanalytics.application.role_least_privilege",
+      "python_method": "describe_application",
+      "response_path": "ApplicationDetail.ServiceExecutionRole",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "ServiceExecutionRole",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured",
+      "python_method": "describe_application",
+      "response_path": "ApplicationDetail.ApplicationConfigurationDescription",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ApplicationCodeConfigurationDescription.CodeContentDescription.CodeContentType",
+          "expected_value": "ZIPFILE",
+          "operator": "equals"
+        },
+        {
+          "field_path": "EnvironmentPropertiesDescription.PropertyGroups[].PropertyGroupId",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "ApplicationSnapshotConfigurationDescription.SnapshotsEnabled",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "ApplicationConfigurationDescription.CheckpointConfigurationDescription.CheckpointingEnabled",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "ApplicationConfigurationDescription.CheckpointConfigurationDescription.CheckpointInterval",
+          "expected_value": 60000,
+          "operator": "greater_than"
+        },
+        {
+          "field_path": "ApplicationConfigurationDescription.CheckpointConfigurationDescription.MinPauseBetweenCheckpoints",
+          "expected_value": 5000,
+          "operator": "greater_than"
+        },
+        {
+          "field_path": "ApplicationConfigurationDescription.OutputDescriptions[].KinesisStreamsOutputDescription.ResourceARN",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "ApplicationConfigurationDescription.OutputDescriptions[].KinesisFirehoseOutputDescription.ResourceARN",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesisanalytics.application.network_private_only_configured",
+      "python_method": "describe_application",
+      "response_path": "ApplicationDetail.ApplicationConfigurationDescription.VpcConfigurationDescriptions[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "VpcConfigurationDescription.SubnetIds",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "VpcConfigurationDescription.SecurityGroupIds",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    }
+  ]
+}

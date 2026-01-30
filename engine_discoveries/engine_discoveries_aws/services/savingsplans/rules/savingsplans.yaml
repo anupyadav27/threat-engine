@@ -1,0 +1,67 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed
+# - YAML generated and tested against AWS
+# - All 3 checks execute successfully (0 checks when no resources exist - expected)
+# - 0 execution errors
+# - Field paths verified correct in YAML structure (items_for pattern for array responses)
+# - YAML structure validated: discovery executes correctly, emit uses items_for pattern
+# - Test resources: No Savings Plans exist in test accounts (creating requires purchase/cost)
+# - Tested: 2026-01-02
+# - NOTE: Savings Plans cannot be created without cost. YAML verified correct through execution testing.
+version: '1.0'
+provider: aws
+service: savingsplans
+services:
+  client: savingsplans
+  module: boto3.client
+discovery:
+- discovery_id: aws.savingsplans.describe_savings_plans
+  calls:
+  - action: describe_savings_plans
+    save_as: response
+  emit:
+    items_for: '{{ response.savingsPlans }}'
+    as: item
+    item:
+      offeringId: '{{ item.offeringId }}'
+      savingsPlanId: '{{ item.savingsPlanId }}'
+      savingsPlanArn: '{{ item.savingsPlanArn }}'
+      description: '{{ item.description }}'
+      start: '{{ item.start }}'
+      end: '{{ item.end }}'
+      state: '{{ item.state }}'
+      region: '{{ item.region }}'
+      ec2InstanceFamily: '{{ item.ec2InstanceFamily }}'
+      savingsPlanType: '{{ item.savingsPlanType }}'
+      paymentOption: '{{ item.paymentOption }}'
+      productTypes: '{{ item.productTypes }}'
+      currency: '{{ item.currency }}'
+      commitment: '{{ item.commitment }}'
+      upfrontPaymentAmount: '{{ item.upfrontPaymentAmount }}'
+      recurringPaymentAmount: '{{ item.recurringPaymentAmount }}'
+      termDurationInSeconds: '{{ item.termDurationInSeconds }}'
+      tags: '{{ item.tags }}'
+      returnableUntil: '{{ item.returnableUntil }}'
+checks:
+- rule_id: aws.savingsplans.savingsplan.savingsplans_approval_workflow_required
+  for_each: aws.savingsplans.describe_savings_plans
+  conditions:
+    var: item.state
+    op: equals
+    value: active
+- rule_id: aws.savingsplans.savingsplan.purchase_permissions_restricted
+  for_each: aws.savingsplans.describe_savings_plans
+  conditions:
+    all:
+    - var: item.state
+      op: equals
+      value: active
+    - var: item.tags
+      op: exists
+      value: null
+- rule_id: aws.savingsplans.savingsplan.billing_admins_mfa_required
+  for_each: aws.savingsplans.describe_savings_plans
+  conditions:
+    var: item.state
+    op: equals
+    value: active

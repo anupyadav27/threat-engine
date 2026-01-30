@@ -1,0 +1,60 @@
+{
+  "filename": "static_fields_should_be_initialized_inline_metadata.json",
+  "rule_id": "static_fields_initialized_inline",
+  "title": "static fields should be initialized inline",
+  "description": "\"static\" fields should be initialized inlineAnalyze your codeintentionality-efficientmaintainabilityCode SmellWhy is this an issue?When astaticconstructor serves no other purpose that initializingstaticfields, it comes with an unnecessary performance cost because the compiler generates a check before eachstaticmethod or instance constructor invocation.Instead, inline initialization is highly recommended.Noncompliant code examplenamespace myLib { public class Foo { static int i; static string s; static Foo() // Noncompliant { i = 3; ResourceManager sm = new ResourceManager(\"strings\", Assembly.GetExecutingAssembly()); s = sm.GetString(\"mystring\"); } } }Compliant solutionnamespace myLib { public class Foo { static int i =3; static string s = InitString(); static string InitString() { Resource",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "namespace MyLib\n{\n    public class Foo\n    {\n        static int i;\n        static string s;\n\n        static Foo() // Noncompliant - static constructor only initializes fields\n        {\n            i = 3;\n            ResourceManager sm = new ResourceManager(\"strings\", Assembly.GetExecutingAssembly());\n            s = sm.GetString(\"mystring\");\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "namespace MyLib\n{\n    public class Foo\n    {\n        static int i = 3; // Compliant - inline initialization\n        static string s = InitString();\n\n        static string InitString()\n        {\n            ResourceManager sm = new ResourceManager(\"strings\", Assembly.GetExecutingAssembly());\n            return sm.GetString(\"mystring\");\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3963"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "static\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*\\b\\w+\\s*=\\s*[^;]+;",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ],
+        "message": "Static constructor only initializes static fields - consider inline initialization for better performance"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit tests ([Test], [Fact])",
+      "Static constructors with complex logic beyond field initialization",
+      "Static constructors that call methods other than ResourceManager"
+    ],
+    "reasoning": "When a static constructor serves no other purpose than initializing static fields, it adds unnecessary performance cost. The compiler generates a check before each static method or instance constructor invocation. Inline initialization is recommended for simple static field assignments.",
+    "validation_examples": {
+      "should_trigger": [
+        "static Foo() { i = 3; s = \"hello\"; }",
+        "static MyClass() { count = 0; name = GetName(); }"
+      ],
+      "should_not_trigger": [
+        "static int i = 3;",
+        "static string s = InitString();",
+        "public Foo() { this.x = 1; }"
+      ]
+    }
+  }
+}

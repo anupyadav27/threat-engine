@@ -1,0 +1,37 @@
+{
+  "filename": "regular_expressions_should_not_overflow_the_stack.json",
+  "rule_id": "regular_expressions_should_not_overflow_the_stack",
+  "title": "Regular expressions should not overflow the stack",
+  "description": "This rule detects regular expressions that may cause stack overflows due to excessive recursion or backtracking. Such patterns can lead to runtime errors or denial of service if not properly controlled.",
+  "status": "active",
+  "defaultSeverity": "MAJOR",
+  "category": "Bug",
+  "recommendation": "Review and refactor regular expressions to avoid patterns that can cause excessive recursion or stack overflows. Prefer non-recursive constructs and test regexes with large and complex inputs.",
+  "impact": "Stack overflows caused by problematic regular expressions can crash applications or be exploited for denial of service.",
+  "examples": [
+    {
+      "bad": "Pattern.compile(\"(a+)+\").matcher(\"aaaaaaaaaaaaaaaaaaaa!\").find(); // may cause stack overflow",
+      "good": "Pattern.compile(\"a+\").matcher(\"aaaaaaaaaaaaaaaaaaaa!\").find(); // safe"
+    }
+  ],
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-5998/"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "Pattern\\.compile\\(.*\\(\\w+\\+\\)\\+.*\\)"
+        ],
+        "message": "Review and refactor regular expressions to avoid patterns that can cause excessive recursion or stack overflows. Prefer non-recursive constructs and test regexes with large and complex inputs."
+      }
+    ]
+  }
+}

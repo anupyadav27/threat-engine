@@ -1,0 +1,42 @@
+{
+  "filename": "policies_authorizing_public_access_to_resources_ar_metadata.json",
+  "rule_id": "policies_authorizing_public_access",
+  "title": "Policies authorizing public access to resources are security-sensitive",
+  "description": "Policies authorizing public access to resources are security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotawscweResource-based policies granting access to all users can lead to information leakage.Ask Yourself WhetherThe AWS resource stores or processes sensitive data.The AWS resource is designed to be private.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesIt\u2019s recommended to implement the least privilege principle, i.e. to grant necessary permissions only to users for their required tasks. In the context of resource-based policies, list the principals that need the access and grant to them only the required privileges.Sensitive Code ExampleThis policy allows all users, including anonymous ones, to access an S3",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "import { aws_iam as iam } from 'aws-cdk-lib'\nimport { aws_s3 as s3 } from 'aws-cdk-lib'\n\nconst bucket = new s3.Bucket(this, \"ExampleBucket\")\n\nbucket.addToResourcePolicy(new iam.PolicyStatement({\n    effect: iam.Effect.ALLOW,\n    actions: [\"s3:*\"],\n    resources: [bucket.arnForObjects(\"*\")],\n    principals: [new iam.AnyPrincipal()] // Sensitive\n}))"
+    ],
+    "compliant": [
+      "import { aws_iam as iam } from 'aws-cdk-lib'\nimport { aws_s3 as s3 } from 'aws-cdk-lib'\n\nconst bucket = new s3.Bucket(this, \"ExampleBucket\")\n\nbucket.addToResourcePolicy(new iam.PolicyStatement({\n    effect: iam.Effect.ALLOW,\n    actions: [\"s3:*\"],\n    resources: [bucket.arnForObjects(\"*\")],\n    principals: [new iam.AccountRootPrincipal()]\n}))"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6270"
+  ],
+  "logic": {
+    "node_types": [
+      "NewExpression",
+      "CallExpression",
+      "ObjectExpression"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_s3_public_access",
+        "message": "Configure S3 bucket to block public access"
+      }
+    ]
+  }
+}

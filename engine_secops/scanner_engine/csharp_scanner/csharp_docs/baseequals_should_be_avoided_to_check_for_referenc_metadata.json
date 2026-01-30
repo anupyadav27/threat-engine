@@ -1,0 +1,44 @@
+{
+  "filename": "baseequals_should_be_avoided_to_check_for_referenc_metadata.json",
+  "rule_id": "baseequals_avoided_check_reference",
+  "title": "base.Equals should be avoided to check for reference equality in Equals if base is not object",
+  "description": "\"base.Equals\" should not be used to check for reference equality in \"Equals\" if \"base\" is not \"object\"Analyze your codeintentionality-logicalreliabilityBugWhy is this an issue?object.Equals()overrides can be optimized by checking first for reference equality betweenthisand the parameter. This check can be implemented by callingobject.ReferenceEquals()orbase.Equals(), wherebaseisobject. However, usingbase.Equals()is a maintenance hazard because while it works if you extendObjectdirectly, if you introduce a new base class that overridesEquals, it suddenly stops working.This rule raises an issue ifbase.Equals()is used butbaseis notobject.Noncompliant code exampleclass Base { private int baseField; public override bool Equals(object other) { if (base.Equals(other)) // Okay; base is object { re",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class MyClass : SomeBase\n{\n    public override bool Equals(object other)\n    {\n        if (base.Equals(other)) // Noncompliant - base is not object\n            return true;\n        // ... rest of implementation\n    }\n}",
+      "class Derived : Base\n{\n    public override bool Equals(object obj)\n    {\n        return base.Equals(obj) || /* other logic */; // Noncompliant\n    }\n}"
+    ],
+    "compliant": [
+      "class MyClass : SomeBase\n{\n    public override bool Equals(object other)\n    {\n        if (ReferenceEquals(this, other)) // Compliant - using ReferenceEquals\n            return true;\n        // ... rest of implementation\n    }\n}",
+      "class MyClass : object // Direct object inheritance\n{\n    public override bool Equals(object other)\n    {\n        if (base.Equals(other)) // Compliant - base is object\n            return true;\n        // ... rest of implementation\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3397"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "class\\s+\\w+\\s*:\\s*(?!object\\b)\\w+.*?\\{.*?public\\s+override\\s+bool\\s+Equals\\s*\\([^)]*\\).*?base\\.Equals\\s*\\(",
+        "message": "base.Equals should be avoided to check for reference equality in Equals if base is not object. Use ReferenceEquals instead."
+      }
+    ]
+  }
+}

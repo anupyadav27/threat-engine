@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alerting-rules
+  namespace: threat-engine
+data:
+  threat-engine-rules.yml: |
+    groups:
+    - name: threat-engine.rules
+      rules:
+      
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+
+      # API Gateway alerts
+      - alert: APIGatewayHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="api-gateway"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API Gateway high latency"
+          description: "95th percentile latency is {{ $value }} seconds"
+
+      - alert: APIGatewayHighErrorRate
+        expr: rate(http_requests_total{job="api-gateway",status=~"5.."}[5m]) / rate(http_requests_total{job="api-gateway"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API Gateway high error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      # Core Engine alerts
+      - alert: CoreEngineHighCPU
+        expr: rate(container_cpu_usage_seconds_total{pod=~"core-engine-service-.*"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Core Engine high CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+
+      - alert: CoreEngineHighMemory
+        expr: container_memory_usage_bytes{pod=~"core-engine-service-.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Core Engine high memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # ConfigScan Service alerts
+      - alert: ConfigScanLongRunningScans
+        expr: configscan_scan_duration_seconds > 3600
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ConfigScan long running scan detected"
+          description: "Scan {{ $labels.scan_id }} has been running for {{ $value }} seconds"
+
+      - alert: ConfigScanHighFailureRate
+        expr: rate(configscan_scans_failed_total[15m]) / rate(configscan_scans_total[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ConfigScan high failure rate"
+          description: "Scan failure rate is {{ $value | humanizePercentage }}"
+
+      # Platform Service alerts
+      - alert: PlatformServiceDatabaseConnections
+        expr: platform_database_connections_active / platform_database_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Platform Service database connection pool near limit"
+          description: "Using {{ $value | humanizePercentage }} of available connections"
+
+      # Data SecOps Service alerts
+      - alert: DataSecOpsVulnScanTimeout
+        expr: data_secops_scan_duration_seconds > 1800
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data SecOps vulnerability scan timeout"
+          description: "Scan {{ $labels.scan_id }} has been running for {{ $value }} seconds"
+
+      # General infrastructure alerts
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently"
+
+      - alert: PodPendingForTooLong
+        expr: kube_pod_status_phase{phase="Pending"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} pending for too long"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been pending for more than 10 minutes"
+
+      # Database alerts
+      - alert: DatabaseConnectionsHigh
+        expr: postgres_stat_activity_count / postgres_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connections high"
+          description: "Database connection usage is {{ $value | humanizePercentage }}"
+
+      - alert: DatabaseSlowQueries
+        expr: rate(postgres_stat_activity_max_tx_duration[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database slow queries detected"
+          description: "Average transaction duration is {{ $value }} seconds"

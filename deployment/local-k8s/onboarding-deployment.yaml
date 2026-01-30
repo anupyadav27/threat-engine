@@ -1,0 +1,222 @@
+---
+# Onboarding Engine Local Kubernetes Deployment
+# For Docker Desktop Kubernetes
+
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: threat-engine-local
+  labels:
+    app: threat-engine
+    environment: local
+
+---
+# ConfigMap for Onboarding Engine configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: onboarding-config
+  namespace: threat-engine-local
+data:
+  # Database Configuration - Using Consolidated Database System
+  # Onboarding uses shared database (threat_engine_shared)
+  # PostgreSQL is running inside K8s as postgres-service
+  SHARED_DB_HOST: "postgres-service.threat-engine-local.svc.cluster.local"
+  SHARED_DB_PORT: "5432"
+  SHARED_DB_NAME: "threat_engine_shared"
+  SHARED_DB_USER: "shared_user"
+  SHARED_DB_PASSWORD: "shared_password"
+  # Legacy DATABASE_URL for backward compatibility
+  DATABASE_URL: "postgresql://shared_user:shared_password@postgres-service.threat-engine-local.svc.cluster.local:5432/threat_engine_shared"
+  DB_SCHEMA: "public"
+  # Enable consolidated database
+  USE_CENTRALIZED_DB: "true"
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8010"
+  PORT: "8010"
+  
+  # Environment
+  ENVIRONMENT: "local"
+  LOG_LEVEL: "INFO"
+  
+  # AWS Configuration (optional for local)
+  AWS_REGION: "us-east-1"
+  
+  # Scheduler Configuration
+  SCHEDULER_INTERVAL_SECONDS: "60"
+  ENGINE_SCAN_POLL_INTERVAL_SECONDS: "10"
+  ENGINE_SCAN_MAX_WAIT_SECONDS: "3600"
+  
+  # Engine URLs (for local testing, use NodePort services)
+  AWS_ENGINE_URL: "http://configscan-aws-service.threat-engine-local.svc.cluster.local:8002"
+  AZURE_ENGINE_URL: "http://configscan-azure-service.threat-engine-local.svc.cluster.local:8003"
+  GCP_ENGINE_URL: "http://configscan-gcp-service.threat-engine-local.svc.cluster.local:8004"
+  
+  # Secrets Manager (optional for local)
+  SECRETS_MANAGER_PREFIX: "threat-engine-local"
+
+---
+# Secret for database credentials (can be overridden)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: onboarding-db-secret
+  namespace: threat-engine-local
+type: Opaque
+stringData:
+  # Consolidated database configuration
+  SHARED_DB_HOST: "host.docker.internal"
+  SHARED_DB_PORT: "5432"
+  SHARED_DB_NAME: "threat_engine_shared"
+  SHARED_DB_USER: "shared_user"
+  SHARED_DB_PASSWORD: "shared_password"
+  # Schema search path for consolidated database
+  DB_SCHEMA: "engine_onboarding,engine_shared"
+  # Legacy DATABASE_URL for backward compatibility
+  DATABASE_URL: "postgresql://shared_user:shared_password@host.docker.internal:5432/threat_engine_shared"
+
+---
+# Onboarding Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: onboarding-service
+  namespace: threat-engine-local
+  labels:
+    app: onboarding-service
+    tier: orchestration
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: onboarding-service
+  template:
+    metadata:
+      labels:
+        app: onboarding-service
+        tier: orchestration
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"
+        prometheus.io/port: "8010"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: onboarding-service
+        image: yadavanup84/onboarding-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8010
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: onboarding-config
+        - secretRef:
+            name: onboarding-db-secret
+        env:
+        # Override database URL if needed
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: onboarding-db-secret
+              key: DATABASE_URL
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: engine-input
+          mountPath: /app/engine_input
+          readOnly: true
+        - name: engine-output
+          mountPath: /app/engine_output
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8010
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8010
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8010
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 10
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: engine-input
+        emptyDir: {}  # For local testing - use emptyDir, for EKS use S3
+      - name: engine-output
+        emptyDir: {}  # For local testing - use emptyDir, for EKS use S3
+
+---
+# Onboarding Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: onboarding-service
+  namespace: threat-engine-local
+  labels:
+    app: onboarding-service
+    tier: orchestration
+spec:
+  selector:
+    app: onboarding-service
+  ports:
+  - port: 8010
+    targetPort: 8010
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# Onboarding Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: onboarding-external
+  namespace: threat-engine-local
+  labels:
+    app: onboarding-service
+    tier: orchestration
+spec:
+  selector:
+    app: onboarding-service
+  ports:
+  - port: 8010
+    targetPort: 8010
+    nodePort: 30010
+    protocol: TCP
+    name: http
+  type: NodePort

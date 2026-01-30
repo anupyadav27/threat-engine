@@ -1,0 +1,64 @@
+{
+  "filename": "xml_operations_should_not_be_vulnerable_to_injecti_metadata.json",
+  "rule_id": "xml_operations_vulnerable_injection",
+  "title": "XML operations should not be vulnerable to injection attacks",
+  "description": "XML injections occur when an application builds an XML-formatted string from user input without prior validation or sanitation. In such a case, a tainted user-controlled value can tamper with the XML string content. Especially, unexpected arbitrary elements and attributes can be inserted in the corresponding XML description.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - Directly concatenating user input into XML\nstring xml = \"<user><name>\" + userInput + \"</name></user>\";\n\n// Noncompliant - Using string interpolation with untrusted input\nstring xml = $\"<config><path>{untrustedPath}</path></config>\";"
+    ],
+    "compliant": [
+      "// Compliant - Using XDocument with proper element creation\nvar doc = new XDocument(\n    new XElement(\"user\",\n        new XElement(\"name\", userInput)\n    )\n);\n\n// Compliant - Using SecurityElement.Escape for encoding\nstring safeInput = SecurityElement.Escape(userInput);\nstring xml = $\"<user><name>{safeInput}</name></user>\";"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6399"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(\"<[^\"]*>\\s*\"\\s*\\+|\\+\\s*\"<[^\"]*>\"|\\$\"<[^>]*>\\{|\\{[^}]*\\}<[^\"]*>\")",
+        "exclude_patterns": [
+          "SecurityElement\\.Escape",
+          "XmlEncode",
+          "HtmlEncode",
+          "Regex\\.Replace.*\\[\\^a-zA-Z"
+        ],
+        "message": "XML injection vulnerability: User input is directly concatenated into XML string without proper encoding."
+      }
+    ],
+    "never_trigger_on": [
+      "Code using SecurityElement.Escape()",
+      "Code using XmlEncode/HtmlEncode",
+      "Code using proper XML APIs (XDocument, XElement)",
+      "Input validation with Regex.Replace",
+      "Unit tests ([Test], [Fact])",
+      "Comments"
+    ],
+    "reasoning": "Detects direct string concatenation or interpolation of user input into XML strings. This can lead to XML injection attacks. Safe alternatives include using SecurityElement.Escape(), XDocument/XElement APIs, or proper encoding.",
+    "validation_examples": {
+      "should_trigger": [
+        "string xml = \"<user><name>\" + userInput + \"</name></user>\";",
+        "string xml = $\"<config><path>{untrustedPath}</path></config>\";"
+      ],
+      "should_not_trigger": [
+        "string safeInput = SecurityElement.Escape(userInput);",
+        "var doc = new XDocument(new XElement(\"user\", new XElement(\"name\", userInput)));",
+        "string xml = \"<static>content</static>\";"
+      ]
+    }
+  }
+}

@@ -11,13 +11,13 @@ from unittest.mock import MagicMock, patch
 
 def test_storage_paths_integration():
     """Test storage paths work correctly"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     
     # Test scan results path
     path = resolver.get_scan_results_path("aws", "scan-123")
-    assert "aws-configScan-engine" in path
+    assert "engine_configscan_aws" in path
     assert "scan-123" in path
     assert path.endswith("results.ndjson")
     
@@ -30,7 +30,7 @@ def test_storage_paths_integration():
 
 def test_api_models_serialization():
     """Test API models can be serialized"""
-    from common.api_models import HealthResponse, ErrorResponse
+    from engine_common.api_models import HealthResponse, ErrorResponse
     
     health = HealthResponse(status="healthy", version="1.0.0")
     assert health.status == "healthy"
@@ -47,7 +47,7 @@ def test_api_models_serialization():
 
 def test_retry_handler_decorator():
     """Test retry handler can be used as decorator"""
-    from common.retry_handler import retry_with_backoff
+    from engine_common.retry_handler import retry_with_backoff
     
     call_count = [0]
     
@@ -65,7 +65,7 @@ def test_retry_handler_decorator():
 
 def test_circuit_breaker_basic():
     """Test circuit breaker basic functionality"""
-    from common.circuit_breaker import CircuitBreaker, CircuitState
+    from engine_common.circuit_breaker import CircuitBreaker, CircuitState
     
     breaker = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
     
@@ -91,7 +91,7 @@ def test_circuit_breaker_basic():
 
 def test_webhook_payload_structure():
     """Test webhook sender creates correct payload structure"""
-    from onboarding_engine.notifications.webhook_sender import WebhookSender
+    from engine_onboarding.notifications.webhook_sender import WebhookSender
     from datetime import datetime
     
     sender = WebhookSender()

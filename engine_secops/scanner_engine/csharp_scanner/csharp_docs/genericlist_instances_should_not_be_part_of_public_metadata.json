@@ -1,0 +1,72 @@
+{
+  "filename": "genericlist_instances_should_not_be_part_of_public_metadata.json",
+  "rule_id": "genericlist_instances_part_public",
+  "title": "Generic.List instances should not be part of public APIs",
+  "description": "System.Collections.Generic.List<T> is a generic collection that is designed for performance and not inheritance. For example, it does not contain virtual members that make it easier to change the behavior of an inherited class. That means that future attempts to expand the behavior will be spoiled because the extension points simply aren’t there.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public List<string> GetItems() // Noncompliant",
+      "{",
+      "    return items;",
+      "}"
+    ],
+    "compliant": [
+      "public IEnumerable<string> GetItems() // Compliant",
+      "{",
+      "    return items;",
+      "}",
+      "// or",
+      "public IReadOnlyCollection<string> GetItems() // Compliant",
+      "{",
+      "    return items;",
+      "}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3956"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "PropertyDeclaration", "ClassDeclaration"],
+    "detection_conditions": "Detects public methods or properties that return List<T> instead of interface types",
+    "triggering_conditions": "Triggers when: public method return type or property type is List<T>",
+    "exclusion_conditions": "Excludes: private/internal members, IEnumerable/ICollection/IList return types, comments",
+    "never_trigger_on": [
+      "Private or internal methods/properties",
+      "Methods returning IEnumerable, ICollection, IList interfaces",
+      "Comments and documentation",
+      "Generated code",
+      "String literals"
+    ],
+    "reasoning": "This rule detects public APIs exposing List<T> which lacks extensibility points (no virtual members). The pattern identifies 'public' methods or properties with 'List<' return type. List<T> is designed for performance, not inheritance, making it unsuitable for public APIs. Public members should return interface types (IEnumerable<T>, ICollection<T>, IList<T>, or IReadOnlyCollection<T>) to allow implementation flexibility. The regex looks for 'public' modifier followed by 'List<' type in method or property declarations.",
+    "validation_examples": {
+      "should_trigger": [
+        "public List<string> GetItems()",
+        "public List<int> Numbers { get; }",
+        "public static List<Person> GetPeople()"
+      ],
+      "should_not_trigger": [
+        "public IEnumerable<string> GetItems()",
+        "public IReadOnlyCollection<string> GetItems()",
+        "private List<string> items;",
+        "internal List<int> GetData()"
+      ]
+    },
+    "node_types": ["MethodDeclaration", "PropertyDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_genericlist_instances_part_public"
+      }
+    ]
+  }
+}

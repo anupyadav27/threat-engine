@@ -1,0 +1,140 @@
+version: '1.0'
+provider: aws
+service: timestream
+checks:
+- rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    var: item.Address
+    op: contains
+    value: https
+- rule_id: aws.timestream.database.check_encryption_at_rest_enabled
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    var: item.ComputeMode
+    op: exists
+    value: null
+- rule_id: aws.timestream.resource.security_configuration_compliance_configured
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    all:
+    - var: item.Address
+      op: exists
+      value: null
+    - var: item.CachePeriodInMinutes
+      op: greater_than
+      value: '60'
+- rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    all:
+    - var: item.Address
+      op: exists
+      value: null
+    - var: item.CachePeriodInMinutes
+      op: exists
+      value: null
+- rule_id: aws.timestream.database.encryption_at_rest_enabled
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    var: item.ComputeMode
+    op: equals
+    value: PROVISIONED
+- rule_id: aws.timestream.table.require_tls_in_transit_configured
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    var: item.Address
+    op: contains
+    value: https://
+- rule_id: aws.timestream.database.require_tls_in_transit_configured
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    var: item.Address
+    op: contains
+    value: https
+- rule_id: aws.timestream.table.deletion_protection_enabled
+  for_each: aws.timestream-query.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: equals
+      value: DeletionProtectionEnabled
+    - var: item.Value
+      op: equals
+      value: 'true'
+- rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    var: item.ComputeMode
+    op: equals
+    value: PROVISIONED
+- rule_id: aws.timestream.table.private_network_only_if_supported
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    all:
+    - var: item.Address
+      op: exists
+      value: null
+    - var: item.CachePeriodInMinutes
+      op: exists
+      value: null
+- rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    var: item.ComputeMode
+    op: equals
+    value: PROVISIONED
+- rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    var: item.ComputeMode
+    op: equals
+    value: AUTO
+- rule_id: aws.timestream.table.public_access_disabled
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    var: item.Address
+    op: exists
+    value: null
+- rule_id: aws.timestream.database.public_access_disabled
+  for_each: aws.timestream-query.describe_endpoints
+  conditions:
+    var: item.Address
+    op: exists
+    value: null
+- rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
+  for_each: aws.timestream-query.describe_account_settings
+  conditions:
+    all:
+    - var: item.ComputeMode
+      op: equals
+      value: AUTO
+    - var: item.ProvisionedCapacity
+      op: greater_than
+      value: '1'
+- rule_id: aws.timestream.database.deletion_protection_enabled
+  for_each: aws.timestream-query.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: equals
+      value: DeletionProtectionEnabled
+    - var: item.Value
+      op: equals
+      value: 'true'
+- rule_id: aws.timestream.table.rbac_least_privilege
+  for_each: aws.timestream-query.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: equals
+      value: AccessPolicy
+    - var: item.Value
+      op: equals
+      value: least_privilege_policy
+- rule_id: aws.timestream.table.encryption_at_rest_enabled
+  for_each: aws.timestream-query.describe_scheduled_query
+  conditions:
+    var: item.KmsKeyId
+    op: not_equals
+    value: null

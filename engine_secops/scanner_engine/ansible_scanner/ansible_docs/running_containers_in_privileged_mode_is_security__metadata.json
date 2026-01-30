@@ -1,0 +1,50 @@
+{
+  "filename": "running_containers_in_privileged_mode_is_security__metadata.json",
+  "rule_id": "running_containers_privileged_mode",
+  "title": "Running containers in privileged mode is security-sensitive",
+  "description": "Running containers in privileged mode is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweRunning containers in privileged mode can reduce the resilience of a cluster in the event of a security incident because it weakens the isolation between hosts and containers.Process permissions in privileged containers are essentially the same as root permissions on the host. If these processes are not protected by robust security measures, an attacker who compromises this container might be able to compromise the host as well. From this point, they are likely to gain the ability to move even further to other managed nodes.Ask Yourself WhetherThe services of this container are accessible to people who are not administrators of the managed nodes.There is a risk if y",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "- name: Example playbook\n  hosts: server\n  tasks:\n    - name: Run container\n      community.docker.docker_container:\n        name: container\n        image: ubuntu:22.04\n        privileged: true  # Sensitive"
+    ],
+    "compliant": [
+      "- name: Example playbook\n  hosts: server\n  tasks:\n    - name: Run container\n      community.docker.docker_container:\n        name: container\n        image: ubuntu:22.04"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/ansible/RSPEC-6428"
+  ],
+  "logic": {
+    "node_types": ["task", "docker_container", "kubernetes"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "privileged:\\s*true\\b",
+          "privileged:\\s*yes\\b",
+          "privileged:\\s*True\\b",
+          "privileged:\\s*'true'",
+          "privileged:\\s*\"true\""
+        ],
+        "message": "Container running in privileged mode - grants root access to host, major security risk"
+      },
+      {
+        "type": "property_comparison",
+        "property_path": ["privileged"],
+        "operator": "equals",
+        "value": true,
+        "message": "Privileged mode explicitly enabled - weakens container isolation from host"
+      }
+    ]
+  }
+}

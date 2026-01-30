@@ -79,7 +79,7 @@ def test_scan_id_flow_consistency():
 
 def test_storage_path_integration_flow():
     """Test storage paths work correctly in integration flow"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     

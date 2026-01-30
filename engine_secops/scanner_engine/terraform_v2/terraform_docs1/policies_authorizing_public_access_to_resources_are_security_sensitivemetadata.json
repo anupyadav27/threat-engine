@@ -1,0 +1,57 @@
+{
+  "rule_id": "policies_authorizing_public_access_to_resources_are_security_sensitive",
+  "title": "Policies authorizing public access to resources are security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "BLOCKER",
+  "description": "Policies that allow public (anonymous or unauthenticated) access to cloud resources expose those resources to anyone on the internet. This can lead to data breaches, service abuse, and regulatory violations. All resource access should be restricted to only trusted users and services.",
+  "message": "Policy allows public access to resources. Restrict access to only necessary principals.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "cwe",
+    "access-control",
+    "privacy"
+  ],
+  "impact": "Publicly accessible resources can be exploited by attackers, leading to data loss, service disruption, and compliance failures.",
+  "recommendation": "Review and update all resource policies to remove public access. Use IAM roles and policies to enforce least privilege and restrict access to trusted entities.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6270/",
+    "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"aws_iam_policy\" \"bad_example\" {\n  name = \"public-policy\"\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Allow\",\n      \"Principal\": \"*\",\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\"\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy allows public (anonymous) access to all objects in the resource."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"aws_iam_policy\" \"good_example\" {\n  name = \"restricted-policy\"\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Allow\",\n      \"Principal\": {\"AWS\": \"arn:aws:iam::123456789012:user/TrustedUser\"},\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\"\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy restricts access to a specific trusted user."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Access Control & Data Protection"
+  },
+  "logic": {
+    "resource_type": "aws_iam_policy",
+    "property_path": ["policy", "Statement", "Principal"],
+    "check_type": "in",
+    "forbidden_values": ["*"],
+    "required_values": [],
+    "custom_function": ""
+  },
+  "why_is_this_an_issue": "Public access to resources is a leading cause of cloud data breaches and can result in significant financial and reputational damage.",
+  "how_to_fix": "Audit all resource policies. Remove any statements that allow public access. Use IAM roles and policies to enforce least privilege.",
+  "security_mappings": {
+    "CWE": "CWE-284: Improper Access Control",
+    "CERT": "IDS03-J: Do not log sensitive information",
+    "OWASP": "A5: Broken Access Control"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "filename": "exceptions_should_not_be_explicitly_rethrown_metadata.json",
+  "rule_id": "exceptions_explicitly_rethrown",
+  "title": "Exceptions should not be explicitly rethrown",
+  "description": "In C#, the throw statement can be used in two different ways: by specifying an expression without specifying an expression By specifying an expression In the software development context, an expression is a value or anything that executes and ends up being a value. The expression shall be implicitly convertible to System.Exception, and the result of evaluating the expression is converted to System.Exception before being thrown. catch(Exception exception) // code that uses the exception throw exception; // The exception stack trace is cleared up to this point.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try\n{\n    DoSomething();\n}\ncatch (Exception exception)\n{\n    logger.LogError(exception.Message);\n    throw exception; // Noncompliant - clears stack trace\n}",
+      "catch (InvalidOperationException ex)\n{\n    ProcessError(ex);\n    throw ex; // Noncompliant - stack trace lost\n}"
+    ],
+    "compliant": [
+      "try\n{\n    DoSomething();\n}\ncatch (Exception exception)\n{\n    logger.LogError(exception.Message);\n    throw; // Compliant - preserves stack trace\n}",
+      "catch (InvalidOperationException ex)\n{\n    ProcessError(ex);\n    throw; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3445"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_exceptions_explicitly_rethrown",
+        "exclude_patterns": [
+          "//.*throw",
+          "/\\*.*throw.*\\*/",
+          "\\[Test",
+          "[Ff]act\\]"
+        ],
+        "message": "Use bare 'throw;' instead of 'throw exception;' to preserve the original stack trace"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments discussing exception rethrowing",
+      "Unit tests demonstrating exception behavior",
+      "Bare throw statements (throw;)"
+    ],
+    "reasoning": "Detects catch blocks where the caught exception variable is explicitly rethrown (e.g., 'throw ex;') instead of using bare 'throw;'. Explicit rethrowing clears the stack trace up to that point, losing valuable debugging information. The pattern captures the exception variable name in the catch clause and looks for 'throw <same_variable>;' statements. Excludes comments and test code.",
+    "validation_examples": {
+      "should_trigger": [
+        "catch (Exception exception) { logger.LogError(exception.Message); throw exception; }",
+        "catch (InvalidOperationException ex) { ProcessError(ex); throw ex; }",
+        "catch (Exception e) { throw e; }"
+      ],
+      "should_not_trigger": [
+        "catch (Exception exception) { logger.LogError(exception.Message); throw; }",
+        "catch (Exception ex) { throw; }",
+        "// throw exception; - don't do this"
+      ]
+    },
+    "precision_target": "95%",
+    "self_critique_notes": "Pattern uses regex capture group to match exception variable name in catch clause with the variable in throw statement. This ensures we only flag cases where the same exception is explicitly rethrown. Edge cases: (1) Different exception thrown - not matched by pattern; (2) Bare throw - excluded by requiring variable name after throw; (3) Throwing new exception - not matched since variable differs. False positives minimized by exact variable name matching."
+  }
+}

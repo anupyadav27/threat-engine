@@ -1,0 +1,40 @@
+{
+  "filename": "regex_escape_sequence_cx_should_only_use_at_to_underscore_metadata.json",
+  "rule_id": "regex_escape_sequence_cx_should_only_use_at_to_underscore",
+  "title": "The regex escape sequence \\cX should only be used with characters in the @-_ range",
+  "description": "The regex escape sequence \\cX is only valid when X is a character in the range @ to _. Using it with other characters can lead to undefined or unintended behavior in regular expressions. This rule detects and flags such invalid usage.",
+  "status": "active",
+  "defaultSeverity": "MAJOR",
+  "category": "Bug",
+  "recommendation": "Use the \\cX escape sequence only with characters in the @-_ range. For other control characters, use the appropriate escape or Unicode notation.",
+  "impact": "Incorrect use of \\cX can cause regular expressions to behave unexpectedly, potentially leading to bugs or security issues.",
+  "examples": {
+    "noncompliant": [
+      "Pattern.compile(\"\\cA\"); // Compliant\nPattern.compile(\"\\cZ\"); // Compliant\nPattern.compile(\"\\c!\"); // Noncompliant, ! is not in @-_ range\nPattern.compile(\"\\c9\"); // Noncompliant, 9 is not in @-_ range"
+    ],
+    "compliant": [
+      "Pattern.compile(\"\\cA\"); // Compliant\nPattern.compile(\"\\c_\"); // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6070/",
+    "https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\\\c[!-?0-9]"
+        ],
+        "message": "Use the \\cX escape sequence only with characters in the @-_ range. For other control characters, use the appropriate escape or Unicode notation."
+      }
+    ]
+  }
+}

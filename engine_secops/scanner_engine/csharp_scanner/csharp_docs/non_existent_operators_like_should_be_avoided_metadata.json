@@ -1,0 +1,78 @@
+{
+  "filename": "non_existent_operators_like_should_be_avoided_metadata.json",
+  "rule_id": "nonexistent_operators_like_avoided",
+  "title": "Non-existent operators like =+ should be avoided",
+  "description": "Non-existent operators like \"=+\" should not be usedAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?Using operator pairs (=+,=-, or=!) that look like reversed single operators (+=,-=or!=) is confusing. They compile and run but do not produce the same result as their mirrored counterpart.int target = -5; int num = 3; target =- num; // Noncompliant: target = -3. Is that the intended behavior? target =+ num; // Noncompliant: target = 3This rule raises an issue when=+,=-, or=!are used without any space between the operators and when there is at least one whitespace after.Replace the operators with a single one if that is the intentionint target = -5; int num = 3; target -= num; // target = -8Or fix the spacing to avoid confusionint target = -5; int num = 3; target = -num",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int target = -5;\nint num = 3;\n\ntarget =+ num;  // Noncompliant - looks like +=, but assigns +3\ntarget =- num;  // Noncompliant - looks like -=, but assigns -3\nbool flag = true;\nflag =! false;  // Noncompliant - looks like !=, but assigns !false"
+    ],
+    "compliant": [
+      "int target = -5;\nint num = 3;\n\ntarget += num;  // Compliant - proper addition assignment\ntarget -= num;  // Compliant - proper subtraction assignment\ntarget = +num;  // Compliant - explicit positive assignment with space\ntarget = -num;  // Compliant - explicit negative assignment with space\n\nbool flag = true;\nflag != false;  // Compliant - proper comparison\nflag = !false;  // Compliant - explicit assignment with space"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2757"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\s*=[+\\-!]\\s+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "ToString\\(\\)",
+          "\\[Test",
+          "Assert\\."
+        ]
+      }
+    ],
+    "triggering_conditions": "Assignment nodes containing confusing operator patterns like =+, =-, =! followed by whitespace",
+    "exclusion_conditions": [
+      "Proper compound operators (+=, -=, !=)",
+      "Assignments with spaces (= +, = -, = !)",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], Assert.*)",
+      "ToString() implementations",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Proper compound assignment operators (+=, -=, *=, /=)",
+      "Proper comparison operators (!=, ==)",
+      "Assignments with explicit spacing (= +num, = -num)",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], Assert.*)",
+      "ToString() implementations",
+      "Generated code"
+    ],
+    "reasoning": "Detects confusing operator patterns that look like reversed compound operators. The pattern '\\w+\\s*=[+\\-!]\\s+' matches variable assignments followed by =+, =-, or =! with whitespace after, which are confusing and likely errors. Targets Assignment nodes to focus on actual assignment statements.",
+    "validation_examples": {
+      "should_trigger": [
+        "target =+ num;  // looks like += but assigns +num",
+        "target =- num;  // looks like -= but assigns -num",
+        "flag =! condition;  // looks like != but assigns !condition"
+      ],
+      "should_not_trigger": [
+        "target += num;  // proper compound assignment",
+        "target -= num;  // proper compound assignment",
+        "target = +num;  // explicit assignment with space",
+        "target = -num;  // explicit assignment with space",
+        "flag != condition;  // proper comparison"
+      ]
+    }
+  }
+}

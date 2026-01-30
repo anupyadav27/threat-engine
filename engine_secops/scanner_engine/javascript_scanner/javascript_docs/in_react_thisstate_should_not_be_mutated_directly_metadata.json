@@ -1,0 +1,103 @@
+{
+  "filename": "in_react_thisstate_should_not_be_mutated_directly_metadata.json",
+  "rule_id": "react_thisstate_mutated_directly",
+  "title": "In React this.state should not be mutated directly",
+  "description": "React does not always propagate component state changes to the underlying DOM elements immediately. If you modify the state during an already ongoing update cycle, the change may be delayed until the next update. React tries to keep this.state in sync with what is currently in the DOM, so you should never directly modify this.state yourself.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "this.state.count = 5;",
+      "this.state.user.name = 'John';",
+      "this.state['items'] = [];",
+      "++this.state.counter;",
+      "this.state.list.push(item);"
+    ],
+    "compliant": [
+      "this.setState({ count: 5 });",
+      "this.setState({ user: { ...this.state.user, name: 'John' } });",
+      "this.setState({ items: [] });",
+      "this.setState({ counter: this.state.counter + 1 });",
+      "this.setState({ list: [...this.state.list, item] });"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6746"
+  ],
+  "logic": {
+    "node_types": [
+      "AssignmentExpression",
+      "UpdateExpression",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "ast_pattern",
+        "description": "Direct assignment to this.state properties",
+        "conditions": [
+          {
+            "node_type": "AssignmentExpression",
+            "left_type": "MemberExpression",
+            "left_object_type": "MemberExpression",
+            "left_object_object": "this",
+            "left_object_property": "state"
+          }
+        ],
+        "message": "Do not mutate this.state directly. Use setState() instead."
+      },
+      {
+        "type": "ast_pattern", 
+        "description": "Update expressions on this.state properties (++, --, etc.)",
+        "conditions": [
+          {
+            "node_type": "UpdateExpression",
+            "argument_type": "MemberExpression",
+            "argument_object_type": "MemberExpression",
+            "argument_object_object": "this",
+            "argument_object_property": "state"
+          }
+        ],
+        "message": "Do not mutate this.state directly with update operators. Use setState() instead."
+      },
+      {
+        "type": "ast_pattern",
+        "description": "Method calls on this.state that mutate (push, pop, etc.)",
+        "conditions": [
+          {
+            "node_type": "CallExpression",
+            "callee_type": "MemberExpression",
+            "callee_object_type": "MemberExpression",
+            "callee_object_object_type": "MemberExpression",
+            "callee_object_object_object": "this",
+            "callee_object_object_property": "state",
+            "callee_property_in": ["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill"]
+          }
+        ],
+        "message": "Do not call mutating methods on this.state arrays/objects. Use setState() with immutable updates instead."
+      },
+      {
+        "type": "regex_match",
+        "description": "Fallback regex for bracket notation assignments",
+        "property_path": ["source"],
+        "pattern": "this\\.state\\[.+\\]\\s*=",
+        "message": "Do not mutate this.state directly using bracket notation. Use setState() instead."
+      }
+    ],
+    "context_requirements": [
+      {
+        "type": "class_context",
+        "description": "Should be inside a React component class",
+        "check": "extends_react_component"
+      }
+    ]
+  }
+}

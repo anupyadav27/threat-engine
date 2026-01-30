@@ -1,0 +1,57 @@
+{
+  "filename": "in_should_be_avoided_with_primitive_types_metadata.json",
+  "rule_id": "avoided_primitive_types",
+  "title": "in should be avoided with primitive types",
+  "description": "In JavaScript, the 'in' operator should not be used with primitive types (strings, numbers, booleans) because it will cause a TypeError. The 'in' operator is designed to work with objects and arrays. If you need to check properties on primitives, use their object wrapper equivalents (new String(), new Number(), etc.) or use alternative methods like hasOwnProperty() or typeof checks.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "'length' in 'hello'",
+      "'toString' in 42",
+      "'valueOf' in true",
+      "'prop' in myString"
+    ],
+    "compliant": [
+      "'length' in new String('hello')",
+      "'prop' in myObject",
+      "0 in myArray",
+      "'hello'.hasOwnProperty('length')"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-3785"
+  ],
+  "logic": {
+    "node_types": [
+      "BinaryExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?:^|[\\s\\(\\{\\[;])(?:['\"][^'\"]*['\"]|[a-zA-Z_$][a-zA-Z0-9_$]*)\\s+in\\s+(?:['\"][^'\"]+['\"]|\\d+(?:\\.\\d+)?(?![a-zA-Z_$])|\\b(?:true|false|null|undefined)\\b)(?=[\\s\\)\\}\\];]|$)",
+        "message": "Avoid using 'in' operator with primitive literals (strings, numbers, booleans, null, undefined). This will cause a TypeError."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?:^|[\\s\\(\\{\\[;])(?:['\"][^'\"]*['\"]|[a-zA-Z_$][a-zA-Z0-9_$]*)\\s+in\\s+(?:str|string|num|number|bool|boolean|prim|primitive)(?:Val|Value|Var|Variable)?(?![a-zA-Z0-9_$])(?=[\\s\\)\\}\\];]|$)",
+        "message": "Potential use of 'in' operator with primitive variable (based on variable name). Ensure this variable contains an object or array."
+      }
+    ]
+  }
+}

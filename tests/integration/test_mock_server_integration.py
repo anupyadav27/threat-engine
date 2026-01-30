@@ -128,7 +128,7 @@ async def test_orchestrator_calls_all_engines():
 @pytest.mark.asyncio
 async def test_storage_path_usage_in_engines():
     """Test that all engines would use storage paths correctly"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     

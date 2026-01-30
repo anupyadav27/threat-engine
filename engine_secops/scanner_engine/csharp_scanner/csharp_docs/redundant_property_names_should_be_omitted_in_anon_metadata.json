@@ -1,0 +1,106 @@
+{
+  "filename": "redundant_property_names_should_be_omitted_in_anon_metadata.json",
+  "rule_id": "redundant_property_names_omitted",
+  "title": "Redundant property names should be omitted in anonymous classes",
+  "description": "Redundant property names should be omitted in anonymous classesAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEfindingclumsyWhy is this an issue?When an anonymous type’s properties are copied from properties or variables with the same names, it yields cleaner code to omit the new type’s property name and the assignment operator.Noncompliant code examplevar X = 5; var anon = new { X = X, //Noncompliant, the new object would have the same property without the \"X =\" part. Y = \"my string\" };Compliant solutionvar X = 5; var anon = new { X, Y = \"my string\" };Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "var X = 5;\n\nvar anon = new\n{\n  X = X, //Noncompliant, the new object would have the same property without the \"X =\" part.\n  Y = \"my string\"\n};"
+    ],
+    "compliant": [
+      "var X = 5;\n\nvar anon = new\n{\n  X,\n  Y = \"my string\"\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3441"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(\\w+)\\s*=\\s*\\1\\s*[,}]",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "^\\s*//",
+          "/\\*",
+          "\\*/",
+          "ToString\\(\\)",
+          "\\w+\\s*=\\s*\\w+\\(",
+          "\\w+\\s*=\\s*\\w+\\.",
+          "\\w+\\s*=\\s*\\w+\\[",
+          "\\w+\\s*=\\s*\\w+\\s*[+\\-*/%&|^<>!]",
+          "this\\.",
+          "base\\.",
+          "var\\s+\\w+\\s*=",
+          "class\\s+",
+          "interface\\s+",
+          "struct\\s+"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["Assignment"],
+    "detection_conditions": "Checks Assignment nodes for redundant property names where variable equals itself (e.g., 'name = name')",
+    "triggering_conditions": "Pattern where property assignment has the same variable name on both sides (PropertyName = PropertyName)",
+    "exclusion_conditions": [
+      "Method calls (PropertyName = PropertyName.Method())",
+      "Property access (PropertyName = PropertyName.Property)",
+      "Array access (PropertyName = PropertyName[index])",
+      "Mathematical operations (PropertyName = PropertyName + value)",
+      "Logging statements",
+      "String formatting",
+      "Unit test code",
+      "Comments",
+      "Variable declarations (var x = y)",
+      "Class/interface/struct declarations"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /**/)",
+      "Method calls or property access",
+      "Mathematical or logical operations",
+      "toString() implementations",
+      "Variable declarations (var x = y)",
+      "this. or base. references",
+      "Class, interface, or struct declarations"
+    ],
+    "reasoning": "Detects redundant property assignments where the property name is the same as the variable being assigned (e.g., 'X = X'). This typically occurs in anonymous object creation where C# allows the shorthand syntax. Uses comprehensive exclusions to avoid false positives from method calls, property access, operations, logging, testing contexts, and variable declarations.",
+    "validation_examples": {
+      "should_trigger": [
+        "X = X, // in anonymous object",
+        "name = name,",
+        "id = id"
+      ],
+      "should_not_trigger": [
+        "X = X.ToString(),",
+        "obj = new { X = Y }",
+        "point = point.Value",
+        "Console.WriteLine($\"Value: {X = X}\");",
+        "// Example: X = X",
+        "result = result + 1",
+        "var x = y"
+      ]
+    }
+  }
+}

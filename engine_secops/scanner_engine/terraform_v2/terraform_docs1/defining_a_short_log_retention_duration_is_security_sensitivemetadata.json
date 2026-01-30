@@ -1,0 +1,58 @@
+{
+  "rule_id": "defining_a_short_log_retention_duration_is_security_sensitive",
+  "title": "Defining a short log retention duration is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "Major",
+  "description": "Log retention policies determine how long audit and event logs are preserved. Short retention periods can result in loss of critical evidence for security investigations, compliance audits, and operational troubleshooting. Retain logs for a duration that meets regulatory, business, and security requirements.",
+  "message": "Log retention duration is too short. Increase retention to meet security and compliance needs.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "azure",
+    "gcp"
+  ],
+  "impact": "Short log retention can prevent detection of attacks, hinder incident response, and cause compliance failures.",
+  "recommendation": "Set log retention to at least 90 days, or longer if required by your organization's policies or regulations. Regularly review retention settings to ensure compliance.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6413/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"google_logging_project_bucket_config\" \"bad_example\" {\n  retention_days = 7\n}",
+        "description": "Retention is set to only 7 days, which is insufficient for most security and compliance requirements."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"google_logging_project_bucket_config\" \"good_example\" {\n  retention_days = 365\n}",
+        "description": "Retention is set to 365 days, supporting security investigations and compliance audits."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Audit & Monitoring",
+    "security": "Longer log retention supports detection, investigation, and response to security incidents.",
+    "automation": "CI/CD should enforce minimum log retention policies.",
+    "compliance": "Many standards (e.g., PCI DSS, HIPAA) require logs to be retained for specific periods."
+  },
+  "why_is_this_an_issue": "Short log retention can result in loss of evidence needed for security investigations and regulatory audits.",
+  "how_to_fix": "Review log retention settings. Set retention to at least 90 days, or longer as required. Monitor for unauthorized changes to retention policies.",
+  "security_mappings": {
+    "CWE": "CWE-532: Incomplete or Inconsistent Logging",
+    "CERT": "IDS01-J: Normalize and centralize logs",
+    "OWASP": "A9: Insufficient Logging & Monitoring"
+  },
+  "logic": {
+  "resource_type": ["aws_cloudwatch_log_group", "azurerm_monitor_diagnostic_setting", "google_logging_project_sink", "google_logging_project_bucket_config"],
+  "property_path": ["retention_in_days", "log_retention_policy.retention_days", "retention_days"],
+  "check_type": "min_value",
+  "forbidden_values": [],
+  "required_values": [30],
+  "custom_function": "",
+  "description": "Ensure log retention is at least 30 days."
+  }
+}

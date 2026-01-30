@@ -1,0 +1,35 @@
+{
+  "filename": "azure_functions_should_be_stateless_metadata.json",
+  "rule_id": "azure_functions_stateless",
+  "title": "Azure Functions should be stateless",
+  "description": "Azure Functions should be statelessAnalyze your codeintentionality-completemaintainabilityCode Smellazurebad-practiceWhy is this an issue?More InfoAn Azure Function should be stateless as there’s no control over where and when function instances are provisioned and de-provisioned. Managing and storing data/state between requests can lead to inconsistencies. If, for any reason, you need to have a stateful function, consider using the Durable Functions extension of Azure Functions.Noncompliant code examplepublic static class HttpExample { private static readonly int port = 2000; private static int numOfRequests = 1; [FunctionName(\"HttpExample\")] public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", Route = null)] HttpRequest request, ILogger log) { nu",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public static class HttpExample\n    {\n        private static readonly int port = 2000;\n        private static int numOfRequests = 1;\n\n        [FunctionName(\"HttpExample\")]\n        public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", Route = null)] HttpRequest request, ILogger log)\n        {\n            numOfRequests += 1; // Noncompliant\n            log.LogInformation($\"Number of POST requests is {numOfRequests}.\");\n\n            string responseMessage = $\"HttpRequest was made on port {port}.\"; // Compliant, state is only read.\n\n            return new OkObjectResult(responseMessage);\n        }\n    }"
+    ],
+    "compliant": [
+      "public static class HttpExample\n    {\n        private static readonly int port = 2000;\n\n        [FunctionName(\"HttpExample\")]\n        public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", Route = null)] HttpRequest request, ILogger log)\n        {\n            // A compliant solution would be to manage the `numOfRequests` with an entity function or would use storage (e.g., Azure Blob storage, Azure Queue Storage)\n            // to share the state between functions.\n\n            string responseMessage = $\"HttpRequest was made on port {port}.\";\n\n            return new OkObjectResult(responseMessage);\n        }\n    }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6419"
+  ],
+  "logic": {
+    "custom_function": "check_azure_functions_stateless",
+    "node_types": [
+      "ClassDeclaration",
+      "MethodDeclaration", 
+      "CompilationUnit"
+    ]
+  }
+}

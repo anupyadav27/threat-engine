@@ -1,0 +1,52 @@
+version: '1.0'
+provider: aws
+service: sns
+services:
+  client: sns
+  module: boto3.client
+discovery:
+- discovery_id: aws.sns.list_topics
+  calls:
+  - action: list_topics
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.Topics }}'
+    as: item
+- discovery_id: aws.sns.get_topic_attributes
+  for_each: aws.sns.list_topics
+  calls:
+  - action: get_topic_attributes
+    params:
+      TopicArn: '{{ item.TopicArn }}'
+    save_as: response
+  emit:
+    item:
+      TopicArn: '{{ item.TopicArn }}'
+      TopicName: '{{ (item.TopicArn.split(\":\")[-1]) if item.TopicArn is defined else \"\" }}'
+      Attributes: '{{ response.Attributes if response.Attributes is defined else {} }}'
+      Subscriptions: '{{ (response.Attributes.get(\"Subscriptions\") if isinstance(response.Attributes, dict) and response.Attributes.get(\"Subscriptions\") is defined else []) if response is defined else [] }}'
+- discovery_id: aws.sns.list_subscriptions
+  calls:
+  - action: list_subscriptions
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.Subscriptions }}'
+    as: item
+- discovery_id: aws.sns.get_subscription_attributes
+  for_each: aws.sns.list_subscriptions
+  calls:
+  - action: get_subscription_attributes
+    params:
+      SubscriptionArn: '{{ item.SubscriptionArn }}'
+    save_as: response
+  emit:
+    item:
+      SubscriptionArn: '{{ item.SubscriptionArn }}'
+      TopicArn: '{{ item.TopicArn }}'
+      Protocol: '{{ item.Protocol }}'
+      Endpoint: '{{ item.Endpoint }}'
+      Attributes: '{{ response.Attributes if response.Attributes is defined else {} }}'

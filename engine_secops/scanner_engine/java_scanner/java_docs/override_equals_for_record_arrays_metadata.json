@@ -1,0 +1,46 @@
+{
+  "filename": "override_equals_for_record_arrays_metadata.json",
+  "rule_id": "reliability_override_equals_record_arrays",
+  "title": "Override equals in records with array fields",
+  "description": "When a Java record contains array fields, the default equals method may not compare array contents correctly. Overriding equals ensures that records with arrays are compared based on their actual contents, preventing subtle bugs and ensuring reliable behavior.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Override the equals method in records that contain array fields to compare array contents properly.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      "public record Data(int[] values) {}\n// Comparing two Data records with identical array contents will return false."
+    ],
+    "compliant": [
+      "public record Data(int[] values) {\n  @Override\n  public boolean equals(Object o) {\n    if (this == o) return true;\n    if (!(o instanceof Data other)) return false;\n    return java.util.Arrays.equals(this.values, other.values);\n  }\n}"
+    ]
+  },
+  "references": [
+    {
+      "title": "SonarSource Rule RSPEC-6218",
+      "url": "https://rules.sonarsource.com/java/RSPEC-6218"
+    },
+    {
+      "title": "Java Records Documentation",
+      "url": "https://docs.oracle.com/en/java/javase/16/language/records.html"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "record\\s+\\w+\\s*\\([^)]*\\[\\].*\\{\\s*\\}"
+        ],
+        "message": "Override the equals method in records that contain array fields to compare array contents properly."
+      }
+    ]
+  }
+}

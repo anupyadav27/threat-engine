@@ -1,0 +1,97 @@
+version: '1.0'
+provider: aws
+service: cloudfront
+services:
+  client: cloudfront
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudfront.list_origin_request_policies
+  calls:
+  - action: list_origin_request_policies
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.OriginRequestPolicyList.Items }}'
+    as: item
+- discovery_id: aws.cloudfront.get_origin_request_policy_config
+  for_each: aws.cloudfront.list_origin_request_policies
+  calls:
+  - action: get_origin_request_policy_config
+    params:
+      Id: '{{ item.Id }}'
+    save_as: response
+    on_error: continue
+  emit: {}
+- discovery_id: aws.cloudfront.list_cache_policies
+  calls:
+  - action: list_cache_policies
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.CachePolicyList.Items }}'
+    as: item
+- discovery_id: aws.cloudfront.get_cache_policy_config
+  for_each: aws.cloudfront.list_cache_policies
+  calls:
+  - action: get_cache_policy_config
+    params:
+      Id: '{{ item.Id }}'
+    save_as: response
+    on_error: continue
+  emit: {}
+- discovery_id: aws.cloudfront.list_distributions
+  calls:
+  - action: list_distributions
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.DistributionList.Items }}'
+    as: item
+- discovery_id: aws.cloudfront.get_distribution_config
+  for_each: aws.cloudfront.list_distributions
+  calls:
+  - action: get_distribution_config
+    params:
+      Id: '{{ item.Id }}'
+    save_as: response
+    on_error: continue
+  emit: {}
+- discovery_id: aws.cloudfront.list_origin_access_controls
+  calls:
+  - action: list_origin_access_controls
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.OriginAccessControlList.Items }}'
+    as: item
+- discovery_id: aws.cloudfront.get_origin_access_control
+  for_each: aws.cloudfront.list_origin_access_controls
+  calls:
+  - action: get_origin_access_control
+    params:
+      Id: '{{ item.Id }}'
+    save_as: response
+    on_error: continue
+  emit: {}
+- discovery_id: aws.cloudfront.list_field_level_encryption_configs
+  calls:
+  - action: list_field_level_encryption_configs
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.FieldLevelEncryptionList.Items }}'
+    as: item
+- discovery_id: aws.cloudfront.get_field_level_encryption
+  for_each: aws.cloudfront.list_field_level_encryption_configs
+  calls:
+  - action: get_field_level_encryption
+    params:
+      Id: '{{ item.Id }}'
+    save_as: response
+    on_error: continue
+  emit: {}

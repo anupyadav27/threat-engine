@@ -1,0 +1,46 @@
+{
+  "filename": "exceptions_in_throws_clauses_should_not_be_superfluous_metadata.json",
+  "rule_id": "bug_remove_superfluous_exceptions",
+  "title": "Remove Superfluous Exceptions in 'throws' Clauses",
+  "description": "Exceptions within 'throws' clauses should not be superfluous as they can negatively impact the readability and maintainability of the code. An exception is considered superfluous if it is listed multiple times, is a subclass of another listed exception, or is not actually thrown by any execution path of the method.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Bug",
+  "recommendation": "Ensure exceptions in 'throws' clauses are not superfluous. They should not be listed multiple times, should not be a subclass of another listed exception, and should actually be thrown by an execution path of the method.",
+  "impact": "Improves the readability and maintainability of the code by ensuring exceptions in 'throws' clauses are not superfluous.",
+  "examples": {
+    "noncompliant": [
+      "void foo() throws MyException, MyException {}",
+      "void bar() throws Throwable, Exception {}",
+      "void boo() throws IOException { System.out.println(\"Hi!\"); }"
+    ],
+    "compliant": [
+      "void foo() throws MyException {}",
+      "void bar() throws Throwable {}",
+      "void boo() { System.out.println(\"Hi!\"); }"
+    ]
+  },
+  "references": [
+    {
+      "title": "RSPEC-1130",
+      "url": "https://rules.sonarsource.com/java/RSPEC-1130"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "throws\\s+\\w*Exception.*,.*\\w*Exception"
+        ],
+        "message": "Remove duplicate or superfluous exceptions from throws clause"
+      }
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "filename": "functions_should_avoid_having_identical_implementa_metadata.json",
+  "rule_id": "functions_avoid_having_identical",
+  "title": "Functions should avoid having identical implementations",
+  "description": "Functions should not have identical implementationsAnalyze your codeadaptability-distinctmaintainabilityCode SmellconfusingduplicatesuspiciousWhy is this an issue?Two functions having the same implementation are suspicious. It might be that something else was intended. Or the duplication is intentional, which becomes a maintenance burden.function calculateCode() { doTheThing(); doOtherThing(); return code; } function getName() { // Noncompliant: duplicates calculateCode doTheThing(); doOtherThing(); return code; }If the identical logic is intentional, the code should be refactored to avoid duplication.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "function calculateCode() {\n  doTheThing();\n  doOtherThing();\n  return code;\n}\n\nfunction getName() {  // Noncompliant: duplicates calculateCode\n  doTheThing();\n  doOtherThing();\n  return code;\n}"
+    ],
+    "compliant": [
+      "function calculateCode() {\n  doTheThing();\n  doOtherThing();\n  return code;\n}\n\nfunction getName() { // Intent is clear\n  return calculateCode();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-4144"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{\\s*return\\s+[\"'][^\"']+[\"'];?\\s*\\}",
+        "message": "Functions with identical simple return statements should be refactored to avoid duplication."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{\\s*console\\.log\\([^)]+\\);?\\s*\\}",
+        "message": "Functions with identical console.log statements should be refactored to avoid duplication."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{\\s*throw\\s+new\\s+Error\\([^)]+\\);?\\s*\\}",
+        "message": "Functions with identical error throwing should be refactored to avoid duplication."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{\\s*return\\s+\\w+\\([^)]*\\);?\\s*\\}",
+        "message": "Functions with identical single function calls should be refactored to avoid duplication."
+      }
+    ]
+  }
+}

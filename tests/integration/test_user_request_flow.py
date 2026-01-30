@@ -15,7 +15,7 @@ import json
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
-sys.path.insert(0, os.path.join(project_root, "onboarding_engine"))
+sys.path.insert(0, os.path.join(project_root, "engine_onboarding"))
 
 
 @pytest.mark.asyncio
@@ -82,7 +82,7 @@ async def test_complete_user_scan_request_flow():
     }
     
     # ========== STEP 3: Storage Path Usage ==========
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     
     results_path = resolver.get_scan_results_path("aws", scan_run_id, "results.ndjson")
@@ -196,7 +196,7 @@ async def test_complete_user_scan_request_flow():
     # 3. Verify storage paths are consistent
     assert scan_run_id in results_path
     assert scan_run_id in summary_path
-    assert "aws-configScan-engine" in results_path
+    assert "engine_configscan_aws" in results_path
     
     # 4. Verify all downstream engines received correct identifiers
     assert orchestration_requests["threat"]["scan_run_id"] == scan_run_id
@@ -270,7 +270,7 @@ async def test_user_request_with_scheduled_scan():
     assert configscan_request["include_services"] == schedule_request["services"]
     
     # ========== RESULTS STORED ==========
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     
     results_path = resolver.get_scan_results_path("aws", scan_run_id, "results.ndjson")
@@ -324,7 +324,7 @@ async def test_user_request_multiple_accounts():
         assert execution["account_id"] in [acc["account_id"] for acc in user_request["accounts"]]
     
     # ========== VERIFY STORAGE PATHS ARE SEPARATE ==========
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     
     paths = []
@@ -418,7 +418,7 @@ async def test_user_query_results_flow():
     }
     
     # Results should be found using scan_run_id
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     configscan_path = resolver.get_scan_results_path("aws", scan_run_id, "results.ndjson")
     

@@ -1,0 +1,76 @@
+{
+  "filename": "use_the_unixepoch_field_instead_of_creating_dateti_metadata.json",
+  "rule_id": "use_unixepoch_field_instead",
+  "title": "Use the UnixEpoch field instead of creating DateTime instances that point to the beginning of the Unix epoch",
+  "description": "Use the \"UnixEpoch\" field instead of creating \"DateTime\" instances that point to the beginning of the Unix epochAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEWhy is this an issue?How can I fix it?More InfoWith .NET Core theUnixEpochfield was introduced toDateTimeandDateTimeOffsettypes. Using this field clearly states that the intention is to use the beginning of the Unix epoch.What is the potential impact?You should not use theDateTimeorDateTimeOffsetconstructors to set the time to the 1st of January 1970 to represent the beginning of the Unix epoch. Not everyone is familiar with what this particular date is representing and it can be misleading.Available In:Catch issues on the fly,in your IDEDetect issues in your Git",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "var epoch = new DateTime(1970, 1, 1);",
+      "var unixTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);",
+      "DateTime baseline = new DateTime(1970, 01, 01);"
+    ],
+    "compliant": [
+      "var epoch = DateTime.UnixEpoch;",
+      "var unixTime = DateTimeOffset.UnixEpoch;",
+      "DateTime baseline = DateTime.UnixEpoch;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6588"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "new\\s+(DateTime|DateTimeOffset)\\s*\\(\\s*1970\\s*,\\s*0?1\\s*,\\s*0?1",
+        "exclude_patterns": [
+          "//.*new\\s+DateTime",
+          "/\\*.*new\\s+DateTime",
+          "Assert\\.",
+          "\\[Test",
+          "\\[Fact",
+          "Console\\.Write",
+          "\\$\""
+        ],
+        "message": "Use DateTime.UnixEpoch or DateTimeOffset.UnixEpoch instead of creating DateTime instances for the Unix epoch"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "detection_conditions": "Constructor call creating DateTime(1970, 1, 1) representing Unix epoch",
+    "triggering_conditions": "Call to DateTime or DateTimeOffset constructor with year=1970, month=1, day=1",
+    "exclusion_conditions": ["Comments", "Unit tests", "Logging/Console output", "String interpolation"],
+    "never_trigger_on": [
+      "Comments containing DateTime(1970, 1, 1) examples",
+      "Unit test assertions using epoch values",
+      "Console.WriteLine displaying dates",
+      "String interpolation ($\"\")",
+      "Generated code"
+    ],
+    "reasoning": "Since .NET Core, DateTime.UnixEpoch and DateTimeOffset.UnixEpoch are available as static fields. Using these is clearer than creating a DateTime(1970, 1, 1) which may not be immediately recognizable as the Unix epoch. The pattern matches the constructor call with the specific date January 1, 1970.",
+    "validation_examples": {
+      "should_trigger": [
+        "var epoch = new DateTime(1970, 1, 1);",
+        "var unixTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);",
+        "DateTime baseline = new DateTime(1970, 01, 01);"
+      ],
+      "should_not_trigger": [
+        "var epoch = DateTime.UnixEpoch;",
+        "var unixTime = DateTimeOffset.UnixEpoch;",
+        "var otherDate = new DateTime(2000, 1, 1);",
+        "// var epoch = new DateTime(1970, 1, 1);"
+      ]
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "filename": "methods_with_pure_attribute_should_return_a_value_metadata.json",
+  "rule_id": "methods_pure_attribute_return",
+  "title": "Methods with Pure attribute should return a value",
+  "description": "Methods with \"Pure\" attribute should return a valueAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?How can I fix it?More InfoMarking a method with thePureattribute indicates that the method doesn’t make any visible state changes. Therefore, aPuremethod should return a result. Otherwise, it indicates a no-operation call.UsingPureon avoidmethod is either by mistake or the method is not doing a meaningful task.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Pure]\npublic void CalculateHash(string input)  // Noncompliant: Pure method should return a value\n{\n    // Performs calculation but doesn't return anything\n    var hash = input.GetHashCode();\n}\n\n[Pure]\npublic void ProcessData() // Noncompliant\n{\n    // Some processing logic\n}"
+    ],
+    "compliant": [
+      "[Pure]\npublic int CalculateHash(string input)  // Compliant: Returns a value\n{\n    return input.GetHashCode();\n}\n\n[Pure]\npublic string ProcessData(string input) // Compliant: Returns processed data\n{\n    return input.ToUpper();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3603"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "Attribute"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_pure_void_methods"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], [TestMethod])",
+      "Methods containing logging statements",
+      "Methods with Assert statements",
+      "Generated code",
+      "Constructor and destructor methods"
+    ],
+    "reasoning": "Uses custom function to detect methods marked with [Pure] attribute that have void return types by analyzing the relationship between Attribute nodes and MethodDeclaration nodes. Pure methods should not have side effects and should return a value to be meaningful. Excludes test methods where Pure might be used for testing purposes.",
+    "validation_examples": {
+      "should_trigger": [
+        "[Pure] public void CalculateHash(string input) { }",
+        "[Pure] public void ProcessData() { }",
+        "[Pure] public void ValidateInput(string data) { }"
+      ],
+      "should_not_trigger": [
+        "[Pure] public int CalculateHash(string input) { return 0; }",
+        "[Pure] public string ProcessData(string input) { return input; }",
+        "public void LogMessage(string msg) { }",
+        "[Test] [Pure] public void TestMethod() { }"
+      ]
+    }
+  }
+}

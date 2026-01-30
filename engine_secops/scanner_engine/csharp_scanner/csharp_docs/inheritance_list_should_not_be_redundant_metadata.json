@@ -1,0 +1,93 @@
+{
+  "filename": "inheritance_list_should_not_be_redundant_metadata.json",
+  "rule_id": "inheritance_list_redundant",
+  "title": "Inheritance list should not be redundant",
+  "description": "Inheritance list should not be redundantAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEclumsyWhy is this an issue?An inheritance list entry is redundant if:It isObject- all classes extendObjectimplicitly.It isintfor anenumIt is a base class of another listed inheritance.Such redundant declarations should be removed because they needlessly clutter the code and can be confusing.Noncompliant code examplepublic class MyClass : Object // Noncompliant enum MyEnum : int // NoncompliantCompliant solutionpublic class MyClass enum MyEnumAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass : Object { } // Noncompliant: Object is redundant",
+      "public class MyClass : System.Object { } // Noncompliant: all classes extend Object implicitly",
+      "enum MyEnum : int { } // Noncompliant: int is default for enums"
+    ],
+    "compliant": [
+      "public class MyClass { } // OK: no redundant Object",
+      "enum MyEnum { } // OK: no redundant int type",
+      "public class MyClass : BaseClass, IInterface { } // OK: explicit base class and interface"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1939"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Detects redundant inheritance declarations: class : Object, enum : int",
+    "triggering_conditions": "(Class explicitly inheriting from Object or System.Object) OR (Enum explicitly specifying int type)",
+    "exclusion_conditions": [
+      "Classes with legitimate base classes",
+      "Enums with non-int types (byte, short, long)",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Classes with non-Object base classes",
+      "Enums with explicit non-int types"
+    ],
+    "reasoning": "This rule detects redundant inheritance declarations. Pattern matches 'class X : Object' or 'class X : System.Object' (redundant as all classes implicitly inherit Object) and 'enum X : int' (redundant as int is default for enums). Excludes legitimate base classes and non-default enum types. AST-based approach examines ClassDeclaration.source for redundant inheritance patterns.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class MyClass : Object { }",
+        "public class MyClass : System.Object { }",
+        "enum MyEnum : int { }"
+      ],
+      "should_not_trigger": [
+        "public class MyClass { }",
+        "enum MyEnum { }",
+        "public class MyClass : BaseClass { }",
+        "enum MyEnum : byte { }"
+      ]
+    },
+    "node_types": ["ClassDeclaration", "EnumDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+\\w+[^{]*:\\s*(System\\.)?Object\\b",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "enum\\s+\\w+\\s*:\\s*int\\b",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

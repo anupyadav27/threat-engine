@@ -1,0 +1,171 @@
+---
+# ConfigScan Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configscan-service
+  labels:
+    app: configscan-service
+    tier: scanning
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: configscan-service
+  template:
+    metadata:
+      labels:
+        app: configscan-service
+        tier: scanning
+        version: v1
+    spec:
+      containers:
+      - name: configscan-service
+        image: threat-engine/configscan-service:latest
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        # Database configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        # Cloud provider configuration
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        - name: SCAN_RESULTS_DIR
+          value: "/app/engine_output"
+        # Scanner configuration
+        - name: MAX_CONCURRENT_SCANS
+          value: "5"
+        - name: SCAN_TIMEOUT_SECONDS
+          value: "3600"
+        # Logging
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: scan-results-storage
+          mountPath: /app/engine_output
+        - name: aws-credentials
+          mountPath: /app/.aws
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: scan-results-storage
+        persistentVolumeClaim:
+          claimName: scan-results-pvc
+      - name: aws-credentials
+        secret:
+          secretName: aws-credentials
+
+---
+# ConfigScan Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-service
+  labels:
+    app: configscan-service
+    tier: scanning
+spec:
+  selector:
+    app: configscan-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# ConfigScan Service Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: configscan-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: configscan-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# Persistent Volume Claim for scan results
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scan-results-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd

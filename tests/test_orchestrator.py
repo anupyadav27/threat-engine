@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
-from onboarding_engine.orchestrator.engine_orchestrator import EngineOrchestrator
+from engine_onboarding.orchestrator.engine_orchestrator import EngineOrchestrator
 
 
 @pytest.mark.asyncio
@@ -26,8 +26,8 @@ async def test_trigger_downstream_engines():
         mock_client.return_value.__aenter__.return_value.__aexit__ = AsyncMock(return_value=None)
         
         # Mock database operations
-        with patch('onboarding_engine.orchestrator.engine_orchestrator.create_orchestration_status') as mock_create, \
-             patch('onboarding_engine.orchestrator.engine_orchestrator.update_orchestration_status') as mock_update:
+        with patch('engine_onboarding.orchestrator.engine_orchestrator.create_orchestration_status') as mock_create, \
+             patch('engine_onboarding.orchestrator.engine_orchestrator.update_orchestration_status') as mock_update:
             
             result = await orchestrator.trigger_downstream_engines(
                 scan_run_id="scan-123",
@@ -56,13 +56,13 @@ async def test_orchestrator_handles_failures():
     orchestrator = EngineOrchestrator()
     
     # Mock HTTP client to raise exception
-    with patch('onboarding_engine.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(side_effect=Exception("Connection error"))
         mock_client.return_value.__aenter__.return_value.__aexit__ = AsyncMock(return_value=None)
         
         # Mock database operations
-        with patch('onboarding_engine.orchestrator.engine_orchestrator.create_orchestration_status'), \
-             patch('onboarding_engine.orchestrator.engine_orchestrator.update_orchestration_status'):
+        with patch('engine_onboarding.orchestrator.engine_orchestrator.create_orchestration_status'), \
+             patch('engine_onboarding.orchestrator.engine_orchestrator.update_orchestration_status'):
             
             result = await orchestrator.trigger_downstream_engines(
                 scan_run_id="scan-123",

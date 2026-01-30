@@ -1,0 +1,30 @@
+{
+  "filename": "assigning_high_privileges_azure_resource_manager_b_metadata.json",
+  "rule_id": "assigning_high_privileges_azure",
+  "title": "Assigning high privileges Azure Resource Manager built-in roles is security-sensitive",
+  "description": "This rule raises an issue when one of the following roles is assigned: Contributor (b24988ac-6180-42a0-ab88-20f7382dd24c) Owner (8e3af657-a8ff-443c-a75c-2fe8c4bcb635) User Access Administrator (18d7d88d-d35e-4fb5-a5c3-7773c20a72d9) The user, group, or service principal doesn’t use the entirety of this extensive set of permissions to operate on a day-to-day basis. It is possible to follow the Separation of Duties principle and split permissions between multiple users, but it’s not enforced. There is a risk if you answered yes to any of these questions.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security"
+  ],
+  "examples": {
+    "noncompliant": [
+      "{\n  \"$schema\": \"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#\",\n  \"contentVersion\": \"1.0.0.0\",\n  \"resources\": [\n    {\n      \"name\": \"example\",\n      \"type\": \"Microsoft.Authorization/roleAssignments\",\n      \"apiVersion\": \"2022-04-01\",\n      \"properties\": {\n        \"description\": \"Assign the contributor role\",\n        \"principalId\": \"string\",\n        \"principalType\": \"ServicePrincipal\",\n        \"roleDefinitionId\": \"[resourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]\"\n      }\n    }\n  ]\n}",
+      "resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {\n  name: 'example'\n  properties: {\n    principalId: 'string'\n    principalType: 'ServicePrincipal'\n    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635') // Owner role\n  }\n}"
+    ],
+    "compliant": [
+      "resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {\n  name: 'example'\n  properties: {\n    principalId: 'string'\n    principalType: 'ServicePrincipal'\n    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7') // Reader role\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/azureresourcemanager/RSPEC-6381"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": []
+  }
+}

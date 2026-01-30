@@ -1,0 +1,48 @@
+version: '1.0'
+provider: aws
+service: neptune
+services:
+  client: neptune
+  module: boto3.client
+discovery:
+- discovery_id: aws.neptune.describe_d_b_cluster_snapshots
+  calls:
+  - action: describe_db_cluster_snapshots
+    params:
+      MaxRecords: 1000
+      IncludeShared: false
+      IncludePublic: false
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.DBClusterSnapshots }}'
+    as: item
+- discovery_id: aws.neptune.describe_d_b_instances
+  calls:
+  - action: describe_db_instances
+    save_as: response
+    params:
+      MaxRecords: 1000
+  emit:
+    items_for: '{{ response.DBInstances }}'
+    as: item
+- discovery_id: aws.neptune.describe_d_b_clusters
+  calls:
+  - action: describe_db_clusters
+    save_as: response
+    params:
+      MaxRecords: 1000
+  emit:
+    items_for: '{{ response.DBClusters }}'
+    as: item
+- discovery_id: aws.neptune.describe_d_b_cluster_endpoints
+  for_each: aws.neptune.describe_d_b_clusters
+  calls:
+  - action: describe_db_cluster_endpoints
+    params:
+      DBClusterIdentifier: '{{ item.DBClusterIdentifier }}'
+      MaxRecords: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.DBClusterEndpoints }}'
+    as: item

@@ -1,0 +1,73 @@
+{
+  "filename": "control_flow_statements_if_for_while_switch_and_tr_metadata.json",
+  "rule_id": "control_flow_statements_if",
+  "title": "Control flow statements if, for, while, switch and try should not be nested too deeply",
+  "description": "Control flow statements if, for, while, switch and try should not be nested too deeply. Nested control flow statements such as if, for, while, switch, and try are often key ingredients in creating what's known as 'Spaghetti code'. This code smell can make your program difficult to understand and maintain. When numerous control structures are placed inside one another, the code becomes a tangled, complex web.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor deeply nested control flow into smaller functions or use early returns to reduce nesting.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "maintainability",
+    "brain-overload"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (condition1) { if (condition2) { if (condition3) { if (condition4) { // Too deeply nested } } } }",
+      "for (let i = 0; i < n; i++) { while (condition) { if (check) { try { // Too deeply nested } catch (e) {} } } }"
+    ],
+    "compliant": [
+      "if (condition1) { handleCondition1(); } function handleCondition1() { if (condition2) { handleCondition2(); } }",
+      "if (!condition1) return; if (!condition2) return; // Early returns reduce nesting"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-134"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement",
+      "ForStatement",
+      "WhileStatement",
+      "SwitchStatement",
+      "TryStatement",
+      "BlockStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(if\\s*\\([^)]+\\)\\s*{[^}]*){4,}",
+        "message": "Control flow statements are nested too deeply. Consider refactoring into smaller functions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(for\\s*\\([^)]*\\)\\s*{[^}]*){3,}",
+        "message": "For loops are nested too deeply. Consider refactoring into smaller functions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(while\\s*\\([^)]+\\)\\s*{[^}]*){3,}",
+        "message": "While loops are nested too deeply. Consider refactoring into smaller functions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "((if|for|while|switch|try)\\s*[^{]*{[^}]*){4,}",
+        "message": "Mixed control flow statements are nested too deeply. Consider refactoring."
+      }
+    ]
+  }
+}

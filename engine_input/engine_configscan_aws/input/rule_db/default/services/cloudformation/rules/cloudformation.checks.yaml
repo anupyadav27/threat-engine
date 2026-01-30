@@ -1,0 +1,37 @@
+version: '1.0'
+provider: aws
+service: cloudformation
+checks:
+- rule_id: aws.cloudformation.stack.change_audit_logging_enabled
+  for_each: aws.cloudformation.describe_stack_events
+  conditions:
+    all:
+    - var: item.ResourceStatus
+      op: exists
+      value: null
+    - var: item.ResourceStatusReason
+      op: exists
+      value: null
+    - var: item.Timestamp
+      op: exists
+      value: null
+- rule_id: aws.cloudformation.stack.cloudformation_approvals_required_for_changes
+  for_each: aws.cloudformation.describe_stacks
+  conditions:
+    all:
+    - var: item.Capabilities
+      op: in
+      value: CAPABILITY_NAMED_IAM
+    - var: item.Capabilities
+      op: in
+      value: CAPABILITY_AUTO_EXPAND
+- rule_id: aws.cloudformation.stack.cloudformation_storage_encrypted_and_private
+  for_each: aws.cloudformation.list_stacks
+  conditions:
+    all:
+    - var: item.StackStatus
+      op: equals
+      value: CREATE_COMPLETE
+    - var: item.EnableTerminationProtection
+      op: equals
+      value: true

@@ -1,0 +1,93 @@
+{
+  "filename": "modulus_results_should_not_be_checked_for_direct_e_metadata.json",
+  "rule_id": "modulus_results_checked_direct",
+  "title": "Modulus results should not be checked for direct equality",
+  "description": "Modulus results should not be checked for direct equalityAnalyze your codeintentionality-logicalmaintainabilityCode SmellsuspiciousWhy is this an issue?When the modulus of a negative number is calculated, the result will either be negative or zero. Thus, comparing the modulus of a variable for equality with a positive number (or a negative one) could result in unexpected results.Noncompliant code examplepublic bool IsOdd(int x) { return x % 2 == 1; // Noncompliant; if x is an odd negative, x % 2 == -1 }Compliant solutionpublic bool IsOdd(int x) { return x % 2 != 0; }orpublic bool IsOdd(uint x) { return x % 2 == 1; }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailab",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public bool IsEven(int number)\n{\n    return number % 2 == 0; // Noncompliant: Direct equality check with modulus\n}\n\npublic bool IsMultipleOfThree(int number)\n{\n    return number % 3 == 0; // Noncompliant\n}\n\npublic void CheckRemainder(int value)\n{\n    if (value % 5 == 0) // Noncompliant\n    {\n        // Do something\n    }\n}"
+    ],
+    "compliant": [
+      "public bool IsEven(int number)\n{\n    return (number & 1) == 0; // Compliant: Use bitwise operation\n}\n\npublic bool IsMultipleOfThree(int number)\n{\n    return Math.Abs(number) % 3 == 0; // Compliant: Handle negative numbers\n}\n\npublic void CheckRemainder(int value)\n{\n    var remainder = value % 5;\n    if (remainder == 0) // Compliant: Store result first\n    {\n        // Do something\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2197"
+  ],
+  "logic": {
+    "node_types": ["BinaryExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*%\\s*\\w+\\s*==\\s*[1-9]\\d*",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Math\\.Abs\\(",
+          "uint\\s+",
+          "ulong\\s+",
+          "ushort\\s+",
+          "byte\\s+"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*%\\s*\\w+\\s*==\\s*0",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Math\\.Abs\\(",
+          "uint\\s+",
+          "var\\s+remainder\\s*=",
+          "\\w+\\s+remainder\\s*="
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Debug.*, Logger.*)",
+      "String formatting expressions",
+      "Unit tests ([Test], Assert.*)",
+      "Math.Abs() wrapped expressions",
+      "Unsigned integer types (uint, ulong, ushort, byte)",
+      "Stored remainder variables (not direct modulus comparison)",
+      "Non-equality comparisons (>, <, >=, <=)"
+    ],
+    "reasoning": "Detects direct equality checks with modulus results that can fail for negative numbers. When x is negative and odd, x % 2 equals -1, not 1, making x % 2 == 1 incorrect. The rule identifies patterns like 'value % divisor == number' and suggests alternatives like '!= 0', Math.Abs(), or bitwise operations. Excludes logging, tests, unsigned types, and Math.Abs usage where the pattern is safer.",
+    "validation_examples": {
+      "should_trigger": [
+        "return x % 2 == 1;",
+        "if (number % 2 == 0)",
+        "return value % 3 == 0;",
+        "return x % divisor == 1;"
+      ],
+      "should_not_trigger": [
+        "return x % 2 != 0;",
+        "return (x & 1) == 0;",
+        "return Math.Abs(x) % 2 == 1;",
+        "var remainder = x % 5; if (remainder == 0)",
+        "Console.WriteLine($\"Even: {x % 2 == 0}\");"
+      ]
+    }
+  }
+}

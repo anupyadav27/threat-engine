@@ -1,0 +1,113 @@
+{
+  "filename": "iframes_must_have_a_title_metadata.json",
+  "rule_id": "iframes_must_title",
+  "title": "iFrames must have a title",
+  "description": "iFrames (inline frames) must have a title attribute for accessibility. An iframe embeds an HTML document inside another document and is commonly used for advertisements, maps, videos, or other external content.\n\nThe title attribute is essential for screen readers and assistive technologies because it:\n- Helps visually impaired users understand the iframe's purpose\n- Provides context about the embedded content\n- Allows users to decide whether to interact with the iframe\n\nThis rule detects:\n- Missing title attributes on iframe elements\n- Empty or whitespace-only title text\n- Generic or non-descriptive titles\n- createElement('iframe') calls without title setup\n\nThe title should be descriptive and explain the iframe's content or purpose.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Accessibility",
+  "recommendation": "Add descriptive title attributes to all iframe elements:\n- Use iframe.title = 'Descriptive content explanation'\n- Use iframe.setAttribute('title', 'Clear description')\n- For JSX: <iframe title='Purpose description' />\n- Avoid generic titles like 'iframe' or 'content'\n- Be specific about what the iframe contains",
+  "impact": "Accessibility barrier for screen reader users and assistive technologies",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "const iframe = document.createElement('iframe'); iframe.src = 'content.html';",
+        "description": "iframe created without title attribute"
+      },
+      {
+        "code": "iframe.setAttribute('title', '');",
+        "description": "Empty title attribute"
+      },
+      {
+        "code": "iframe.title = 'iframe';",
+        "description": "Generic, non-descriptive title"
+      },
+      {
+        "code": "<iframe src='video.html' />",
+        "description": "JSX iframe without title attribute"
+      },
+      {
+        "code": "React.createElement('iframe', {src: 'map.html'})",
+        "description": "React createElement without title"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "const iframe = document.createElement('iframe'); iframe.title = 'Embedded YouTube video player'; iframe.src = 'video.html';",
+        "description": "iframe with descriptive title"
+      },
+      {
+        "code": "iframe.setAttribute('title', 'Google Maps showing store location');",
+        "description": "Descriptive title using setAttribute"
+      },
+      {
+        "code": "<iframe src='content.html' title='Customer feedback form' />",
+        "description": "JSX iframe with proper title"
+      },
+      {
+        "code": "React.createElement('iframe', {src: 'ad.html', title: 'Advertisement banner'})",
+        "description": "React createElement with title"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-1090"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "AssignmentExpression",
+      "JSXElement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createElement\\s*\\(\\s*['\"]iframe['\"]\\s*\\)",
+        "message": "iframe created without title setup. Add iframe.title = 'descriptive text' or iframe.setAttribute('title', 'description')."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createElement\\s*\\(\\s*['\"]iframe['\"]\\s*,\\s*\\{[^}]*\\}\\s*\\)",
+        "message": "iframe created with properties object. Ensure title attribute is included for accessibility."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "<iframe\\b[^>]*>",
+        "message": "JSX iframe element detected. Verify it includes a title attribute for accessibility."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\.setAttribute\\s*\\(\\s*['\"]title['\"]\\s*,\\s*['\"]['\"]\\s*\\)",
+        "message": "Empty title attribute detected on iframe. Provide descriptive text explaining the iframe's content."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\.title\\s*=\\s*['\"]['\"]",
+        "message": "Empty title assigned to iframe. Provide descriptive text explaining the iframe's content."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\.title\\s*=\\s*['\"]\\s*(?:iframe|frame|content|embed)\\s*['\"]",
+        "message": "Generic iframe title detected. Use specific description of the iframe's content or purpose."
+      }
+    ]
+  }
+}

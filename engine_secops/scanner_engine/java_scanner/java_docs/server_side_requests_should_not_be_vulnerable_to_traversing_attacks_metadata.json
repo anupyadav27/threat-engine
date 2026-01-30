@@ -1,0 +1,42 @@
+{
+  "filename": "server_side_requests_should_not_be_vulnerable_to_traversing_attacks_metadata.json",
+  "rule_id": "vulnerability_server_side_requests_traversing_attacks",
+  "title": "Server-side requests should not be vulnerable to traversing attacks",
+  "description": "This rule detects and prevents vulnerabilities in server-side requests that could allow attackers to perform directory traversal or similar attacks, potentially exposing sensitive files or resources.",
+  "status": "active",
+  "defaultSeverity": "CRITICAL",
+  "category": "vulnerability",
+  "recommendation": "Validate and sanitize all user-supplied input used in server-side requests. Avoid using input directly in file paths or resource locators. Employ security libraries or frameworks that mitigate traversal attacks.",
+  "impact": "Exploitation of this vulnerability can lead to unauthorized access to sensitive files, data leakage, or system compromise.",
+  "examples": [
+    {
+      "bad": "String file = request.getParameter(\"file\"); FileInputStream fis = new FileInputStream(\"/var/data/\" + file);",
+      "good": "String file = sanitize(request.getParameter(\"file\")); FileInputStream fis = new FileInputStream(\"/var/data/\" + file); // 'sanitize' ensures no traversal"
+    }
+  ],
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-7044/",
+    "https://cwe.mitre.org/data/definitions/22.html"
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\.\\.\/",
+          "\\.\\\\\\.",
+          "new\\s+File\\s*\\([^\\)]*\\.\\.",
+          "userInput.*=.*\\.\\.",
+          "etc\/passwd"
+        ],
+        "message": "Validate and sanitize all user-supplied input used in server-side requests. Avoid using input directly in file paths or resource locators. Employ security libraries or frameworks that mitigate traversal attacks."
+      }
+    ]
+  }
+}

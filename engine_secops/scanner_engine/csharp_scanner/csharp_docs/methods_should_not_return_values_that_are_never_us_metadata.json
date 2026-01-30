@@ -1,0 +1,40 @@
+{
+  "filename": "methods_should_not_return_values_that_are_never_us_metadata.json",
+  "rule_id": "methods_return_values_that",
+  "title": "Methods should not return values that are never used",
+  "description": "Methods should not return values that are never usedAnalyze your codeintentionality-clearmaintainabilityCode SmelldesignunusedWhy is this an issue?Private methods are intended for use only within their scope. If these methods return values that are not utilized by any calling functions, it indicates that the return operation is unnecessary. Removing such returns can enhance both efficiency and code clarity.Noncompliant code exampleclass SomeClass { private int PrivateMethod() => 42; public void PublicMethod() { PrivateMethod(); // Noncompliant: the result of PrivateMethod is not used } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class SomeClass\n{\n    private int PrivateMethod() => 42; // Noncompliant: returns value that's never used\n\n    public void PublicMethod()\n    {\n        PrivateMethod(); // Return value is ignored\n    }\n}",
+      "class DataProcessor\n{\n    private string ProcessData(string input) // Noncompliant: return value not used anywhere\n    {\n        return input.ToUpper();\n    }\n    \n    public void HandleData(string data)\n    {\n        ProcessData(data); // Result discarded\n    }\n}"
+    ],
+    "compliant": [
+      "class SomeClass\n{\n    private void PrivateMethod() // Compliant: void method, no unused return\n    {\n        // Side effects only\n    }\n\n    public void PublicMethod()\n    {\n        PrivateMethod();\n    }\n}",
+      "class SomeClass\n{\n    private int PrivateMethod() => 42;\n\n    public void PublicMethod()\n    {\n        int result = PrivateMethod(); // Compliant: return value is used\n        Console.WriteLine(result);\n    }\n}",
+      "class DataProcessor\n{\n    private string ProcessData(string input)\n    {\n        return input.ToUpper();\n    }\n    \n    public string HandleData(string data) // Compliant: return value is used\n    {\n        return ProcessData(data);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3241"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_methods_should_not_return_values_that_are_never_used",
+        "description": "Check for private methods that return values which are never used"
+      }
+    ]
+  }
+}

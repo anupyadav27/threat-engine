@@ -1,0 +1,50 @@
+{
+  "filename": "calls_to_async_methods_should_not_be_blocking_metadata.json",
+  "rule_id": "calls_async_methods_blocking",
+  "title": "Calls to async methods should not be blocking",
+  "description": "Making blocking calls to async methods transforms code that was intended to be asynchronous into a blocking operation. Doing so can cause deadlocks and unexpected blocking of context threads. According to the MSDN documentation: The root cause of this deadlock is due to the way await handles contexts.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void MyMethod()\n{\n  var result = MyAsyncMethod().Result; // Noncompliant\n}",
+      "public void MyMethod()\n{\n  MyAsyncMethod().Wait(); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public async Task MyMethod()\n{\n  var result = await MyAsyncMethod(); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4462"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": [
+        "ReadToEndAsync\\s*\\(\\s*\\)\\s*\\.Result",
+        "ReadAsync\\s*\\([^)]*\\)\\s*\\.Result",
+        "\\w+Async\\s*\\([^)]*\\)\\s*\\.Result",
+        "Task\\s*\\.\\s*Run\\s*\\([^;]+\\)\\s*\\.Result",
+        "\\btask\\s*\\.Result\\b",
+        "\\bvalueTask\\s*\\.Result\\b",
+        "GetAsync\\s*\\([^)]*\\)\\s*\\.Result",
+        "GetStringAsync\\s*\\([^)]*\\)\\s*\\.Result",
+        "ReadAllTextAsync\\s*\\([^)]*\\)\\s*\\.Result",
+        "\\.Wait\\s*\\(\\s*\\)",
+        "\\.Wait\\s*\\(\\s*\\d+\\s*\\)",
+        "\\.Wait\\s*\\([^)]*CancellationToken[^)]*\\)"
+      ],
+      "message": "Do not block on async methods - use await instead"
+    }]
+  }
+}

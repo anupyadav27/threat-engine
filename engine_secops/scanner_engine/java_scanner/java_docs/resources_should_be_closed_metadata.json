@@ -1,0 +1,45 @@
+{
+  "filename": "resources_should_be_closed_metadata.json",
+  "rule_id": "resource_management_close_resources",
+  "title": "Ensure Resources are Closed Properly",
+  "description": "Connections, streams, files, and other resources that implement the Closeable interface or its super-interface, AutoCloseable, must be closed after use. This close call must be made in a finally block otherwise an exception could prevent the call from being made. When a class implements AutoCloseable, the resource should ideally be created using the 'try-with-resources' pattern and will be closed automatically.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Resource Management",
+  "recommendation": "Use the 'try-with-resources' pattern to ensure that each resource is closed at the end of the program, or ensure that 'close' is called in a finally block.",
+  "impact": "Failure to properly close resources can result in a resource leak which could significantly degrade the performance of the application and potentially the machine it is running on.",
+  "examples": {
+    "noncompliant": [
+      "private void readTheFile() throws IOException { Path path = Paths.get(this.fileName); BufferedReader reader = Files.newBufferedReader(path, this.charset); reader.close(); Files.lines(\"input.txt\").forEach(System.out::println);}",
+      "private void doSomething() { OutputStream stream = null; try {for (String property : propertyList) {stream = new FileOutputStream(\"myfile.txt\");}} catch (Exception e) {} finally {stream.close();}}"
+    ],
+    "compliant": [
+      "private void readTheFile(String fileName) throws IOException { Path path = Paths.get(fileName); try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {reader.readLine();} try (Stream<String> input = Files.lines(\"input.txt\"))  {input.forEach(System.out::println);}}",
+      "private void doSomething() { OutputStream stream = null; try {stream = new FileOutputStream(\"myfile.txt\"); for (String property : propertyList) {}} catch (Exception e) {} finally {} }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-2095"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation",
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "new\\s+(FileInputStream|FileOutputStream|BufferedReader|FileReader|FileWriter)\\s*\\([^)]+\\)[^;]*;(?![^{]*try\\s*\\()",
+          "(Files\\.newBufferedReader|Files\\.lines)\\s*\\([^)]+\\)[^;]*;(?![^{]*try\\s*\\()",
+          "new\\s+File(Input|Output)Stream\\s*\\([^)]+\\)\\s*;[^}]*(?<!close\\(\\);)",
+          "\\w+\\.(readLine|forEach)\\s*\\([^)]*\\)\\s*;(?![^}]*\\.close\\(\\))"
+        ],
+        "message": "Use the 'try-with-resources' pattern to ensure that each resource is closed at the end of the program, or ensure that 'close' is called in a finally block."
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "filename": "permissions_of_sensitive_mount_points_should_be_re_metadata.json",
+  "rule_id": "permissions_sensitive_mount_points",
+  "title": "Permissions of sensitive mount points should be restrictive",
+  "description": "Docker offers a feature to mount files and directories for specific RUN instructions when building Docker images. This feature can be used to provide secrets to commands that are executed during the build without baking them into the image. Additionally, it can be used to access SSH agents during the build.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "secret"
+    ],
+    "compliant": [
+      "ssh"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-6469"
+  ],
+  "logic": {
+    "instruction_types": [
+      "RUN"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "--mount\\s*=\\s*type\\s*=\\s*secret(?:(?!mode\\s*=).)*?(?=\\s+--|\\s*$)",
+          "--mount\\s*=\\s*type\\s*=\\s*secret(?!.*mode\\s*=\\s*0?400)(?!.*mode\\s*=\\s*0?440).*?mode\\s*=\\s*0?[0-7]{3}"
+        ],
+        "message": "Permissions of sensitive mount points should be restrictive. When using --mount=type=secret, always specify mode parameter with restrictive permissions (e.g., mode=0400 for read-only by owner, or mode=0440 for read-only by owner and group). Secrets without explicit mode restrictions or with overly permissive modes can be accessed by unauthorized users, leading to credential exposure."
+      }
+    ]
+  }
+}

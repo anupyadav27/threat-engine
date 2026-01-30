@@ -1,0 +1,69 @@
+{
+  "filename": "delivering_code_in_production_with_debug_features__metadata.json",
+  "rule_id": "delivering_code_production_debug",
+  "title": "Delivering code in production with debug features activated is security-sensitive",
+  "description": "This rule raises issues when the following .Net Core methods are called: Microsoft.AspNetCore.Builder.IApplicationBuilder.UseDeveloperExceptionPage, Microsoft.AspNetCore.Builder.IApplicationBuilder.UseDatabaseErrorPage. using Microsoft.AspNetCore.Builder; using Microsoft.AspNetCore.Hosting; public class Startup2 public void Configure(IApplicationBuilder app, IHostingEnvironment env) // Those calls are Sensitive because it seems that they will run in production app.UseDeveloperExceptionPage(); // Sensitive app.UseDatabaseErrorPage(); // Sensitive using Microsoft.AspNetCore.Builder; using Microsoft.AspNetCore.Hosting; public class Startup2 public void Configure(IApplicationBuilder app, IHostingEnvironment env) if (env.IsDevelopment()) // The following calls are ok because they are disabled in production app.UseDeveloperExceptionPage(); //",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using Microsoft.AspNetCore.Builder;\n\npublic class Startup\n{\n    public void Configure(IApplicationBuilder app)\n    {\n        app.UseDeveloperExceptionPage(); // Noncompliant - runs in production\n    }\n}",
+      "using Microsoft.AspNetCore.Builder;\nusing Microsoft.AspNetCore.Hosting;\n\npublic class Startup\n{\n    public void Configure(IApplicationBuilder app, IHostingEnvironment env)\n    {\n        app.UseDatabaseErrorPage(); // Noncompliant\n        app.UseMvc();\n    }\n}",
+      "public class Startup\n{\n    public void Configure(IApplicationBuilder app)\n    {\n        app.UseDeveloperExceptionPage(); // Noncompliant\n        app.UseDatabaseErrorPage(); // Noncompliant\n    }\n}"
+    ],
+    "compliant": [
+      "using Microsoft.AspNetCore.Builder;\nusing Microsoft.AspNetCore.Hosting;\n\npublic class Startup\n{\n    public void Configure(IApplicationBuilder app, IHostingEnvironment env)\n    {\n        if (env.IsDevelopment())\n        {\n            app.UseDeveloperExceptionPage();\n        }\n    }\n}",
+      "using Microsoft.AspNetCore.Builder;\nusing Microsoft.Extensions.Hosting;\n\npublic class Startup\n{\n    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)\n    {\n        if (env.IsDevelopment())\n        {\n            app.UseDeveloperExceptionPage();\n            app.UseDatabaseErrorPage();\n        }\n        else\n        {\n            app.UseExceptionHandler(\"/Error\");\n        }\n    }\n}",
+      "public class Startup\n{\n    public void Configure(IApplicationBuilder app, IHostingEnvironment env)\n    {\n        if (env.IsEnvironment(\"Development\"))\n        {\n            app.UseDeveloperExceptionPage();\n        }\n        app.UseMvc();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4507"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression", "MethodDeclaration"],
+    "detection_conditions": "Detect UseDeveloperExceptionPage/UseDatabaseErrorPage without IsDevelopment check",
+    "triggering_conditions": "Call to UseDeveloperExceptionPage OR UseDatabaseErrorPage without env.IsDevelopment() guard",
+    "exclusion_conditions": "Exclude calls within if (env.IsDevelopment()) blocks",
+    "never_trigger_on": [
+      "Calls within env.IsDevelopment() blocks",
+      "Calls within env.IsEnvironment(\"Development\") blocks",
+      "Test code",
+      "Development-only classes"
+    ],
+    "reasoning": "UseDeveloperExceptionPage and UseDatabaseErrorPage expose sensitive information and should only run in development. Detects these calls without IsDevelopment() guards. Note: Full validation requires control flow analysis to verify the guard is present.",
+    "validation_examples": {
+      "should_trigger": [
+        "app.UseDeveloperExceptionPage(); // No IsDevelopment check",
+        "app.UseDatabaseErrorPage(); // No guard"
+      ],
+      "should_not_trigger": [
+        "if (env.IsDevelopment()) { app.UseDeveloperExceptionPage(); }",
+        "if (env.IsEnvironment(\"Development\")) { app.UseDeveloperExceptionPage(); }"
+      ]
+    },
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(UseDeveloperExceptionPage|UseDatabaseErrorPage)\\s*\\(\\)\\s*;",
+        "exclude_patterns": [
+          "if\\s*\\([^)]*IsDevelopment\\s*\\(\\)",
+          "if\\s*\\([^)]*IsEnvironment\\s*\\(",
+          "//\\s*COMPLIANT",
+          "\\[Test"
+        ],
+        "message": "Debug feature method should only be called in development environment (wrap in if (env.IsDevelopment()))"
+      }
+    ]
+  }
+}

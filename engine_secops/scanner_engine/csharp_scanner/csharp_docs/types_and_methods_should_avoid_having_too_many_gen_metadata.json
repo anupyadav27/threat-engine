@@ -1,0 +1,74 @@
+{
+  "filename": "types_and_methods_should_avoid_having_too_many_gen_metadata.json",
+  "rule_id": "types_methods_avoid_having",
+  "title": "Types and methods should avoid having too many generic parameters",
+  "description": "Types and methods should not have too many generic parametersAnalyze your codeadaptability-focusedmaintainabilityCode Smellbrain-overloadWhy is this an issue?A method or class with too many type parameters has likely aggregated too many responsibilities and should be split.Noncompliant code exampleWith the default parameter value of 2:<S, T, U, V> void foo() {} // Noncompliant; not really readable <String, Integer, Object, String>foo(); // especially on invocationsAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Ter",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Class with too many type parameters (more than 2)\npublic class DataProcessor<T1, T2, T3, T4>\n{\n    public T1 Input { get; set; }\n    public T2 Output { get; set; }\n    public T3 Config { get; set; }\n    public T4 Result { get; set; }\n}\n\n// Noncompliant: Method with too many type parameters\npublic TResult Map<TSource, TIntermediate, TDestination, TResult>(\n    TSource source,\n    Func<TSource, TIntermediate> firstTransform)\n{\n    // Implementation\n}"
+    ],
+    "compliant": [
+      "// Compliant: Split into smaller, focused classes\npublic class DataProcessor<TInput, TOutput>\n{\n    public TInput Input { get; set; }\n    public TOutput Output { get; set; }\n}\n\n// Compliant: Method with fewer type parameters\npublic TResult Map<TSource, TResult>(\n    TSource source,\n    Func<TSource, TResult> transform)\n{\n    return transform(source);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2436"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "MethodDeclaration", "InterfaceDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_too_many_generic_parameters"
+      }
+    ],
+    "target_ast_nodes": ["ClassDeclaration", "MethodDeclaration", "InterfaceDeclaration"],
+    "detection_conditions": "Count generic type parameters in class, interface, struct, and method declarations. Flag when count exceeds threshold (default: 2)",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Type or method declaration with generic parameters <T1, T2, ...>",
+        "Number of generic parameters exceeds threshold (default: 2)",
+        "Not a comment or string literal"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]",
+        "Dictionary<",
+        "KeyValuePair<"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments describing generic patterns",
+      "Test classes with [Test] or [Fact] attributes",
+      "Standard library usage like Dictionary<K,V>",
+      "Types with 2 or fewer generic parameters"
+    ],
+    "reasoning": "Types and methods with too many generic parameters are hard to read, understand, and use. They often indicate that the type/method has aggregated too many responsibilities and should be split into smaller, more focused components.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class DataProcessor<T1, T2, T3, T4> { }",
+        "public void Map<TSource, TIntermediate, TDestination, TResult>() { }",
+        "public interface IProcessor<TIn, TOut, TConfig, TResult> { }"
+      ],
+      "should_not_trigger": [
+        "public class Pair<T1, T2> { }",
+        "public TResult Map<TSource, TResult>() { }",
+        "// Class<T1, T2, T3> would be bad"
+      ]
+    }
+  }
+}

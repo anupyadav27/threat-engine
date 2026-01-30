@@ -1,0 +1,71 @@
+{
+  "filename": "constructors_should_only_call_non_overridable_meth_metadata.json",
+  "rule_id": "constructors_only_call_nonoverridable",
+  "title": "Constructors should only call non-overridable methods",
+  "description": "Calling an overridable method from a constructor could result in failures or strange behaviors when instantiating a subclass which overrides the method. When constructing an object of a derived class, the constructor of the parent class is invoked first, and only then the constructor of the derived class is called. This sequential construction process applies to multiple levels of inheritance as well, starting from the base class and progressing to the most derived class.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Parent\n{\n  public Parent()\n  {\n    DoSomething();  // Noncompliant: calling virtual method\n  }\n\n  public virtual void DoSomething() // can be overridden\n  {\n    // ...\n  }\n}\n\npublic class Child : Parent\n{\n  private string foo;\n\n  public Child(string foo) // leads to call DoSomething() in Parent constructor which triggers a NullReferenceException as foo has not yet been initialized\n  {\n    this.foo = foo;\n  }\n\n  public override void DoSomething()\n  {\n    Console.WriteLine(this.foo.Length);\n  }\n}"
+    ],
+    "compliant": [
+      "public class Parent\n{\n  public Parent()\n  {\n    DoSomething();  // Compliant: calling sealed/private/static method\n  }\n\n  private void DoSomething() // cannot be overridden\n  {\n    // ...\n  }\n}\n\npublic class AlternativeParent\n{\n  public AlternativeParent()\n  {\n    Initialize();\n  }\n\n  public sealed void Initialize() // Compliant: sealed method cannot be overridden\n  {\n    // ...\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1699"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Detects constructors that contain method calls, then checks if the class has virtual methods with matching names",
+    "triggering_conditions": "Triggers when a class contains both a constructor with method calls AND virtual method declarations",
+    "exclusion_conditions": "Excludes calls to sealed methods, private methods, static methods",
+    "never_trigger_on": [
+      "Calls to sealed methods",
+      "Calls to private methods",
+      "Calls to static methods",
+      "Calls to base. methods",
+      "Field assignments without method calls",
+      "Test code"
+    ],
+    "reasoning": "Calling overridable methods from constructors is dangerous because the derived class's override will be invoked before the derived class's constructor runs, potentially accessing uninitialized fields. This rule detects classes that have both constructors with method calls and virtual method declarations. The pattern looks for 'public virtual' keywords to identify overridable methods. Sealed, private, and static methods are safe as they cannot be overridden.",
+    "validation_examples": {
+      "should_trigger": [
+        "public Parent() { DoSomething(); } public virtual void DoSomething()",
+        "public Parent() { Initialize(); } public virtual void Initialize()"
+      ],
+      "should_not_trigger": [
+        "public Parent() { DoSomething(); } public sealed void DoSomething()",
+        "public Parent() { DoSomething(); } private void DoSomething()",
+        "public Parent() { DoSomething(); } public static void DoSomething()",
+        "public Parent(string name) { _name = name; }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "public\\s+virtual\\s+void"
+        ],
+        "exclude_patterns": [
+          "sealed\\s+void",
+          "private\\s+void",
+          "static\\s+void",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

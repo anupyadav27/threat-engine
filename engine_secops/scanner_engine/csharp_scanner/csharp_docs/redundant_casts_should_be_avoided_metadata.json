@@ -1,0 +1,105 @@
+{
+  "filename": "redundant_casts_should_be_avoided_metadata.json",
+  "rule_id": "redundant_casts_avoided",
+  "title": "Redundant casts should be avoided",
+  "description": "Casting expressions are utilized to convert one data type to another, such as transforming an integer into a string. This is especially crucial in strongly typed languages like C, C++, C#, Java, Python, and others. However, there are instances where casting expressions are not needed.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int value = 42;\nint result = (int)value; // Noncompliant - redundant cast",
+      "string text = \"hello\";\nstring upper = (string)text.ToUpper(); // Noncompliant - ToUpper() already returns string",
+      "object obj = \"test\";\nstring str = (string)obj;\nstring final = (string)str; // Noncompliant - str is already string"
+    ],
+    "compliant": [
+      "int value = 42;\nint result = value; // OK - no cast needed",
+      "string text = \"hello\";\nstring upper = text.ToUpper(); // OK - no redundant cast",
+      "object obj = \"test\";\nstring str = (string)obj; // OK - necessary cast from object to string"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1905"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\(\\s*(int|string|double|float|bool|char|byte|short|long)\\s*\\)\\s*\\w+|\\(\\s*string\\s*\\)\\s*\\w+\\.To(Upper|Lower|String)\\s*\\(\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "^\\s*//",
+          "/\\*",
+          "\\*/",
+          "\\(\\s*object\\s*\\)\\s*\\w+",
+          "\\(\\s*var\\s*\\)\\s*\\w+",
+          "\\(\\s*long\\s*\\)\\s*\\w+",
+          "\\(\\s*double\\s*\\)\\s*\\w+",
+          "\\(\\s*int\\s*\\)\\s*(long|double|float)\\w*",
+          "\\bnew\\b",
+          "\\?\\.",
+          "ToString\\(\\)"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["Assignment", "CallExpression"],
+    "detection_conditions": "Identifies explicit type casts that are redundant due to implicit type conversion",
+    "triggering_conditions": "Pattern matches explicit casts like '(int)intVariable' or '(string)stringMethod()' where the cast is unnecessary",
+    "exclusion_conditions": [
+      "Necessary casts between different numeric types (long to int)",
+      "Casts for object or var types (boxing/unboxing)",
+      "Constructor calls with new keyword",
+      "Null-conditional operators (?)",
+      "Logging statements",
+      "String formatting",
+      "Unit test code",
+      "Comments",
+      "ToString() method implementations"
+    ],
+    "never_trigger_on": [
+      "Necessary numeric conversions (long to int, double to float)",
+      "Object boxing/unboxing scenarios",
+      "Constructor expressions with new",
+      "Null-conditional operations",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /**/)",
+      "ToString() implementations"
+    ],
+    "reasoning": "Detects redundant explicit type casts where implicit conversion would work. The pattern identifies casts to primitive types and string method calls that don't require explicit casting. Excludes necessary casts between different numeric types and object scenarios where explicit casting is required.",
+    "validation_examples": {
+      "should_trigger": [
+        "(int)myInt",
+        "(string)myString.ToUpper()",
+        "(bool)myBool"
+      ],
+      "should_not_trigger": [
+        "(int)myLong",
+        "(object)myValue",
+        "(string)myObject",
+        "new int[]",
+        "myValue?.ToString()",
+        "Console.WriteLine(\"(int) cast\");",
+        "// (int)redundant cast"
+      ]
+    }
+  }
+}

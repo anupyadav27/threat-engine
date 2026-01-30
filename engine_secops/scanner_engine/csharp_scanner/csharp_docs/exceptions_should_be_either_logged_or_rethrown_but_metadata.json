@@ -1,0 +1,69 @@
+{
+  "filename": "exceptions_should_be_either_logged_or_rethrown_but_metadata.json",
+  "rule_id": "exceptions_either_logged_rethrown",
+  "title": "Exceptions should be either logged or rethrown but not both",
+  "description": "Exceptions should be either logged or rethrown but not bothAnalyze your codeadaptability-distinctmaintainabilityCode Smellloggingerror-handlingWhy is this an issue?How can I fix it?More InfoWhen an exception is logged and rethrown, the upstream code may not be aware that the exception has already been logged. As a result, the same exception gets logged multiple times, making it difficult to identify the root cause of the issue. This can be particularly problematic in multi-threaded applications where messages from other threads can be interwoven with the repeated log entries.ExceptionsThis rule will not generate issues if, within the catch block, one of the following conditions are met:The logs generated within the catch block do not contain any references to the exception being caught.The",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try\n{\n    DoSomething();\n}\ncatch (Exception ex)\n{\n    logger.LogError(ex, \"An error occurred\");\n    throw; // Noncompliant - exception logged AND rethrown, will be logged twice\n}",
+      "catch (InvalidOperationException ex)\n{\n    Log(ex.Message);\n    throw ex; // Noncompliant - both logged and rethrown\n}"
+    ],
+    "compliant": [
+      "try\n{\n    DoSomething();\n}\ncatch (Exception ex)\n{\n    logger.LogError(ex, \"An error occurred\");\n    // Handle the exception, don't rethrow\n}",
+      "try\n{\n    DoSomething();\n}\ncatch (Exception ex)\n{\n    // Rethrow without logging\n    throw;\n}",
+      "try\n{\n    DoSomething();\n}\ncatch (Exception ex)\n{\n    logger.LogError(\"An error occurred\"); // Log without exception details\n    throw; // Compliant - exception not included in log\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2139"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_exceptions_either_logged_or_rethrown",
+        "exclude_patterns": [
+          "//.*(?:Log|throw)",
+          "/\\*.*(?:Log|throw).*\\*/",
+          "ToString\\(\\)",
+          "\\[Test",
+          "[Ff]act\\]"
+        ],
+        "message": "Exception is both logged and rethrown - this can cause duplicate logging"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments discussing exception handling patterns",
+      "Logging statements that don't include the exception object",
+      "Unit tests validating exception handling",
+      "ToString() implementations"
+    ],
+    "reasoning": "Detects catch blocks where an exception (variable 'ex') is both logged (via Logger/Debug/Trace methods with ex as parameter) and rethrown (via 'throw;' statement), which causes duplicate log entries. The single regex pattern looks for catch blocks containing both logging call with ex parameter AND throw statement. Searches within MethodDeclaration nodes since try-catch is typically within methods.",
+    "validation_examples": {
+      "should_trigger": [
+        "catch (Exception ex) { logger.LogError(ex, \"Error\"); throw; }",
+        "catch (Exception ex) { Debug.WriteLine(ex); throw; }",
+        "catch (InvalidOperationException ex) { Logger.Write(ex); throw; }"
+      ],
+      "should_not_trigger": [
+        "catch (Exception ex) { logger.LogError(ex, \"Error\"); }",
+        "catch (Exception ex) { throw; }",
+        "catch (Exception ex) { logger.LogError(\"Error occurred\"); throw; }",
+        "// catch (Exception ex) { logger.LogError(ex); throw; }"
+      ]
+    },
+    "precision_target": "85%",
+    "self_critique_notes": "Initial version used compound_check but the engine doesn't support regex_match as a condition type. Consolidated into single regex pattern that detects both logging with exception AND throw in same catch block. Pattern specifically looks for 'ex' variable passed to logging methods followed by throw statement. Edge cases: (1) Exception variable named differently - pattern focuses on 'ex' as most common; (2) Logging methods vary - pattern covers Logger/Debug/Trace; (3) Must ensure pattern captures both conditions in sequence."
+  }
+}

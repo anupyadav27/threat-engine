@@ -1,0 +1,37 @@
+{
+  "filename": "new_guid_should_be_avoided_metadata.json",
+  "rule_id": "new_guid_avoided",
+  "title": "new Guid() should be avoided",
+  "description": "\"new Guid()\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?When the syntaxnew Guid()(i.e. parameterless instantiation) is used, it must be that one of three things is wanted:An empty GUID, in which caseGuid.Emptyis clearer.A randomly-generated GUID, in which caseGuid.NewGuid()should be used.A new GUID with a specific initialization, in which case the initialization parameter is missing.This rule raises an issue when a parameterless instantiation of theGuidstruct is found.Noncompliant code examplepublic void Foo() { var g1 = new Guid(); // Noncompliant - what's the intent? Guid g2 = new(); // Noncompliant var g3 = default(Guid); // Noncompliant Guid g4 = default; // Noncompliant }Compliant solutionpublic void Foo(byte[] bytes) { var",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void Foo()\n{\n    var g1 = new Guid(); // Noncompliant - what's the intent?\n    Guid g2 = new(); // Noncompliant\n    var g3 = default(Guid); // Noncompliant\n    Guid g4 = default; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public void Foo(byte[] bytes)\n{\n    var g1 = Guid.NewGuid(); // Compliant - new random GUID\n    var g2 = Guid.Empty; // Compliant - explicitly empty GUID\n    var g3 = new Guid(bytes); // Compliant - specific initialization\n    var g4 = new Guid(\"12345678-1234-5678-9012-123456789012\"); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4581"
+  ],
+  "logic": {
+    "node_types": ["ObjectCreationExpression", "DefaultExpression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_new_guid_should_be_avoided",
+        "description": "Check for new Guid() usage that should be replaced with Guid.Empty or Guid.NewGuid()"
+      }
+    ]
+  }
+}

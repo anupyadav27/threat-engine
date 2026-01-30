@@ -1,0 +1,56 @@
+{
+  "filename": "locks_should_be_released_within_the_same_method_metadata.json",
+  "rule_id": "locks_released_within_same",
+  "title": "Locks should be released within the same method",
+  "description": "This rule raises if you acquire a lock with one of the following methods, and do not release it within the same method. ReaderWriterLock.AcquireReaderLock ReaderWriterLock.AcquireWriterLock ReaderWriterLockSlim.EnterReadLock ReaderWriterLockSlim.EnterUpgradeableReadLock ReaderWriterLockSlim.TryEnterReadLock ReaderWriterLockSlim.TryEnterUpgradeableReadLock ReaderWriterLockSlim.EnterWriteLock ReaderWriterLockSlim.TryEnterWriteLock This rule will raise an issue when the code uses the disposable pattern. This pattern makes locking easy to use and delegates the responsibility to the caller.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Example\n{\n    private static ReaderWriterLock rwLock = new();\n\n    public void AcquireWriterLock() =>\n        rwLock.AcquireWriterLock(2000);  // Noncompliant, as the lock release is on the callers responsibility\n\n    public void DoSomething()\n    {\n        // ...\n    }\n\n    public void ReleaseWriterLock() =>\n        rwLock.ReleaseWriterLock();\n}"
+    ],
+    "compliant": [
+      "public class Example\n{\n    private static ReaderWriterLock rwLock = new();\n\n    public void DoSomething()\n    {\n        rwLock.AcquireWriterLock(2000); // Compliant, locks are released in the same method\n        try\n        {\n            // ...\n        }\n        finally\n        {\n            rwLock.ReleaseWriterLock();\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-7133"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_locks_released_within_same"
+      }
+    ],
+    "triggering_conditions": "Lock acquisition method called without corresponding release method in same method body",
+    "exclusion_conditions": [
+      "Both acquire and release methods present in same method",
+      "Using disposable pattern appropriately"
+    ],
+    "never_trigger_on": [
+      "Methods where acquire and release are properly paired",
+      "Disposable pattern implementations"
+    ],
+    "reasoning": "Detects ReaderWriterLock and ReaderWriterLockSlim lock acquisitions (AcquireReaderLock, AcquireWriterLock, EnterReadLock, EnterWriteLock, etc.) that are not released within the same method. This violates best practices as callers become responsible for releasing locks, leading to potential errors and deadlocks.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void AcquireWriterLock() => rwLock.AcquireWriterLock(2000); // No release in method",
+        "public void StartRead() { rwLockSlim.EnterReadLock(); } // No ExitReadLock"
+      ],
+      "should_not_trigger": [
+        "rwLock.AcquireWriterLock(2000); try { } finally { rwLock.ReleaseWriterLock(); }",
+        "rwLockSlim.EnterReadLock(); try { } finally { rwLockSlim.ExitReadLock(); }"
+      ]
+    }
+  }
+}

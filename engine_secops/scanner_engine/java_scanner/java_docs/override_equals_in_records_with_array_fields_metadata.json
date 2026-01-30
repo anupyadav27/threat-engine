@@ -1,0 +1,37 @@
+{
+  "filename": "override_equals_in_records_with_array_fields_metadata.json",
+  "rule_id": "bug_override_equals_records_array_fields",
+  "title": "Equals method should be overridden in records containing array fields",
+  "description": "In Java, records that contain array fields should override the equals method to ensure correct equality checks. The default implementation of equals in records uses Arrays.equals for array fields, which may not provide the intended behavior for deep equality. Overriding equals ensures that array contents are compared properly, preventing subtle bugs in collections and equality checks.",
+  "status": "active",
+  "defaultSeverity": "major",
+  "category": "bug",
+  "recommendation": "Override the equals method in records that have array fields to compare array contents using Arrays.equals or Arrays.deepEquals as appropriate.",
+  "impact": "Failure to override equals in records with array fields can lead to incorrect behavior in collections, equality checks, and may cause hard-to-find bugs.",
+  "examples": [
+    {
+      "bad": "public record MyRecord(int[] values) {} // Relies on default equals, which may not compare array contents correctly.",
+      "good": "public record MyRecord(int[] values) {\n  @Override\n  public boolean equals(Object o) {\n    if (this == o) return true;\n    if (!(o instanceof MyRecord other)) return false;\n    return Arrays.equals(this.values, other.values);\n  }\n}"
+    }
+  ],
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6218"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "record\\s+\\w+\\s*\\([^)]*\\[\\].*\\{\\s*\\}"
+        ],
+        "message": "Override the equals method in records that have array fields to compare array contents using Arrays.equals or Arrays.deepEquals as appropriate."
+      }
+    ]
+  }
+}

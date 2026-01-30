@@ -1,0 +1,38 @@
+{
+  "filename": "prefer_indexing_instead_of_enumerable_methods_on_t_metadata.json",
+  "rule_id": "prefer_indexing_instead_enumerable",
+  "title": "Prefer indexing instead of Enumerable methods on types implementing IList",
+  "description": "Prefer indexing instead of \"Enumerable\" methods on types implementing \"IList\"Analyze your codeintentionality-efficientmaintainabilityCode SmellperformanceWhy is this an issue?How can I fix it?More InfoIndexes in C# provide direct access to an element at a specific position within an array or collection. When compared toEnumerablemethods, indexing can be more efficient for certain scenarios, such as iterating over a large collection, due to avoiding the overhead of checking the underlying collection type before accessing it.This applies to types that implement one of these interfaces:IListIList<T>IReadonlyList<T>What is the potential impact?We measured a significant improvement in execution time. For more details see theBenchmarkssection from theMore infotab.Available In:Catch issues on the",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "List<int> numbers = new List<int> { 1, 2, 3, 4, 5 };\n\n// Using Enumerable methods\nint first = numbers.First(); // Noncompliant\nint last = numbers.Last(); // Noncompliant\nint count = numbers.Count(); // Noncompliant\nint element = numbers.ElementAt(2); // Noncompliant"
+    ],
+    "compliant": [
+      "List<int> numbers = new List<int> { 1, 2, 3, 4, 5 };\n\n// Using indexing\nint first = numbers[0]; // Compliant\nint last = numbers[numbers.Count - 1]; // Compliant\nint count = numbers.Count; // Compliant\nint element = numbers[2]; // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6608"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(?:First|Last|Count|ElementAt)\\(\\)",
+        "description": "Detect Enumerable methods on IList collections"
+      }
+    ]
+  }
+}

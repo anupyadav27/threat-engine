@@ -1,0 +1,62 @@
+{
+  "filename": "locales_should_be_set_for_data_types_metadata.json",
+  "rule_id": "locales_set_data_types",
+  "title": "Locales should be set for data types",
+  "description": "Locales should be set for data typesAnalyze your codeconsistency-conventionalmaintainabilityCode SmelllocalisationWhy is this an issue?When you create aDataTableorDataSet, you should set the locale explicitly. By default, the locale for these types is the current culture. For data that is stored in a database or file and is shared globally, the locale should ordinarily be set to the invariant culture (CultureInfo.InvariantCulture).This rule raises an issue whenSystem.Data.DataTableorSystem.Data.DataSetinstances are created without explicitly setting the locale property (DataTable.LocaleorDataSet.Locale).Noncompliant code exampleusing System; using System.Data; namespace MyLibrary { public class Foo { public DataTable CreateTable() { DataTable table = new DataTable(\"Customers\"); // Noncompl",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Locale not set for DataTable\nusing System;\nusing System.Data;\n\nnamespace MyLibrary\n{\n    public class Foo\n    {\n        public DataTable CreateTable()\n        {\n            DataTable table = new DataTable(\"Customers\"); // Noncompliant\n            return table;\n        }\n    }\n}",
+      "// Noncompliant: Locale not set for DataSet\nvar dataSet = new DataSet(); // Noncompliant"
+    ],
+    "compliant": [
+      "// Compliant: Locale explicitly set to InvariantCulture\nusing System;\nusing System.Data;\nusing System.Globalization;\n\nnamespace MyLibrary\n{\n    public class Foo\n    {\n        public DataTable CreateTable()\n        {\n            DataTable table = new DataTable(\"Customers\");\n            table.Locale = CultureInfo.InvariantCulture; // Compliant\n            return table;\n        }\n    }\n}",
+      "// Compliant: DataSet with locale set\nvar dataSet = new DataSet();\ndataSet.Locale = CultureInfo.InvariantCulture; // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4057"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_locales_set_data_types"
+      }
+    ],
+    "triggering_conditions": "DataTable or DataSet instantiation without Locale property assignment",
+    "exclusion_conditions": [
+      "Locale property set via assignment (varName.Locale = ...)",
+      "Locale property set via object initializer ({ Locale = ... })",
+      "Locale property set inline"
+    ],
+    "never_trigger_on": [
+      "DataTable/DataSet instances where Locale is explicitly set",
+      "Object initializers with Locale property",
+      "Immediate locale assignment after instantiation"
+    ],
+    "reasoning": "Detects DataTable and DataSet instantiations without explicit Locale property setting. The custom function finds all new DataTable() and new DataSet() patterns, identifies the variable name, and checks if Locale is assigned within a reasonable scope (next 500 chars). Supports both explicit assignment (var.Locale = ...) and inline object initializers ({ Locale = ... }).",
+    "validation_examples": {
+      "should_trigger": [
+        "DataTable table = new DataTable(\"Customers\"); // No locale",
+        "var dataSet = new DataSet(); // No locale",
+        "DataTable users = new DataTable(\"Users\"); // No locale"
+      ],
+      "should_not_trigger": [
+        "DataTable table = new DataTable(\"Customers\"); table.Locale = CultureInfo.InvariantCulture;",
+        "var dataSet = new DataSet(); dataSet.Locale = CultureInfo.InvariantCulture;",
+        "DataTable users = new DataTable(\"Users\") { Locale = CultureInfo.InvariantCulture };"
+      ]
+    }
+  }
+}

@@ -322,7 +322,7 @@ def test_portal_export_functionality():
         "exported_at": datetime.utcnow().isoformat(),
         "engines": {
             "configscan": {
-                "results_path": f"aws-configScan-engine/output/{scan_run_id}/results.ndjson"
+                "results_path": f"engine_configscan_aws/output/{scan_run_id}/results.ndjson"
             },
             "threat": {
                 "report_path": f"threat_reports/{tenant_id}/{scan_run_id}.json"

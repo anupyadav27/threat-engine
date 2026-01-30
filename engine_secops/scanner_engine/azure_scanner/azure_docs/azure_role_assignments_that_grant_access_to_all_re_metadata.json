@@ -1,0 +1,47 @@
+{
+  "filename": "azure_role_assignments_that_grant_access_to_all_re_metadata.json",
+  "rule_id": "azure_role_assignments_that",
+  "title": "Azure role assignments that grant access to all resources of a subscription are security-sensitive",
+  "description": "Azure role assignments that grant access to all resources of a subscription are security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotazureAzure RBAC roles can be assigned to users, groups, or service principals. A role assignment grants permissions on a predefined set of resources called \"scope\".The widest scopes a role can be assigned to are:Subscription: a role assigned with this scope grants access to all resources of this Subscription.Management Group: a scope assigned with this scope grants access to all resources of all the Subscriptions in this Management Group.In case of security incidents involving a compromised identity (user, group, or service principal), limiting its role assignment to the narrowest scope possible helps separate duties and limits wh",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "targetScope = 'subscription' // Sensitive\n\nresource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {\n  name: guid(subscription().id, 'exampleRoleAssignment')\n  properties: {\n    scope: subscription().id // Sensitive: grants access to all resources\n  }\n}"
+    ],
+    "compliant": [
+      "resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {\n  name: guid(resourceGroup().id, 'exampleRoleAssignment')\n  properties: {\n    scope: resourceGroup().id // Restricts access to resource group only\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/azureresourcemanager/RSPEC-6387"
+  ],
+  "logic": {
+    "node_types": [
+      "Microsoft.Authorization/roleAssignments"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["properties", "scope"],
+        "patterns": [
+          "/subscriptions/[^/]+$",
+          "Microsoft\\.Management/managementGroups"
+        ],
+        "message": "Role assignment scope indicates subscription or management group level access"
+      },
+      {
+        "type": "custom_function",
+        "function": "check_role_assignment_function_scope",
+        "message": "Role assignment may grant subscription-wide access via function calls"
+      }
+    ]
+  }
+}

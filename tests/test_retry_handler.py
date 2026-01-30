@@ -3,7 +3,7 @@ Tests for retry handler
 """
 import pytest
 import asyncio
-from common.retry_handler import retry_with_backoff
+from engine_common.retry_handler import retry_with_backoff
 
 
 # Test async function

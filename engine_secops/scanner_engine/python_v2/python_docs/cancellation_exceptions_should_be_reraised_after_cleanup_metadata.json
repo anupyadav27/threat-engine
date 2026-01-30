@@ -1,0 +1,57 @@
+{
+  "rule_id": "cancellation_exceptions_should_be_reraised_after_cleanup",
+  "title": "Cancellation exceptions should be re-raised after cleanup",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "This rule checks if a context manager raises a cancellation exception without re-raising it after cleanup.",
+  "message": "Raise the cancellation exception again after the cleanup.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "concurrency",
+    "exception-handling"
+  ],
+  "impact": "A cancelled task might continue to run due to failed exception handling, resulting in unintended results.",
+  "recommendation": "Always re-raise cancellation exceptions after cleanup.",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "with some_context_manager as cm:\n    try:\n        do_something()\n    finally:\n        cm.cleanup()\n        raise CancelledError()"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "with some_context_manager as cm:\n    try:\n        do_something()\n    finally:\n        cm.cleanup()\n        raise\n        from CancelledError"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "A cancelled task might continue to run due to failed exception handling, resulting in unintended results.",
+  "how_to_fix": "Always re-raise cancellation exceptions after cleanup.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "node_types": ["Raise"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "custom_check_cancellation_exceptions_should_be_reraised_after_cleanup"
+      }
+    ]
+  },
+  "custom_functions": {
+    "custom_check_cancellation_exceptions_should_be_reraised_after_cleanup": "def custom_check_cancellation_exceptions_should_be_reraised_after_cleanup(node):\n    if not isinstance(node, dict) or node.get('node_type') != 'Raise':\n        return False\n    parent_field = node.get('__parent_field__')\n    exc = node.get('exc')\n    if parent_field == 'finalbody' and isinstance(exc, dict):\n        func = exc.get('func')\n        if isinstance(func, dict) and func.get('id') == 'CancelledError':\n            return True\n    return False"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "rule_id": "disabling_s3_bucket_mfa_delete_is_security_sensitive",
+  "title": "Disabling S3 bucket MFA delete is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "MINOR",
+  "description": "Disabling MFA (Multi-Factor Authentication) delete on Amazon S3 buckets reduces protection against accidental or malicious deletion of objects. MFA delete requires additional authentication for delete operations, providing an extra layer of security for critical data.",
+  "message": "S3 bucket without MFA delete detected. Enable MFA delete to protect against unauthorized deletions.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "cwe",
+    "data-protection",
+    "compliance"
+  ],
+  "impact": "Without MFA delete, objects in S3 buckets can be deleted by anyone with sufficient permissions, increasing the risk of data loss due to compromised credentials or human error.",
+  "recommendation": "Enable MFA delete on all critical S3 buckets. This requires enabling versioning and configuring the bucket owner to require MFA for delete operations.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6255/",
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/MultiFactorAuthenticationDelete.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"aws_s3_bucket\" \"bad_example\" {\n  bucket = \"my-bucket\"\n  versioning {\n    enabled = true\n    mfa_delete = false\n  }\n}",
+        "description": "MFA delete is explicitly disabled."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"aws_s3_bucket\" \"good_example\" {\n  bucket = \"my-bucket\"\n  versioning {\n    enabled = true\n    mfa_delete = true\n  }\n}",
+        "description": "MFA delete is enabled, requiring multi-factor authentication for delete operations."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Data Protection & Access Control",
+    "security": "MFA delete protects against unauthorized or accidental deletion of critical data.",
+    "automation": "CI/CD pipelines should enforce MFA delete on all critical S3 buckets.",
+    "compliance": "Supports compliance with data retention and protection requirements (e.g., GDPR, HIPAA)."
+  },
+  "why_is_this_an_issue": "Without MFA delete, a compromised account or accidental action can permanently delete important data from S3 buckets.",
+  "how_to_fix": "Enable versioning and MFA delete on all critical S3 buckets. Ensure that only trusted users have the ability to perform delete operations.",
+  "security_mappings": {
+    "CWE": "CWE-862: Missing Authorization",
+    "CERT": "IDS03-J: Do not log sensitive information",
+    "OWASP": "A5: Broken Access Control"
+  },
+  "logic": {
+    "resource_type": ["aws_s3_bucket"],
+    "property_path": ["versioning.mfa_delete"],
+    "check_type": "equals",
+    "forbidden_values": [false],
+    "required_values": [true],
+    "custom_function": ""
+  }
+}

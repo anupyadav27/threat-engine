@@ -1,0 +1,59 @@
+{
+  "filename": "linq_expressions_should_be_simplified_metadata.json",
+  "rule_id": "linq_expressions_simplified",
+  "title": "LINQ expressions should be simplified",
+  "description": "LINQ expressions should be simplifiedAnalyze your codeadaptability-focusedmaintainabilityCode SmellclumsyWhy is this an issue?How can I fix it?More InfoIn the interests of readability, code that can be simplified should be simplified. To that end, there are several waysIEnumerablelanguage integrated queries (LINQ) can be simplified. This not only improves readabilty but can also lead to improved performance.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Unnecessarily complex LINQ expression\nvar result = list.Where(x => x != null).Count(); // Noncompliant",
+      "// Noncompliant: Can be simplified\nvar result = list.Select(x => x).ToList(); // Noncompliant",
+      "// Noncompliant: Redundant Any()\nvar result = list.Where(x => x > 0).Any() == false; // Noncompliant"
+    ],
+    "compliant": [
+      "// Compliant: Simplified LINQ expression\nvar result = list.Count(x => x != null); // Compliant",
+      "// Compliant: Direct ToList()\nvar result = list.ToList(); // Compliant",
+      "// Compliant: Using negation\nvar result = !list.Where(x => x > 0).Any(); // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2971"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_linq_expressions_simplified"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments",
+      "Test methods ([Test], [Fact], [TestMethod], [Theory])",
+      "Logging statements"
+    ],
+    "reasoning": "Detects LINQ expressions that can be simplified: Where().Count() should be Count(predicate), Select(x => x) is redundant, Where().Any() == false should use negation. Uses custom function for proper method-level test exclusion.",
+    "validation_examples": {
+      "should_detect": [
+        "var result = list.Where(x => x != null).Count();",
+        "var result = list.Select(x => x).ToList();",
+        "var result = list.Where(x => x > 0).Any() == false;"
+      ],
+      "should_not_detect": [
+        "var result = list.Count(x => x != null);",
+        "var result = list.ToList();",
+        "var result = !list.Where(x => x > 0).Any();",
+        "[Test] method with LINQ"
+      ]
+    }
+  }
+}

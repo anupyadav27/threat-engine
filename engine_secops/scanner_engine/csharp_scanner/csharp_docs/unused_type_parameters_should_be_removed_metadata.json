@@ -1,0 +1,94 @@
+{
+  "filename": "unused_type_parameters_should_be_removed_metadata.json",
+  "rule_id": "unused_type_parameters_removed",
+  "title": "Unused type parameters should be removed",
+  "description": "Unused type parameters should be removedAnalyze your codeintentionality-clearmaintainabilityCode SmellunusedWhy is this an issue?Type parameters that aren’t used are dead code, which can only distract and possibly confuse developers during maintenance. Therefore, unused type parameters should be removed.Noncompliant code examplepublic class MoreMath<T> // Noncompliant; <T> is ignored { public int Add<T>(int a, int b) // Noncompliant; <T> is ignored { return a + b; } }Compliant solutionpublic class MoreMath { public int Add (int a, int b) { return a + b; } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper Editio",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MoreMath<T>   // Noncompliant; <T> is ignored\n{\n  public int Add<T>(int a, int b) // Noncompliant; <T> is ignored\n  {\n    return a + b;\n  }\n}"
+    ],
+    "compliant": [
+      "public class MoreMath\n{\n  public int Add (int a, int b)\n  {\n    return a + b;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2326"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "MethodDeclaration", "InterfaceDeclaration"],
+    "checks": [
+      {
+        "type": "compound_check",
+        "conditions": [
+          {
+            "type": "property_exists",
+            "property_path": ["type_parameters"],
+            "value": true
+          },
+          {
+            "type": "property_not_used_in_body",
+            "property_path": ["type_parameters"],
+            "value": true
+          }
+        ],
+        "logic": "AND",
+        "message": "Unused type parameter should be removed",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string.Format",
+          "ToString\\(\\)",
+          "[Test",
+          "Assert\\.",
+          "where ",
+          ": ",
+          "List<",
+          "IEnumerable<",
+          "new ",
+          "//",
+          "/*",
+          "///"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"...\", string.Format)",
+      "Unit tests ([Test], Assert.*)",
+      "ToString methods",
+      "Type parameters used in constraints (where T : ...)",
+      "Type parameters used in base class inheritance",
+      "Type parameters used as return types",
+      "Type parameters used as parameter types",
+      "Type parameters used in generic collections",
+      "Comments (//, /*, ///)",
+      "Generated code"
+    ],
+    "reasoning": "This logic detects type parameters declared but never used in the body of classes, interfaces, or methods. It uses AST node properties to ensure type parameters are not referenced in constraints, inheritance, return types, parameters, or generic collections. Exclusion patterns prevent false positives in logging, formatting, tests, comments, and generated code.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class MoreMath<T> { public int Add(int a, int b) { return a + b; } }",
+        "public int Process<T>(int value) { return value * 2; }",
+        "public interface IUnused<T> { void DoSomething(); }"
+      ],
+      "should_not_trigger": [
+        "public class GenericList<T> { private List<T> items; }",
+        "public T GetValue<T>() where T : new() { return new T(); }",
+        "public class Logger<T> { public void Log(T value) { Console.WriteLine(value); } }",
+        "public class TestClass { [Test] public void TestMethod<T>() { Assert.AreEqual(1, 1); } }"
+      ]
+    }
+  }
+}

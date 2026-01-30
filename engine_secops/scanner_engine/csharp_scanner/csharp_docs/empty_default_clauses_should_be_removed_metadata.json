@@ -1,0 +1,63 @@
+{
+  "filename": "empty_default_clauses_should_be_removed_metadata.json",
+  "rule_id": "empty_default_clauses_removed",
+  "title": "Empty default clauses should be removed",
+  "description": "Empty \"default\" clauses should be removedAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEunusedfindingclumsyWhy is this an issue?Thedefaultclause should take appropriate action. Having an emptydefaultis a waste of keystrokes.Noncompliant code exampleenum Fruit { Apple, Orange, Banana } void PrintName(Fruit fruit) { switch(fruit) { case Fruit.Apple: Console.WriteLine(\"apple\"); break; default: //Noncompliant break; } }Compliant solutionenum Fruit { Apple, Orange, Banana } void PrintName(Fruit fruit) { switch(fruit) { case Fruit.Apple: Console.WriteLine(\"apple\"); break; default: throw new NotSupportedException(); } }orvoid PrintName(Fruit fruit) { switch(fruit) { case Fruit.Apple: Console.WriteLine(\"apple\"); break; } }Exce",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "enum Fruit { Apple, Orange, Banana }\nvoid PrintName(Fruit fruit)\n{\n    switch(fruit)\n    {\n        case Fruit.Apple:\n            Console.WriteLine(\"apple\");\n            break;\n        default: // Noncompliant - empty default clause\n            break;\n    }\n}"
+    ],
+    "compliant": [
+      "enum Fruit { Apple, Orange, Banana }\nvoid PrintName(Fruit fruit)\n{\n    switch(fruit)\n    {\n        case Fruit.Apple:\n            Console.WriteLine(\"apple\");\n            break;\n        default:\n            throw new NotSupportedException();\n    }\n}",
+      "enum Fruit { Apple, Orange, Banana }\nvoid PrintName(Fruit fruit)\n{\n    switch(fruit)\n    {\n        case Fruit.Apple:\n            Console.WriteLine(\"apple\");\n            break;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3532"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Methods with switch statements containing empty default clauses (only break or whitespace)",
+    "triggering_conditions": "default: followed only by whitespace/comments and break (no other statements)",
+    "exclusion_conditions": "Excludes defaults with actual logic, throw statements, return with values, or logging",
+    "never_trigger_on": "Default clauses with throw, return non-void, logging, or any actual statement besides break",
+    "reasoning": "Empty default clauses waste keystrokes and provide no value. Either remove them or add meaningful handling (throw, log, etc). Pattern detects 'default:' followed by optional whitespace/comments then 'break;' with nothing else. Excludes defaults with any other statements.",
+    "validation_examples": {
+      "should_trigger": [
+        "switch(fruit) { case Fruit.Apple: Handle(); break; default: break; }",
+        "switch(status) { case Status.Active: Process(); break; default: /* empty */ break; }",
+        "switch(value) { case 1: Do(); break; default: break; }"
+      ],
+      "should_not_trigger": [
+        "switch(fruit) { case Fruit.Apple: Handle(); break; default: throw new NotSupportedException(); }",
+        "switch(fruit) { case Fruit.Apple: Handle(); break; }",
+        "switch(status) { case Status.Active: Process(); break; default: Console.WriteLine(\"unknown\"); break; }"
+      ]
+    },
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "default\\s*:\\s*(?://[^\\n]*|/\\*[^*]*\\*/)?\\s*\n?\\s*break\\s*;",
+        "exclude_patterns": [
+          "default\\s*:[^b]*\\w+\\s*\\(",
+          "default\\s*:[^b]*(throw|return|Console|Log)",
+          "//.*intentional",
+          "//.*OK"
+        ],
+        "message": "Remove empty default clause or add meaningful handling"
+      }
+    ]
+  }
+}

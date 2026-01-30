@@ -1,0 +1,65 @@
+{
+  "filename": "uri_parameters_should_not_be_strings_metadata.json",
+  "rule_id": "uri_parameters_strings",
+  "title": "URI Parameters should not be strings",
+  "description": "URI Parameters should not be stringsAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?String representations of URIs or URLs are prone to parsing and encoding errors which can lead to vulnerabilities. TheSystem.Uriclass is a safe alternative and should be preferred. At minimum, an overload of the method taking aSystem.Urias a parameter should be provided in each class that contains a method with an apparent Uri passed as astring.This rule raises issues when a method has a string parameter with a name containing \"uri\", \"Uri\", \"urn\", \"Urn\", \"url\" or \"Url\", and the type doesn’t declare a corresponding overload taking anSystem.Uriparameter instead.Noncompliant code exampleusing System; namespace MyLibrary { public class MyClass { public void FetchResource(s",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class ResourceLoader\n{\n    public void FetchResource(string uri) // Noncompliant - should use System.Uri\n    {\n        // Process URI string\n    }\n\n    public void LoadData(string url) // Noncompliant - 'url' parameter should be Uri\n    {\n        // Fetch data\n    }\n}"
+    ],
+    "compliant": [
+      "public class ResourceLoader\n{\n    public void FetchResource(Uri uri) // Compliant - uses System.Uri\n    {\n        // Process URI\n    }\n\n    public void FetchResource(string uriString) // Compliant - has overload\n    {\n        FetchResource(new Uri(uriString));\n    }\n\n    public void LoadData(Uri url) // Compliant\n    {\n        // Fetch data\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3994"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(?:public|protected|internal)\\s+(?:static\\s+)?\\w+\\s+\\w+\\s*\\([^)]*\\bstring\\s+\\w*(?:uri|url|urn)\\w*[^)]*\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "\\[Test",
+          "\\[Fact",
+          "//.*string",
+          "Uri\\s+\\w*(?:uri|url|urn)",
+          "\\)\\s*\\{[^}]*FetchResource\\s*\\(\\s*new\\s+Uri"
+        ],
+        "message": "URI parameters should use System.Uri type instead of string"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact])",
+      "Comments",
+      "Methods that have Uri overloads",
+      "Private helper methods"
+    ],
+    "reasoning": "String representations of URIs are prone to parsing and encoding errors. System.Uri provides validation and proper handling. At minimum, provide an overload that accepts Uri. This rule flags methods with string parameters named like uri/url/urn without corresponding Uri overloads.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void FetchResource(string uri) { }",
+        "public void LoadData(string url) { }"
+      ],
+      "should_not_trigger": [
+        "public void FetchResource(Uri uri) { }",
+        "public void FetchResource(string uriString) { FetchResource(new Uri(uriString)); }"
+      ]
+    }
+  }
+}

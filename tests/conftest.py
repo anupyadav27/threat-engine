@@ -8,6 +8,6 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-# Add onboarding_engine to path so internal imports work
-onboarding_engine_path = os.path.join(project_root, "onboarding_engine")
-sys.path.insert(0, onboarding_engine_path)
+# Add engine_onboarding to path so internal imports work
+engine_onboarding_path = os.path.join(project_root, "engine_onboarding")
+sys.path.insert(0, engine_onboarding_path)

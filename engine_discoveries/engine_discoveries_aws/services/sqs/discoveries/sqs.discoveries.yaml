@@ -1,0 +1,30 @@
+version: '1.0'
+provider: aws
+service: sqs
+services:
+  client: sqs
+  module: boto3.client
+discovery:
+- discovery_id: aws.sqs.list_queues
+  calls:
+  - action: list_queues
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.QueueUrls }}'
+    as: queue_url
+- discovery_id: aws.sqs.get_queue_attributes
+  for_each: aws.sqs.list_queues
+  calls:
+  - action: get_queue_attributes
+    params:
+      QueueUrl: '{{ item.QueueUrl }}'
+    save_as: response
+  emit:
+    item:
+      QueueUrl: '{{ item.QueueUrl }}'
+      QueueArn: '{{ response.Attributes.get(\"QueueArn\") if response.Attributes is defined else \"\" }}'
+      Policy: '{{ response.Attributes.get(\"Policy\") if response.Attributes is defined else \"\" }}'
+      RedrivePolicy: '{{ response.Attributes.get(\"RedrivePolicy\") if response.Attributes is defined else \"\" }}'
+      ApproximateNumberOfMessages: '{{ response.Attributes.get(\"ApproximateNumberOfMessages\") if response.Attributes is defined else \"\" }}'

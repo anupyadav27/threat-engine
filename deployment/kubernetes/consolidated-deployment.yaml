@@ -1,0 +1,351 @@
+---
+# API Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  labels:
+    app: api-gateway
+    tier: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: threat-engine/api-gateway:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: THREAT_ENGINE_URL
+          value: "http://core-engine-service:8001"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://core-engine-service:8001"
+        - name: CONFIGSCAN_ENGINE_URL
+          value: "http://configscan-service:8002"
+        - name: INVENTORY_ENGINE_URL
+          value: "http://platform-service:8003"
+        - name: ADMIN_ENGINE_URL
+          value: "http://platform-service:8003"
+        - name: USER_ENGINE_URL
+          value: "http://data-secops-service:8004"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# API Gateway Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  labels:
+    app: api-gateway
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: LoadBalancer
+
+---
+# Core Engine Service (Threat + Compliance + Rule)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-engine-service
+  labels:
+    app: core-engine-service
+    tier: core
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: core-engine-service
+  template:
+    metadata:
+      labels:
+        app: core-engine-service
+        tier: core
+    spec:
+      containers:
+      - name: core-engine
+        image: threat-engine/core-engine:latest
+        ports:
+        - containerPort: 8001
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        - name: USE_S3
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 10
+
+---
+# Core Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-engine-service
+spec:
+  selector:
+    app: core-engine-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+
+---
+# ConfigScan Service (All CSPs)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configscan-service
+  labels:
+    app: configscan-service
+    tier: scanning
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: configscan-service
+  template:
+    metadata:
+      labels:
+        app: configscan-service
+        tier: scanning
+    spec:
+      containers:
+      - name: configscan-service
+        image: threat-engine/configscan-service:latest
+        ports:
+        - containerPort: 8002
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        - name: SCAN_RESULTS_DIR
+          value: "/app/engine_output"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+
+---
+# ConfigScan Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-service
+spec:
+  selector:
+    app: configscan-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+
+---
+# Platform Service (Inventory + Onboarding + Admin)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-service
+  labels:
+    app: platform-service
+    tier: platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: platform-service
+  template:
+    metadata:
+      labels:
+        app: platform-service
+        tier: platform
+    spec:
+      containers:
+      - name: platform-service
+        image: threat-engine/platform-service:latest
+        ports:
+        - containerPort: 8003
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Platform Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-service
+spec:
+  selector:
+    app: platform-service
+  ports:
+  - port: 8003
+    targetPort: 8003
+
+---
+# Data SecOps Service (DataSec + SecOps + UserPortal)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-secops-service
+  labels:
+    app: data-secops-service
+    tier: security
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-secops-service
+  template:
+    metadata:
+      labels:
+        app: data-secops-service
+        tier: security
+    spec:
+      containers:
+      - name: data-secops-service
+        image: threat-engine/data-secops-service:latest
+        ports:
+        - containerPort: 8004
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 45
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 15
+          periodSeconds: 10
+
+---
+# Data SecOps Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-secops-service
+spec:
+  selector:
+    app: data-secops-service
+  ports:
+  - port: 8004
+    targetPort: 8004
+
+---
+# ConfigMap for service discovery
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-config
+data:
+  THREAT_ENGINE_URL: "http://core-engine-service:8001"
+  COMPLIANCE_ENGINE_URL: "http://core-engine-service:8001"
+  CONFIGSCAN_ENGINE_URL: "http://configscan-service:8002"
+  INVENTORY_ENGINE_URL: "http://platform-service:8003"
+  ADMIN_ENGINE_URL: "http://platform-service:8003"
+  USER_ENGINE_URL: "http://data-secops-service:8004"

@@ -1,0 +1,41 @@
+{
+  "filename": "spring_bean_singleton_invocation_in_configuration_metadata.json",
+  "rule_id": "spring_bean_singleton_invocation_in_configuration",
+  "title": "'@Bean' methods for Singleton should not be invoked in '@Configuration' when proxyBeanMethods is false",
+  "description": "In Spring, '@Bean' methods in '@Configuration' classes are typically proxied to ensure singleton semantics. When 'proxyBeanMethods' is set to false, these methods are not proxied, and invoking them directly can result in multiple instances being created, breaking the singleton contract. This rule detects such invocations to prevent unintended bean instantiation.",
+  "status": "active",
+  "defaultSeverity": "major",
+  "category": "bug",
+  "recommendation": "Do not invoke '@Bean' methods directly from within '@Configuration' classes when 'proxyBeanMethods' is false. Instead, inject beans using method parameters or rely on dependency injection.",
+  "impact": "Direct invocation of '@Bean' methods in this context can lead to multiple bean instances, violating the singleton pattern and potentially causing subtle bugs in application behavior.",
+  "examples": {
+    "noncompliant": [
+      "@Configuration(proxyBeanMethods = false)\nclass MyConfig {\n  @Bean\n  public ServiceA serviceA() {\n    return new ServiceA();\n  }\n  @Bean\n  public ServiceB serviceB() {\n    // Noncompliant: direct call to serviceA()\n    return new ServiceB(serviceA());\n  }\n}"
+    ],
+    "compliant": [
+      "@Configuration(proxyBeanMethods = false)\nclass MyConfig {\n  @Bean\n  public ServiceA serviceA() {\n    return new ServiceA();\n  }\n  @Bean\n  public ServiceB serviceB(ServiceA serviceA) {\n    // Compliant: inject ServiceA as a parameter\n    return new ServiceB(serviceA);\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6838",
+    "https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/context/annotation/Bean.html"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "conditional_check",
+        "property_path": ["parent_source"],
+        "condition_pattern": "@Configuration\\(.*proxyBeanMethods\\s*=\\s*false.*\\)",
+        "target_check": {
+          "type": "regex_match",
+          "property_path": ["source"],
+          "patterns": ["\\w+\\s*\\(\\)"],
+          "message": "Do not invoke '@Bean' methods directly from within '@Configuration' classes when 'proxyBeanMethods' is false. Instead, inject beans using method parameters."
+        }
+      }
+    ]
+  }
+}

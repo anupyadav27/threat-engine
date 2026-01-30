@@ -1,0 +1,56 @@
+{
+  "rule_id": "unversioned_google_cloud_storage_buckets_are_security_sensitive",
+  "title": "Unversioned Google Cloud Storage buckets are security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "Minor",
+  "description": "Object versioning in Google Cloud Storage buckets protects against accidental or malicious deletion and overwriting of data. Without versioning, deleted or overwritten objects cannot be recovered, increasing the risk of data loss. Enabling versioning is a best practice for critical or sensitive data.",
+  "message": "Bucket does not have object versioning enabled. Enable versioning to protect against data loss.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "gcp"
+  ],
+  "impact": "Unversioned buckets are vulnerable to permanent data loss from accidental or malicious actions.",
+  "recommendation": "Enable object versioning on all storage buckets containing important or sensitive data. Regularly review bucket configurations.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6412/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"google_storage_bucket\" \"bad_example\" {\n  name     = \"my-bucket\"\n  versioning {\n    enabled = false\n  }\n}",
+        "description": "Versioning is explicitly disabled, so deleted or overwritten objects cannot be recovered."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"google_storage_bucket\" \"good_example\" {\n  name     = \"my-bucket\"\n  versioning {\n    enabled = true\n  }\n}",
+        "description": "Versioning is enabled, allowing recovery of deleted or overwritten objects."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Data Protection & Resilience",
+    "security": "Versioning protects against data loss and supports incident recovery.",
+    "automation": "CI/CD should enforce versioning for critical buckets.",
+    "compliance": "Data retention and recovery are required by many standards (e.g., GDPR, HIPAA)."
+  },
+  "why_is_this_an_issue": "Without versioning, deleted or overwritten objects are lost permanently, increasing risk of data loss and non-compliance.",
+  "how_to_fix": "Enable object versioning in the bucket configuration. Monitor for unauthorized changes to versioning settings.",
+  "security_mappings": {
+    "CWE": "CWE-710: Improper Adherence to Coding Standards",
+    "CERT": "MSC04-J: Do not disable automatic resource management",
+    "OWASP": "A6: Security Misconfiguration"
+  },
+  "logic": {
+    "resource_type": "google_storage_bucket",
+    "property_path": ["versioning", "enabled"],
+    "check_type": "equals",
+    "forbidden_values": [false],
+    "required_values": [true],
+    "custom_function": ""
+  }
+}

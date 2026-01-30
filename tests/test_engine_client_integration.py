@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
-from onboarding_engine.utils.engine_client import EngineClient
+from engine_onboarding.utils.engine_client import EngineClient
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ async def test_scan_aws_with_tenant_and_scan_run_id():
     }
     mock_summary_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.utils.engine_client.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.utils.engine_client.httpx.AsyncClient') as mock_client:
         mock_http_client = MagicMock()
         mock_http_client.post = AsyncMock(return_value=mock_scan_response)
         mock_http_client.get = AsyncMock(side_effect=[mock_status_response, mock_summary_response])
@@ -73,7 +73,7 @@ async def test_scan_azure_with_tenant_and_scan_run_id():
     mock_response.json.return_value = {"scan_id": "azure-scan-123", "status": "running"}
     mock_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.utils.engine_client.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.utils.engine_client.httpx.AsyncClient') as mock_client:
         mock_http_client = MagicMock()
         mock_http_client.post = AsyncMock(return_value=mock_response)
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
@@ -103,7 +103,7 @@ async def test_scan_gcp_with_tenant_and_scan_run_id():
     mock_response.json.return_value = {"scan_id": "gcp-scan-123", "status": "running"}
     mock_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.utils.engine_client.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.utils.engine_client.httpx.AsyncClient') as mock_client:
         mock_http_client = MagicMock()
         mock_http_client.post = AsyncMock(return_value=mock_response)
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)

@@ -3,7 +3,7 @@ Tests for shared API models
 """
 import pytest
 from datetime import datetime
-from common.api_models import HealthResponse, ErrorResponse, ScanMetadata, OrchestrationStatus
+from engine_common.api_models import HealthResponse, ErrorResponse, ScanMetadata, OrchestrationStatus
 
 
 def test_health_response():

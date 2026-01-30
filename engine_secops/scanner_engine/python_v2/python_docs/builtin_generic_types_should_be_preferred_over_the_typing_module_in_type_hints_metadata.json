@@ -1,0 +1,60 @@
+{
+  "rule_id": "builtin_generic_types_should_be_preferred_over_the_typing_module_in_type_hints",
+  "title": "Prefer built-in generic types over the typing module in type hints",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Minor",
+  "description": "Avoid using the typing module for built-in generic types. This can lead to potential compatibility issues.",
+  "message": "Avoid using typing module for built-in generic types",
+  "remediation": {
+    "func": "Refactor Type Hints",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "type-hints",
+    "compatibility",
+    "typing"
+  ],
+  "impact": "Low",
+  "recommendation": "Use built-in generic types instead",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "from typing import List, Union\ndef func(arg: Union[int, float])\n    pass",
+        "description": "Uses typing module for built-in generic types"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "def func(arg: int | float)\n    pass",
+        "description": "Uses built-in generic types instead"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Using the typing module can lead to compatibility issues with other libraries",
+  "how_to_fix": "Replace typing module with built-in generic types",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "node_types": ["ImportFrom"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "is_typing_generic_import"
+      }
+    ]
+  },
+  "custom_functions": {
+    "is_typing_generic_import": "def is_typing_generic_import(node):\n    if node.get('node_type') == 'ImportFrom' and node.get('module') == 'typing':\n        forbidden = {'List', 'Dict', 'Set', 'Tuple', 'Union'}\n        for name_obj in node.get('names', []):\n            if isinstance(name_obj, dict) and name_obj.get('name') in forbidden:\n                return True\n    return False"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "filename": "multidimensional_arrays_should_be_avoided_metadata.json",
+  "rule_id": "multidimensional_arrays_avoided",
+  "title": "Multidimensional arrays should be avoided",
+  "description": "Multidimensional arrays should not be usedAnalyze your codeintentionality-efficientmaintainabilityCode SmelldesignWhy is this an issue?A jagged array is an array whose elements are arrays. It is recommended over a multidimensional array because the arrays that make up the elements can be of different sizes, which avoids wasting memory space.Noncompliant code exampleint [,] myArray = // Noncompliant { {1,2,3,4}, {5,6,7,0}, {8,0,0,0}, {9,0,0,0} }; // ... myArray[1,1] = 0;Compliant solutionint[][] myArray = { new int[] {1,2,3,4}, new int[] {5,6,7}, new int[] {8}, new int[] {9} }; // ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Matrix\n{\n    private int[,] matrix; // Noncompliant: Multidimensional array\n    \n    public Matrix(int rows, int cols)\n    {\n        matrix = new int[rows, cols]; // Noncompliant\n    }\n    \n    public void ProcessMatrix(int[,,] data) // Noncompliant: 3D array\n    {\n        // Process 3D data\n    }\n}"
+    ],
+    "compliant": [
+      "public class Matrix\n{\n    private int[][] matrix; // Compliant: Jagged array\n    \n    public Matrix(int rows, int cols)\n    {\n        matrix = new int[rows][];\n        for (int i = 0; i < rows; i++)\n        {\n            matrix[i] = new int[cols];\n        }\n    }\n    \n    public void ProcessMatrix(int[][][] data) // Compliant: Jagged array\n    {\n        // Process 3D data\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3967"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "MethodDeclaration", "PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*\\[\\s*,+\\s*\\]",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "extern\\s+",
+          "DllImport",
+          "Marshal\\.",
+          "GetLength\\(",
+          "// Compliant",
+          "// Test"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], [TestMethod])",
+      "Logging statements (Console.*, Debug.*, Logger.*)",
+      "External library interop (extern, DllImport, Marshal.*)",
+      "Array length operations (GetLength)",
+      "String formatting expressions",
+      "Generated code",
+      "Compliant comment markers"
+    ],
+    "reasoning": "Detects declarations of multidimensional arrays (containing commas in brackets like [,] or [,,]) that should be replaced with jagged arrays for better memory efficiency and flexibility. Multidimensional arrays waste memory when rows have different lengths and are less flexible than jagged arrays. Excludes test code, logging, interop scenarios, and operations on existing arrays.",
+    "validation_examples": {
+      "should_trigger": [
+        "private int[,] matrix;",
+        "public void ProcessMatrix(int[,] data)",
+        "double[,,] cubeData = new double[10, 10, 10];",
+        "public int[,] GetMatrix()"
+      ],
+      "should_not_trigger": [
+        "private int[][] matrix;",
+        "public void ProcessMatrix(int[][] data)",
+        "double[][][] cubeData = new double[10][][];",
+        "int[] simpleArray = new int[10];",
+        "[Test] public void TestMethod() { int[,] test = new int[2,2]; }"
+      ]
+    }
+  }
+}

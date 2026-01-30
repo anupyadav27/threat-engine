@@ -1,0 +1,78 @@
+{
+  "filename": "null_checks_should_not_be_combined_with_is_operato_metadata.json",
+  "rule_id": "null_checks_combined_is",
+  "title": "Null checks should not be combined with is operator checks",
+  "description": "Null checks should not be combined with \"is\" operator checksAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEredundantWhy is this an issue?There’s no need to null test in conjunction with anistest.nullis not an instance of anything, so a null check is redundant.Noncompliant code exampleif (x != null && x is MyClass) { ... } // Noncompliant if (x == null || !(x is MyClass)) { ... } // NoncompliantCompliant solutionif (x is MyClass) { ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessObject(object x)\n{\n    if (x != null && x is string)  // Noncompliant - redundant null check\n    {\n        Console.WriteLine($\"String: {x}\");\n    }\n    \n    if (x == null || !(x is int))  // Noncompliant - redundant null check\n    {\n        return;\n    }\n    \n    if (obj != null && obj is MyClass myInstance)  // Noncompliant\n    {\n        myInstance.DoSomething();\n    }\n}"
+    ],
+    "compliant": [
+      "public void ProcessObject(object x)\n{\n    if (x is string)  // Compliant - is operator handles null check\n    {\n        Console.WriteLine($\"String: {x}\");\n    }\n    \n    if (!(x is int))  // Compliant - no redundant null check\n    {\n        return;\n    }\n    \n    if (obj is MyClass myInstance)  // Compliant - pattern matching\n    {\n        myInstance.DoSomething();\n    }\n    \n    if (x is string str)  // Compliant - pattern matching with assignment\n    {\n        Console.WriteLine($\"String: {str}\");\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4201"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*!=\\s*null\\s*&&\\s*\\w+\\s+is\\s+\\w+|\\b\\w+\\s*==\\s*null\\s*\\|\\|\\s*!\\(\\w+\\s+is\\s+\\w+\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\".*?\"",
+          "ToString\\(\\)",
+          "\\[Test",
+          "Assert\\.",
+          "//.*"
+        ]
+      }
+    ],
+    "triggering_conditions": "MethodDeclaration nodes that contain redundant null checks combined with is operator patterns",
+    "exclusion_conditions": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting contexts",
+      "Unit tests and assertions",
+      "ToString method implementations",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)", 
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], Assert.*)",
+      "Comments (//, /*, ///)",
+      "ToString() implementations",
+      "Generated code"
+    ],
+    "reasoning": "Detects redundant null checks combined with is operator. The is operator already handles null checks, so patterns like 'x != null && x is Type' or 'x == null || !(x is Type)' are redundant. Uses regex to match these specific patterns within method bodies while excluding safe contexts like logging and testing.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (x != null && x is string)",
+        "if (x == null || !(x is int))",
+        "if (obj != null && obj is MyClass myInstance)"
+      ],
+      "should_not_trigger": [
+        "if (x is string)",
+        "if (!(x is int))",
+        "if (obj is MyClass myInstance)",
+        "Console.WriteLine($\"Check: {obj != null && obj is string}\");",
+        "[Test] public void Test() { Assert.IsTrue(x != null && x is string); }"
+      ]
+    }
+  }
+}

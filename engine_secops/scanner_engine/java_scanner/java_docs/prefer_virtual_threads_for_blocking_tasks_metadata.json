@@ -1,0 +1,42 @@
+{
+  "filename": "prefer_virtual_threads_for_blocking_tasks_metadata.json",
+  "rule_id": "reliability_prefer_virtual_threads_blocking_tasks",
+  "title": "Prefer virtual threads for blocking tasks",
+  "description": "Using virtual threads for tasks that involve heavy blocking operations improves scalability and resource efficiency. Platform threads are limited and can become a bottleneck when many threads are blocked, while virtual threads allow for a much larger number of concurrent blocking tasks without exhausting system resources.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Refactor blocking operations to use virtual threads instead of platform threads whenever possible.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      "Thread thread = new Thread(() -> {\n  blockingOperation();\n});\nthread.start();"
+    ],
+    "compliant": [
+      "Thread thread = Thread.ofVirtual().start(() -> {\n  blockingOperation();\n});"
+    ]
+  },
+  "references": [
+    {
+      "title": "SonarSource Rule RSPEC-6881",
+      "url": "https://rules.sonarsource.com/java/RSPEC-6881"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "Thread\\s+\\w+\\s*=\\s*new\\s+Thread\\s*\\("
+        ],
+        "message": "Refactor blocking operations to use virtual threads instead of platform threads whenever possible."
+      }
+    ]
+  }
+}

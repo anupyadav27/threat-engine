@@ -3,7 +3,7 @@ Tests for circuit breaker
 """
 import pytest
 import time
-from common.circuit_breaker import CircuitBreaker, CircuitState, get_circuit_breaker
+from engine_common.circuit_breaker import CircuitBreaker, CircuitState, get_circuit_breaker
 
 
 def test_circuit_breaker_closed_state():

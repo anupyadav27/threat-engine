@@ -1,0 +1,42 @@
+version: '1.0'
+provider: aws
+service: dms
+checks:
+- rule_id: aws.dms.instance.dms_multi_az_enabled
+  for_each: aws.dms.describe_replication_instances
+  conditions:
+    var: item.MultiAZ
+    op: equals
+    value: 'true'
+- rule_id: aws.dms.instance.no_public_access_configured
+  for_each: aws.dms.describe_instance_profiles
+  conditions:
+    var: item.PubliclyAccessible
+    op: equals
+    value: 'false'
+- rule_id: aws.dms.resource.endpoint_redis_in_transit_encryption_enabled
+  for_each: aws.dms.describe_endpoint_types
+  conditions:
+    all:
+    - var: item.EngineName
+      op: equals
+      value: redis
+    - var: item.SslMode
+      op: equals
+      value: require
+- rule_id: aws.dms.resource.replication_task_source_logging_enabled
+  for_each: aws.dms.describe_replication_tasks
+  conditions:
+    var: item.ReplicationTaskSettings
+    op: exists
+    value: null
+- rule_id: aws.dms.resource.replication_task_target_logging_enabled
+  for_each: aws.dms.describe_replication_tasks
+  conditions:
+    all:
+    - var: item.ReplicationTaskSettings
+      op: exists
+      value: null
+    - var: item.ReplicationTaskArn
+      op: exists
+      value: null

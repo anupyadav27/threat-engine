@@ -1,0 +1,79 @@
+{
+  "filename": "types_allowed_to_be_deserialized_should_be_restric_metadata.json",
+  "rule_id": "types_allowed_deserialized_restricted",
+  "title": "Types allowed to be deserialized should be restricted",
+  "description": "During the deserialization process, the state of an object will be reconstructed from the serialized data stream. By allowing unrestricted deserialization of types, the application makes it possible for attackers to use types with dangerous or otherwise sensitive behavior during the deserialization process. What is the potential impact? When an application deserializes untrusted data without proper restrictions, an attacker can craft malicious serialized objects.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public object DeserializeData(Stream stream)\n{\n    // Noncompliant: BinaryFormatter without type restriction\n    var formatter = new BinaryFormatter();\n    return formatter.Deserialize(stream);\n}\n\npublic object DeserializeJson(string json)\n{\n    // Noncompliant: TypeNameHandling.All allows any type\n    var settings = new JsonSerializerSettings\n    {\n        TypeNameHandling = TypeNameHandling.All\n    };\n    return JsonConvert.DeserializeObject(json, settings);\n}"
+    ],
+    "compliant": [
+      "public MyData DeserializeData(string json)\n{\n    // Compliant: Deserializing to a specific known type\n    return JsonConvert.DeserializeObject<MyData>(json);\n}\n\npublic object DeserializeJson(string json)\n{\n    // Compliant: Using SerializationBinder to restrict types\n    var settings = new JsonSerializerSettings\n    {\n        TypeNameHandling = TypeNameHandling.Objects,\n        SerializationBinder = new SafeSerializationBinder()\n    };\n    return JsonConvert.DeserializeObject(json, settings);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5773"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unsafe_deserialization"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression", "Assignment", "ClassDeclaration"],
+    "detection_conditions": "Detects unsafe deserialization patterns including BinaryFormatter, SoapFormatter, NetDataContractSerializer, and JsonSerializerSettings with TypeNameHandling.All/Auto/Objects without SerializationBinder",
+    "triggering_conditions": {
+      "operator": "OR",
+      "conditions": [
+        "BinaryFormatter.Deserialize call detected",
+        "SoapFormatter.Deserialize call detected",
+        "NetDataContractSerializer.Deserialize call detected",
+        "TypeNameHandling.All or TypeNameHandling.Auto set without SerializationBinder",
+        "TypeNameHandling.Objects without SerializationBinder"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]",
+        "SerializationBinder\\s*=",
+        "typeof\\(",
+        "DeserializeObject<\\w+>"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments describing the pattern",
+      "Test classes with [Test] or [Fact] attributes",
+      "JsonConvert.DeserializeObject<T> with specific type",
+      "When SerializationBinder is set",
+      "TypeNameHandling.None (default safe setting)",
+      "XmlSerializer or DataContractSerializer with known types"
+    ],
+    "reasoning": "Unrestricted deserialization allows attackers to instantiate arbitrary types, leading to remote code execution. BinaryFormatter, SoapFormatter, and NetDataContractSerializer are inherently unsafe. TypeNameHandling.All/Auto/Objects in Json.NET allow type injection unless a SerializationBinder is used to whitelist allowed types.",
+    "validation_examples": {
+      "should_trigger": [
+        "new BinaryFormatter().Deserialize(stream);",
+        "TypeNameHandling = TypeNameHandling.All",
+        "TypeNameHandling = TypeNameHandling.Auto"
+      ],
+      "should_not_trigger": [
+        "JsonConvert.DeserializeObject<MyData>(json);",
+        "TypeNameHandling = TypeNameHandling.Objects, SerializationBinder = new SafeBinder()",
+        "TypeNameHandling = TypeNameHandling.None"
+      ]
+    }
+  }
+}

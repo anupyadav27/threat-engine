@@ -1,0 +1,46 @@
+version: '1.0'
+provider: aws
+service: kinesis
+services:
+  client: kinesis
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesis.list_streams
+  calls:
+  - action: list_streams
+    params:
+      Limit: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.StreamNames }}'
+    as: item
+- discovery_id: aws.kinesis.describe_stream
+  for_each: aws.kinesis.list_streams
+  calls:
+  - action: describe_stream
+    params:
+      StreamName: '{{ item.StreamName }}'
+      Limit: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.kinesis.describe_stream_summary
+  for_each: aws.kinesis.list_streams
+  calls:
+  - action: describe_stream_summary
+    params:
+      StreamName: '{{ item.StreamName }}'
+      Limit: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.kinesis.list_stream_consumers
+  for_each: aws.kinesis.describe_stream
+  calls:
+  - action: list_stream_consumers
+    params:
+      StreamARN: '{{ item.StreamARN }}'
+      Limit: 1000
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.Consumers }}'
+    as: item

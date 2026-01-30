@@ -1,0 +1,82 @@
+{
+  "filename": "threadstatic_fields_should_not_be_initialized_metadata.json",
+  "rule_id": "threadstatic_fields_initialized",
+  "title": "ThreadStatic fields should not be initialized",
+  "description": "\"ThreadStatic\" fields should not be initializedAnalyze your codeintentionality-clearreliabilityBugmulti-threadingWhy is this an issue?When an object has a field annotated withThreadStatic, that field is shared within a given thread, but unique across threads. Since a class' static initializer is only invoked for the first thread created, it also means that only the first thread will have the expected initial values.Instead, allow such fields to be initialized to their default values or make the initialization lazy.Noncompliant code examplepublic class Foo { [ThreadStatic] public static object PerThreadObject = new object(); // Noncompliant. Will be null in all the threads except the first one.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo\n{\n    [ThreadStatic]\n    public static object PerThreadObject = new object(); // Noncompliant - only initialized for first thread\n}",
+      "public class Counter\n{\n    [ThreadStatic]\n    public static int count = 100; // Noncompliant - value will be 0 on other threads\n}"
+    ],
+    "compliant": [
+      "public class Foo\n{\n    [ThreadStatic]\n    public static object PerThreadObject; // Compliant - uses default value (null)\n\n    public static object GetPerThreadObject()\n    {\n        if (PerThreadObject == null)\n        {\n            PerThreadObject = new object(); // Lazy initialization\n        }\n        return PerThreadObject;\n    }\n}",
+      "public class Counter\n{\n    [ThreadStatic]\n    private static int? count;\n\n    public static int Count\n    {\n        get\n        {\n            count ??= 100; // Compliant - lazy initialization\n            return count.Value;\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2996"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration", "MethodDeclaration", "Assignment"],
+    "node_types": ["ClassDeclaration", "MethodDeclaration", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\[ThreadStatic\\][\\s\\S]*?static\\s+[\\w<>\\[\\],\\s]+\\s+\\w+\\s*=\\s*[^;]+;",
+        "exclude_patterns": [
+          "//.*\\[ThreadStatic\\]",
+          "/\\*.*\\[ThreadStatic\\]",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\."
+        ],
+        "message": "ThreadStatic fields should not be initialized inline - only the first thread will have the expected value. Use lazy initialization instead."
+      }
+    ],
+    "detection_conditions": "[ThreadStatic] attribute followed by field initialization",
+    "triggering_conditions": "source contains [ThreadStatic] attribute with inline field initialization (= value)",
+    "exclusion_conditions": [
+      "Comments (// and /*)",
+      "Logging statements (Console, Logger, Debug)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], [TestMethod], Assert.*)"
+    ],
+    "never_trigger_on": [
+      "Logging statements: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"...\", string.Format",
+      "Unit tests: [Test], [Fact], [TestMethod], Assert.*",
+      "Comments: //, /*",
+      "[ThreadStatic] fields without inline initialization",
+      "Lazy initialization patterns"
+    ],
+    "reasoning": "When a field is annotated with [ThreadStatic], it becomes thread-local. However, static initializers only run for the first thread, so subsequent threads will get default values (null, 0, etc.) instead of the initialized value. Lazy initialization should be used instead.",
+    "validation_examples": {
+      "should_trigger": [
+        "[ThreadStatic] public static object PerThreadObject = new object();",
+        "[ThreadStatic] public static int count = 100;"
+      ],
+      "should_not_trigger": [
+        "[ThreadStatic] public static object PerThreadObject;",
+        "[ThreadStatic] private static int? count;",
+        "count ??= 100;"
+      ]
+    }
+  }
+}

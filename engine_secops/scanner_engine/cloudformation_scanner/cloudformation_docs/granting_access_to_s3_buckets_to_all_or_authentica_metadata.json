@@ -1,0 +1,43 @@
+{
+  "filename": "granting_access_to_s3_buckets_to_all_or_authentica_metadata.json",
+  "rule_id": "granting_access_s3_buckets",
+  "title": "Granting access to S3 buckets to all or authenticated users is security-sensitive",
+  "description": "Granting access to S3 buckets to all or authenticated users is security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotawscwePredefined permissions, also known ascanned ACLs, are an easy way to grant large privileges to predefined groups or users.The following canned ACLs are security-sensitive:PublicRead,PublicReadWritegrant respectively \"read\" and \"read and write\" privileges to everyone in the world (AllUsersgroup).AuthenticatedReadgrants \"read\" privilege to all authenticated users (AuthenticatedUsersgroup).Ask Yourself WhetherThe S3 bucket stores sensitive data.The S3 bucket is not used to store static resources of websites (images, css …​).There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesIt’s recommended to impl",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: public-bucket\n      ACL: PublicRead  # Non-compliant: grants public read access to all users"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: private-bucket\n      ACL: Private  # Compliant: bucket is private\n      PublicAccessBlockConfiguration:\n        BlockPublicAcls: true\n        BlockPublicPolicy: true\n        IgnorePublicAcls: true\n        RestrictPublicBuckets: true"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6265"
+  ],
+  "logic": {
+    "node_types": ["Resource"],
+    "resource_types": ["AWS::S3::Bucket"],
+    "checks": [
+      {
+        "type": "s3_public_access_check",
+        "check_properties": [
+          {
+            "property_path": ["properties", "ACL"],
+            "forbidden_values": ["PublicRead", "PublicReadWrite", "AuthenticatedRead"],
+            "message": "S3 bucket uses dangerous ACL that grants public or authenticated access"
+          }
+        ]
+      }
+    ]
+  }
+}

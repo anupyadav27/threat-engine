@@ -1,0 +1,140 @@
+{
+  "filename": "multiple_variables_should_not_be_declared_on_the_s_metadata.json",
+  "rule_id": "multiple_variables_declared_same",
+  "title": "Multiple variables should not be declared on the same line",
+  "description": "Multiple variables should not be declared on the same lineAnalyze your codeconsistency-formattedmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEconventionWhy is this an issue?Declaring multiple variable on one line is difficult to read.Noncompliant code exampleclass MyClass { private int a, b; // Noncompliant public void Method() { int c, d; // Noncompliant } }Compliant solutionclass MyClass { private int a; private int b; public void Method() { int c; int d; } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void Example()\n{\n    int x, y, z; // Noncompliant: Multiple variables on same line\n    string name, address; // Noncompliant\n    \n    bool isValid, isComplete = true; // Noncompliant: Mixed initialization\n}"
+    ],
+    "compliant": [
+      "public void Example()\n{\n    int x; // Compliant: One variable per line\n    int y;\n    int z;\n    \n    string name;\n    string address;\n    \n    bool isValid;\n    bool isComplete = true;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1659"
+  ],
+  "logic": {
+    "node_types": ["VariableDeclaration", "FieldDeclaration", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(int|string|bool|double|float|decimal|long|short|byte|char|var|object|DateTime|Guid)\\s+\\w+\\s*,\\s*\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "// Compliant",
+          "foreach\\s*\\(",
+          "for\\s*\\(",
+          "using\\s*\\(",
+          "catch\\s*\\(",
+          "\\{\\s*get;\\s*set;\\s*\\}",
+          "record\\s+",
+          "class\\s+",
+          "interface\\s+",
+          "struct\\s+",
+          "enum\\s+",
+          "delegate\\s+",
+          "event\\s+",
+          "\\(.*,.*\\)",
+          "\\<.*,.*\\>",
+          "Tuple\\<",
+          "KeyValuePair\\<",
+          "Action\\<",
+          "Func\\<",
+          "out\\s+",
+          "ref\\s+"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bpublic\\s+\\w+\\s+\\w+\\s*,\\s*\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\.",
+          "// Compliant",
+          "\\{\\s*get;\\s*set;\\s*\\}",
+          "record\\s+",
+          "Tuple\\<",
+          "\\(.*,.*\\)",
+          "\\<.*,.*\\>"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bprivate\\s+\\w+\\s+\\w+\\s*,\\s*\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\.",
+          "// Compliant",
+          "\\{\\s*get;\\s*set;\\s*\\}",
+          "Tuple\\<",
+          "\\(.*,.*\\)",
+          "\\<.*,.*\\>"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], [TestMethod])",
+      "Logging statements (Console.*, Debug.*, Logger.*)",
+      "String formatting expressions",
+      "Property declarations with getters/setters",
+      "Methods with 'Compliant' comments",
+      "Assert statements in tests",
+      "Control flow statements (for, foreach, using, catch)",
+      "Generic type parameters",
+      "Tuple declarations",
+      "Method parameters",
+      "Delegate/event declarations",
+      "Record/class/interface/struct/enum declarations",
+      "ref/out parameters"
+    ],
+    "reasoning": "Detects multiple variables declared on the same line by matching patterns for variable declarations with commas. Targets VariableDeclaration, FieldDeclaration, and MethodDeclaration nodes to catch various contexts where multiple variables might be declared. Uses regex patterns to identify type followed by multiple variable names separated by commas, while excluding legitimate comma usage in generics, method parameters, tuples, and control flow statements. The rule improves code readability by enforcing one variable per line.",
+    "validation_examples": {
+      "should_trigger": [
+        "int x, y, z;",
+        "string name, address;",
+        "private bool isValid, isComplete;",
+        "public int count, total;",
+        "var first, second = GetValues();"
+      ],
+      "should_not_trigger": [
+        "int x; int y; int z;",
+        "string name;",
+        "private bool isValid;",
+        "public int count;",
+        "for (int i = 0, j = 0; i < 10; i++)",
+        "Tuple<int, string> tuple;",
+        "KeyValuePair<string, int> pair;",
+        "public void Method(int x, int y)",
+        "Action<int, string> action;",
+        "[Test] public void TestMethod() { int x, y; }"
+      ]
+    }
+  }
+}

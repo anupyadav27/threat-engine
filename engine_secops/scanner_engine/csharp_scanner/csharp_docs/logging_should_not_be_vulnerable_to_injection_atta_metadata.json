@@ -1,0 +1,81 @@
+{
+  "filename": "logging_should_not_be_vulnerable_to_injection_atta_metadata.json",
+  "rule_id": "logging_vulnerable_injection_attacks",
+  "title": "Logging should not be vulnerable to injection attacks",
+  "description": "Log injection occurs when an application fails to sanitize untrusted data used for logging. An attacker can forge log content to prevent an organization from being able to trace back malicious activities. What is the potential impact? If an attacker can insert arbitrary data into a log file, the integrity of the chain of events being recorded can be compromised.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void LogUserInput(string userInput)\n{\n    logger.LogInformation(userInput); // Noncompliant: user input logged directly\n}"
+    ],
+    "compliant": [
+      "public void LogUserInput(string userInput)\n{\n    logger.LogInformation(\"User input received: {Input}\", userInput); // Compliant: using structured logging\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5145"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(Log(Information|Warning|Error|Debug|Trace|Critical)|WriteLine)\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\)",
+        "exclude_patterns": [
+          "\\(\\\"",
+          "\\$\\\"",
+          "\\{[^}]+\\}.*,"
+        ],
+        "context_exclude_patterns": [
+          "\\[Fact\\]",
+          "\\[Test\\]",
+          "\\[Theory\\]"
+        ],
+        "context_lines_to_check": 5,
+        "source_exclude_patterns": [
+          "override\\s+string\\s+ToString\\(",
+          "Assert\\."
+        ]
+      }
+    ],
+    "triggering_conditions": "Logging method call with single variable argument (no template or literal)",
+    "exclusion_conditions": [
+      "Structured logging with templates",
+      "String literals",
+      "String interpolation",
+      "Test methods",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "String literals in logging (e.g., LogInformation(\"Message\"))",
+      "Structured logging with templates (e.g., LogInformation(\"Message {Param}\", value))",
+      "String formatting with $\"\" or string.Format",
+      "Unit tests with [Test] or Assert",
+      "ToString method implementations",
+      "Comments"
+    ],
+    "reasoning": "Detects logging calls where user input or variables are passed directly as the only argument without using structured logging templates. This prevents log injection attacks where malicious users can forge log entries. The pattern matches logging methods followed by a single variable name in parentheses, excluding cases with string literals (quotes), templates (curly braces with comma), string interpolation ($), test code, and comments.",
+    "validation_examples": {
+      "should_trigger": [
+        "logger.LogInformation(userInput);",
+        "logger.LogWarning(errorMessage);",
+        "Console.WriteLine(userName);"
+      ],
+      "should_not_trigger": [
+        "logger.LogInformation(\"User input received: {Input}\", userInput);",
+        "logger.LogInformation(\"Constant message\");",
+        "Console.WriteLine($\"User: {userName}\");"
+      ]
+    }
+  }
+}

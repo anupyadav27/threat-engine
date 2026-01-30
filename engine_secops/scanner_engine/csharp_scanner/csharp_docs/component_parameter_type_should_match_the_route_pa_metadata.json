@@ -1,0 +1,53 @@
+{
+  "filename": "component_parameter_type_should_match_the_route_pa_metadata.json",
+  "rule_id": "component_parameter_type_match",
+  "title": "Component parameter type should match the route parameter type constraint",
+  "description": "Component parameter type should match the route parameter type constraintAnalyze your codeintentionality-logicalreliabilityBugblazorWhy is this an issue?How can I fix it?More InfoIn Blazor, when aroute parameter constraintis applied, the value is automatically cast to the corresponding component parameter type. If the constraint type does not match the component parameter type, it can lead to confusion and potential runtime errors due to unsuccessful casting. Therefore, it is crucial to ensure that the types of route parameters and component parameters match to prevent such issues and maintain code clarity.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "@page \"/product/{id:int}\"\n\n@code {\n    [Parameter]\n    public string Id { get; set; } // Noncompliant: type should be int\n}"
+    ],
+    "compliant": [
+      "@page \"/product/{id:int}\"\n\n@code {\n    [Parameter]\n    public int Id { get; set; } // Compliant: type matches route constraint\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6800"
+  ],
+  "logic": {
+    "node_types": ["PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_blazor_route_parameter_type_mismatch"
+      }
+    ],
+    "never_trigger_on": [
+      "Routes without type constraints",
+      "Non-Blazor components",
+      "Properties without [Parameter] attribute"
+    ],
+    "reasoning": "Detects Blazor component parameter type mismatches where @page route constraint type doesn't match the [Parameter] property type. Example: @page '/product/{id:int}' requires int property, but string Id property would fail casting. Maps route constraints (:int, :long, :bool, etc.) to C# types and verifies [Parameter] properties match. Blazor-specific rule for preventing runtime casting errors.",
+    "validation_examples": {
+      "should_trigger": [
+        "@page \\\"/product/{id:int}\\\" ... [Parameter] public string Id",
+        "@page \\\"/order/{orderId:long}\\\" ... [Parameter] public int OrderId"
+      ],
+      "should_not_trigger": [
+        "@page \\\"/product/{id:int}\\\" ... [Parameter] public int Id",
+        "@page \\\"/product/{id}\\\" ... [Parameter] public string Id",
+        "@page \\\"/user/{userId:guid}\\\" ... [Parameter] public Guid UserId"
+      ]
+    }
+  }
+}

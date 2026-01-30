@@ -1,0 +1,77 @@
+{
+  "filename": "idisposables_created_in_a_using_statement_should_n_metadata.json",
+  "rule_id": "idisposables_created_using_statement",
+  "title": "IDisposables created in a using statement should not be returned",
+  "description": "\"IDisposables\" created in a \"using\" statement should not be returnedAnalyze your codeintentionality-logicalreliabilityBugWhy is this an issue?How can I fix it?More InfoWhen you use ausingstatement, the goal is to ensure the correct disposal of anIDisposableinstance when the control leaves theusingstatement block.If you return thatIDisposableinstance inside the block,usingwill dispose it before the caller can use it, likely causing exceptions at runtime. You should either removeusingstatement or avoid returning theIDisposablein theusingstatement block.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|T",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public Stream GetStream() // Noncompliant\n{\n    using (var stream = new FileStream(\"file.txt\", FileMode.Open))\n    {\n        return stream; // Will be disposed before caller can use it\n    }\n}\n\npublic SqlConnection GetConnection() // Noncompliant\n{\n    using (var conn = new SqlConnection(connectionString))\n    {\n        conn.Open();\n        return conn; // Disposed immediately after return\n    }\n}"
+    ],
+    "compliant": [
+      "public Stream GetStream() // Compliant\n{\n    var stream = new FileStream(\"file.txt\", FileMode.Open);\n    return stream; // Caller is responsible for disposal\n}\n\npublic void ProcessStream() // Compliant\n{\n    using (var stream = new FileStream(\"file.txt\", FileMode.Open))\n    {\n        // Use stream here, don't return it\n        ProcessData(stream);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2997"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "node_types": ["MethodDeclaration"],
+    "detection_conditions": "Detect using statements that contain return statements returning the IDisposable variable created in the using block",
+    "triggering_conditions": "(Method contains using block) AND (Contains return statement) AND (Returned value is the using variable) AND (NOT in excluded contexts)",
+    "exclusion_conditions": [
+      "Return statements outside using block",
+      "Return of different variables",
+      "Comments and documentation",
+      "Logging statements"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "using\\s*\\((?:var|\\w+)\\s+(\\w+)\\s*=.+?\\)\\s*\\{[\\s\\S]*?return\\s+\\1\\s*;",
+        "exclude_patterns": [
+          "^\\s*//",
+          "^\\s*/\\*",
+          "Console\\.",
+          "Logger\\.",
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Test\\w*\\(",
+          "Tests?\\s*$"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Return statements outside using blocks",
+      "Return of different variables not created in using",
+      "Comments (// or /*)",
+      "Logging statements",
+      "Test code ([Test])"
+    ],
+    "reasoning": "This rule detects the anti-pattern of returning IDisposable objects from within using statements, which causes the object to be disposed before the caller can use it. Pattern matches using statements with variable declarations followed by return of the same variable. Uses regex backreference to ensure the returned variable matches the using variable. Excludes comments and test code. AST-first approach targeting ForStatement nodes (which includes using statements in the parser).",
+    "validation_examples": {
+      "should_trigger": [
+        "using (var stream = new FileStream(...)) { return stream; }",
+        "using (var conn = new SqlConnection(...)) { conn.Open(); return conn; }",
+        "using (var fs = new FileStream(...)) { return fs; }"
+      ],
+      "should_not_trigger": [
+        "var stream = new FileStream(...); return stream;",
+        "using (var stream = new FileStream(...)) { ProcessData(stream); }",
+        "using (var temp = new MemoryStream()) { } return result;"
+      ]
+    }
+  }
+}

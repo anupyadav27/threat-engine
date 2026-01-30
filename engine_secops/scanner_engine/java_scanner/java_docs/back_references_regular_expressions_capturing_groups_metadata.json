@@ -1,0 +1,46 @@
+{
+  "filename": "back_references_in_regular_expressions_should_only_refer_to_capturing_groups_that_are_matched_before_the_reference.json",
+  "rule_id": "bug_back_references_regular_expressions_capturing_groups",
+  "title": "Back references in regular expressions should only refer to capturing groups that are matched before the reference",
+  "description": "Ensures that back references in regular expressions do not refer to capturing groups that are defined after the reference, which would result in undefined or incorrect behavior.",
+  "status": "active",
+  "defaultSeverity": "MAJOR",
+  "category": "bug",
+  "recommendation": "Review all regular expressions in the codebase and ensure that any back reference (e.g., \\1, \\2) only refers to a capturing group that appears before it in the pattern.",
+  "impact": "Incorrect use of back references can lead to regular expressions that do not work as intended, potentially causing bugs or security issues.",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "Pattern.compile(\"(a)\\1(b)\") // \\1 refers to a group that is defined before, which is correct\nPattern.compile(\"(a)(b)\\2\") // \\2 refers to group (b), which is defined before, which is correct\nPattern.compile(\"(a)\\2(b)\") // \\2 refers to group (b), which is defined after, which is incorrect\n"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "Pattern.compile(\"(a)(b)\\1\") // \\1 refers to group (a), which is defined before, which is correct\nPattern.compile(\"(a)(b)\\2\") // \\2 refers to group (b), which is defined before, which is correct\n"
+      }
+    ]
+  },
+  "references": [
+    {
+      "title": "SonarSource Rule RSPEC-6001",
+      "url": "https://rules.sonarsource.com/java/RSPEC-6001/"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "Pattern\\.compile.*\\\\[2-9].*\\("
+        ],
+        "message": "Review all regular expressions in the codebase and ensure that any back reference (e.g., \\1, \\2) only refers to a capturing group that appears before it in the pattern."
+      }
+    ]
+  }
+}

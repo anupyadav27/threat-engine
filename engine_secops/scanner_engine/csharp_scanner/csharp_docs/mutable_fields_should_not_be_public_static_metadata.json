@@ -1,0 +1,123 @@
+{
+  "filename": "mutable_fields_should_not_be_public_static_metadata.json",
+  "rule_id": "mutable_fields_public_static",
+  "title": "Mutable fields should not be public static",
+  "description": "Mutable fields should not be \"public static\"Analyze your codeconsistency-conventionalmaintainabilityCode SmellcweunpredictableWhy is this an issue?More Infopublic staticmutable fields of classes which are accessed directly should be protected to the degree possible. This can be done by reducing the accessibility of the field or by changing the return type to an immutable type.This rule raises issues forpublic staticfields with a type inheriting/implementingSystem.ArrayorSystem.Collections.Generic.ICollection<T>.Noncompliant code examplepublic class A { public static string[] strings1 = {\"first\",\"second\"}; // Noncompliant public static List<String> strings3 = new List<String>(); // Noncompliant }Compliant solutionpublic class A { protected static string[] strings1 = {\"first\",\"second\"}; prot",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Configuration\n{\n    public static List<string> AllowedHosts; // Noncompliant: Mutable public static field\n    public static Dictionary<string, object> Settings; // Noncompliant\n    public static int[] Values = new int[10]; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public class Configuration\n{\n    private static List<string> _allowedHosts = new List<string>();\n    private static Dictionary<string, object> _settings = new Dictionary<string, object>();\n    private static readonly int[] _values = new int[10];\n    \n    public static IReadOnlyList<string> AllowedHosts => _allowedHosts; // Compliant\n    public static IReadOnlyDictionary<string, object> Settings => _settings; // Compliant\n    public static IReadOnlyList<int> Values => _values; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2386"
+  ],
+  "logic": {
+    "node_types": ["Expression", "PropertyDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bpublic\\s+static\\s+(?!readonly\\s+).*\\b(List<|Dictionary<|Array\\b|\\[\\]|IList<|ICollection<|Collection<|Queue<|Stack<|HashSet<|SortedList<|SortedDictionary<|LinkedList<|ObservableCollection<)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "// Compliant",
+          "readonly\\s+",
+          "const\\s+",
+          "IReadOnly",
+          "\\{\\s*get;\\s*\\}",
+          "=>.*new\\s+ReadOnly",
+          "AsReadOnly\\(\\)",
+          "ToArray\\(\\)",
+          "string\\s*\\[\\]",
+          "int\\s*\\[\\]",
+          "bool\\s*\\[\\]",
+          "double\\s*\\[\\]",
+          "float\\s*\\[\\]",
+          "decimal\\s*\\[\\]",
+          "char\\s*\\[\\]",
+          "byte\\s*\\[\\]"
+        ]
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "pattern": "\\bpublic\\s+static\\s+(?!readonly\\s+)\\w+\\s*\\[\\s*\\]\\s+\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\.",
+          "// Compliant",
+          "readonly\\s+",
+          "const\\s+",
+          "string\\s*\\[\\]",
+          "int\\s*\\[\\]",
+          "bool\\s*\\[\\]",
+          "double\\s*\\[\\]",
+          "float\\s*\\[\\]",
+          "decimal\\s*\\[\\]",
+          "char\\s*\\[\\]",
+          "byte\\s*\\[\\]"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], [TestMethod])",
+      "Logging statements (Console.*, Debug.*, Logger.*)",
+      "String formatting expressions",
+      "readonly fields",
+      "const fields", 
+      "Properties with only getters",
+      "Methods with 'Compliant' comments",
+      "Assert statements in tests",
+      "IReadOnly collections",
+      "Properties returning readonly collections",
+      "AsReadOnly() method calls",
+      "Primitive type arrays (string[], int[], etc.)",
+      "Properties with => syntax returning readonly types"
+    ],
+    "reasoning": "Detects public static fields with mutable collection types (List, Dictionary, Array, IList, ICollection, etc.) that are not marked as readonly. Targets Expression nodes where C# field declarations appear, PropertyDeclaration nodes for properties, and ClassDeclaration nodes for context. Uses regex patterns to identify public static modifiers followed by mutable collection types, while excluding readonly fields, const fields, primitive arrays, IReadOnly collections, and properties that return readonly versions. The rule improves security and maintainability by preventing external modification of static collection fields.",
+    "validation_examples": {
+      "should_trigger": [
+        "public static List<string> AllowedHosts;",
+        "public static Dictionary<string, object> Settings;", 
+        "public static int[] Values = new int[10];",
+        "public static Collection<string> Items;",
+        "public static Queue<int> ProcessingQueue;",
+        "public static ObservableCollection<string> Data;"
+      ],
+      "should_not_trigger": [
+        "public static readonly List<string> AllowedHosts;",
+        "private static List<string> _allowedHosts;",
+        "public static IReadOnlyList<string> AllowedHosts { get; }",
+        "public static IReadOnlyDictionary<string, object> Settings { get; }",
+        "public const string[] ConstValues = {\"a\", \"b\"};",
+        "public static string[] PrimitiveArray;", 
+        "public static int SingleValue;",
+        "[Test] public static List<string> TestData;",
+        "public static IReadOnlyCollection<string> ReadOnlyItems;"
+      ]
+    }
+  }
+}

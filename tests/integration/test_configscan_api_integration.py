@@ -75,7 +75,7 @@ def test_scan_id_propagation_through_system():
 
 def test_storage_path_consistency():
     """Test storage paths are consistent across engines"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     

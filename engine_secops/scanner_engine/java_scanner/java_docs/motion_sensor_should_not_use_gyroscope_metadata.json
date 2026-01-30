@@ -1,0 +1,48 @@
+{
+  "filename": "motion_sensor_should_not_use_gyroscope_metadata.json",
+  "rule_id": "android_motion_sensor_should_not_use_gyroscope",
+  "title": "Motion Sensor should not use gyroscope",
+  "description": "Using the gyroscope in motion sensor implementations can lead to increased battery consumption and may not be necessary for most use cases. Prefer using accelerometer and other low-power sensors unless gyroscope data is strictly required.",
+  "status": "active",
+  "defaultSeverity": "Major",
+  "category": "sustainability",
+  "recommendation": "Review motion sensor implementations and remove unnecessary use of the gyroscope to optimize battery usage.",
+  "impact": "Increased battery drain and reduced device efficiency.",
+  "examples": {
+    "noncompliant": [
+      "SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);\nSensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);\n// Using gyroscope unnecessarily\n",
+      "// ... code using gyroscope for simple motion detection ..."
+    ],
+    "compliant": [
+      "SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);\nSensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);\n// Using accelerometer for motion detection\n",
+      "// ... code using only necessary sensors ..."
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6923",
+    "https://rules.sonarsource.com/java/tag/android/RSPEC-6923",
+    "https://rules.sonarsource.com/java/tag/sustainability/RSPEC-6923"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "TYPE_GYROSCOPE",
+          "TYPE_GYROSCOPE_UNCALIBRATED", 
+          "GYROSCOPE",
+          "getDefaultSensor\\(.*GYRO.*\\)",
+          "registerListener\\(.*gyro.*,",
+          "Sensor.*gyro.*="
+        ],
+        "message": "Review motion sensor implementations and remove unnecessary use of the gyroscope to optimize battery usage."
+      }
+    ]
+  }
+}

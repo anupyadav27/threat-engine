@@ -1,0 +1,53 @@
+{
+  "filename": "objects_should_not_be_disposed_more_than_once_metadata.json",
+  "rule_id": "objects_disposed_more_than",
+  "title": "Objects should not be disposed more than once",
+  "description": "Objects should not be disposed more than onceAnalyze your codeintentionality-clearmaintainabilityCode Smellconfusingpitfallsymbolic-executionWhy is this an issue?How can I fix it?More InfoDisposing an object twice in the same method, either with theusingkeyword or by callingDisposedirectly, is confusing and error-prone. For example, another developer might try to use an already-disposed object, or there can be runtime errors for specific paths in the code.In addition, even if thedocumentationexplicitly states that calling theDisposemethod multiple times should not throw an exception, some implementations still do it. Thus it is safer to not dispose of an object twice when possible.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using (var stream = new FileStream(\"file.txt\", FileMode.Open))\n{\n    // Use stream\n    stream.Dispose(); // Noncompliant: disposed twice (using will also dispose)\n}\n\nvar resource = new MyResource();\nresource.Dispose();\nresource.Dispose(); // Noncompliant: disposed twice"
+    ],
+    "compliant": [
+      "using (var stream = new FileStream(\"file.txt\", FileMode.Open))\n{\n    // Use stream - will be disposed automatically\n}\n\nvar resource = new MyResource();\nresource.Dispose();\nresource = null; // Clear reference to avoid accidental reuse"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3966"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.Dispose\\(\\)",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "\\[Fact\\]"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Test methods ([Test], [Fact])"
+    ],
+    "reasoning": "Simplified test to detect any Dispose() calls in methods, excluding test methods",
+    "validation_examples": {
+      "should_trigger": [
+        "resource.Dispose();"
+      ],
+      "should_not_trigger": [
+        "[Test] methods"
+      ]
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "filename": "server_side_requests_should_not_be_vulnerable_to_f_metadata.json",
+  "rule_id": "serverside_requests_vulnerable_forging",
+  "title": "Server-side requests should not be vulnerable to forging attacks",
+  "description": "Server-Side Request Forgery (SSRF) occurs when attackers can coerce a server to perform arbitrary requests on their behalf. An SSRF vulnerability can either be basic or blind, depending on whether the server’s fetched data is directly returned in the web application’s response. The absence of the corresponding response for the coerced request on the application is not a barrier to exploitation and thus must be treated in the same way as basic SSRF.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Directly using user input in HTTP requests\n[HttpGet(\"fetch\")]\npublic async Task<string> FetchContent(string url)\n{\n    using var client = new HttpClient();\n    return await client.GetStringAsync(url); // Vulnerable to SSRF\n}",
+      "// File:// protocol access\npublic async Task<string> GetLocalFile(string path)\n{\n    var client = new HttpClient();\n    return await client.GetStringAsync($\"file://{path}\");\n}",
+      "// Internal network access\npublic async Task<string> ProxyRequest(string endpoint)\n{\n    var url = $\"http://internal-api/{endpoint}\";\n    return await new HttpClient().GetStringAsync(url);\n}"
+    ],
+    "compliant": [
+      "// URL validation and allowlisting\n[HttpGet(\"fetch\")]\npublic async Task<string> FetchContent(string url)\n{\n    var allowedDomains = new[] { \"api.example.com\", \"trusted-service.com\" };\n    var uri = new Uri(url);\n    \n    if (!allowedDomains.Contains(uri.Host.ToLower()) || \n        uri.Scheme != \"https\")\n    {\n        throw new ArgumentException(\"Invalid URL\");\n    }\n    \n    using var client = new HttpClient();\n    return await client.GetStringAsync(url);\n}",
+      "// Predefined endpoint mapping\npublic async Task<string> GetAllowedResource(string resourceId)\n{\n    var allowedUrls = new Dictionary<string, string>\n    {\n        [\"user-data\"] = \"https://api.example.com/users\",\n        [\"product-info\"] = \"https://catalog.example.com/products\"\n    };\n    \n    if (!allowedUrls.TryGetValue(resourceId, out var url))\n    {\n        throw new ArgumentException(\"Resource not found\");\n    }\n    \n    using var client = new HttpClient();\n    return await client.GetStringAsync(url);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5144"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_ssrf_vulnerability"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "detection_conditions": "HTTP client call with user-controlled URL without validation",
+    "triggering_conditions": {
+      "logic": "AND",
+      "conditions": [
+        "HTTP client method call (GetAsync, GetStringAsync, PostAsync, SendAsync)",
+        "URL parameter is user input (method parameter or variable named url/uri/path/endpoint)",
+        "No URL validation visible in preceding code (allowlist, Uri validation, domain check)"
+      ]
+    },
+    "exclusion_conditions": [
+      "Hard-coded URLs without user input",
+      "URLs with allowlist validation",
+      "URLs validated with Uri class",
+      "URLs with domain/scheme checking",
+      "Comments and test code",
+      "Logging statements"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /*/, ///)",
+      "Hard-coded URLs (no user input)",
+      "Allowlist-validated URLs (allowedDomains.Contains)",
+      "Uri class validation (new Uri())",
+      "Domain/scheme validation (uri.Host, uri.Scheme)",
+      "Dictionary lookup patterns (TryGetValue)"
+    ],
+    "reasoning": "SSRF allows attackers to make server perform requests to arbitrary URLs, accessing internal resources or exfiltrating data. User input in HTTP client calls without validation is dangerous. Uses custom function to track method parameters and identify unvalidated URL usage in HTTP calls.",
+    "validation_examples": {
+      "should_trigger": [
+        "public async Task<string> Fetch(string url) {\n    return await client.GetStringAsync(url);\n}",
+        "var response = await httpClient.GetAsync($\"http://api/{userPath}\");"
+      ],
+      "should_not_trigger": [
+        "if (!allowedDomains.Contains(uri.Host)) throw new Exception();\nawait client.GetStringAsync(url);",
+        "var url = \"https://api.example.com/status\";\nawait client.GetAsync(url);",
+        "Console.WriteLine($\"Fetching {url}\");"
+      ]
+    }
+  }
+}

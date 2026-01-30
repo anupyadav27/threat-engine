@@ -1,0 +1,88 @@
+{
+  "filename": "indexof_checks_should_not_be_for_positive_numbers_metadata.json",
+  "rule_id": "indexof_checks_positive_numbers",
+  "title": "IndexOf checks should not be for positive numbers",
+  "description": "Most checks against an IndexOf value compare it with -1 because 0 is a valid index. strings.IndexOf(someString) == -1 // Test for \"index not found\" strings.IndexOf(someString) < 0 // Test for \"index not found\" strings.IndexOf(someString) >= 0 // Test for \"index found\" Any checks which look for values > 0 ignore the first element, which is likely a bug. If the intent is merely to check the inclusion of a value in a string, List, or array, consider using the Contains method instead.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (str.IndexOf(\"a\") > 0) { } // Noncompliant: ignores index 0",
+      "if (list.IndexOf(item) > 0) { } // Noncompliant: ignores first element"
+    ],
+    "compliant": [
+      "if (str.IndexOf(\"a\") == -1) { } // OK: checking for not found",
+      "if (str.IndexOf(\"a\") >= 0) { } // OK: checking for found",
+      "if (str.IndexOf(\"a\") < 0) { } // OK: checking for not found",
+      "if (str.Contains(\"a\")) { } // OK: using Contains for inclusion check"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2692"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "MethodDeclaration", "CallExpression"],
+    "detection_conditions": "Detects IndexOf() method calls compared with > 0 which incorrectly ignores index 0",
+    "triggering_conditions": "IndexOf() call compared with > 0 (not >= 0, == -1, or < 0)",
+    "exclusion_conditions": [
+      "Correct IndexOf checks (>= 0, == -1, < 0)",
+      "Contains() method usage",
+      "Logging statements",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Contains() method calls",
+      "Correct IndexOf comparisons (>= 0, == -1, < 0)"
+    ],
+    "reasoning": "This rule detects buggy IndexOf comparisons using > 0 which ignores index 0 (first element). Pattern matches 'IndexOf(...) > 0'. Excludes correct patterns: >= 0 (found), == -1 (not found), < 0 (not found), and Contains() usage. AST-based approach examines Assignment and MethodDeclaration nodes for IndexOf comparisons.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (str.IndexOf(\"a\") > 0) { }",
+        "if (list.IndexOf(item) > 0) { }",
+        "bool found = str.IndexOf(\"x\") > 0;"
+      ],
+      "should_not_trigger": [
+        "if (str.IndexOf(\"a\") == -1) { }",
+        "if (str.IndexOf(\"a\") >= 0) { }",
+        "if (str.IndexOf(\"a\") < 0) { }",
+        "if (str.Contains(\"a\")) { }"
+      ]
+    },
+    "node_types": ["Assignment", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(Last)?IndexOf\\([^)]+\\)\\s*>\\s*0",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          ">=\\s*0",
+          "==\\s*-1",
+          "<\\s*0",
+          "\\.Contains\\(",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "rule_id": "authorizing_http_communications_with_s3_buckets_is_security_sensitive",
+  "title": "Authorizing HTTP communications with S3 buckets is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "CRITICAL",
+  "description": "Allowing HTTP (unencrypted) access to S3 buckets exposes data in transit to interception, eavesdropping, and tampering by attackers. All communications with S3 buckets should use HTTPS to ensure confidentiality and integrity of data transfers.",
+  "message": "HTTP access to S3 bucket detected. Use HTTPS for all communications.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "10min"
+  },
+  "tags": [
+    "aws",
+    "cwe",
+    "encryption",
+    "network"
+  ],
+  "impact": "HTTP access allows attackers to intercept and modify data sent to or from S3 buckets, leading to data breaches and loss of integrity.",
+  "recommendation": "Update all S3 bucket policies, endpoints, and client configurations to use HTTPS exclusively. Block HTTP access at the network and application level.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6249/",
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/serving-https-content.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"aws_s3_bucket_policy\" \"bad_example\" {\n  bucket = aws_s3_bucket.example.id\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Allow\",\n      \"Principal\": \"*\",\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\",\n      \"Condition\": {\n        \"Bool\": {\n          \"aws:SecureTransport\": \"false\"\n        }\n      }\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy explicitly allows HTTP (non-secure) access to S3 bucket."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"aws_s3_bucket_policy\" \"good_example\" {\n  bucket = aws_s3_bucket.example.id\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Deny\",\n      \"Principal\": \"*\",\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\",\n      \"Condition\": {\n        \"Bool\": {\n          \"aws:SecureTransport\": \"false\"\n        }\n      }\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy denies HTTP access and enforces HTTPS for all S3 bucket communications."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Encryption & Secure Communication",
+    "security": "Ensures data in transit to S3 buckets is protected from interception and tampering.",
+    "automation": "CI/CD pipelines should scan for and block HTTP access to S3 buckets.",
+    "compliance": "Meets regulatory requirements for secure data transmission (e.g., PCI DSS, HIPAA, GDPR)."
+  },
+  "why_is_this_an_issue": "HTTP is an unencrypted protocol. Allowing HTTP access to S3 buckets exposes sensitive data to attackers and may violate compliance requirements.",
+  "how_to_fix": "Audit all S3 bucket policies and client configurations. Remove any rules that allow HTTP access and enforce HTTPS-only communication.",
+  "security_mappings": {
+    "CWE": "CWE-319: Cleartext Transmission of Sensitive Information",
+    "CERT": "MSC61-J: Do not use insecure or weak cryptographic algorithms",
+    "OWASP": "A2: Cryptographic Failures"
+  },
+  "logic": {
+    "resource_type": "aws_s3_bucket_policy",
+    "property_path": ["policy", "Statement", "Condition", "Bool", "aws:SecureTransport"],
+    "check_type": "equals",
+    "forbidden_values": [false],
+    "required_values": [true],
+    "custom_function": ""
+  }
+}

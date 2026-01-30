@@ -1,0 +1,69 @@
+{
+  "filename": "non_derived_private_classes_and_records_should_be__metadata.json",
+  "rule_id": "nonderived_private_classes_records",
+  "title": "Non-derived private classes and records should be sealed",
+  "description": "Non-derived \"private\" classes and records should be \"sealed\"Analyze your codeintentionality-efficientmaintainabilityCode SmellperformanceWhy is this an issue?How can I fix it?More InfoClasses and records with eitherprivateorfileaccess modifiers aren’t visible outside of their assemblies or files, so if they’re not extended inside their scope, they should be made explicitly non-extensible with the addition of thesealedkeyword.What is the potential impact?We measured at least 4x improvement in execution time. For more details see theBenchmarkssection from theMore infotab.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Pol",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Container\n{\n    private class InternalHelper  // Noncompliant - should be sealed\n    {\n        public void DoWork() { }\n    }\n}\n\nfile class FileHelper  // Noncompliant - should be sealed\n{\n    public void Process() { }\n}"
+    ],
+    "compliant": [
+      "public class Container\n{\n    private sealed class InternalHelper  // Compliant\n    {\n        public void DoWork() { }\n    }\n}\n\nfile sealed class FileHelper  // Compliant\n{\n    public void Process() { }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3260"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "^\\s*(?:private|file)\\s+(?:class|record)\\s+\\w+(?![^\\n]*(?:sealed|abstract|:))",
+        "exclude_patterns": []
+      }
+    ],
+    "triggering_conditions": "CompilationUnit nodes containing private or file class/record declarations that are not sealed",
+    "exclusion_conditions": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], Assert.*)",
+      "ToString() implementations"
+    ],
+    "never_trigger_on": [
+      "Public classes (visibility outside assembly)",
+      "Internal classes (may be extended elsewhere)",
+      "Protected classes",
+      "Classes already marked as sealed",
+      "Abstract classes",
+      "Classes with base classes or interfaces",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], Assert.*)",
+      "ToString() implementations",
+      "Generated code"
+    ],
+    "reasoning": "Detects private or file-scoped classes and records that should be sealed for performance optimization. Uses '^\\s*' anchor to match declarations at the start of lines, avoiding matches in comments or strings. Targets CompilationUnit to access full source while using minimal exclude patterns to avoid false exclusions.",
+    "validation_examples": {
+      "should_trigger": [
+        "    private class InternalHelper { }",
+        "file class FileHelper { }",
+        "    private record InternalData { }"
+      ],
+      "should_not_trigger": [
+        "Console.WriteLine(\"private class example\")",
+        "// private class comment",
+        "private sealed class Helper { }"
+      ]
+    }
+  }
+}

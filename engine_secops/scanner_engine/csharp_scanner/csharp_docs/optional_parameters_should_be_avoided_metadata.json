@@ -1,0 +1,68 @@
+{
+  "filename": "optional_parameters_should_be_avoided_metadata.json",
+  "rule_id": "optional_parameters_avoided",
+  "title": "Optional parameters should be avoided",
+  "description": "The overloading mechanism should be used in place of optional parameters for several reasons: Optional parameter values are baked into the method call site code, thus, if a default value has been changed, all referencing assemblies need to be rebuilt, otherwise the original values will be used. The Common Language Specification (CLS) allows compilers to ignore default parameter values, and thus require the caller to explicitly specify the values. For example, if you want to consume a method with default argument from another .NET compatible language (for instance C++/CLI), you will have to provide all arguments.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void Notify(string company, string office = \"QJZ\") // Noncompliant\n{\n}"
+    ],
+    "compliant": [
+      "void Notify(string company)\n{\n  Notify(company, \"QJZ\");\n}\nvoid Notify(string company, string office)\n{\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2360"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*=\\s*[^,)]+[,)]",
+        "message": "Method has optional parameters - consider using method overloads instead",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\."
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Uses regex to detect parameter assignments (optional parameters) in method declarations",
+    "triggering_conditions": "Method declarations with parameters that have default values (pattern: param = value)",
+    "exclusion_conditions": "Excludes test methods and logging contexts",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Generated code",
+      "Third-party library interfaces"
+    ],
+    "reasoning": "Detects optional parameters in method declarations by looking for parameter assignment patterns (param = value). Optional parameters should be replaced with method overloads for better CLS compliance and versioning behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "void Notify(string company, string office = \"QJZ\")",
+        "public void Configure(string name, bool enabled = true, int timeout = 30)",
+        "public MyClass(string name = \"default\")"
+      ],
+      "should_not_trigger": [
+        "void Notify(string company)",
+        "void Process(string input, bool validate)",
+        "[Test] public void TestMethod(string input = \"test\")"
+      ]
+    }
+  }
+}

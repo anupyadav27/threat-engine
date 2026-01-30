@@ -1,0 +1,65 @@
+{
+  "filename": "methods_and_properties_should_not_be_too_complex_metadata.json",
+  "rule_id": "methods_properties_too_complex",
+  "title": "Methods and properties should not be too complex",
+  "description": "Methods and properties should not be too complexAnalyze your codeadaptability-focusedmaintainabilityCode Smellarchitecturebrain-overloadWhy is this an issue?The cyclomatic complexity of methods and properties should not exceed a defined threshold. Complex code can perform poorly and will in any case be difficult to understand and therefore to maintain.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public string ProcessUserInput(string input, bool isAdmin, UserType userType, int accessLevel) // Noncompliant: high cyclomatic complexity\n{\n    if (input == null)\n        return \"Invalid input\";\n    \n    if (isAdmin)\n    {\n        if (userType == UserType.SuperAdmin)\n        {\n            if (accessLevel > 5)\n                return \"Super admin access\";\n            else if (accessLevel > 3)\n                return \"Limited admin access\";\n            else\n                return \"Basic admin access\";\n        }\n        else if (userType == UserType.Admin)\n        {\n            if (accessLevel > 3)\n                return \"Admin access\";\n            else\n                return \"Limited admin access\";\n        }\n    }\n    else\n    {\n        if (userType == UserType.Premium)\n        {\n            if (accessLevel > 2)\n                return \"Premium user access\";\n            else\n                return \"Basic premium access\";\n        }\n        else\n            return \"Regular user access\";\n    }\n    return \"Default access\";\n}"
+    ],
+    "compliant": [
+      "public string ProcessUserInput(string input, bool isAdmin, UserType userType, int accessLevel) // Compliant: simplified logic\n{\n    if (input == null)\n        return \"Invalid input\";\n    \n    return isAdmin ? ProcessAdminUser(userType, accessLevel) : ProcessRegularUser(userType, accessLevel);\n}\n\nprivate string ProcessAdminUser(UserType userType, int accessLevel)\n{\n    return userType switch\n    {\n        UserType.SuperAdmin => GetSuperAdminAccess(accessLevel),\n        UserType.Admin => GetAdminAccess(accessLevel),\n        _ => \"Basic admin access\"\n    };\n}\n\nprivate string ProcessRegularUser(UserType userType, int accessLevel)\n{\n    return userType == UserType.Premium ? GetPremiumAccess(accessLevel) : \"Regular user access\";\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1541"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "calculate_cyclomatic_complexity",
+        "max_length": 10
+      }
+    ],
+    "never_trigger_on": [
+      "Test methods ([Test], [Fact], etc.)",
+      "Generated code",
+      "Main entry point methods",
+      "Constructor methods (often need initialization complexity)",
+      "Dispose methods (cleanup logic)",
+      "Override methods implementing complex interfaces",
+      "Event handlers (might need complex coordination)",
+      "Serialization methods",
+      "Property getters/setters (usually simple)"
+    ],
+    "reasoning": "This rule calculates cyclomatic complexity by counting decision points (if, else, while, for, switch cases, logical operators, etc.) in methods and properties. High complexity makes code hard to understand, test, and maintain. The rule uses a threshold of 10 complexity points, which is a commonly accepted limit. It excludes test methods, generated code, and other scenarios where higher complexity might be acceptable.",
+    "validation_examples": {
+      "should_trigger": [
+        "Methods with many nested if/else statements",
+        "Methods with complex switch statements and multiple cases",
+        "Methods with multiple loops and conditional logic",
+        "Methods combining many logical operators (&&, ||)",
+        "Methods with deep nesting of decision structures"
+      ],
+      "should_not_trigger": [
+        "Simple methods with 1-2 decision points",
+        "Methods refactored into smaller helper functions",
+        "Simple property getters/setters",
+        "[Test] methods with complex validation logic",
+        "Methods with linear flow and minimal branching"
+      ]
+    }
+  }
+}

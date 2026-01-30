@@ -1,0 +1,72 @@
+{
+  "filename": "two_branches_in_a_conditional_structure_should_avo_metadata.json",
+  "rule_id": "two_branches_conditional_structure",
+  "title": "Two branches in a conditional structure should avoid having exactly the same implementation",
+  "description": "Two branches in a conditional structure should not have exactly the same implementationAnalyze your codeadaptability-distinctmaintainabilityCode SmelldesignsuspiciousWhy is this an issue?More InfoWhen the same code is duplicated in two or more separate branches of a conditional, it can make the code harder to understand, maintain, and can potentially introduce bugs if one instance of the code is changed but others are not.Having twocasesin aswitchstatement or two branches in anifchain with the same implementation is at best duplicate code, and at worst a coding error.if (a >= 0 && a < 10) { DoFirst(); DoTheThing(); } else if (a >= 10 && a < 20) { DoTheOtherThing(); } else if (a >= 20 && a < 50) // Noncompliant; duplicates first condition { DoFirst(); DoTheThing(); }switch (i) { case 1: DoF",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessValue(int value)\n{\n    if (value == 0)\n    {\n        DoSomething();\n        LogResult();\n    }\n    else if (value == 1)\n    {\n        DoSomethingElse();\n    }\n    else if (value == 2)  // Noncompliant: same implementation as value == 0\n    {\n        DoSomething();\n        LogResult();\n    }\n}"
+    ],
+    "compliant": [
+      "public void ProcessValue(int value)\n{\n    if (value == 0 || value == 2)  // Compliant: conditions merged\n    {\n        DoSomething();\n        LogResult();\n    }\n    else if (value == 1)\n    {\n        DoSomethingElse();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1871"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_duplicate_conditional_branches"
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration"],
+    "detection_conditions": "Custom function analyzes if/else and switch branches for identical implementations",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Conditional structure found (if-else or switch)",
+        "Two or more branches have identical code blocks",
+        "Not excluded by comments or test contexts"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]",
+        "Assert\\."
+      ]
+    },
+    "never_trigger_on": [
+      "Empty branches with only comments",
+      "Single-statement return branches",
+      "Test classes with [Test] or [Fact] attributes",
+      "Comments describing the pattern"
+    ],
+    "reasoning": "Duplicate branches indicate copy-paste errors or missed refactoring opportunities. When two branches have identical implementations, they should be merged into a single branch with combined conditions to improve maintainability.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (a == 0) { DoSomething(); } else if (a == 2) { DoSomething(); }",
+        "switch (x) { case 1: Process(); break; case 3: Process(); break; }"
+      ],
+      "should_not_trigger": [
+        "if (a == 0 || a == 2) { DoSomething(); }",
+        "switch (x) { case 1: Init(); break; case 2: Process(); break; }",
+        "// Comment about duplicate branches"
+      ]
+    }
+  }
+}

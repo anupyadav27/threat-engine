@@ -1,0 +1,61 @@
+{
+  "filename": "value_types_should_implement_iequatablet_metadata.json",
+  "rule_id": "value_types_implement_iequatablet",
+  "title": "Value types should implement IEquatable<T>",
+  "description": "Value types should implement \"IEquatable<T>\"Analyze your codeintentionality-efficientmaintainabilityCode SmellperformanceWhy is this an issue?More InfoIf you’re using astruct, it is likely because you’re interested in performance. But by failing to implementIEquatable<T>you’re loosing performance when comparisons are made because withoutIEquatable<T>, boxing and reflection are used to make comparisons.Noncompliant code examplestruct MyStruct // Noncompliant { public int Value { get; set; } }Compliant solutionstruct MyStruct : IEquatable<MyStruct> { public int Value { get; set; } public bool Equals(MyStruct other) { // ... } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct Point // Noncompliant - does not implement IEquatable<Point>\n{\n    public int X { get; set; }\n    public int Y { get; set; }\n}",
+      "public struct Rectangle // Noncompliant - comparisons will use boxing\n{\n    public int Width { get; set; }\n    public int Height { get; set; }\n}"
+    ],
+    "compliant": [
+      "struct Point : IEquatable<Point> // Compliant\n{\n    public int X { get; set; }\n    public int Y { get; set; }\n\n    public bool Equals(Point other)\n    {\n        return X == other.X && Y == other.Y;\n    }\n\n    public override bool Equals(object obj)\n    {\n        return obj is Point other && Equals(other);\n    }\n\n    public override int GetHashCode()\n    {\n        return HashCode.Combine(X, Y);\n    }\n}",
+      "public struct Rectangle : IEquatable<Rectangle> // Compliant\n{\n    public int Width { get; set; }\n    public int Height { get; set; }\n\n    public bool Equals(Rectangle other)\n    {\n        return Width == other.Width && Height == other.Height;\n    }\n\n    public override bool Equals(object obj)\n    {\n        return obj is Rectangle other && Equals(other);\n    }\n\n    public override int GetHashCode()\n    {\n        return HashCode.Combine(Width, Height);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3898"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CompilationUnit"],
+    "node_types": ["CompilationUnit"],
+    "detection_conditions": "Detects struct declarations that don't implement IEquatable<T>",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:public|internal|private)?\\s*struct\\s+(\\w+)(?![^{]*:\\s*[^{]*IEquatable)",
+        "exclude_patterns": [],
+        "message": "Struct should implement IEquatable<T> for better performance in comparisons"
+      }
+    ],
+    "triggering_conditions": "struct declaration without IEquatable<T> inheritance",
+    "exclusion_conditions": "Structs that already implement IEquatable",
+    "never_trigger_on": [
+      "Structs implementing IEquatable<T>",
+      "ref structs (can't implement interfaces)",
+      "Generated code"
+    ],
+    "reasoning": "Structs that don't implement IEquatable<T> suffer performance penalties when compared because boxing and reflection are required. Implementing IEquatable<T> enables value-based equality without boxing.",
+    "validation_examples": {
+      "should_trigger": [
+        "struct Point { public int X; }",
+        "public struct Rectangle { public int Width; }"
+      ],
+      "should_not_trigger": [
+        "struct Point : IEquatable<Point> { }",
+        "public struct Rectangle : IEquatable<Rectangle> { }"
+      ]
+    }
+  }
+}

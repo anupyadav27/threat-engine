@@ -1,0 +1,319 @@
+version: '1.0'
+provider: aws
+service: waf
+services:
+  client: waf
+  module: boto3.client
+discovery:
+- discovery_id: aws.waf.list_regex_pattern_sets
+  calls:
+  - action: list_regex_pattern_sets
+    save_as: response
+  emit:
+    items_for: '{{ response.RegexPatternSets }}'
+    as: item
+    item:
+      RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_regex_pattern_set
+  for_each: aws.waf.list_regex_pattern_sets
+  calls:
+  - action: get_regex_pattern_set
+    params:
+      RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.waf.list_ip_sets
+  calls:
+  - action: list_ip_sets
+    save_as: response
+  emit:
+    items_for: '{{ response.IPSets }}'
+    as: item
+    item:
+      IPSetId: '{{ item.IPSetId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_i_p_set
+  for_each: aws.waf.list_ip_sets
+  calls:
+  - action: get_ip_set
+    params:
+      IPSetId: '{{ item.IPSetId }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.waf.list_activated_rules_in_rule_group
+  for_each: aws.waf.list_rule_groups
+  calls:
+  - action: list_activated_rules_in_rule_group
+    params:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.ActivatedRules }}'
+    as: item
+- discovery_id: aws.waf.list_subscribed_rule_groups
+  calls:
+  - action: list_rule_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.RuleGroups }}'
+    as: item
+    item:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_web_acl
+  for_each: aws.waf.list_web_acls
+  calls:
+  - action: get_web_acl
+    params:
+      WebACLId: '{{ item.WebACLId }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.waf.get_logging_configuration
+  for_each: aws.waf.get_web_acl
+  calls:
+  - action: get_logging_configuration
+    params:
+      ResourceArn: '{{ item.WebACLArn }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.waf.list_web_acls
+  calls:
+  - action: list_web_acls
+    save_as: response
+  emit:
+    items_for: '{{ response.WebACLs }}'
+    as: item
+    item:
+      WebACLId: '{{ item.WebACLId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.list_rule_groups
+  calls:
+  - action: list_rule_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.RuleGroups }}'
+    as: item
+    item:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.waf.get_rule_group
+  for_each: aws.waf.list_rule_groups
+  calls:
+  - action: get_rule_group
+    params:
+      RuleGroupId: '{{ item.RuleGroupId }}'
+    save_as: response
+  emit: {}
+checks:
+- rule_id: aws.waf.regexpatternset.waf_not_empty_configured
+  for_each: aws.waf.get_regex_pattern_set
+  conditions:
+    var: item.RegularExpressionList
+    op: not_equals
+    value: null
+- rule_id: aws.waf.ipset.waf_used_by_detectors_configured
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    all:
+    - var: item.IPSetDescriptors
+      op: exists
+      value: null
+    - var: item.IPSetId
+      op: exists
+      value: null
+- rule_id: aws.waf.rule.waf_has_effective_action_not_count_only_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Action.Type
+    op: not_equals
+    value: COUNT
+- rule_id: aws.waf.ipset.waf_cidrs_valid_and_minimized_configured
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    all:
+    - var: item.Addresses
+      op: exists
+      value: null
+    - var: item.Addresses
+      op: not_equals
+      value: []
+- rule_id: aws.waf.regexpatternset.waf_no_overly_broad_patterns_configured
+  for_each: aws.waf.get_regex_pattern_set
+  conditions:
+    all:
+    - var: item.RegexPatternStrings
+      op: exists
+      value: null
+    - var: item.RegexPatternStrings
+      op: not_equals
+      value: .*
+- rule_id: aws.waf.webacl.rule_groups_enabled
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.waf_block_actions_not_count_only_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    all:
+    - var: item.Action.Type
+      op: equals
+      value: BLOCK
+    - var: item.Action.Type
+      op: not_equals
+      value: COUNT
+- rule_id: aws.waf.webacl.waf_no_permit_any_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Action.Type
+    op: not_equals
+    value: ALLOW
+- rule_id: aws.waf.webacl.waf_managed_rule_sets_enabled
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.resource.global_webacl_logging_enabled
+  for_each: aws.waf.get_logging_configuration
+  conditions:
+    all:
+    - var: item.ResourceArn
+      op: exists
+      value: null
+    - var: item.LogDestinationConfigs
+      op: exists
+      value: null
+- rule_id: aws.waf.webacl.waf_ip_rate_limit_rules_configured_if_supported
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.rulegroup.waf_unique_priorities_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Priority
+    op: exists
+    value: null
+- rule_id: aws.waf.rulegroup.waf_references_only_approved_managed_sets_where_used_configured
+  for_each: aws.waf.get_rule_group
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.rulegroup.waf_no_permit_all_rule_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Action.Type
+    op: not_equals
+    value: ALLOW
+- rule_id: aws.waf.ipset.waf_sources_trusted_configured
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    var: item.Addresses
+    op: exists
+    value: null
+- rule_id: aws.waf.ipset.waf_used_by_at_least_one_rule_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    all:
+    - var: item.Rules.Action
+      op: exists
+      value: null
+    - var: item.Rules.Statement.IPSetReferenceStatement.ARN
+      op: exists
+      value: null
+- rule_id: aws.waf.webacl.waf_attached_to_cdn_configured
+  for_each: aws.waf.list_web_acls
+  conditions:
+    all:
+    - var: item.WebACLId
+      op: exists
+      value: null
+    - var: item.Name
+      op: exists
+      value: null
+- rule_id: aws.waf.ipset.waf_storage_encrypted
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    var: item.IPSetDescriptors
+    op: exists
+    value: null
+- rule_id: aws.waf.rulegroup.waf_visibility_config_enabled
+  for_each: aws.waf.get_rule_group
+  conditions:
+    all:
+    - var: item.VisibilityConfig
+      op: exists
+      value: null
+    - var: item.VisibilityConfig.SampledRequestsEnabled
+      op: equals
+      value: true
+    - var: item.VisibilityConfig.CloudWatchMetricsEnabled
+      op: equals
+      value: true
+    - var: item.VisibilityConfig.MetricName
+      op: exists
+      value: null
+- rule_id: aws.waf.webacl.policy_store_encrypted
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.WebACLArn
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.waf_policies_present
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.regexpatternset.waf_used_by_at_least_one_rule_configured
+  for_each: aws.waf.list_regex_pattern_sets
+  conditions:
+    var: item.RegexPatternSetId
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.logging_enabled
+  for_each: aws.waf.get_logging_configuration
+  conditions:
+    all:
+    - var: item.ResourceArn
+      op: exists
+      value: null
+    - var: item.LogDestinationConfigs
+      op: exists
+      value: null
+- rule_id: aws.waf.ipset.waf_cross_account_sharing_restricted
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    var: item.IPSetId
+    op: exists
+    value: null
+- rule_id: aws.waf.rule.waf_priority_unique_within_web_acl_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Priority
+    op: exists
+    value: null
+- rule_id: aws.waf.ipset.waf_not_empty_configured
+  for_each: aws.waf.get_i_p_set
+  conditions:
+    var: item.Addresses
+    op: not_equals
+    value: null
+- rule_id: aws.waf.rule.waf_references_valid_ip_or_regex_sets_only_configured
+  for_each: aws.waf.get_web_acl
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.waf_no_permit_all_configured
+  for_each: aws.waf.list_activated_rules_in_rule_group
+  conditions:
+    var: item.Action.Type
+    op: not_equals
+    value: ALLOW

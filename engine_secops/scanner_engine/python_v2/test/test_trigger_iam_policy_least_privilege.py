@@ -1,0 +1,11 @@
+# Test to trigger aws_iam_policies_should_limit_the_scope_of_permissions_given rule
+policy = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Action': ['s3:*'],
+            'Resource': ['arn:aws:s3:::*']
+        }
+    ]
+}

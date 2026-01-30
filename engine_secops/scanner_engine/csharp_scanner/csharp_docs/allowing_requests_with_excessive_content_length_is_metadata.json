@@ -1,0 +1,66 @@
+{
+  "filename": "allowing_requests_with_excessive_content_length_is_metadata.json",
+  "rule_id": "allowing_requests_excessive_content",
+  "title": "Allowing requests with excessive content length is security-sensitive",
+  "description": "Allowing requests with excessive content length is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotcweRejecting requests with significant content length is a good practice to control the network traffic intensity and thus resource consumption in order to prevent DoS attacks.Ask Yourself Whethersize limits are not defined for the different resources of the web application.the web application is not protected byrate limitingfeatures.the web application infrastructure has limited resources.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesFor most of the features of an application, it is recommended to limit the size of requests to:lower or equal to 8mb for file uploads.lower or equal to 2mb for other requests",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using Microsoft.AspNetCore.Mvc;\n\npublic class MyController : Controller\n{\n    [HttpPost]\n    [DisableRequestSizeLimit] // Sensitive: No size  limit\n    [RequestSizeLimit(10485760)] // Sensitive: 10485760 B = 10240 KB = 10 MB is more than the recommended limit of 8MB\n    public IActionResult PostRequest(Model model)\n    {\n    // ...\n    }\n\n    [HttpPost]\n    [RequestFormLimits(MultipartBodyLengthLimit = 10485760)] // Sensitive: 10485760 B = 10240 KB = 10 MB is more than the recommended limit of 8MB\n    public IActionResult MultipartFormRequest(Model model)\n    {\n    // ...\n    }\n}"
+    ],
+    "compliant": [
+      "<configuration>\n    <system.web>\n        <httpRuntime maxRequestLength=\"81920\" executionTimeout=\"3600\" />\n        <!-- Sensitive: maxRequestLength is expressed in KB, so 81920 KB = 80 MB  -->\n    </system.web>\n    <system.webServer>\n        <security>\n            <requestFiltering>\n                <requestLimits maxAllowedContentLength=\"83886080\" />\n                <!-- Sensitive: maxAllowedContentLength is expressed in bytes, so 83886080 B = 81920 KB = 80 MB  -->\n            </requestFiltering>\n        </security>\n    </system.webServer>\n</configuration>"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5693"
+  ],
+  "logic": {
+    "node_types": [
+      "Attribute",
+      "CallExpression",
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "DisableRequestSizeLimit"
+        ],
+        "message": "DisableRequestSizeLimit attribute allows unlimited content size"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "RequestSizeLimit\\(\\s*([0-9]+)\\s*\\)"
+        ],
+        "message": "RequestSizeLimit value may exceed recommended 8MB limit"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "RequestFormLimits.*MultipartBodyLengthLimit\\s*=\\s*([0-9]+)"
+        ],
+        "message": "MultipartBodyLengthLimit value may exceed recommended 8MB limit"
+      }
+    ]
+  }
+}

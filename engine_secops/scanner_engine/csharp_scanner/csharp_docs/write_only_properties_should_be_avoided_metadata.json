@@ -1,0 +1,56 @@
+{
+  "filename": "write_only_properties_should_be_avoided_metadata.json",
+  "rule_id": "writeonly_properties_avoided",
+  "title": "Write-only properties should be avoided",
+  "description": "Write-only properties should not be usedAnalyze your codeintentionality-clearmaintainabilityCode SmellpitfallWhy is this an issue?Properties with only setters are confusing and counterintuitive. Instead, a property getter should be added if possible, or the property should be replaced with a setter method.Noncompliant code exampleclass Program { public int Foo //Non-Compliant { set { // ... some code ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class Program\n{\n    public int Foo  //Non-Compliant\n    {\n        set\n        {\n            // ... some code ...\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "class Program\n{\n    private int foo;\n\n    public void SetFoo(int value)\n    {\n        // ... some code ...\n        foo = value;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2376"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(public|protected|internal)\\s+\\w+\\s+(\\w+)\\s*\\{(?![^}]*\\bget\\b)[^{]*\\bset\\b",
+        "exclude_patterns": [],
+        "message": "Write-only property detected. Properties should have both getter and setter, or use a setter method instead."
+      }
+    ],
+    "never_trigger_on": [
+      "Properties with both get and set accessors",
+      "Obsolete properties marked with [Obsolete]",
+      "Unit tests",
+      "Generated code"
+    ],
+    "reasoning": "Write-only properties are confusing and counterintuitive. If a value can be set, it should typically be readable as well. If only writing is needed, a SetXxx() method is clearer. The negative lookahead (?![^}]*\\bget\\b) ensures we only match properties that have 'set' without 'get'.",
+    "validation_examples": {
+      "should_trigger": [
+        "public int Foo { set { _foo = value; } }"
+      ],
+      "should_not_trigger": [
+        "public int Foo { get; set; }",
+        "public void SetFoo(int value) { _foo = value; }",
+        "public int Foo { get { return _foo; } set { _foo = value; } }"
+      ]
+    }
+  }
+}

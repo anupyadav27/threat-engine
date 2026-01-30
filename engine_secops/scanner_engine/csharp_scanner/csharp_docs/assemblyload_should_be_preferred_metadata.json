@@ -1,0 +1,50 @@
+{
+  "filename": "assemblyload_should_be_preferred_metadata.json",
+  "rule_id": "assemblyload_preferred",
+  "title": "Assembly.Load should be preferred",
+  "description": "\"Assembly.Load\" should be usedAnalyze your codeintentionality-completemaintainabilityCode SmellunpredictableWhy is this an issue?How can I fix it?More InfoThe parameter toAssembly.Loadincludes the full specification of the dll to be loaded. Use another method, and you might end up with a dll other than the one you expected.This rule raises an issue whenAssembly.LoadFrom,Assembly.LoadFile, orAssembly.LoadWithPartialNameis called.ExceptionsThe rule does not raise an issue when the methods are used within anAssemblyResolveevent handler. In this context, usingAssembly.Loadcan cause aStackOverflowExceptiondue to recursive event firing, makingAssembly.LoadFromorAssembly.LoadFilethe appropriate choices.static void Main() { AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve; } static Ass",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "Assembly.LoadFrom(\"myAssembly.dll\"); // Noncompliant - use Assembly.Load instead",
+      "Assembly.LoadFile(@\"C:\\path\\myAssembly.dll\"); // Noncompliant",
+      "Assembly.LoadWithPartialName(\"MyAssembly\"); // Noncompliant - deprecated method"
+    ],
+    "compliant": [
+      "Assembly.Load(\"MyAssembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null\"); // Compliant",
+      "Assembly.Load(\"MyAssembly\"); // Compliant - loads with full specification",
+      "// Exception: within AssemblyResolve event handler\nAssembly.LoadFrom(path); // Compliant in this context"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3885"
+  ],
+  "logic": {
+    "node_types": [
+      "Assignment"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "Assembly\\.LoadFrom\\(",
+          "Assembly\\.LoadFile\\(",
+          "Assembly\\.LoadWithPartialName\\("
+        ],
+        "message": "Use Assembly.Load() instead of Assembly.LoadFrom(), Assembly.LoadFile(), or Assembly.LoadWithPartialName() for security reasons."
+      }
+    ]
+  }
+}

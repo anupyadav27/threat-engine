@@ -1,0 +1,41 @@
+{
+  "filename": "non_async_tasktaskt_methods_should_not_return_null_metadata.json",
+  "rule_id": "nonasync_tasktaskt_methods_return",
+  "title": "Non-async Task/Task<T> methods should not return null",
+  "description": "Non-async \"Task/Task<T>\" methods should not return nullAnalyze your codeintentionality-logicalreliabilityBugasync-awaitWhy is this an issue?How can I fix it?More InfoReturningnullfrom a non-asyncTask/Task<TResult>method will cause aNullReferenceExceptionat runtime if the method is awaited. This problem can be avoided by returningTask.CompletedTaskorTask.FromResult<TResult>(null)respectively.public Task DoFooAsync() { return null; // Noncompliant: Causes a NullReferenceException if awaited. } public async Task Main() { await DoFooAsync(); // NullReferenceException }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public Task DoFooAsync()\n{\n    return null; // Noncompliant: Causes a NullReferenceException if awaited.\n}",
+      "public Task<string> GetDataAsync()\n{\n    if (condition)\n        return null; // Noncompliant\n    return Task.FromResult(\"data\");\n}",
+      "public Task<int> CalculateAsync() => null; // Noncompliant"
+    ],
+    "compliant": [
+      "public Task DoFooAsync()\n{\n    return Task.CompletedTask; // Compliant\n}",
+      "public Task<string> GetDataAsync()\n{\n    if (condition)\n        return Task.FromResult<string>(null); // Compliant\n    return Task.FromResult(\"data\");\n}",
+      "public async Task<int> CalculateAsync()\n{\n    return await SomeAsyncOperation(); // Compliant - async method\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4586"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ReturnStatement"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_non_async_task_methods_should_not_return_null",
+        "description": "Check for non-async Task/Task<T> methods that return null instead of Task.CompletedTask or Task.FromResult"
+      }
+    ]
+  }
+}

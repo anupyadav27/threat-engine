@@ -1,0 +1,84 @@
+{
+  "filename": "methods_and_properties_should_be_named_in_pascalca_metadata.json",
+  "rule_id": "methods_properties_named_pascalcase",
+  "title": "Methods and properties should be named in PascalCase",
+  "description": "Methods and properties should be named in PascalCaseAnalyze your codeconsistency-identifiablemaintainabilityCode SmellconventionWhy is this an issue?More InfoShared naming conventions allow teams to collaborate efficiently.This rule raises an issue when a method or a property name is not PascalCased.For example, the methodpublic int doSomething() {...} // Noncompliantshould be renamed topublic int DoSomething() {...}ExceptionsThe rule ignores members in types marked withComImportAttributeorInterfaceTypeAttribute.The rule ignoresexternmethods.To reduce noise, two consecutive upper-case characters are allowed unless they form the full name. So,MyXMethodis compliant, butXMis not.The camel casing is not enforced when a name contains the'_'character.void My_method_(){...} // Noncompliant, leadi",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public int doSomething() { return 42; } // Noncompliant: method name starts with lowercase",
+      "public string getUserName() { return name; } // Noncompliant: method name starts with lowercase",
+      "public int MyProperty { get; set; } // This one is actually compliant",
+      "public string myProperty { get; set; } // Noncompliant: property name starts with lowercase"
+    ],
+    "compliant": [
+      "public int DoSomething() { return 42; } // Compliant: proper PascalCase",
+      "public string GetUserName() { return name; } // Compliant: proper PascalCase",
+      "public int MyProperty { get; set; } // Compliant: property in PascalCase",
+      "public string UserName { get; set; } // Compliant: property in PascalCase"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-100"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["name"],
+        "pattern": "^[a-z]\\w*$",
+        "exclude_patterns": [
+          "\\b_\\w+",
+          "^_",
+          "\\[ComImport\\]",
+          "\\[InterfaceType\\]",
+          "\\bextern\\b",
+          "\\boverride\\b",
+          "\\babstract\\b",
+          "\\[DllImport\\]"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "External methods (extern keyword)",
+      "Override methods (inherit naming from base)",
+      "Abstract methods (might be interface-defined)",
+      "Members in ComImport or InterfaceType attributed classes",
+      "Names containing underscores (rule exception)",
+      "DllImport attributed methods",
+      "Private members (convention varies)",
+      "Generated code",
+      "Interface implementations that must match interface naming"
+    ],
+    "reasoning": "This rule enforces C# PascalCase naming convention for public methods and properties. It matches method/property names that start with lowercase letters, which violates the PascalCase convention. The rule excludes external methods, override methods that inherit naming, members with underscores (explicit rule exception), and COM interop scenarios where different naming might be required.",
+    "validation_examples": {
+      "should_trigger": [
+        "public int doSomething() { return 42; }",
+        "public string getUserName() { return name; }",
+        "public bool isValid() { return true; }",
+        "public string myProperty { get; set; }",
+        "public void processData() { }"
+      ],
+      "should_not_trigger": [
+        "public int DoSomething() { return 42; }",
+        "public string GetUserName() { return name; }",
+        "public bool IsValid() { return true; }",
+        "public string MyProperty { get; set; }",
+        "public void My_method_() { }",
+        "public override void processData() { }",
+        "[DllImport] public static extern bool closeHandle();",
+        "public void ProcessData() { }"
+      ]
+    }
+  }
+}

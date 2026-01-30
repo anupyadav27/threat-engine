@@ -1,0 +1,72 @@
+{
+  "rule_id": "graphql_queries_should_not_be_vulnerable_to_denial_of_service_attacks",
+  "title": "GraphQL queries should not be vulnerable to denial-of-service attacks",
+  "type": "VULNERABILITY",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "description": "Unbounded recursion or unchecked variables can lead to a denial-of-service attack in GraphQL queries.",
+  "message": "GraphQL query is vulnerable to a denial-of-service attack.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "GraphQL",
+    "Security",
+    "Denial-of-service"
+  ],
+  "impact": "High",
+  "recommendation": "Limit recursion depth or use a whitelist of safe variables.",
+  "references": [
+    "https://owasp.org/www-community/aliases/Common_Weakness_Enumeration#CWE-20"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "query { allUsers { id name { allPosts { title } } } }",
+        "description": "Unbounded recursion on allPosts"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "query { allUsers (limit: 10) { id name { posts { title } } } }",
+        "description": "Limit number of recursive calls"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Security",
+    "security": "High",
+    "automation": "Medium",
+    "compliance": "Mandatory"
+  },
+  "why_is_this_an_issue": "Unbounded recursion or unchecked variables can cause a server to consume a large amount of resources, leading to a denial-of-service.",
+  "how_to_fix": "Limit recursion depth or use a whitelist of safe variables.",
+  "security_mappings": {
+    "CWE": "CWE-20",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "check_type": "property_comparison",
+    "property_paths": [
+      "query.selectionSet.selections[*].selection.name.value",
+      "query.selectionSet.selections[*].selection.selectionSet",
+      "query.selectionSet.selections[*].selection.selectionSet.selections[*].selection.name.value"
+    ],
+    "forbidden_values": [
+      "allUsers",
+      "allPosts",
+      "allComments",
+      "allRelatedEntities"
+    ],
+    "new_check_type_doc": "RecursionDepthLimitCheck: Checks if a GraphQL query has a recursive selection with a depth greater than a given limit."
+  },
+  "metadata": {
+    "filename": "graphql_queries_should_not_be_vulnerable_to_denial_of_service_attacks.json",
+    "rule_id": "graphql_queries_should_not_be_vulnerable_to_denial_of_service_attacks",
+    "title": "GraphQL queries should not be vulnerable to denial-of-service attacks",
+    "status": "ready",
+    "defaultSeverity": "Critical"
+  }
+}

@@ -11,7 +11,7 @@ from datetime import datetime
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
-sys.path.insert(0, os.path.join(project_root, "onboarding_engine"))
+sys.path.insert(0, os.path.join(project_root, "engine_onboarding"))
 
 
 @pytest.mark.asyncio
@@ -62,15 +62,15 @@ async def test_complete_scan_to_orchestration_flow():
     }
     
     # Mock database operations
-    with patch('onboarding_engine.database.dynamodb_operations.get_account') as mock_get_account, \
-         patch('onboarding_engine.database.dynamodb_operations.create_execution') as mock_create_execution, \
-         patch('onboarding_engine.database.dynamodb_operations.update_execution') as mock_update_execution, \
-         patch('onboarding_engine.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
-         patch('onboarding_engine.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
-         patch('onboarding_engine.database.dynamodb_operations.create_orchestration_status') as mock_create_orch, \
-         patch('onboarding_engine.database.dynamodb_operations.update_orchestration_status') as mock_update_orch, \
-         patch('onboarding_engine.database.dynamodb_operations.get_tenant') as mock_get_tenant, \
-         patch('onboarding_engine.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve:
+    with patch('engine_onboarding.database.dynamodb_operations.get_account') as mock_get_account, \
+         patch('engine_onboarding.database.dynamodb_operations.create_execution') as mock_create_execution, \
+         patch('engine_onboarding.database.dynamodb_operations.update_execution') as mock_update_execution, \
+         patch('engine_onboarding.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
+         patch('engine_onboarding.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
+         patch('engine_onboarding.database.dynamodb_operations.create_orchestration_status') as mock_create_orch, \
+         patch('engine_onboarding.database.dynamodb_operations.update_orchestration_status') as mock_update_orch, \
+         patch('engine_onboarding.database.dynamodb_operations.get_tenant') as mock_get_tenant, \
+         patch('engine_onboarding.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve:
         
         # Setup mocks
         mock_get_account.return_value = mock_account
@@ -79,13 +79,13 @@ async def test_complete_scan_to_orchestration_flow():
         mock_retrieve.return_value = {'credential_type': 'aws_iam_role', 'role_name': 'test-role'}
         
         # Mock engine client
-        with patch('onboarding_engine.utils.engine_client.EngineClient') as mock_engine_client_class:
+        with patch('engine_onboarding.utils.engine_client.EngineClient') as mock_engine_client_class:
             mock_engine_client = MagicMock()
             mock_engine_client.scan_aws = AsyncMock(return_value=mock_scan_result)
             mock_engine_client_class.return_value = mock_engine_client
             
             # Mock orchestrator HTTP calls
-            with patch('onboarding_engine.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_http_client:
+            with patch('engine_onboarding.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_http_client:
                 mock_response = MagicMock()
                 mock_response.json.return_value = {'status': 'success'}
                 mock_response.raise_for_status = MagicMock()
@@ -97,7 +97,7 @@ async def test_complete_scan_to_orchestration_flow():
                 mock_http_client.return_value = mock_http
                 
                 # Mock webhook sender
-                with patch('onboarding_engine.notifications.webhook_sender.httpx.AsyncClient') as mock_webhook_client:
+                with patch('engine_onboarding.notifications.webhook_sender.httpx.AsyncClient') as mock_webhook_client:
                     mock_webhook_response = MagicMock()
                     mock_webhook_response.raise_for_status = MagicMock()
                     
@@ -108,7 +108,7 @@ async def test_complete_scan_to_orchestration_flow():
                     mock_webhook_client.return_value = mock_webhook_http
                     
                     # Import and execute
-                    from onboarding_engine.scheduler.task_executor import TaskExecutor
+                    from engine_onboarding.scheduler.task_executor import TaskExecutor
                     
                     executor = TaskExecutor()
                     
@@ -176,7 +176,7 @@ async def test_complete_scan_to_orchestration_flow():
 @pytest.mark.asyncio
 async def test_error_handling_in_scan_flow():
     """Test error handling throughout the scan flow"""
-    from onboarding_engine.scheduler.task_executor import TaskExecutor
+    from engine_onboarding.scheduler.task_executor import TaskExecutor
     
     tenant_id = "tenant-456"
     account_id = "account-789"
@@ -188,13 +188,13 @@ async def test_error_handling_in_scan_flow():
     }
     
     # Mock engine to raise error
-    with patch('onboarding_engine.database.dynamodb_operations.get_account') as mock_get_account, \
-         patch('onboarding_engine.database.dynamodb_operations.create_execution') as mock_create_execution, \
-         patch('onboarding_engine.database.dynamodb_operations.update_execution') as mock_update_execution, \
-         patch('onboarding_engine.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
-         patch('onboarding_engine.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
-         patch('onboarding_engine.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve, \
-         patch('onboarding_engine.utils.engine_client.EngineClient') as mock_engine_client_class:
+    with patch('engine_onboarding.database.dynamodb_operations.get_account') as mock_get_account, \
+         patch('engine_onboarding.database.dynamodb_operations.create_execution') as mock_create_execution, \
+         patch('engine_onboarding.database.dynamodb_operations.update_execution') as mock_update_execution, \
+         patch('engine_onboarding.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
+         patch('engine_onboarding.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
+         patch('engine_onboarding.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve, \
+         patch('engine_onboarding.utils.engine_client.EngineClient') as mock_engine_client_class:
         
         mock_get_account.return_value = mock_account
         mock_create_execution.return_value = {
@@ -233,7 +233,7 @@ async def test_error_handling_in_scan_flow():
 @pytest.mark.asyncio
 async def test_multi_tenant_isolation():
     """Test that scan_run_id and tenant_id ensure multi-tenant isolation"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     

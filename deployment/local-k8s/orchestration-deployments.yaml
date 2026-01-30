@@ -1,0 +1,534 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: threat-engine-local
+  labels:
+    environment: local
+    deployment: local
+
+---
+# API Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: threat-engine-local
+  labels:
+    app: api-gateway
+    tier: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: threat-engine/api-gateway:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DISCOVERIES_ENGINE_URL
+          value: "http://discovery-service:8001"
+        - name: CHECK_ENGINE_URL
+          value: "http://check-service:8002"
+        - name: THREAT_ENGINE_URL
+          value: "http://threat-service:8020"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://compliance-service:8010"
+        - name: IAM_ENGINE_URL
+          value: "http://iam-service:8003"
+        - name: DATASEC_ENGINE_URL
+          value: "http://datasec-service:8004"
+        - name: INVENTORY_ENGINE_URL
+          value: "http://inventory-service:8022"
+        - name: PORT
+          value: "8000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+# API Gateway Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  type: NodePort
+
+---
+# Complete deployment with all engines
+
+# Discovery, Check, Threat, Compliance, IAM, DataSec, Inventory Services
+# (Add remaining services here as needed)
+
+---
+# Discovery Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery-service
+  template:
+    metadata:
+      labels:
+        app: discovery-service
+    spec:
+      volumes:
+      - name: aws-credentials
+        secret:
+          secretName: aws-credentials
+      containers:
+      - name: discovery
+        image: threat-engine/discovery:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8001
+        volumeMounts:
+        - name: aws-credentials
+          mountPath: /.aws
+          readOnly: true
+        env:
+        - name: DISCOVERIES_DB_HOST
+          value: "host.docker.internal"
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_USER
+          value: "discoveries_user"
+        - name: DISCOVERIES_DB_PASSWORD
+          value: "discoveries_password"
+        - name: DATABASE_URL
+          value: "postgresql://discoveries_user:discoveries_password@host.docker.internal:5432/threat_engine_discoveries"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "/.aws/config"
+        - name: HOME
+          value: "/root"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: discovery-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+  type: ClusterIP
+
+---
+# Check Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: check-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: check-service
+  template:
+    metadata:
+      labels:
+        app: check-service
+    spec:
+      volumes:
+      - name: check-rules
+        emptyDir: {}
+      - name: aws-credentials
+        secret:
+          secretName: aws-credentials
+      initContainers:
+      - name: sync-check-rules
+        image: amazon/aws-cli:latest
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+        - >
+          aws s3 sync s3://cspm-lgtech/engine_input/engine_check/engine_check_aws/services/
+          /mnt/check-rules/ --delete
+        env:
+        - name: HOME
+          value: /root
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: /root/.aws/credentials
+        - name: AWS_CONFIG_FILE
+          value: /root/.aws/config
+        - name: AWS_REGION
+          value: us-east-1
+        volumeMounts:
+        - name: check-rules
+          mountPath: /mnt/check-rules
+        - name: aws-credentials
+          mountPath: /root/.aws
+          readOnly: true
+      containers:
+      - name: check
+        image: threat-engine/check:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8002
+        volumeMounts:
+        - name: check-rules
+          mountPath: /app/engine_check/engine_check_aws/services
+          readOnly: true
+        env:
+        - name: CHECK_DB_HOST
+          value: "host.docker.internal"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_USER
+          value: "check_user"
+        - name: CHECK_DB_PASSWORD
+          value: "check_password"
+        - name: CHECK_MODE
+          value: "database"
+        - name: DATABASE_URL
+          value: "postgresql://check_user:check_password@host.docker.internal:5432/threat_engine_check"
+        - name: DISCOVERIES_DB_HOST
+          value: "host.docker.internal"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_USER
+          value: "discoveries_user"
+        - name: DISCOVERIES_DB_PASSWORD
+          value: "discoveries_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: check-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: check-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+  type: ClusterIP
+
+---
+# Threat Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: threat-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: threat-service
+  template:
+    metadata:
+      labels:
+        app: threat-service
+    spec:
+      containers:
+      - name: threat
+        image: threat-engine/threat:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8020
+        env:
+        - name: DB_SCHEMA
+          value: "public"
+        - name: CHECK_DB_HOST
+          value: "host.docker.internal"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_USER
+          value: "check_user"
+        - name: CHECK_DB_PASSWORD
+          value: "check_password"
+        - name: THREAT_DB_HOST
+          value: "host.docker.internal"
+        - name: THREAT_DB_PORT
+          value: "5432"
+        - name: THREAT_DB_NAME
+          value: "threat_engine_threat"
+        - name: THREAT_DB_USER
+          value: "threat_user"
+        - name: THREAT_DB_PASSWORD
+          value: "threat_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: threat-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: threat-service
+  ports:
+  - port: 8020
+    targetPort: 8020
+  type: ClusterIP
+
+---
+# Compliance Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliance-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: compliance-service
+  template:
+    metadata:
+      labels:
+        app: compliance-service
+    spec:
+      containers:
+      - name: compliance
+        image: threat-engine/compliance:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8010
+        env:
+        - name: CHECK_DB_HOST
+          value: "host.docker.internal"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_USER
+          value: "check_user"
+        - name: CHECK_DB_PASSWORD
+          value: "check_password"
+        - name: COMPLIANCE_DB_HOST
+          value: "host.docker.internal"
+        - name: COMPLIANCE_DB_PORT
+          value: "5432"
+        - name: COMPLIANCE_DB_NAME
+          value: "threat_engine_compliance"
+        - name: COMPLIANCE_DB_USER
+          value: "compliance_user"
+        - name: COMPLIANCE_DB_PASSWORD
+          value: "compliance_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: compliance-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: compliance-service
+  ports:
+  - port: 8010
+    targetPort: 8010
+  type: ClusterIP
+
+---
+# IAM Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iam-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iam-service
+  template:
+    metadata:
+      labels:
+        app: iam-service
+    spec:
+      containers:
+      - name: iam
+        image: threat-engine/iam:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8003
+        env:
+        - name: IAM_ENGINE_PORT
+          value: "8003"
+        - name: THREAT_DB_HOST
+          value: "host.docker.internal"
+        - name: THREAT_DB_PORT
+          value: "5432"
+        - name: THREAT_DB_NAME
+          value: "threat_engine_threat"
+        - name: THREAT_DB_USER
+          value: "threat_user"
+        - name: THREAT_DB_PASSWORD
+          value: "threat_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iam-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: iam-service
+  ports:
+  - port: 8003
+    targetPort: 8003
+  type: ClusterIP
+
+---
+# DataSec Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datasec-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datasec-service
+  template:
+    metadata:
+      labels:
+        app: datasec-service
+    spec:
+      containers:
+      - name: datasec
+        image: threat-engine/datasec:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8004
+        env:
+        - name: DATASEC_ENGINE_PORT
+          value: "8004"
+        - name: THREAT_DB_HOST
+          value: "host.docker.internal"
+        - name: THREAT_DB_PORT
+          value: "5432"
+        - name: THREAT_DB_NAME
+          value: "threat_engine_threat"
+        - name: THREAT_DB_USER
+          value: "threat_user"
+        - name: THREAT_DB_PASSWORD
+          value: "threat_password"
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datasec-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: datasec-service
+  ports:
+  - port: 8004
+    targetPort: 8004
+  type: ClusterIP
+
+---
+# Inventory Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: threat-engine-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      containers:
+      - name: inventory
+        image: threat-engine/inventory:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8022
+        env:
+        - name: DB_SCHEMA
+          value: "public"
+        - name: USE_DATABASE
+          value: "true"
+        - name: DISCOVERIES_DB_HOST
+          value: "host.docker.internal"
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_USER
+          value: "discoveries_user"
+        - name: DISCOVERIES_DB_PASSWORD
+          value: "discoveries_password"
+        - name: CHECK_DB_HOST
+          value: "host.docker.internal"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_USER
+          value: "check_user"
+        - name: CHECK_DB_PASSWORD
+          value: "check_password"
+        - name: INVENTORY_DB_HOST
+          value: "host.docker.internal"
+        - name: INVENTORY_DB_PORT
+          value: "5432"
+        - name: INVENTORY_DB_NAME
+          value: "threat_engine_inventory"
+        - name: INVENTORY_DB_USER
+          value: "inventory_user"
+        - name: INVENTORY_DB_PASSWORD
+          value: "inventory_password"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: threat-engine-local
+spec:
+  selector:
+    app: inventory-service
+  ports:
+  - port: 8022
+    targetPort: 8022
+  type: ClusterIP

@@ -1,0 +1,124 @@
+{
+  "kinesis_metadata_mapping": [
+    {
+      "rule_id": "aws.kinesis.resource.stream_encrypted_at_rest",
+      "python_method": "describe_stream",
+      "response_path": "StreamDescription",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "EncryptionType",
+          "expected_value": "KMS",
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.consumer.access_least_privilege",
+      "python_method": "describe_stream_consumer",
+      "response_path": "Consumers[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ConsumerDescription.ConsumerARN",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "ConsumerDescription.ConsumerStatus",
+          "expected_value": "ACTIVE",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ConsumerDescription.Permissions",
+          "expected_value": [
+            "kinesis:SubscribeToShard",
+            "kinesis:DescribeStreamConsumer"
+          ],
+          "operator": "in"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.consumer.auth_required",
+      "python_method": "describe_stream_consumer",
+      "response_path": "ConsumerDescription",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "ConsumerStatus",
+          "expected_value": "ACTIVE",
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.stream.encryption_at_rest_enabled",
+      "python_method": "describe_stream",
+      "response_path": "StreamDescription",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "EncryptionType",
+          "expected_value": "KMS",
+          "operator": "equals"
+        },
+        {
+          "field_path": "KeyId",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.stream.private_network_only_if_supported",
+      "python_method": "describe_stream",
+      "response_path": "StreamDescription",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "StreamARN",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "StreamStatus",
+          "expected_value": "ACTIVE",
+          "operator": "equals"
+        },
+        {
+          "field_path": "EnhancedMonitoring",
+          "expected_value": [],
+          "operator": "not_equals",
+          "value": "null"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.stream_data_retention_period.stream_data_retention_period_configured",
+      "python_method": "describe_stream",
+      "response_path": "StreamDescription",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "RetentionPeriodHours",
+          "expected_value": 24,
+          "operator": "greater_than"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.kinesis.stream.consumer_auth_required",
+      "python_method": "describe_stream_summary",
+      "response_path": "StreamDescriptionSummary",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "ConsumerCount",
+          "expected_value": 0,
+          "operator": "greater_than"
+        }
+      ]
+    }
+  ]
+}

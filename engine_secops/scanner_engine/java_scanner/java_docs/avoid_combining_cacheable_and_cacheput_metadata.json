@@ -1,0 +1,34 @@
+{
+  "filename": "avoid_combining_cacheable_and_cacheput_metadata.json",
+  "rule_id": "spring_avoid_combining_cacheable_and_cacheput",
+  "title": "Avoid combining @Cacheable and @CachePut",
+  "description": "Using both @Cacheable and @CachePut on the same method can cause unpredictable caching behavior. These annotations serve different purposes and should not be used together. Separate cache update and retrieval logic for clarity and reliability.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Remove either @Cacheable or @CachePut from the method. Refactor code to ensure each method has a single, clear caching responsibility.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      "@Cacheable\n@CachePut\npublic User getUser(Long id) { ... }"
+    ],
+    "compliant": [
+      "@Cacheable\npublic User getUser(Long id) { ... }\n\n@CachePut\npublic User updateUser(Long id) { ... }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-7179",
+    "https://rules.sonarsource.com/java/tag/spring/RSPEC-7179/"
+  ],
+  "logic": {
+    "node_types": ["Class", "Statement", "Expression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "@Cacheable\\([^)]*\\)\\s*@CachePut\\([^)]*\\)\\s*(public|protected|private|static|\\s)+[\\w<>\\[\\]]+\\s+\\w+\\s*\\([^)]*\\)|@CachePut\\([^)]*\\)\\s*@Cacheable\\([^)]*\\)\\s*(public|protected|private|static|\\s)+[\\w<>\\[\\]]+\\s+\\w+\\s*\\([^)]*\\)",
+        "message": "Method is annotated with both @Cacheable and @CachePut."
+      }
+    ]
+  }
+}

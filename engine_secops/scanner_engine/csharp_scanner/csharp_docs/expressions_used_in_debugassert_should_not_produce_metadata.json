@@ -1,0 +1,53 @@
+{
+  "filename": "expressions_used_in_debugassert_should_not_produce_metadata.json",
+  "rule_id": "expressions_debugassert_produce_side",
+  "title": "Expressions used in Debug.Assert should not produce side effects",
+  "description": "An assertion is a piece of code used during development when compilation debug mode is activated. It allows a program to check itself as it runs. In non-debug mode, all Debug.Assert calls are automatically left out via the Conditional(DEBUG) mechanism. Therefore, any side effects in the assertion expression will not occur in production, leading to different behavior between debug and release builds.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int count = 0;\nDebug.Assert(count++ < 10); // Noncompliant - modifies count"
+    ],
+    "compliant": [
+      "int count = 0;\nDebug.Assert(count < 10); // Compliant - no side effect"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3346"
+  ],
+  "logic": {
+    "custom_function": "check_expressions_debugassert_produce_side",
+    "node_types": ["CallExpression", "CompilationUnit"],
+    "never_trigger_on": [
+      "Property access (.Count, .Length)",
+      "Pure LINQ methods (.Any, .All, .Contains)",
+      "Comparison operators (==, !=)",
+      "String validation methods (IsNullOrEmpty, IsNullOrWhiteSpace)",
+      "Comments"
+    ],
+    "reasoning": "Detects Debug.Assert calls with expressions that have side effects (++, --, =, method calls that modify state). Debug.Assert is removed in release builds, so side effects in assertions won't execute in production. Exclusions allow safe read-only operations like property access and pure comparison methods.",
+    "validation_examples": {
+      "should_trigger": [
+        "Debug.Assert(count++ < 10);",
+        "Debug.Assert(items.Remove(\"test\"));",
+        "Debug.Assert((result = value > 0));",
+        "Debug.Assert(--count > 0);"
+      ],
+      "should_not_trigger": [
+        "Debug.Assert(count < 10);",
+        "Debug.Assert(items.Count > 0);",
+        "Debug.Assert(value > 0 && value < 100);",
+        "Debug.Assert(!string.IsNullOrEmpty(text));"
+      ]
+    }
+  }
+}

@@ -10,17 +10,17 @@ from datetime import datetime
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
-sys.path.insert(0, os.path.join(project_root, "onboarding_engine"))
+sys.path.insert(0, os.path.join(project_root, "engine_onboarding"))
 
 
 def test_scan_metadata_creation_and_update():
     """Test scan metadata is created and updated correctly"""
     # Mock DynamoDB operations
-    with patch('onboarding_engine.database.dynamodb_operations.dynamodb') as mock_dynamodb:
+    with patch('engine_onboarding.database.dynamodb_operations.dynamodb') as mock_dynamodb:
         mock_table = MagicMock()
         mock_dynamodb.Table.return_value = mock_table
         
-        from onboarding_engine.database.dynamodb_operations import (
+        from engine_onboarding.database.dynamodb_operations import (
             create_scan_metadata,
             update_scan_metadata,
             get_scan_metadata
@@ -62,11 +62,11 @@ def test_scan_metadata_creation_and_update():
 
 def test_orchestration_status_tracking():
     """Test orchestration status is tracked for each engine"""
-    with patch('onboarding_engine.database.dynamodb_operations.dynamodb') as mock_dynamodb:
+    with patch('engine_onboarding.database.dynamodb_operations.dynamodb') as mock_dynamodb:
         mock_table = MagicMock()
         mock_dynamodb.Table.return_value = mock_table
         
-        from onboarding_engine.database.dynamodb_operations import (
+        from engine_onboarding.database.dynamodb_operations import (
             create_orchestration_status,
             update_orchestration_status,
             list_orchestration_status
@@ -100,11 +100,11 @@ def test_orchestration_status_tracking():
 
 def test_execution_to_scan_metadata_link():
     """Test execution record links to scan metadata"""
-    with patch('onboarding_engine.database.dynamodb_operations.dynamodb') as mock_dynamodb:
+    with patch('engine_onboarding.database.dynamodb_operations.dynamodb') as mock_dynamodb:
         mock_table = MagicMock()
         mock_dynamodb.Table.return_value = mock_table
         
-        from onboarding_engine.database.dynamodb_operations import (
+        from engine_onboarding.database.dynamodb_operations import (
             create_execution,
             create_scan_metadata
         )

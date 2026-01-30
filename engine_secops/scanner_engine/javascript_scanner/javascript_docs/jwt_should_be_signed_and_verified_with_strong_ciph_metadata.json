@@ -1,0 +1,100 @@
+{
+  "filename": "jwt_should_be_signed_and_verified_with_strong_ciph_metadata.json",
+  "rule_id": "jwt_signed_verified_strong",
+  "title": "JWT should be signed and verified with strong cipher algorithms",
+  "description": "JSON Web Tokens (JWTs), a popular method of securely transmitting information between parties as a JSON object, can become a significant security risk when they are not properly signed with a robust cipher algorithm, left unsigned altogether, or if the signature is not verified. This vulnerability class allows malicious actors to craft fraudulent tokens, effectively impersonating user identities. In essence, the integrity of a JWT hinges on the strength and presence of its signature.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "jwt.sign(payload, null, { algorithm: 'none' })",
+      "jwt.sign(payload, secret, { algorithm: 'HS256' })",
+      "jwt.verify(token, secret)",
+      "{ algorithm: 'none', expiresIn: '1h' }"
+    ],
+    "compliant": [
+      "jwt.sign(payload, privateKey, { algorithm: 'RS256' })",
+      "jwt.sign(payload, privateKey, { algorithm: 'ES256' })",
+      "jwt.verify(token, publicKey, { algorithms: ['RS256'] })",
+      "{ algorithm: 'RS256', expiresIn: '15m' }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5659"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "ObjectExpression",
+      "Property",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(jwt|jsonwebtoken|jose|njwt)\\.(sign|verify)\\([^,]*,\\s*(null|''|\"\"|undefined)\\s*[,)]",
+        "message": "JWT tokens should not be created or verified without a secret - this allows token forgery"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(jwt|jsonwebtoken|jose|njwt)\\b[^;]*\\balgorithm\\s*:\\s*['\"]none['\"]",
+        "message": "JWT algorithm 'none' disables signature verification - extremely insecure for production"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(jwt|jsonwebtoken)\\.sign\\([^,]*,\\s*['\"][^'\"]{1,16}['\"]\\s*,\\s*\\{[^}]*algorithm\\s*:\\s*['\"]HS256['\"]",
+        "message": "JWT HS256 with weak secret (<16 chars) is vulnerable - use strong secrets (32+ chars) or asymmetric algorithms"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(jwt|jsonwebtoken)\\.verify\\([^,]*,\\s*['\"][^'\"]{1,16}['\"]\\s*,\\s*\\{[^}]*algorithm\\s*:\\s*['\"]HS256['\"]",
+        "message": "JWT HS256 verification with weak secret - use strong secrets or asymmetric algorithms (RS256, ES256, PS256)"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(jwt|jsonwebtoken)\\.(sign|verify)\\([^,]*,\\s*[^,]*\\)\\s*(?!.*algorithm)",
+        "message": "JWT operations should explicitly specify strong algorithms - defaults may be insecure"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "algorithms\\s*:\\s*\\[[^\\]]*['\"]none['\"][^\\]]*\\]",
+        "message": "JWT verification should not allow 'none' algorithm - remove it from allowed algorithms list"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(jwt|jsonwebtoken)\\.sign\\([^,]*,\\s*['\"][^'\"]{1,31}['\"]\\s*,\\s*\\{[^}]*algorithm\\s*:\\s*['\"]HS256['\"]",
+        "message": "JWT HS256 with short secret (<32 chars) is vulnerable to brute force - use longer secrets or asymmetric algorithms"
+      }
+    ]
+  }
+}

@@ -11,7 +11,7 @@ from datetime import datetime
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
-sys.path.insert(0, os.path.join(project_root, "onboarding_engine"))
+sys.path.insert(0, os.path.join(project_root, "engine_onboarding"))
 
 
 @pytest.mark.asyncio
@@ -52,18 +52,18 @@ async def test_full_scan_flow_with_orchestration():
     orchestration_calls = []
     
     # Mock engine client
-    with patch('onboarding_engine.utils.engine_client.EngineClient') as mock_engine_client_class:
+    with patch('engine_onboarding.utils.engine_client.EngineClient') as mock_engine_client_class:
         mock_engine_client = MagicMock()
         mock_engine_client.scan_aws = AsyncMock(return_value=mock_scan_response)
         mock_engine_client_class.return_value = mock_engine_client
         
         # Mock database operations
-        with patch('onboarding_engine.database.dynamodb_operations.get_account') as mock_get_account, \
-             patch('onboarding_engine.database.dynamodb_operations.create_execution') as mock_create_execution, \
-             patch('onboarding_engine.database.dynamodb_operations.update_execution') as mock_update_execution, \
-             patch('onboarding_engine.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
-             patch('onboarding_engine.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
-             patch('onboarding_engine.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve:
+        with patch('engine_onboarding.database.dynamodb_operations.get_account') as mock_get_account, \
+             patch('engine_onboarding.database.dynamodb_operations.create_execution') as mock_create_execution, \
+             patch('engine_onboarding.database.dynamodb_operations.update_execution') as mock_update_execution, \
+             patch('engine_onboarding.database.dynamodb_operations.create_scan_metadata') as mock_create_metadata, \
+             patch('engine_onboarding.database.dynamodb_operations.update_scan_metadata') as mock_update_metadata, \
+             patch('engine_onboarding.storage.secrets_manager_storage.secrets_manager_storage.retrieve') as mock_retrieve:
             
             # Setup mocks
             mock_get_account.return_value = mock_account
@@ -77,7 +77,7 @@ async def test_full_scan_flow_with_orchestration():
             }
             
             # Mock orchestrator
-            with patch('onboarding_engine.orchestrator.engine_orchestrator.EngineOrchestrator') as mock_orchestrator_class:
+            with patch('engine_onboarding.orchestrator.engine_orchestrator.EngineOrchestrator') as mock_orchestrator_class:
                 mock_orchestrator = MagicMock()
                 mock_orchestrator.trigger_downstream_engines = AsyncMock(return_value={
                     'scan_run_id': scan_run_id,
@@ -91,7 +91,7 @@ async def test_full_scan_flow_with_orchestration():
                 mock_orchestrator_class.return_value = mock_orchestrator
                 
                 # Import and test task executor
-                from onboarding_engine.scheduler.task_executor import TaskExecutor
+                from engine_onboarding.scheduler.task_executor import TaskExecutor
                 
                 executor = TaskExecutor()
                 
@@ -130,7 +130,7 @@ async def test_full_scan_flow_with_orchestration():
 @pytest.mark.asyncio
 async def test_orchestration_triggers_all_engines():
     """Test that orchestrator triggers all downstream engines correctly"""
-    from onboarding_engine.orchestrator.engine_orchestrator import EngineOrchestrator
+    from engine_onboarding.orchestrator.engine_orchestrator import EngineOrchestrator
     from unittest.mock import AsyncMock, patch
     
     orchestrator = EngineOrchestrator()
@@ -141,9 +141,9 @@ async def test_orchestration_triggers_all_engines():
     mock_response.raise_for_status = MagicMock()
     
     # Mock database operations
-    with patch('onboarding_engine.orchestrator.engine_orchestrator.create_orchestration_status') as mock_create, \
-         patch('onboarding_engine.orchestrator.engine_orchestrator.update_orchestration_status') as mock_update, \
-         patch('onboarding_engine.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.orchestrator.engine_orchestrator.create_orchestration_status') as mock_create, \
+         patch('engine_onboarding.orchestrator.engine_orchestrator.update_orchestration_status') as mock_update, \
+         patch('engine_onboarding.orchestrator.engine_orchestrator.httpx.AsyncClient') as mock_client:
         
         mock_http_client = MagicMock()
         mock_http_client.post = AsyncMock(return_value=mock_response)
@@ -178,7 +178,7 @@ async def test_orchestration_triggers_all_engines():
 @pytest.mark.asyncio
 async def test_storage_paths_integration():
     """Test storage paths are used correctly in integration"""
-    from common.storage_paths import StoragePathResolver
+    from engine_common.storage_paths import StoragePathResolver
     
     resolver = StoragePathResolver(storage_type="local", local_base_path="/tmp/test")
     
@@ -203,7 +203,7 @@ async def test_storage_paths_integration():
 @pytest.mark.asyncio
 async def test_webhook_notification_flow():
     """Test webhook notifications are sent correctly"""
-    from onboarding_engine.notifications.webhook_sender import WebhookSender
+    from engine_onboarding.notifications.webhook_sender import WebhookSender
     from unittest.mock import AsyncMock, patch, MagicMock
     
     sender = WebhookSender()
@@ -211,7 +211,7 @@ async def test_webhook_notification_flow():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
         mock_http_client = MagicMock()
         mock_http_client.post = AsyncMock(return_value=mock_response)
         mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)

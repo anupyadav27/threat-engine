@@ -1,0 +1,63 @@
+{
+  "filename": "static_fields_should_not_be_updated_in_constructor_metadata.json",
+  "rule_id": "static_fields_updated_constructors",
+  "title": "Static fields should not be updated in constructors",
+  "description": "Static fields should not be updated in constructorsAnalyze your codeintentionality-logicalmaintainabilityCode SmellWhy is this an issue?Assigning a value to astaticfield in a constructor could cause unreliable behavior at runtime since it will change the value for all instances of the class.Instead remove the field’sstaticmodifier, or initialize it statically.Noncompliant code examplepublic class Person { private static DateTime dateOfBirth; private static int expectedFingers; public Person(DateTime birthday) { dateOfBirth = birthday; // Noncompliant; now everyone has this birthday expectedFingers = 10; // Noncompliant } }Compliant solutionpublic class Person { private DateTime dateOfBirth; private static int expectedFingers = 10; public Person(DateTime birthday) { this.dateOfBirth = birth",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Person\n{\n    private static DateTime dateOfBirth;\n    private static int expectedFingers;\n\n    public Person(DateTime birthday)\n    {\n        dateOfBirth = birthday;  // Noncompliant - now everyone has this birthday\n        expectedFingers = 10;    // Noncompliant - static field updated in constructor\n    }\n}"
+    ],
+    "compliant": [
+      "public class Person\n{\n    private DateTime dateOfBirth;              // Instance field\n    private static int expectedFingers = 10;   // Static field initialized inline\n\n    public Person(DateTime birthday)\n    {\n        this.dateOfBirth = birthday;  // Compliant - instance field\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3010"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "public\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*?\\b[a-z]\\w*\\s*=\\s*[^;=]+;",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\.",
+          "static\\s+\\w+\\s*\\(",
+          "this\\."
+        ],
+        "message": "Static field is being updated in an instance constructor - this affects all instances"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit tests ([Test], [Fact])",
+      "Static constructors",
+      "Instance field assignments using 'this.'",
+      "Comparisons (==, !=)"
+    ],
+    "reasoning": "Assigning a value to a static field in a constructor changes the value for all instances of the class. This is usually unintended and leads to unreliable runtime behavior. Static fields should be initialized inline or in a static constructor.",
+    "validation_examples": {
+      "should_trigger": [
+        "public Person(DateTime birthday) { dateOfBirth = birthday; }",
+        "public MyClass() { counter = 0; }"
+      ],
+      "should_not_trigger": [
+        "public Person(DateTime birthday) { this.dateOfBirth = birthday; }",
+        "private static int expectedFingers = 10;",
+        "static Person() { counter = 0; }"
+      ]
+    }
+  }
+}

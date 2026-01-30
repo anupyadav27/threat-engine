@@ -1,0 +1,60 @@
+{
+  "filename": "static_fields_should_be_avoided_in_generic_types_metadata.json",
+  "rule_id": "static_fields_avoided_generic",
+  "title": "Static fields should be avoided in generic types",
+  "description": "Static fields should not be used in generic typesAnalyze your codeintentionality-completemaintainabilityCode SmellWhy is this an issue?A static field in a generic type is not shared among instances of different closed constructed types, thusLengthLimitedSingletonCollection<int>.instancesandLengthLimitedSingletonCollection<string>.instanceswill point to different objects, even thoughinstancesis seemingly shared among allLengthLimitedSingletonCollection<>generic classes.If you need to have a static field shared among instances with different generic arguments, define a non-generic base class to store your static members, then set your generic type to inherit from the base class.Noncompliant code examplepublic class LengthLimitedSingletonCollection<T> where T : new() { protected const int Max",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class LengthLimitedSingletonCollection<T> where T : new()\n{\n    protected const int MaxSize = 10;\n    protected static int instances; // Noncompliant - static field in generic type\n\n    public static void Add(T item)\n    {\n        instances++;\n    }\n}\n\n// LengthLimitedSingletonCollection<int>.instances and\n// LengthLimitedSingletonCollection<string>.instances\n// point to different objects"
+    ],
+    "compliant": [
+      "public class SingletonCollectionBase\n{\n    protected static int instances; // Compliant - shared across all generic types\n}\n\npublic class LengthLimitedSingletonCollection<T> : SingletonCollectionBase where T : new()\n{\n    protected const int MaxSize = 10;\n\n    public static void Add(T item)\n    {\n        instances++;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2743"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+\\w+\\s*<[^>]+>[\\s\\S]*?(?:private|protected|public|internal)?\\s+static\\s+(?!readonly|const)\\w+\\s+\\w+\\s*[=;]",
+        "exclude_patterns": [
+          ":\\s*\\w+Base",
+          "\\[Test",
+          "\\[Fact"
+        ],
+        "message": "Static field in generic type - each closed generic type will have its own copy of this field"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit tests ([Test], [Fact])",
+      "Classes inheriting from a base class (already defined static there)",
+      "const fields (they are always constant)",
+      "static readonly fields with simple values"
+    ],
+    "reasoning": "Static fields in generic types are not shared across different type arguments. LengthLimitedSingletonCollection<int>.instances and LengthLimitedSingletonCollection<string>.instances point to different objects. This is often unexpected behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Generic<T> { protected static int instances; }",
+        "public class Cache<T> { private static Dictionary<string, T> cache; }"
+      ],
+      "should_not_trigger": [
+        "public class SingletonBase { protected static int instances; }\npublic class Generic<T> : SingletonBase { }",
+        "public class Generic<T> { protected const int MaxSize = 10; }"
+      ]
+    }
+  }
+}

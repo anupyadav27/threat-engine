@@ -1,0 +1,70 @@
+{
+  "filename": "nullreferenceexception_should_not_be_caught_metadata.json",
+  "rule_id": "nullreferenceexception_caught",
+  "title": "NullReferenceException should not be caught",
+  "description": "NullReferenceException should not be caughtAnalyze your codeconsistency-conventionalmaintainabilityCode Smellcweerror-handlingWhy is this an issue?How can I fix it?More InfoCatchingNullReferenceExceptionis generally considered a bad practice because it can hide bugs in your code. Instead of catching this exception, you should aim to prevent it. This makes your code more robust and easier to understand.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try\n{\n    object obj = null;\n    obj.ToString();\n}\ncatch (NullReferenceException ex) // Noncompliant\n{\n    // Handle the exception\n}"
+    ],
+    "compliant": [
+      "object obj = GetSomeObject();\nif (obj != null) // Prevent the exception\n{\n    obj.ToString();\n}\n\n// Or use null-conditional operator\nobj?.ToString();"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1696"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "catch\\s*\\(\\s*NullReferenceException\\s*[\\w\\s]*\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Assert\\.",
+          "//.*catch\\s*\\(\\s*NullReferenceException",
+          "/\\*.*catch\\s*\\(\\s*NullReferenceException",
+          "///.*catch\\s*\\(\\s*NullReferenceException"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "ToString() implementations",
+      "Generated code"
+    ],
+    "reasoning": "Detects methods containing catch blocks specifically for NullReferenceException which is considered bad practice. Uses MethodDeclaration nodes since try-catch blocks are contained within method source. Excludes test methods (marked with [Test] or [Fact]), logging contexts, and commented code to avoid false positives.",
+    "validation_examples": {
+      "should_trigger": [
+        "try { obj.ToString(); } catch (NullReferenceException ex) { return; }",
+        "try { DoWork(); } catch (NullReferenceException nre) { Console.WriteLine(\"Error\"); }"
+      ],
+      "should_not_trigger": [
+        "try { obj.ToString(); } catch (Exception ex) { Logger.LogError(ex); }",
+        "[Test] public void TestMethod() { try { } catch (NullReferenceException ex) { } }",
+        "// catch (NullReferenceException ex) - commented out"
+      ]
+    }
+  }
+}

@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 source venv/bin/activate
 
 # Set PYTHONPATH
-export PYTHONPATH="$(pwd):$(pwd)/onboarding_engine"
+export PYTHONPATH="$(pwd):$(pwd)/engine_onboarding"
 
 echo "Running unit tests..."
 python3 -m pytest \

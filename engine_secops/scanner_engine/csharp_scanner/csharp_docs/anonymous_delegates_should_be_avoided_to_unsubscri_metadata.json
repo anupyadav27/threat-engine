@@ -1,0 +1,52 @@
+{
+  "filename": "anonymous_delegates_should_be_avoided_to_unsubscri_metadata.json",
+  "rule_id": "anonymous_delegates_avoided_unsubscribe",
+  "title": "Anonymous delegates should be avoided to unsubscribe from Events",
+  "description": "When working with anonymous functions, it is important to keep in mind that each time you create one, it is a completely new instance. In this example, even though the same lambda expression is used, the expressions are stored separately in the memory and are therefore not equal or the same. Func<int, int> lambda1 = x => x + 1; Func<int, int> lambda2 = x => x + 1; var result = lambda1 == lambda2; // result is false here This is even more true when working with events since they are multicast delegates that offer ways of subscribing and unsubscribing to them.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "Func<int, int> lambda1 = x => x + 1;\nFunc<int, int> lambda2 = x => x + 1;\n\nvar result = lambda1 == lambda2; // result is false here"
+    ],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3244"
+  ],
+  "logic": {
+    "node_types": [
+      "Assignment",
+      "AssignmentExpression",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\b\\w+\\.\\w+\\s*-=\\s*\\([^)]*=>.*\\)",
+          "\\b\\w+\\.\\w+\\s*-=\\s*\\w+\\s*=>.*",
+          "\\b\\w+\\.\\w+\\s*-=\\s*delegate\\s*\\{",
+          "\\b\\w+\\.\\w+\\s*-=\\s*delegate\\s*\\("
+        ],
+        "exclude_patterns": [
+          "\"[^\"]*-=[^\"]*\"",
+          "'[^']*-=[^']*'",
+          "@\"[^\"]*-=[^\"]*\"",
+          "//.*-=.*",
+          "/\\*[^*]*-=[^*]*\\*/"
+        ],
+        "message": "Avoid using anonymous delegates for event unsubscription"
+      }
+    ]
+  }
+}

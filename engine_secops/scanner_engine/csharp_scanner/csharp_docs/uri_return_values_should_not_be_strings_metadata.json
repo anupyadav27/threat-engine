@@ -1,0 +1,63 @@
+{
+  "filename": "uri_return_values_should_not_be_strings_metadata.json",
+  "rule_id": "uri_return_values_strings",
+  "title": "URI return values should not be strings",
+  "description": "URI return values should not be stringsAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?String representations of URIs or URLs are prone to parsing and encoding errors which can lead to vulnerabilities. TheSystem.Uriclass is a safe alternative and should be preferred.This rule raises an issue when a method has astringreturn type and its name contains \"Uri\", \"Urn\", or \"Url\" or begins with \"uri\", \"urn\", or \"url\".Noncompliant code exampleusing System; namespace MyLibrary { public class MyClass { public string GetParentUri() // Noncompliant { return \"http://www.mysite.com\"; } } }Compliant solutionusing System; namespace MyLibrary { public class MyClass { public Uri GetParentUri() { return new URI(\"http://www.mysite.com\"); } } }Available In:Catch issues on",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class WebService\n{\n    public string GetParentUri() // Noncompliant - should return Uri\n    {\n        return \"http://www.example.com\";\n    }\n\n    public string GetServiceUrl() // Noncompliant\n    {\n        return _baseUrl + \"/api\";\n    }\n}"
+    ],
+    "compliant": [
+      "public class WebService\n{\n    public Uri GetParentUri() // Compliant - returns System.Uri\n    {\n        return new Uri(\"http://www.example.com\");\n    }\n\n    public Uri GetServiceUrl() // Compliant\n    {\n        return new Uri(_baseUri, \"api\");\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3995"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(?:public|protected|internal)\\s+(?:static\\s+)?(?:virtual\\s+)?string\\s+(?:Get)?\\w*(?:Uri|Url|Urn)\\w*\\s*\\(",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "\\[Test",
+          "\\[Fact",
+          "//.*string",
+          "\\bUri\\s+(?:Get)?\\w*(?:Uri|Url|Urn)"
+        ],
+        "message": "URI return values should use System.Uri type instead of string"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact])",
+      "Comments",
+      "Methods already returning Uri type"
+    ],
+    "reasoning": "String representations of URIs are prone to parsing and encoding errors. Methods with names containing Uri, Url, or Urn (or starting with Get followed by these) should return System.Uri type for type safety and validation.",
+    "validation_examples": {
+      "should_trigger": [
+        "public string GetParentUri() { }",
+        "public string GetServiceUrl() { }"
+      ],
+      "should_not_trigger": [
+        "public Uri GetParentUri() { }",
+        "public Uri GetServiceUrl() { }"
+      ]
+    }
+  }
+}

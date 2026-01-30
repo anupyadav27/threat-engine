@@ -1,0 +1,69 @@
+{
+  "filename": "utility_classes_should_avoid_having_public_constru_metadata.json",
+  "rule_id": "utility_classes_avoid_having",
+  "title": "Utility classes should avoid having public constructors",
+  "description": "Utility classes should not have public constructorsAnalyze your codeintentionality-clearmaintainabilityCode SmelldesignWhy is this an issue?How can I fix it?Whenever there are portions of code that are duplicated and do not depend on the state of their container class, they can be centralized inside a \"utility class\". A utility class is a class that only has static members, hence it should not be instantiated.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class StringUtils // Noncompliant - utility class with public constructor\n{\n    public static string Reverse(string input)\n    {\n        char[] chars = input.ToCharArray();\n        Array.Reverse(chars);\n        return new string(chars);\n    }\n\n    public static bool IsEmpty(string input)\n    {\n        return string.IsNullOrWhiteSpace(input);\n    }\n}",
+      "public class MathUtils // Noncompliant - can be instantiated but has only static members\n{\n    public static int Add(int a, int b) => a + b;\n    public static int Multiply(int a, int b) => a * b;\n}"
+    ],
+    "compliant": [
+      "public static class StringUtils // Compliant - static class cannot be instantiated\n{\n    public static string Reverse(string input)\n    {\n        char[] chars = input.ToCharArray();\n        Array.Reverse(chars);\n        return new string(chars);\n    }\n\n    public static bool IsEmpty(string input)\n    {\n        return string.IsNullOrWhiteSpace(input);\n    }\n}",
+      "public class MathUtils // Compliant - private constructor prevents instantiation\n{\n    private MathUtils() { }\n\n    public static int Add(int a, int b) => a + b;\n    public static int Multiply(int a, int b) => a * b;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1118"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "node_types": ["ClassDeclaration"],
+    "detection_conditions": "Detects non-static classes containing only static members but with implicit public constructor",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "public\\s+class\\s+\\w+(?![\\s\\S]*private\\s+\\w+\\s*\\(\\s*\\))[\\s\\S]*public\\s+static\\s+\\w+",
+        "exclude_patterns": [
+          "public\\s+static\\s+class",
+          "public\\s+void\\s+",
+          "public\\s+\\w+\\s+\\w+\\s*\\{\\s*get",
+          "private\\s+readonly"
+        ],
+        "message": "Utility class should be static or have a private constructor"
+      }
+    ],
+    "triggering_conditions": "Public non-static class with static methods but no private constructor",
+    "exclusion_conditions": "Static classes, classes with private constructor, classes with instance members",
+    "never_trigger_on": [
+      "Static classes (public static class)",
+      "Classes with explicit private constructor",
+      "Classes with instance methods (public void ...)",
+      "Classes with instance properties",
+      "Classes with private readonly fields"
+    ],
+    "reasoning": "Utility classes with only static members should either be declared as static classes or have a private constructor to prevent instantiation. Instantiating such classes wastes memory and indicates design confusion.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class StringUtils { public static string Reverse(string s) { } }",
+        "public class MathHelper { public static int Add(int a, int b) { } }"
+      ],
+      "should_not_trigger": [
+        "public static class StringUtils { }",
+        "public class MathUtils { private MathUtils() { } public static int Add(int a, int b) { } }",
+        "public class Service { public void DoWork() { } }"
+      ]
+    }
+  }
+}

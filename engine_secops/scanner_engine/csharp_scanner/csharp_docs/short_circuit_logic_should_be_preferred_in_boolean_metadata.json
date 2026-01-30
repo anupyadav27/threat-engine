@@ -1,0 +1,65 @@
+{
+  "filename": "short_circuit_logic_should_be_preferred_in_boolean_metadata.json",
+  "rule_id": "shortcircuit_logic_preferred_boolean",
+  "title": "Short-circuit logic should be preferred in boolean contexts",
+  "description": "Short-circuit evaluation is an evaluation strategy for Boolean operators, that doesn’t evaluates the second argument of the operator if it is not needed to determine the result of the operation. C# provides logical operators that implement short-circuit evaluation: && and ||, as well as non-short-circuit versions: & and |. Unlike short-circuit operators, non-short-circuit ones evaluate both operands and afterwards perform the logical operation.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (condition1 & condition2) // Noncompliant - use && instead\n{\n}",
+      "if (condition1 | condition2) // Noncompliant - use || instead\n{\n}"
+    ],
+    "compliant": [
+      "if (condition1 && condition2) // Compliant - short-circuit AND\n{\n}",
+      "if (condition1 || condition2) // Compliant - short-circuit OR\n{\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2178"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "if\\s*\\(\\s*\\w+\\s*&\\s*\\w+\\s*\\)|if\\s*\\(\\s*\\w+\\s*\\|\\s*\\w+\\s*\\)",
+        "exclude_patterns": [
+          "Console\\.Write",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\."
+        ],
+        "message": "Use short-circuit operators (&&, ||) instead of non-short-circuit operators (&, |) in boolean contexts."
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// , /* */)",
+      "Bitwise operations (intended &, |)",
+      "Compound assignments (&=, |=)"
+    ],
+    "reasoning": "Non-short-circuit operators evaluate both operands which can cause side effects or null reference exceptions. Short-circuit operators are safer.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (condition1 & condition2) { }",
+        "if (a | b) { }"
+      ],
+      "should_not_trigger": [
+        "if (condition1 && condition2) { }",
+        "if (a || b) { }",
+        "flags &= mask;"
+      ]
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "filename": "overriding_members_should_do_more_than_simply_call_metadata.json",
+  "rule_id": "overriding_members_do_more",
+  "title": "Overriding members should do more than simply call the same member in the base class",
+  "description": "Overriding members should do more than simply call the same member in the base classAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEredundantclumsyWhy is this an issue?Overriding a method just to call the same method from the base class without performing any other actions is useless and misleading. The only time this is justified is insealedoverriding methods, where the effect is to lock in the parent class behavior. This rule ignores overrides ofEqualsandGetHashCode.NOTE: In some cases it might be dangerous to add or remove empty overrides, as they might be breaking changes.Noncompliant code examplepublic override void Method() // Noncompliant { base.Method(); }Compliant solutionpublic override void Method() { //do so",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public override void Method() // Noncompliant: only calls base method\n{\n    base.Method();\n}",
+      "public override string ToString() // Noncompliant: only calls base\n{\n    return base.ToString();\n}"
+    ],
+    "compliant": [
+      "public override void Method() // Compliant: does additional work\n{\n    LogMethodCall();\n    base.Method();\n}",
+      "public sealed override void Method() // Compliant: sealed override locks behavior\n{\n    base.Method();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1185"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_overriding_members_do_more"
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Uses regex to detect override methods that only call the base implementation",
+    "triggering_conditions": "Method declarations with override modifier that only contain a base method call",
+    "exclusion_conditions": "Excludes test methods, sealed overrides, Equals/GetHashCode methods, and logging contexts",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "Sealed override methods (sealed override)",
+      "Equals and GetHashCode overrides",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Generated code",
+      "Override methods with additional logic"
+    ],
+    "reasoning": "Detects override methods that only call the base implementation without adding any functionality. Such overrides are usually unnecessary unless they are sealed overrides that lock in behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "public override void Method() { base.Method(); }",
+        "public override string ProcessData(string input) { return base.ProcessData(input); }",
+        "public override string ToString() { return base.ToString(); }"
+      ],
+      "should_not_trigger": [
+        "public override void Method() { LogCall(); base.Method(); }",
+        "public sealed override void Method() { base.Method(); }",
+        "public override bool Equals(object obj) { return base.Equals(obj); }",
+        "[Test] public override void Method() { base.Method(); }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "filename": "right_operands_of_shift_operators_should_be_intege_metadata.json",
+  "rule_id": "right_operands_shift_operators",
+  "title": "Right operands of shift operators should be integers",
+  "description": "Right operands of shift operators should be integersAnalyze your codeintentionality-completereliabilityBugWhy is this an issue?More InfoNumbers can be shifted with the<<and>>operators, but the right operand of the operation needs to be anintor a type that has animplicit conversiontoint. However, when the left operand isdynamic, the compiler’s type checking is turned off, so you can pass anything to the right of a shift operator and have it compile. And if the argument can’t be implicitly converted tointat runtime, then aRuntimeBinderExceptionwill be raised.dynamic d = 5; var x = d >> 5.4; // Noncompliant x = d << null; // Noncompliant x <<= new object(); // NoncompliantAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "dynamic d = 5;\nvar x = d >> 5.4; // Double used as shift amount",
+      "int value = 8;\nvalue <<= null; // Null used as shift amount",
+      "dynamic val = 10;\nval << new object(); // Object used as shift amount",
+      "long number = 100L;\nresult = number >> 2.5f; // Float used as shift amount"
+    ],
+    "compliant": [
+      "int value = 8;\nvalue <<= 2; // Integer shift amount",
+      "long number = 100L;\nresult = number >> 3; // Integer shift amount",
+      "byte flags = 0x01;\nflags <<= 1; // Valid integer operation",
+      "uint mask = 0xFF;\nmask >>= 4; // Valid unsigned integer operation"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3449"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:>>|<<|>>=|<<=)\\s*(?:[0-9]*\\.[0-9]+[fd]?|null|new\\s+\\w+\\(|\\w+\\.\\w+\\()",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration"],
+    "detection_conditions": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:>>|<<|>>=|<<=)\\s*(?:[0-9]*\\.[0-9]+[fd]?|null|new\\s+\\w+\\(|\\w+\\.\\w+\\()",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///"
+        ]
+      }
+    ],
+    "triggering_conditions": {
+      "logic": "AND", 
+      "conditions": [
+        "Contains shift operator (<<, >>, <<=, >>=)",
+        "Right operand is not an integer (float, null, object, etc.)"
+      ]
+    },
+    "exclusion_conditions": [
+      "Right operand is integer literal or variable",
+      "In test context",
+      "In logging context",
+      "In comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "Valid integer operands"
+    ],
+    "reasoning": "Detects shift operations where the right operand is not an integer type, which can cause RuntimeBinderException with dynamic types or compilation errors. Identifies patterns where floating point numbers, null, objects, or method calls are used as shift amounts instead of integers.",
+    "validation_examples": {
+      "should_trigger": [
+        "var x = d >> 5.4; // Double operand",
+        "value <<= null; // Null operand", 
+        "val << new object(); // Object operand",
+        "number >> 2.5f; // Float operand"
+      ],
+      "should_not_trigger": [
+        "value <<= 2; // Integer operand",
+        "number >> 3; // Integer operand",
+        "flags <<= 1; // Integer operand",
+        "mask >>= 4; // Integer operand"
+      ]
+    }
+  }
+}

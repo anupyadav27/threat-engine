@@ -1,0 +1,103 @@
+{
+  "filename": "public_constant_members_should_be_avoided_metadata.json",
+  "rule_id": "public_constant_members_avoided",
+  "title": "Public constant members should be avoided",
+  "description": "Constant members are copied at compile time to the call sites, instead of being fetched at runtime. As an example, say you have a library with a constant Version member set to 1.0, and a client application linked to it. This library is then updated and Version is set to 2.0.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Library\n{\n    public const string Version = \"1.0\"; // Noncompliant\n    public const int MaxRetries = 3; // Noncompliant\n}",
+      "public static class Constants\n{\n    public const double Pi = 3.14159; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public class Library\n{\n    public static readonly string Version = \"1.0\"; // OK\n    public static readonly int MaxRetries = 3; // OK\n}",
+      "public static class Constants\n{\n    public static readonly double Pi = 3.14159; // OK\n}",
+      "public class Configuration\n{\n    private const string DefaultPath = \"/default\"; // OK - private\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2339"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bpublic\\s+const\\b",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.", 
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "^\\s*//",
+          "/\\*",
+          "\\*/",
+          "private\\s+const",
+          "internal\\s+const",
+          "protected\\s+const",
+          "readonly",
+          "static\\s+readonly",
+          "ToString\\(\\)"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["Assignment"],
+    "detection_conditions": "Identifies public constant field declarations using regex pattern for 'public const'",
+    "triggering_conditions": "Pattern matches 'public const [type] [name] = [value]' declarations",
+    "exclusion_conditions": [
+      "Private constants (private const)",
+      "Internal constants (internal const)",
+      "Protected constants (protected const)", 
+      "Static readonly fields (already following best practice)",
+      "Readonly fields",
+      "Logging statements",
+      "String formatting",
+      "Unit test code",
+      "Comments",
+      "ToString() method implementations"
+    ],
+    "never_trigger_on": [
+      "Private constants (internal implementation)",
+      "Internal constants (assembly-scoped)",
+      "Protected constants (inheritance hierarchy)",
+      "Static readonly members (best practice alternative)",
+      "Readonly fields",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /**/)",
+      "ToString() implementations"
+    ],
+    "reasoning": "Detects public constant field declarations which can cause versioning issues because constants are compiled into calling assemblies at compile time. When the constant value changes in a library, client code must be recompiled to see the new value. The regex pattern specifically looks for 'public const' but excludes private, internal, and protected constants which don't have this cross-assembly issue.",
+    "validation_examples": {
+      "should_trigger": [
+        "public const string Version = \"1.0\";",
+        "public const int MaxRetries = 3;",
+        "public const double DefaultRate = 0.05;"
+      ],
+      "should_not_trigger": [
+        "public static readonly string Version = \"1.0\";",
+        "private const int BufferSize = 4096;",
+        "internal const string ConfigKey = \"key\";",
+        "protected const int DefaultTimeout = 30;",
+        "Console.WriteLine(\"public const\");",
+        "// public const string Example = \"test\";"
+      ]
+    }
+  }
+}

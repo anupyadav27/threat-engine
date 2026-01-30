@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
-from onboarding_engine.notifications.webhook_sender import WebhookSender
+from engine_onboarding.notifications.webhook_sender import WebhookSender
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_send_scan_completed_success():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
         mock_client.return_value.__aenter__.return_value.__aexit__ = AsyncMock(return_value=None)
         
@@ -50,7 +50,7 @@ async def test_send_scan_completed_failure():
     """Test webhook notification failure handling"""
     sender = WebhookSender(timeout=5.0)
     
-    with patch('onboarding_engine.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(side_effect=Exception("Connection error"))
         mock_client.return_value.__aenter__.return_value.__aexit__ = AsyncMock(return_value=None)
         
@@ -74,7 +74,7 @@ async def test_send_orchestration_completed():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     
-    with patch('onboarding_engine.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
+    with patch('engine_onboarding.notifications.webhook_sender.httpx.AsyncClient') as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
         mock_client.return_value.__aenter__.return_value.__aexit__ = AsyncMock(return_value=None)
         

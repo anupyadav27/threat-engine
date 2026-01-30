@@ -1,0 +1,80 @@
+{
+  "filename": "connection_strings_should_not_be_vulnerable_to_inj_metadata.json",
+  "rule_id": "connection_strings_vulnerable_injections",
+  "title": "Connection strings should not be vulnerable to injections attacks",
+  "description": "Connection strings contain a series of parameters that are structured as key/value pairs, similar to key1=value1;key2=value2. If an attacker can control values that are inserted into the connection string, they may be able to insert additional parameters. These additional parameters can override values that were supplied earlier in the connection string.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void UpdateConnectionString(string userInput)\n{\n    // Noncompliant: user input directly concatenated into connection string\n    string connectionString = \"Server=myServer;Database=myDB;User Id=\" + userInput + \";Password=myPass;\";\n    using (SqlConnection connection = new SqlConnection(connectionString))\n    {\n        // ...\n    }\n}"
+    ],
+    "compliant": [
+      "public void UpdateConnectionString(string userId)\n{\n    // Compliant: using SqlConnectionStringBuilder with validation\n    var builder = new SqlConnectionStringBuilder\n    {\n        DataSource = \"myServer\",\n        InitialCatalog = \"myDB\",\n        UserID = ValidateUserId(userId), // Validate input\n        Password = \"myPass\"\n    };\n    using (SqlConnection connection = new SqlConnection(builder.ConnectionString))\n    {\n        // ...\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6641"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "BinaryExpression"],
+    "detection_conditions": "Detects string concatenation patterns that suggest building connection strings from user input",
+    "triggering_conditions": "Triggers when connection string keywords (Server, Database, User Id, etc.) are found in concatenated strings AND the concatenation involves variable input, excluding SqlConnectionStringBuilder usage and const/readonly values",
+    "exclusion_conditions": "Excludes SqlConnectionStringBuilder usage, const/readonly values, logging statements, non-connection-string concatenations, and configuration contexts",
+    "never_trigger_on": [
+      "SqlConnectionStringBuilder usage",
+      "Const or readonly connection strings",
+      "Logging statements (Console., Logger., Debug.)",
+      "String concatenation not related to connection strings",
+      "Configuration file loading",
+      "Comments and documentation"
+    ],
+    "reasoning": "Connection string injection occurs when user input is directly concatenated into connection strings, allowing attackers to inject additional parameters. The rule detects concatenation patterns with connection string keywords (Server, Database, User Id, Password, Data Source) combined with variables. SqlConnectionStringBuilder is excluded as it provides safe parameter handling. Const values are excluded as they cannot contain injected input. Logging and general string concatenation are excluded to avoid false positives.",
+    "validation_examples": {
+      "should_trigger": [
+        "string connectionString = \"Server=myServer;Database=myDB;User Id=\" + userInput + \";Password=myPass;\";",
+        "var connStr = \"Data Source=localhost;\" + \"User ID=\" + userId + \";\";",
+        "string conn = String.Format(\"Server={0};Database=myDB;\", input);"
+      ],
+      "should_not_trigger": [
+        "var builder = new SqlConnectionStringBuilder { DataSource = \"myServer\", UserID = userId };",
+        "const string connectionString = \"Server=myServer;Database=myDB;Integrated Security=true;\";",
+        "string message = \"Hello \" + name + \"!\";",
+        "string logEntry = \"User \" + userId + \" logged in\";"
+      ]
+    },
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "(Server|Database|User Id|Password|Data Source|Initial Catalog)\\s*=.*\\+",
+          "\\+.*\".*;(Server|Database|User Id|Password|Data Source)",
+          "String\\.Format\\s*\\(\\s*\".*[Ss]erver\\s*=",
+          "String\\.Format\\s*\\(\\s*\".*[Dd]atabase\\s*="
+        ],
+        "exclude_patterns": [
+          "SqlConnectionStringBuilder",
+          "const\\s+string",
+          "readonly\\s+string",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "Trace\\.",
+          "\\$\"",
+          "//",
+          "/\\*"
+        ]
+      }
+    ]
+  }
+}

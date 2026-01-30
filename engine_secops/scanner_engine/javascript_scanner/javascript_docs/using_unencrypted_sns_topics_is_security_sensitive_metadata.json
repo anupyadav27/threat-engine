@@ -1,0 +1,93 @@
+{
+  "filename": "using_unencrypted_sns_topics_is_security_sensitive_metadata.json",
+  "rule_id": "using_unencrypted_sns_topics",
+  "title": "Using unencrypted SNS topics is security-sensitive",
+  "description": "Using unencrypted SNS topics is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotawscweAmazon Simple Notification Service (SNS) is a managed messaging service for application-to-application (A2A) and application-to-person (A2P) communication. SNS topics allows publisher systems to fanout messages to a large number of subscriber systems. Amazon SNS allows to encrypt messages when they are received.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "aws_cdk.aws_sns.Topic"
+    ],
+    "compliant": [
+      "import { Topic } from 'aws-cdk-lib/aws-sns';\n\nnew Topic(this, 'exampleTopic'); // Sensitive"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6327"
+  ],
+  "logic": {
+    "node_types": [
+      "NewExpression",
+      "CallExpression",
+      "ObjectExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Topic|SNSTopic)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"]\\s*\\)(?!\\s*;)",
+        "message": "SNS Topic created without encryption. Add masterKey property with a KMS key."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Topic|SNSTopic)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*masterKey\\s*:)[^}]*topicName",
+        "message": "SNS Topic created with properties but no encryption. Add masterKey property with a KMS key."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Topic|SNSTopic)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*masterKey\\s*:)[^}]*displayName",
+        "message": "SNS Topic created with properties but no encryption. Add masterKey property with a KMS key."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Topic|SNSTopic)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*masterKey\\s*:)[^}]*fifo\\s*:",
+        "message": "FIFO SNS Topic created without encryption. Add masterKey property with a KMS key."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Topic|SNSTopic)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*masterKey\\s*:)[^}]*contentBasedDeduplication",
+        "message": "SNS Topic created with deduplication but no encryption. Add masterKey property with a KMS key."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+.*CfnTopic\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*kmsMasterKeyId)[^}]*topicName",
+        "message": "CfnTopic created without kmsMasterKeyId. Specify a KMS key ARN for encryption."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+.*CfnTopic\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*kmsMasterKeyId)[^}]*displayName",
+        "message": "CfnTopic created without kmsMasterKeyId. Specify a KMS key ARN for encryption."
+      }
+    ]
+  }
+}

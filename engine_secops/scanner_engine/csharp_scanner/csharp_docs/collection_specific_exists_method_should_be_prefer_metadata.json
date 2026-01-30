@@ -1,0 +1,56 @@
+{
+  "filename": "collection_specific_exists_method_should_be_prefer_metadata.json",
+  "rule_id": "collectionspecific_exists_method_preferred",
+  "title": "Collection-specific Exists method should be preferred instead of the Any extension",
+  "description": "Both the List.Exists method and IEnumerable.Any method can be used to find the first element that satisfies a predicate in a collection. However, List.Exists can be faster than IEnumerable.Any for List objects, as well as requires significantly less memory. For small collections, the performance difference may be negligible, but for large collections, it can be noticeable.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "bool hasMatch = list.Any(x => x > 0); // Noncompliant: using LINQ extension method"
+    ],
+    "compliant": [
+      "bool hasMatch = list.Exists(x => x > 0); // Compliant: using collection-specific method"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6605"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_list_any_instead_of_exists"
+      }
+    ],
+    "never_trigger_on": [
+      "IEnumerable<T> variables (not List specific)",
+      "Array variables",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Comments (// /* ///)"
+    ],
+    "reasoning": "Detects when .Any() LINQ extension method is used on a List<T> variable instead of the more efficient List.Exists() method. Tracks List<T> variable declarations (var x = new List<> or List<T> x = new List<>) and checks for .Any() calls on those specific variables. Excludes: (1) IEnumerable variables - rule only applies to List, (2) Arrays - don't have Exists method, (3) Logging/formatting - display contexts are OK. The performance difference matters for large collections.",
+    "validation_examples": {
+      "should_trigger": [
+        "var list = new List<int>(); bool hasMatch = list.Any(x => x > 0);",
+        "List<string> names = new List<string>(); bool hasLong = names.Any(n => n.Length > 10);"
+      ],
+      "should_not_trigger": [
+        "var list = new List<int>(); bool hasMatch = list.Exists(x => x > 0);",
+        "IEnumerable<int> enumerable = GetNumbers(); bool anyPositive = enumerable.Any(x => x > 0);",
+        "int[] array = new int[] { 1, 2, 3 }; bool arrayHasMatch = array.Any(x => x > 0);",
+        "Console.WriteLine($\\\"Has match: {list.Any(x => x > 0)}\\\");"
+      ]
+    }
+  }
+}

@@ -1,20 +1,20 @@
 #!/bin/bash
-# Run full integration tests
+# Run full integration tests (use project-root–relative paths)
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT"
 
 echo "=========================================="
 echo "Running Full Integration Tests"
 echo "=========================================="
 echo ""
 
-# Activate virtual environment
-source ../../venv/bin/activate
+[ -d "$ROOT/venv" ] && source "$ROOT/venv/bin/activate"
+export PYTHONPATH="${ROOT}:${ROOT}/engine_onboarding"
 
-# Set PYTHONPATH
-export PYTHONPATH="/Users/apple/Desktop/threat-engine:/Users/apple/Desktop/threat-engine/onboarding_engine"
-
-# Run integration tests
 echo "Running integration workflow tests..."
 python3 -m pytest \
     tests/integration/test_integration_workflow.py \

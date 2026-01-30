@@ -1,0 +1,83 @@
+{
+  "filename": "contains_should_be_preferred_instead_of_any_for_si_metadata.json",
+  "rule_id": "contains_preferred_instead_any",
+  "title": "Contains should be preferred instead of Any for simple equality checks",
+  "description": "When testing if a collection contains a specific item by simple equality, both ICollection.Contains(T item) and IEnumerable.Any(x ⇒ x == item) can be used. However, Any searches the data structure in a linear manner using a foreach loop, whereas Contains is considerably faster in some collection types, because of the underlying implementation. More specifically: HashSet<T> is a hashtable, and therefore has an O(1) lookup SortedSet<T> is a red-black tree, and therefore has a O(logN) lookup List<T> is a linear search, and therefore has an O(N) lookup, but the EqualityComparer is optimized for the T type, which is not the case for Any For small collections, the performance difference may be negligible, but for large collections, it can be noticeable.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public bool CheckValue(HashSet<int> numbers, int value)\n{\n    // Noncompliant: using Any for simple equality check\n    return numbers.Any(x => x == value);\n}\n\npublic bool CheckString(List<string> items, string search)\n{\n    // Noncompliant: inefficient linear search with Any\n    return items.Any(item => item == search);\n}"
+    ],
+    "compliant": [
+      "public bool CheckValue(HashSet<int> numbers, int value)\n{\n    // Compliant: using Contains for O(1) lookup in HashSet\n    return numbers.Contains(value);\n}\n\npublic bool CheckString(List<string> items, string search)\n{\n    // Compliant: Contains uses optimized EqualityComparer\n    return items.Contains(search);\n}\n\npublic bool CheckComplex(List<Customer> customers, int targetAge)\n{\n    // Compliant: Any is appropriate for complex conditions\n    return customers.Any(c => c.Age > targetAge && c.IsActive);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6617"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Detects .Any() calls with lambda expressions checking simple equality (x => x == value)",
+    "triggering_conditions": "Triggers when .Any() is called with a lambda that only checks equality (==) without additional conditions, suggesting .Contains() would be more efficient",
+    "exclusion_conditions": "Excludes .Any() with complex conditions (&&, ||, comparison operators in lambda), .Any() without arguments, logging statements, and test code",
+    "never_trigger_on": [
+      "Any() with complex predicates (multiple conditions)",
+      "Any() without arguments (existence check)",
+      "Any() with comparison operators in lambda expression",
+      "Any() with logical operators (&&, ||)",
+      "Logging statements",
+      "Test code"
+    ],
+    "reasoning": "When checking if a collection contains a specific item by simple equality, Contains() is more efficient than Any() for certain collection types. HashSet<T> has O(1) Contains lookup vs O(N) Any. SortedSet<T> has O(logN) Contains vs O(N) Any. Even for List<T>, Contains uses optimized EqualityComparer. The rule detects .Any(x => x == value) patterns and suggests using .Contains(value) instead. Complex conditions with Any() are valid and excluded. Only targets CallExpression nodes to avoid false positives from generic type parameters.",
+    "validation_examples": {
+      "should_trigger": [
+        "numbers.Any(x => x == value)",
+        "items.Any(item => item == search)",
+        "data.Any(s => s == target)",
+        "collection.Any(n => n == val)"
+      ],
+      "should_not_trigger": [
+        "numbers.Contains(value)",
+        "items.Contains(search)",
+        "customers.Any(c => c.Age > targetAge && c.IsActive)",
+        "products.Any(p => p.Price >= minPrice || p.IsOnSale)",
+        "items.Any()"
+      ]
+    },
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\.Any\\s*\\(\\s*\\w+\\s*=>\\s*\\w+\\s*==",
+          "\\.Any\\s*\\(\\s*\\w+\\s*=>\\s*==\\s*\\w+"
+        ],
+        "exclude_patterns": [
+          "&&",
+          "\\|\\|",
+          "\\s+>=\\s+",
+          "\\s+<=\\s+",
+          "\\s+>\\s+",
+          "\\s+<\\s+",
+          "!=",
+          "\\.Any\\s*\\(\\s*\\)",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

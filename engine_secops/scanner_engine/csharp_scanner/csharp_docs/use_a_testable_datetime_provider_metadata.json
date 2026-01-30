@@ -1,0 +1,72 @@
+{
+  "filename": "use_a_testable_datetime_provider_metadata.json",
+  "rule_id": "use_testable_datetime_provider",
+  "title": "Use a testable date/time provider",
+  "description": "Use a testable date/time providerAnalyze your codeadaptability-testedmaintainabilityCode SmellWhy is this an issue?More InfoOne of the principles of a unit test is that it must have full control of the system under test. This is problematic when production code includes calls to static methods, which cannot be changed or controlled. Date/time functions are usually provided by system libraries as static methods.This can be improved by wrapping the system calls in an object or service that can be controlled inside the unit test.Noncompliant code examplepublic class Foo { public string HelloTime() => $\"Hello at {DateTime.UtcNow}\"; }Compliant solutionThere are different approaches to solve this problem.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo\n{\n    public string HelloTime() =>\n        $\"Hello at {DateTime.UtcNow}\"; // Noncompliant - not testable\n\n    public bool IsExpired(DateTime expirationDate) =>\n        DateTime.Now > expirationDate; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public interface IDateTimeProvider\n{\n    DateTime Now { get; }\n    DateTime UtcNow { get; }\n}\n\npublic class Foo\n{\n    private readonly IDateTimeProvider _dateTimeProvider;\n\n    public Foo(IDateTimeProvider dateTimeProvider)\n    {\n        _dateTimeProvider = dateTimeProvider;\n    }\n\n    public string HelloTime() =>\n        $\"Hello at {_dateTimeProvider.UtcNow}\"; // Compliant - testable\n\n    public bool IsExpired(DateTime expirationDate) =>\n        _dateTimeProvider.Now > expirationDate; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6354"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "PropertyDeclaration", "Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bDateTime\\s*\\.\\s*(?:Now|UtcNow|Today)\\b",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "ToString\\s*\\(",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\.",
+          "//.*DateTime",
+          "IDateTimeProvider",
+          "_dateTimeProvider",
+          "dateTimeProvider"
+        ],
+        "message": "Use a testable date/time provider instead of DateTime.Now/UtcNow/Today"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "ToString() implementations",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments",
+      "Code using IDateTimeProvider or similar abstractions"
+    ],
+    "reasoning": "Static DateTime.Now/UtcNow calls are not testable because they return the actual system time. Inject a testable IDateTimeProvider abstraction that can be mocked in unit tests to control time-dependent behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "public string HelloTime() => $\"Hello at {DateTime.UtcNow}\";",
+        "return DateTime.Now > expirationDate;"
+      ],
+      "should_not_trigger": [
+        "return _dateTimeProvider.Now > expirationDate;",
+        "Console.WriteLine($\"Current time: {DateTime.Now}\");"
+      ]
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "rule_id": "google_cloud_load_balancers_ssl_policies_should_not_offer_weak_cipher_suites",
+  "title": "Google Cloud load balancers SSL policies should not offer weak cipher suites",
+  "type": "VULNERABILITY",
+  "status": "READY",
+  "defaultSeverity": "Major",
+  "description": "SSL policies for Google Cloud load balancers determine which cipher suites are available for client connections. Allowing weak ciphers (e.g., RC4, DES, export-grade) exposes traffic to interception and decryption by attackers. Only strong, modern cipher suites should be enabled to ensure confidentiality and integrity.",
+  "message": "SSL policy offers weak cipher suites. Restrict to strong, secure ciphers only.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "cwe",
+    "gcp"
+  ],
+  "impact": "Weak ciphers can be exploited to decrypt sensitive data in transit, leading to data breaches and regulatory violations.",
+  "recommendation": "Configure SSL policies to use only strong ciphers (e.g., TLS 1.2+ with AES-GCM). Regularly review and update policies to remove deprecated ciphers.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6410/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"google_compute_ssl_policy\" \"bad_example\" {\n  name            = \"bad-ssl-policy\"\n  profile         = \"COMPATIBLE\"\n  min_tls_version = \"TLS_1_0\"\n}",
+        "description": "The 'COMPATIBLE' profile and TLS 1.0 allow weak ciphers, exposing traffic to risk."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"google_compute_ssl_policy\" \"good_example\" {\n  name            = \"secure-ssl-policy\"\n  profile         = \"MODERN\"\n  min_tls_version = \"TLS_1_2\"\n}",
+        "description": "The 'MODERN' profile and TLS 1.2 restrict ciphers to strong, secure options."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Encryption & Data Protection",
+    "security": "Strong ciphers protect data in transit from eavesdropping and tampering.",
+    "automation": "CI/CD should enforce secure SSL policy profiles and minimum TLS versions.",
+    "compliance": "Strong encryption is required by PCI DSS, HIPAA, and other standards."
+  },
+  "why_is_this_an_issue": "Weak ciphers can be broken by attackers, exposing sensitive data and violating compliance requirements.",
+  "how_to_fix": "Set SSL policy profile to 'MODERN' or equivalent, and require TLS 1.2 or higher. Remove any deprecated ciphers from allowed lists.",
+  "security_mappings": {
+    "CWE": "CWE-326: Inadequate Encryption Strength",
+    "CERT": "MSC61-CPP: Do not use deprecated or weak cryptographic algorithms",
+    "OWASP": "A2: Cryptographic Failures"
+  },
+  "logic": {
+    "resource_type": "google_compute_ssl_policy",
+    "property_path": ["profile", "min_tls_version"],
+    "check_type": "in",
+    "forbidden_values": ["COMPATIBLE", "TLS_1_0", "TLS_1_1"],
+    "required_values": ["MODERN", "TLS_1_2"],
+    "custom_function": ""
+  }
+}

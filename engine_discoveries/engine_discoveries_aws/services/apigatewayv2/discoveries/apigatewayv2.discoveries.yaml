@@ -1,0 +1,65 @@
+version: '1.0'
+provider: aws
+service: apigatewayv2
+services:
+  client: apigatewayv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.apigatewayv2.get_apis
+  calls:
+  - action: get_apis
+    save_as: response
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+- discovery_id: aws.apigatewayv2.get_stages
+  calls:
+  - action: get_stages
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+    for_each: aws.apigatewayv2.get_apis
+    on_error: continue
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+- discovery_id: aws.apigatewayv2.get_stage
+  calls:
+  - action: get_stage
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+      StageName: '{{ item.StageName }}'
+    for_each: aws.apigatewayv2.get_stages
+    on_error: continue
+  emit: {}
+- discovery_id: aws.apigatewayv2.get_routes
+  calls:
+  - action: get_routes
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId }}'
+    for_each: aws.apigatewayv2.get_apis
+    on_error: continue
+  emit:
+    items_for: '{{ response.Items }}'
+    as: item
+    # expose integration target/uri if present
+    item:
+      RouteId: '{{ item.RouteId }}'
+      IntegrationId: '{{ item.Target if item.Target is defined else (item.IntegrationId if item.IntegrationId is defined else \"\") }}'
+
+  # fetch integration details when present
+- discovery_id: aws.apigatewayv2.get_integration
+  for_each: aws.apigatewayv2.get_routes
+  calls:
+  - action: get_integration
+    save_as: response
+    params:
+      ApiId: '{{ item.ApiId if item.ApiId is defined else item.ApiId }}'
+      IntegrationId: '{{ item.IntegrationId if item.IntegrationId is defined else item.IntegrationId }}'
+    on_error: continue
+  emit:
+    item:
+      IntegrationId: '{{ response.IntegrationId if response.IntegrationId is defined else \"\" }}'
+      IntegrationUri: '{{ response.IntegrationUri if response.IntegrationUri is defined else (response.get(\"Target\") if response.get(\"Target\") is defined else \"\") }}'

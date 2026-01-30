@@ -1,0 +1,155 @@
+{
+  "service": "kinesisfirehose",
+  "review_date": "2026-01-03",
+  "review_summary": {
+    "total_rules": 6,
+    "rules_reviewed": 6,
+    "consolidation_opportunities": 0,
+    "cross_service_suggestions": 0
+  },
+  "consolidation_suggestions": {
+    "duplicates": []
+  },
+  "cross_service_suggestions": [],
+  "confidence_scores": {
+    "consolidation_opportunities": 0,
+    "cross_service_placement": 0
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "action": "fix_critical_issues",
+      "rule_ids": [
+        "aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege",
+        "aws.kinesisfirehose.deliverystream.consumer_auth_required"
+      ],
+      "description": "Fix 2 rule(s) with critical configuration validation issues",
+      "impact": "CRITICAL - Ensures rules correctly validate compliance requirements"
+    }
+  ],
+  "quality_analysis": {
+    "analysis_date": "2026-01-03",
+    "overall_quality_score": 85,
+    "critical_issues": [
+      {
+        "severity": "high",
+        "rule_id": "aws.kinesisfirehose.deliverystream.consumer_auth_required",
+        "issue_type": "wrong_field",
+        "description": "Rule name suggests authentication but checks data processing configuration (DataFormatConversionConfiguration, ProcessingConfiguration) instead of authentication",
+        "current_mapping": {
+          "field_path": "ExtendedS3DestinationDescription.DataFormatConversionConfiguration",
+          "expected_value": "Should check authentication configuration, not data processing"
+        },
+        "problem": "Rule name suggests authentication but checks data processing configuration (DataFormatConversionConfiguration, ProcessingConfiguration) instead of authentication",
+        "impact": "HIGH - Rule checks wrong fields, doesn't validate what name suggests",
+        "recommendation": "Fix field paths to check actual authentication configuration, not data processing settings"
+      },
+      {
+        "severity": "critical",
+        "rule_id": "aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege",
+        "issue_type": "hardcoded_value",
+        "description": "Rule has hardcoded placeholder ARN (arn:aws:iam::123456789012:role/KinesisFirehoseServiceRole) which will never match real resources. Also has contradictory checks (exists and equals specific ARN).",
+        "current_mapping": {
+          "field_path": "DestinationDescription.RoleARN",
+          "expected_value": "arn:aws:iam::123456789012:role/KinesisFirehoseServiceRole"
+        },
+        "problem": "Rule has hardcoded placeholder ARN (arn:aws:iam::123456789012:role/KinesisFirehoseServiceRole) which will never match real resources. Also has contradictory checks (exists and equals specific ARN).",
+        "impact": "CRITICAL - Hardcoded placeholder ARN will never match real resources, rule will always fail",
+        "recommendation": "Remove hardcoded ARN check and fix contradictory logic. Should validate IAM role policies for least privilege or check role exists without specific ARN."
+      }
+    ],
+    "type_mismatches": [],
+    "field_path_issues": [],
+    "method_verification_issues": [],
+    "cross_service_analysis": {
+      "note": "Note: All methods used are kinesisfirehose service methods",
+      "explanation": "All python_methods (describe_delivery_stream) belong to kinesisfirehose service. No cross-service issues found.",
+      "recommendation": "No action needed - rules correctly use kinesisfirehose API methods"
+    }
+  },
+  "quality_metrics": {
+    "total_rules": 6,
+    "critical_bugs": 2,
+    "type_mismatches": 0,
+    "field_path_issues": 0,
+    "consolidation_opportunities": 0,
+    "yaml_alignment": "100%",
+    "cross_service_suggestions": 0,
+    "overall_score": 85
+  },
+  "validation_summary": {
+    "validation_date": "2026-01-08",
+    "rules_validated": 6,
+    "rules_passing": 1,
+    "rules_fixed": 0,
+    "test_results": {
+      "scan_execution": "PASSED",
+      "test_region": "us-east-1",
+      "total_checks": 30,
+      "pass": 0,
+      "fail": 30,
+      "errors": 0
+    },
+    "validation_findings": {
+      "aws.kinesisfirehose.deliverystream.consumer_auth_required": {
+        "intent_match": false,
+        "field_path_correct": false,
+        "operator_correct": true,
+        "issue": "Checks data format conversion and processing configuration instead of consumer authentication",
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "critical_logic_issue"
+      },
+      "aws.kinesisfirehose.deliverystream.encryption_at_rest_enabled": {
+        "intent_match": true,
+        "field_path_correct": true,
+        "operator_correct": true,
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "correct"
+      },
+      "aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege": {
+        "intent_match": false,
+        "field_path_correct": false,
+        "operator_correct": true,
+        "issue": "Checks hardcoded placeholder role ARN instead of least privilege, wrong field path (DestinationDescription doesn't exist)",
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "critical_logic_issue"
+      },
+      "aws.kinesisfirehose.deliverystream.logging_enabled": {
+        "intent_match": "partial",
+        "field_path_correct": false,
+        "operator_correct": true,
+        "issue": "Field paths reference DeliveryStreamDescription wrapper that doesn't exist in emit structure, Destinations is an array",
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "critical_field_path_issue"
+      },
+      "aws.kinesisfirehose.deliverystream.private_network_only_if_supported": {
+        "intent_match": "partial",
+        "field_path_correct": false,
+        "operator_correct": true,
+        "issue": "Field path references DestinationDescription which doesn't exist, Destinations is an array",
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "critical_field_path_issue"
+      },
+      "aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_encrypted": {
+        "intent_match": "partial",
+        "field_path_correct": false,
+        "operator_correct": true,
+        "issue": "Field path references ExtendedS3DestinationDescription at top level, but it's nested in Destinations array",
+        "discovery_correct": true,
+        "test_result": "FAIL",
+        "status": "critical_field_path_issue"
+      }
+    },
+    "summary": {
+      "rules_with_critical_issues": 5,
+      "rules_correctly_implemented": 1,
+      "common_issue": "Destinations array not properly handled - most rules reference DestinationDescription or top-level fields instead of Destinations array",
+      "overall_status": "FAIL - 5 out of 6 rules have critical logic/field path issues"
+    }
+  }
+}

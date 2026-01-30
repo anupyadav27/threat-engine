@@ -1,0 +1,42 @@
+{
+  "filename": "idisposables_should_be_disposed_metadata.json",
+  "rule_id": "idisposables_disposed",
+  "title": "IDisposables should be disposed",
+  "description": "When writing managed code, there is no need to worry about memory allocation or deallocation as it is taken care of by the garbage collector. However, certain objects, such as Bitmap, utilize unmanaged memory for specific purposes like pointer arithmetic. These objects may have substantial unmanaged memory footprints while having minimal managed footprints.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessImage()\n{\n    var bitmap = new Bitmap(\"image.png\"); // Noncompliant: not disposed\n    bitmap.RotateFlip(RotateFlipType.Rotate90FlipNone);\n}\n\npublic void ReadFile()\n{\n    var reader = new StreamReader(\"file.txt\"); // Noncompliant: not disposed\n    var content = reader.ReadToEnd();\n}"
+    ],
+    "compliant": [
+      "public void ProcessImage()\n{\n    using (var bitmap = new Bitmap(\"image.png\")) // Compliant: properly disposed\n    {\n        bitmap.RotateFlip(RotateFlipType.Rotate90FlipNone);\n    }\n}\n\npublic void ReadFile()\n{\n    using (var reader = new StreamReader(\"file.txt\")) // Compliant: properly disposed\n    {\n        var content = reader.ReadToEnd();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2930"
+  ],
+  "logic": {
+    "custom_function": "check_idisposables_not_disposed",
+    "reasoning": "Uses custom function to detect IDisposable objects created without disposal mechanisms. Checks surrounding context for using statements, return statements, test attributes. Targets common IDisposable types.",
+    "validation_examples": {
+      "should_trigger": [
+        "var bitmap = new Bitmap(\"image.png\");",
+        "var reader = new StreamReader(\"file.txt\");"
+      ],
+      "should_not_trigger": [
+        "using (var bitmap = new Bitmap(\"image.png\")) { }",
+        "private StreamReader reader = new StreamReader(\"file.txt\");",
+        "return new StreamReader(\"file.txt\");"
+      ]
+    }
+  }
+}

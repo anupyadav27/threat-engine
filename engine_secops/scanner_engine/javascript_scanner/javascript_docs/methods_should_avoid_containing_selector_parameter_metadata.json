@@ -1,0 +1,65 @@
+{
+  "filename": "methods_should_avoid_containing_selector_parameter_metadata.json",
+  "rule_id": "methods_avoid_containing_selector",
+  "title": "Methods should avoid containing selector parameters",
+  "description": "Methods with boolean selector parameters that determine execution paths reduce code clarity and maintainability. Instead of using boolean flags to control method behavior, consider creating separate methods or using polymorphism to make the intent more explicit.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Code Quality",
+  "recommendation": "Replace boolean selector parameters with separate methods or use object parameters to make method intent clearer.",
+  "impact": "Code readability and maintainability risk",
+  "tags": [
+    "maintainability",
+    "readability",
+    "design",
+    "parameters"
+  ],
+  "examples": {
+    "noncompliant": [
+      "function process(data, isAdvanced) { if (isAdvanced) { /* complex */ } else { /* simple */ } }",
+      "function render(content, useCache) { return useCache ? getCached() : generate(); }",
+      "function send(message, urgent) { urgent ? sendImmediately() : queue(); }"
+    ],
+    "compliant": [
+      "function processAdvanced(data) { /* complex processing */ }",
+      "function processSimple(data) { /* simple processing */ }",
+      "function send(message, options = {}) { options.urgent ? sendImmediately() : queue(); }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-2301"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration",
+      "FunctionExpression",
+      "ArrowFunctionExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function\\s+\\w+\\s*\\([^)]*\\b(is|has|should|enable|use|show|hide|force|allow)\\w*[^)]*\\)\\s*\\{[^}]*if\\s*\\(",
+        "message": "Method contains boolean selector parameter - consider splitting into separate methods"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\([^)]*\\b(is|has|should|enable|use|show|hide|force|allow)\\w*[^)]*\\)\\s*=>\\s*[^{]*\\?",
+        "message": "Arrow function uses boolean selector parameter - consider refactoring for clarity"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "function[^{]*\\{[^}]*if\\s*\\([^)]*\\b(is|has|should|enable|use|show|hide|force|allow)\\w*\\)",
+        "message": "Method behavior controlled by boolean parameter - consider separate methods for each path"
+      }
+    ]
+  }
+}

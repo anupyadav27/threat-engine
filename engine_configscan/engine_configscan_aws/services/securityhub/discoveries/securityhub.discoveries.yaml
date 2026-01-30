@@ -1,0 +1,48 @@
+version: '1.0'
+provider: aws
+service: securityhub
+services:
+  client: securityhub
+  module: boto3.client
+discovery:
+- discovery_id: aws.securityhub.get_findings
+  calls:
+  - action: get_findings
+    params:
+      MaxResults: 100
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.Findings }}'
+    as: item
+- discovery_id: aws.securityhub.describe_action_targets
+  calls:
+  - action: describe_action_targets
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.ActionTargets }}'
+    as: item
+- discovery_id: aws.securityhub.describe_hub
+  calls:
+  - action: describe_hub
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.securityhub.describe_products
+  calls:
+  - action: describe_products
+    params:
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.Products }}'
+    as: item
+- discovery_id: aws.securityhub.get_master_account
+  calls:
+  - action: get_master_account
+    save_as: response
+  emit: {}

@@ -1,0 +1,283 @@
+---
+# ConfigScan AWS Engine Local Kubernetes Deployment
+# For Docker Desktop Kubernetes
+
+# ConfigMap for ConfigScan AWS configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configscan-aws-config
+  namespace: threat-engine-local
+data:
+  # Database Configuration
+  # PostgreSQL is running inside K8s as postgres-service
+  CONFIGSCAN_DB_HOST: "postgres-service.threat-engine-local.svc.cluster.local"
+  CONFIGSCAN_DB_PORT: "5432"
+  CONFIGSCAN_DB_NAME: "threat_engine_configscan"
+  CONFIGSCAN_DB_USER: "configscan_user"
+  CONFIGSCAN_DB_PASSWORD: "configscan_password"
+  DATABASE_URL: "postgresql://configscan_user:configscan_password@postgres-service.threat-engine-local.svc.cluster.local:5432/threat_engine_configscan"
+  
+  # API Configuration
+  PORT: "8002"
+  HOST: "0.0.0.0"
+  
+  # Environment
+  ENVIRONMENT: "local"
+  LOG_LEVEL: "INFO"
+  
+  # AWS Configuration
+  AWS_REGION: "us-east-1"
+  AWS_DEFAULT_REGION: "us-east-1"
+  
+  # Scanner Configuration
+  MAX_CONCURRENT_SCANS: "3"
+  SCAN_TIMEOUT_SECONDS: "3600"
+  MAX_WORKERS: "10"
+  MAX_ACCOUNT_WORKERS: "3"
+  
+  # Output Configuration
+  # LOCAL: Maps to /Users/apple/Desktop/threat-engine/engine_output (via hostPath volume)
+  # AWS: Maps to s3://cspm-lgtech/engine_output/ (via S3 sync sidecar)
+  # IMPORTANT: this engine creates per-scan folders under OUTPUT_DIR:
+  #   ${OUTPUT_DIR}/{scan_id}/...
+  # So set OUTPUT_DIR to the *parent* directory you want scans to land under.
+  OUTPUT_DIR: "/app/engine_output/engine_configscan_aws/output/discoveries"
+  
+  # S3 Configuration (for AWS deployment - uncomment when deploying to EKS)
+  # S3_BUCKET: "cspm-lgtech"
+  # S3_OUTPUT_PATH: "engine_output"
+  # S3_INPUT_PATH: "engine_input"
+  # STORAGE_TYPE: "s3"  # Use "s3" for AWS, "local" for local dev
+  
+  # Features
+  ENABLE_DRIFT_DETECTION: "true"
+  ENABLE_RESULT_CACHING: "true"
+  PROMETHEUS_ENABLED: "false"
+
+---
+# Secret for database credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: configscan-aws-db-secret
+  namespace: threat-engine-local
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://configscan_user:configscan_password@host.docker.internal:5432/threat_engine_configscan"
+  # Override if needed:
+  # DATABASE_URL: "postgresql://user:password@host:port/database"
+
+---
+# Secret for AWS credentials (optional - for real scans)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: configscan-aws-credentials
+  namespace: threat-engine-local
+type: Opaque
+stringData:
+  # Uncomment and add your AWS credentials for real scans
+  # AWS_ACCESS_KEY_ID: "your-access-key"
+  # AWS_SECRET_ACCESS_KEY: "your-secret-key"
+  # AWS_ROLE_ARN: "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+  # AWS_EXTERNAL_ID: "your-external-id"
+
+---
+# ConfigScan AWS Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configscan-aws-service
+  namespace: threat-engine-local
+  labels:
+    app: configscan-aws-service
+    tier: scanning
+    provider: aws
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configscan-aws-service
+  template:
+    metadata:
+      labels:
+        app: configscan-aws-service
+        tier: scanning
+        provider: aws
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: configscan-aws-service
+        # Pin to a known-good image tag (avoid accidental rollback to older "latest")
+        image: yadavanup84/configscan-aws-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8002
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: configscan-aws-config
+        - secretRef:
+            name: configscan-aws-db-secret
+        - secretRef:
+            name: configscan-aws-credentials
+            optional: true
+        env:
+        # Override database URL if needed
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: configscan-aws-db-secret
+              key: DATABASE_URL
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: engine-input
+          mountPath: /app/engine_input
+          readOnly: true
+        - name: engine-output
+          mountPath: /app/engine_output
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8002
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 10
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      
+      # S3 Sync Sidecar Container (for AWS deployment - uncomment when deploying to EKS)
+      # Syncs /app/engine_output to s3://cspm-lgtech/engine_output/
+      # - name: s3-sync-output
+      #   image: amazon/aws-cli:latest
+      #   command:
+      #     - /bin/sh
+      #     - -c
+      #     - |
+      #       while true; do
+      #         if [ -d "/app/engine_output" ] && [ "$(ls -A /app/engine_output 2>/dev/null)" ]; then
+      #           echo "$(date): Syncing /app/engine_output to s3://cspm-lgtech/engine_output/"
+      #           aws s3 sync /app/engine_output "s3://cspm-lgtech/engine_output/" \
+      #             --delete \
+      #             --exclude "*.tmp" \
+      #             --exclude "*.lock" \
+      #             --region "${AWS_REGION:-ap-south-1}" || true
+      #         fi
+      #         sleep 30
+      #       done
+      #   env:
+      #   - name: AWS_REGION
+      #     value: "ap-south-1"
+      #   volumeMounts:
+      #   - name: engine-output
+      #     mountPath: /app/engine_output
+      #   resources:
+      #     requests:
+      #       memory: "64Mi"
+      #       cpu: "50m"
+      #     limits:
+      #       memory: "128Mi"
+      #       cpu: "100m"
+      
+      volumes:
+      # LOCAL DEPLOYMENT: Use hostPath to map local filesystem
+      # Maps: /Users/apple/Desktop/threat-engine/engine_input → /app/engine_input
+      # Maps: /Users/apple/Desktop/threat-engine/engine_output → /app/engine_output
+      - name: engine-input
+        hostPath:
+          path: /Users/apple/Desktop/threat-engine/engine_input
+          type: Directory
+      - name: engine-output
+        hostPath:
+          path: /Users/apple/Desktop/threat-engine/engine_output
+          type: Directory
+      
+      # AWS DEPLOYMENT (EKS): Uncomment these and comment out hostPath above
+      # Use emptyDir with S3 sync sidecar container
+      # - name: engine-input
+      #   emptyDir: {}
+      # - name: engine-output
+      #   emptyDir: {}
+
+---
+# ConfigScan AWS Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-aws-service
+  namespace: threat-engine-local
+  labels:
+    app: configscan-aws-service
+    tier: scanning
+    provider: aws
+spec:
+  selector:
+    app: configscan-aws-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# ConfigScan AWS Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-aws-external
+  namespace: threat-engine-local
+  labels:
+    app: configscan-aws-service
+    tier: scanning
+    provider: aws
+spec:
+  selector:
+    app: configscan-aws-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+    nodePort: 30002
+    protocol: TCP
+    name: http
+  type: NodePort
