@@ -1,0 +1,64 @@
+{
+  "filename": "unused_local_variables_should_be_removed_metadata.json",
+  "rule_id": "unused_local_variables_removed",
+  "title": "Unused local variables should be removed",
+  "description": "An unused local variable is a variable that has been declared but is not used anywhere in the block of code where it is defined. It is dead code, contributing to unnecessary complexity and leading to confusion when reading the code. Therefore, it should be removed from your code to maintain clarity and efficiency.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void Method()\n{\n    int unusedVar = 42; // Noncompliant - variable is never used\n    int usedVar = 10;\n    Console.WriteLine(usedVar);\n}"
+    ],
+    "compliant": [
+      "public void Method()\n{\n    int usedVar = 10; // Compliant - all variables are used\n    Console.WriteLine(usedVar);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1481"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "VariableDeclaration"],
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unused_local_variables"
+      }
+    ],
+    "detection_conditions": "Find local variables that are declared but never used",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Variable is declared locally",
+        "Variable is never referenced after declaration"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Variables that are used",
+      "Comments"
+    ],
+    "reasoning": "Unused local variables are dead code that should be removed for clarity.",
+    "validation_examples": {
+      "should_trigger": [
+        "int unusedVar = 42; int usedVar = 10; Console.WriteLine(usedVar);"
+      ],
+      "should_not_trigger": [
+        "int usedVar = 10; Console.WriteLine(usedVar);"
+      ]
+    }
+  }
+}

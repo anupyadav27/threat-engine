@@ -1,0 +1,79 @@
+version: '1.0'
+provider: aws
+service: timestream
+services:
+  client: timestream-query
+  module: boto3.client
+discovery:
+- discovery_id: aws.timestream-query.describe_endpoints
+  calls:
+  - action: describe_endpoints
+    save_as: response
+  emit:
+    items_for: '{{ response.Endpoints }}'
+    as: item
+    item:
+      Address: '{{ item.Address }}'
+      CachePeriodInMinutes: '{{ item.CachePeriodInMinutes }}'
+- discovery_id: aws.timestream-query.describe_account_settings
+  calls:
+  - action: describe_account_settings
+    save_as: response
+  emit:
+    item:
+      ComputeMode: '{{ response.QueryCompute.ComputeMode }}'
+      ProvisionedCapacity: '{{ response.QueryCompute.ProvisionedCapacity }}'
+- discovery_id: aws.timestream-query.list_scheduled_queries
+  calls:
+  - action: list_scheduled_queries
+    save_as: response
+  emit:
+    items_for: '{{ response.ScheduledQueries }}'
+    as: item
+    item:
+      Arn: '{{ item.Arn }}'
+      Name: '{{ item.Name }}'
+      State: '{{ item.State }}'
+- discovery_id: aws.timestream-query.describe_scheduled_query
+  calls:
+  - action: describe_scheduled_query
+    save_as: response
+    params:
+      ScheduledQueryArn: '{{ item.Arn }}'
+    for_each: aws.timestream-query.list_scheduled_queries
+    on_error: continue
+  emit:
+    item:
+      Arn: '{{ item.Arn }}'
+      Name: '{{ response.ScheduledQuery.Name }}'
+      QueryString: '{{ response.ScheduledQuery.QueryString }}'
+      CreationTime: '{{ response.ScheduledQuery.CreationTime }}'
+      State: '{{ response.ScheduledQuery.State }}'
+      PreviousInvocationTime: '{{ response.ScheduledQuery.PreviousInvocationTime }}'
+      NextInvocationTime: '{{ response.ScheduledQuery.NextInvocationTime }}'
+      ScheduleConfiguration: '{{ response.ScheduledQuery.ScheduleConfiguration }}'
+      NotificationConfiguration: '{{ response.ScheduledQuery.NotificationConfiguration
+        }}'
+      TargetConfiguration: '{{ response.ScheduledQuery.TargetConfiguration }}'
+      ScheduledQueryExecutionRoleArn: '{{ response.ScheduledQuery.ScheduledQueryExecutionRoleArn
+        }}'
+      KmsKeyId: '{{ response.ScheduledQuery.KmsKeyId }}'
+      ErrorReportConfiguration: '{{ response.ScheduledQuery.ErrorReportConfiguration
+        }}'
+      LastRunSummary: '{{ response.ScheduledQuery.LastRunSummary }}'
+      RecentlyFailedRuns: '{{ response.ScheduledQuery.RecentlyFailedRuns }}'
+- discovery_id: aws.timestream-query.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    params:
+      ResourceARN: '{{ item.Arn }}'
+    for_each: aws.timestream-query.list_scheduled_queries
+    on_error: continue
+  emit:
+    items_for: '{{ response.Tags }}'
+    as: tag
+    item:
+      ResourceARN: '{{ item.Arn }}'
+      Key: '{{ tag.Key }}'
+      Value: '{{ tag.Value }}'

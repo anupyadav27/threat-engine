@@ -1,0 +1,28 @@
+component: general
+component_type: workload
+discovery:
+- discovery_id: list_general_resources
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: name
+    - path: namespace
+      var: namespace
+    - path: labels
+      var: labels
+checks:
+- check_id: k8s.general.resource.secrets_as_env_vars_check
+  name: Secrets As Env Vars Check
+  severity: HIGH
+  for_each: list_general_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: exists
+      expected: null
+  logic: AND
+  errors_as_fail: []

@@ -1,0 +1,26 @@
+version: '1.0'
+provider: aws
+service: codebuild
+services:
+  client: codebuild
+  module: boto3.client
+discovery:
+- discovery_id: aws.codebuild.list_projects
+  calls:
+  - action: list_projects
+    save_as: response
+  emit:
+    items_for: '{{ response.projects }}'
+    as: item
+- discovery_id: aws.codebuild.batch_get_projects
+  for_each: '{{ aws.codebuild.list_projects }}'
+  calls:
+  - action: batch_get_projects
+    params:
+      names:
+      - '{{ item.name }}'
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.projects }}'
+    as: item

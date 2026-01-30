@@ -1,0 +1,62 @@
+{
+  "filename": "locks_should_be_released_on_all_paths_metadata.json",
+  "rule_id": "locks_released_all_paths",
+  "title": "Locks should be released on all paths",
+  "description": "Locks should be released on all pathsAnalyze your codeintentionality-completereliabilityBugcwemulti-threadingsymbolic-executionWhy is this an issue?How can I fix it?More InfoTo prevent potentialdeadlocksin an application, it is crucial to release any locks that are acquired within a method along all possible execution paths.Failing to release locks properly can lead to potential deadlocks, where the lock might not be released, causing issues in the application.This rule specifically focuses on tracking the following types from theSystem.Threadingnamespace:MonitorMutexReaderWriterLockReaderWriterLockSlimSpinLockAn issue is reported when a lock is acquired within a method but not released on all paths.ExceptionsIf the lock is never released within the method, no issue is raised, assuming tha",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Lock acquired but not released on all paths\npublic void Method(bool condition)\n{\n    Monitor.Enter(lockObj);\n    if (condition)\n    {\n        Monitor.Exit(lockObj);\n        return;\n    }\n    // Lock not released on this path - Noncompliant\n}",
+      "// Noncompliant: ReaderWriterLock not released on exception path\npublic void ProcessData()\n{\n    ReaderWriterLock rwLock = new ReaderWriterLock();\n    rwLock.AcquireReaderLock(1000);\n    // If exception occurs here, lock is never released - Noncompliant\n    DoWork();\n    rwLock.ReleaseReaderLock();\n}"
+    ],
+    "compliant": [
+      "// Compliant: Lock released on all paths using try-finally\npublic void Method(bool condition)\n{\n    Monitor.Enter(lockObj);\n    try\n    {\n        if (condition)\n        {\n            return;\n        }\n        // Do work\n    }\n    finally\n    {\n        Monitor.Exit(lockObj); // Compliant\n    }\n}",
+      "// Compliant: Using lock statement ensures release on all paths\npublic void ProcessData()\n{\n    lock(lockObj) // Compliant\n    {\n        DoWork();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2222"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_locks_released_all_paths"
+      }
+    ],
+    "triggering_conditions": "Lock acquired (Monitor.Enter, AcquireReaderLock, etc.) without guaranteed release on all code paths",
+    "exclusion_conditions": [
+      "Locks released in try-finally blocks",
+      "Using lock() statement which guarantees release",
+      "Equal number of acquire and release calls with proper control flow"
+    ],
+    "never_trigger_on": [
+      "Methods using lock() statement",
+      "Methods with try-finally pattern releasing locks",
+      "Proper lock/unlock pairing in all code paths"
+    ],
+    "reasoning": "Detects lock acquisitions that may not be released on all execution paths, which can lead to deadlocks. The custom function identifies lock acquire calls (Monitor.Enter, AcquireReaderLock, etc.), finds the containing method, and checks if the lock is released using try-finally or lock statement. If acquire count exceeds release count and no try-finally/lock statement is used, it's flagged as a violation.",
+    "validation_examples": {
+      "should_trigger": [
+        "Monitor.Enter(lockObj); if (condition) { Monitor.Exit(lockObj); return; } // No exit on else path",
+        "rwLock.AcquireReaderLock(1000); DoWork(); rwLock.ReleaseReaderLock(); // Exception path not handled",
+        "spinLock.Enter(ref lockTaken); if (value > 10) { spinLock.Exit(); return; } // No exit on else"
+      ],
+      "should_not_trigger": [
+        "Monitor.Enter(lockObj); try { DoWork(); } finally { Monitor.Exit(lockObj); }",
+        "lock(lockObj) { DoWork(); }",
+        "rwLock.AcquireReaderLock(1000); try { DoWork(); } finally { rwLock.ReleaseReaderLock(); }"
+      ]
+    }
+  }
+}

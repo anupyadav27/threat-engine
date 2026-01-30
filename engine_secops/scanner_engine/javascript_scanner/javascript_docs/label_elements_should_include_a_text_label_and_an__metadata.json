@@ -1,0 +1,84 @@
+{
+  "filename": "label_elements_should_include_a_text_label_and_an__metadata.json",
+  "rule_id": "label_elements_include_text",
+  "title": "Label elements should include a text label and an associated control",
+  "description": "When a label element lacks a text label or an associated control, it can lead to several issues: Poor Accessibility: Screen readers rely on correctly associated labels to describe the function of the form control. If the label is not properly associated with a control, it can make the form difficult or impossible for visually impaired users to understand or interact with. Confusing User Interface: Labels provide users with clear instructions about what information is required in a form control.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "React.createElement('label', {})",
+      "React.createElement('label', {}, '')",
+      "React.createElement('label', {}, 'Text without htmlFor')",
+      "<label></label>",
+      "<label>Text without htmlFor</label>"
+    ],
+    "compliant": [
+      "React.createElement('label', { htmlFor: 'input1' }, 'Input Label')",
+      "React.createElement('label', {}, 'Text', createElement('input', {}))",
+      "<label htmlFor=\"input1\">Input Label</label>",
+      "<label>Text <input type=\"text\" /></label>"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6853"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "JSXElement",
+      "JSXOpeningElement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createElement\\('label'[^,]*,\\s*\\{[^}]*\\}\\s*\\)",
+        "message": "Label elements should include text content - empty labels are inaccessible to screen readers"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createElement\\('label'[^,]*,\\s*\\{[^}]*\\}\\s*,\\s*['\"]{0,2}\\s*['\"]{0,2}\\s*\\)",
+        "message": "Label elements should include text content - empty or whitespace-only labels are inaccessible"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createElement\\('label'[^,]*,\\s*\\{(?![^}]*htmlFor)[^}]*\\}[^,)]*,\\s*['\"][^'\"]+['\"]\\s*\\)",
+        "message": "Label elements should be associated with a control using htmlFor attribute or nested input elements"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "<label(?![^>]*htmlFor)(?![^>]*>.*<input)(?![^>]*>.*<select)(?![^>]*>.*<textarea)[^>]*>.*</label>",
+        "message": "JSX label elements should include htmlFor attribute or nested form controls for proper accessibility"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "<label[^>]*></label>|<label[^>]*>\\s*</label>",
+        "message": "JSX label elements should not be empty - include descriptive text for screen readers"
+      }
+    ]
+  }
+}

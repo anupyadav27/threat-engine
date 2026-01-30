@@ -1,0 +1,311 @@
+version: '1.0'
+provider: aws
+service: sesv2
+services:
+  client: sesv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.sesv2.get_account
+  calls:
+  - action: get_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SendQuota }}'
+- discovery_id: aws.sesv2.list_recommendations
+  calls:
+  - action: list_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Recommendations }}'
+- discovery_id: aws.sesv2.list_reputation_entities
+  calls:
+  - action: list_reputation_entities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ReputationEntities }}'
+- discovery_id: aws.sesv2.get_deliverability_dashboard_options
+  calls:
+  - action: get_deliverability_dashboard_options
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ActiveSubscribedDomains }}'
+- discovery_id: aws.sesv2.list_import_jobs
+  calls:
+  - action: list_import_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ImportJobs }}'
+- discovery_id: aws.sesv2.list_deliverability_test_reports
+  calls:
+  - action: list_deliverability_test_reports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DeliverabilityTestReports }}'
+- discovery_id: aws.sesv2.list_multi_region_endpoints
+  calls:
+  - action: list_multi_region_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.MultiRegionEndpoints }}'
+- discovery_id: aws.sesv2.list_export_jobs
+  calls:
+  - action: list_export_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ExportJobs }}'
+- discovery_id: aws.sesv2.get_dedicated_ips
+  calls:
+  - action: get_dedicated_ips
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DedicatedIps }}'
+- discovery_id: aws.sesv2.list_custom_verification_email_templates
+  calls:
+  - action: list_custom_verification_email_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CustomVerificationEmailTemplates }}'
+- discovery_id: aws.sesv2.list_tenants
+  calls:
+  - action: list_tenants
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tenants }}'
+- discovery_id: aws.sesv2.list_email_identities
+  calls:
+  - action: list_email_identities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EmailIdentities }}'
+- discovery_id: aws.sesv2.list_suppressed_destinations
+  calls:
+  - action: list_suppressed_destinations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SuppressedDestinationSummaries }}'
+- discovery_id: aws.sesv2.list_contact_lists
+  calls:
+  - action: list_contact_lists
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ContactLists }}'
+- discovery_id: aws.sesv2.get_configuration_set_event_destinations
+  calls:
+  - action: get_configuration_set_event_destinations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EventDestinations }}'
+- discovery_id: aws.sesv2.get_contact_list
+  for_each: aws.sesv2.list_contact_lists
+  calls:
+  - action: get_contact_list
+    save_as: response
+    on_error: continue
+    params:
+      ContactListName: '{{ item.contactListContactListName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Topics }}'
+- discovery_id: aws.sesv2.get_contact
+  for_each: aws.sesv2.list_contact_lists
+  calls:
+  - action: get_contact
+    save_as: response
+    on_error: continue
+    params:
+      ContactListName: '{{ item.suppressedDestinationSummaryEmailAddress }}'
+  emit:
+    as: item
+    items_for: '{{ response.TopicPreferences }}'
+- discovery_id: aws.sesv2.get_deliverability_test_report
+  for_each: aws.sesv2.list_deliverability_test_reports
+  calls:
+  - action: get_deliverability_test_report
+    save_as: response
+    on_error: continue
+    params:
+      ReportId: '{{ item.deliverabilityTestReportReportId }}'
+  emit:
+    as: item
+    items_for: '{{ response.IspPlacements }}'
+- discovery_id: aws.sesv2.get_import_job
+  for_each: aws.sesv2.list_import_jobs
+  calls:
+  - action: get_import_job
+    save_as: response
+    on_error: continue
+    params:
+      JobId: '{{ item.exportJobJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ImportDestination }}'
+- discovery_id: aws.sesv2.get_multi_region_endpoint
+  for_each: aws.sesv2.list_multi_region_endpoints
+  calls:
+  - action: get_multi_region_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      EndpointName: '{{ item.multiRegionEndpointEndpointName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Routes }}'
+- discovery_id: aws.sesv2.get_tenant
+  for_each: aws.sesv2.list_tenants
+  calls:
+  - action: get_tenant
+    save_as: response
+    on_error: continue
+    params:
+      TenantName: '{{ item.tenantTenantName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Tenant }}'
+- discovery_id: aws.sesv2.get_export_job
+  for_each: aws.sesv2.list_import_jobs
+  calls:
+  - action: get_export_job
+    save_as: response
+    on_error: continue
+    params:
+      JobId: '{{ item.exportJobJobId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ExportDestination }}'
+- discovery_id: aws.sesv2.get_email_identity
+  calls:
+  - action: get_email_identity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.sesv2.get_email_template
+  for_each: aws.sesv2.list_custom_verification_email_templates
+  calls:
+  - action: get_email_template
+    save_as: response
+    on_error: continue
+    params:
+      TemplateName: '{{ item.customVerificationEmailTemplatTemplateName }}'
+  emit:
+    as: item
+    items_for: '{{ response.TemplateContent }}'
+- discovery_id: aws.sesv2.get_dedicated_ip_pool
+  for_each: aws.sesv2.get_dedicated_ips
+  calls:
+  - action: get_dedicated_ip_pool
+    save_as: response
+    on_error: continue
+    params:
+      PoolName: '{{ item.dedicatedIpPoolName }}'
+  emit:
+    as: item
+    items_for: '{{ response.DedicatedIpPool }}'
+- discovery_id: aws.sesv2.get_reputation_entity
+  for_each: aws.sesv2.list_reputation_entities
+  calls:
+  - action: get_reputation_entity
+    save_as: response
+    on_error: continue
+    params:
+      ReputationEntityReference: '{{ item.reputationEntityReputationEntityType }}'
+  emit:
+    as: item
+    items_for: '{{ response.ReputationEntity }}'
+- discovery_id: aws.sesv2.list_resource_tenants
+  for_each: aws.sesv2.list_recommendations
+  calls:
+  - action: list_resource_tenants
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.recommendationResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTenants }}'
+- discovery_id: aws.sesv2.get_message_insights
+  calls:
+  - action: get_message_insights
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EmailTags }}'
+- discovery_id: aws.sesv2.get_suppressed_destination
+  for_each: aws.sesv2.list_suppressed_destinations
+  calls:
+  - action: get_suppressed_destination
+    save_as: response
+    on_error: continue
+    params:
+      EmailAddress: '{{ item.suppressedDestinationSummaryEmailAddress }}'
+  emit:
+    as: item
+    items_for: '{{ response.SuppressedDestination }}'
+- discovery_id: aws.sesv2.list_tenant_resources
+  for_each: aws.sesv2.list_tenants
+  calls:
+  - action: list_tenant_resources
+    save_as: response
+    on_error: continue
+    params:
+      TenantName: '{{ item.tenantTenantName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TenantResources }}'
+checks: []

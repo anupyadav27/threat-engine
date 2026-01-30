@@ -1,0 +1,278 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+firestore:
+  version: '1.0'
+  provider: gcp
+  service: firestore
+  scope: global
+  discovery:
+  - discovery_id: list_firestore_databases
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: database_name
+      - path: locationId
+        var: location_id
+      - path: type
+        var: database_type
+  - discovery_id: list_firestore_collections
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: collection_name
+      - path: parent
+        var: parent_database
+  - discovery_id: list_firestore_documents
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: document_name
+      - path: parent
+        var: parent_collection
+  checks:
+  - check_id: gcp.firestore.collection.encryption_enabled_gcp_logging_kms_encryption_enable_enabled
+    title: Ensure Firestore Collections Use KMS for Encryption at Rest
+    severity: high
+    for_each: list_firestore_collections
+    logic: AND
+    calls:
+    - action: get_collection_metadata
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+      - path: encryptionConfig.state
+        operator: equals
+        expected: ENCRYPTED
+  - check_id: gcp.firestore.collection.encryption_enabled_gcp_logging_kms_encryption_enable_logging
+    title: Ensure Firestore Collections Use KMS for Encryption and Logging
+    severity: high
+    for_each: list_firestore_collections
+    logic: AND
+    calls:
+    - action: get_collection_metadata
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+      - path: encryptionConfig.state
+        operator: equals
+        expected: ENCRYPTED
+    - action: get_audit_config
+      fields:
+      - path: auditLogConfigs[].logType
+        operator: contains
+        expected: DATA_READ
+      - path: auditLogConfigs[].logType
+        operator: contains
+        expected: DATA_WRITE
+  - check_id: gcp.firestore.database.backup_enabled
+    title: Ensure Firestore Database Backups are Enabled
+    severity: medium
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: get_database_backup_schedule
+      fields:
+      - path: backupSchedules
+        operator: exists
+      - path: backupSchedules[].retention
+        operator: exists
+    - action: eval
+      fields:
+      - path: backupSchedules[].state
+        operator: equals
+        expected: ACTIVE
+  - check_id: gcp.firestore.database.encryption_enabled
+    title: Ensure Firestore Databases Have Encryption At Rest Enabled
+    severity: high
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: get_database_metadata
+      fields:
+      - path: encryptionConfig.state
+        operator: equals
+        expected: ENCRYPTED
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+  - check_id: gcp.firestore.database.global_tables_enabled
+    title: Ensure Firestore Global Tables are Enabled
+    severity: medium
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: FIRESTORE_NATIVE
+      - path: locationId
+        operator: equals
+        expected: nam5
+    - action: get_database_metadata
+      fields:
+      - path: multiRegionConfig.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.firestore.database.pitr_enabled
+    title: Enable Point-In-Time Recovery for Firestore Databases
+    severity: high
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: get_database_metadata
+      fields:
+      - path: pointInTimeRecoveryEnablement
+        operator: equals
+        expected: POINT_IN_TIME_RECOVERY_ENABLED
+      - path: earliestVersionTime
+        operator: exists
+  - check_id: gcp.firestore.database.tables_kms_cmk_encryption_enabled
+    title: Ensure Firestore Tables Use Customer-Managed Encryption Keys
+    severity: high
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: get_database_metadata
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+      - path: encryptionConfig.customerManagedEncryption
+        operator: equals
+        expected: true
+    - action: eval
+      fields:
+      - path: encryptionConfig.kmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.firestore.database.tables_pitr_enabled
+    title: Enable Point-in-Time Recovery for Firestore Databases
+    severity: high
+    for_each: list_firestore_databases
+    logic: AND
+    calls:
+    - action: get_database_metadata
+      fields:
+      - path: pointInTimeRecoveryEnablement
+        operator: equals
+        expected: POINT_IN_TIME_RECOVERY_ENABLED
+      - path: versionRetentionPeriod
+        operator: exists
+    - action: eval
+      fields:
+      - path: deleteProtectionState
+        operator: equals
+        expected: DELETE_PROTECTION_ENABLED
+  - check_id: gcp.firestore.document.data_protection_storage_table_encryption_at_rest_enabled
+    title: Ensure Firestore Documents are Encrypted at Rest
+    severity: high
+    for_each: list_firestore_documents
+    logic: AND
+    calls:
+    - action: get_parent_database_encryption
+      fields:
+      - path: encryptionConfig.state
+        operator: equals
+        expected: ENCRYPTED
+      - path: encryptionConfig.kmsKeyName
+        operator: exists
+    - action: eval
+      fields:
+      - path: parent_collection
+        operator: exists
+  - check_id: gcp.firestore.document.data_protection_storage_table_private_network_only_supported
+    title: Restrict Firestore Document Access to Private Networks
+    severity: medium
+    for_each: list_firestore_documents
+    logic: AND
+    calls:
+    - action: get_database_network_config
+      fields:
+      - path: networkConfig.privateNetworkOnly
+        operator: equals
+        expected: true
+      - path: networkConfig.authorizedNetworks
+        operator: exists
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].condition.expression
+        operator: contains
+        expected: request.ip
+  - check_id: gcp.firestore.document.data_protection_storage_table_rbac_least_privilege
+    title: Ensure Firestore Document RBAC Uses Least Privilege Principle
+    severity: medium
+    for_each: list_firestore_documents
+    logic: AND
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/owner
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/editor
+    - action: eval
+      fields:
+      - path: bindings[].condition
+        operator: exists
+    - action: get_security_rules
+      fields:
+      - path: rules[].match
+        operator: exists
+      - path: rules[].allow.read
+        operator: exists
+      - path: rules[].allow.write
+        operator: exists
+  api_name: firestore
+  api_version: v1
+  project_param_format: projects/{{project_id}}

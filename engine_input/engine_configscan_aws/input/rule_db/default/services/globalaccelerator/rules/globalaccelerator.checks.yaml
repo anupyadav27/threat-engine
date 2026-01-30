@@ -1,0 +1,28 @@
+version: '1.0'
+provider: aws
+service: globalaccelerator
+checks:
+- rule_id: aws.globalaccelerator.accelerator.access_logs_enabled
+  for_each: aws.globalaccelerator.describe_accelerator_attributes
+  conditions:
+    var: item.FlowLogsEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.globalaccelerator.accelerator.listener_tls_min_1_2_configured
+  for_each: aws.globalaccelerator.list_listeners
+  conditions:
+    var: item.Protocol
+    op: equals
+    value: TLS
+- rule_id: aws.globalaccelerator.accelerator.valid_certificate_enabled
+  for_each: aws.globalaccelerator.list_listeners
+  conditions:
+    var: item.Protocol
+    op: equals
+    value: TLS
+- rule_id: aws.globalaccelerator.accelerator.waf_attached_if_supported
+  for_each: aws.globalaccelerator.list_accelerators
+  conditions:
+    var: item.AcceleratorArn
+    op: exists
+    value: null

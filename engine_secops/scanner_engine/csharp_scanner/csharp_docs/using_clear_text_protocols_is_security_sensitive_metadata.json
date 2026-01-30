@@ -1,0 +1,79 @@
+{
+  "filename": "using_clear_text_protocols_is_security_sensitive_metadata.json",
+  "rule_id": "using_cleartext_protocols_is",
+  "title": "Using clear-text protocols is security-sensitive",
+  "description": "Using clear-text protocols is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweClear-text protocols such asftp,telnet, orhttplack encryption of transported data, as well as the capability to build an authenticated connection. It means that an attacker able to sniff traffic from the network can read, modify, or corrupt the transported content. These protocols are not secure as they expose applications to an extensive range of risks:sensitive data exposuretraffic redirected to a malicious endpointmalware-infected software update or installerexecution of client-side codecorruption of critical informationEven in the context of isolated networks like offline environments or segmented cloud environments, the insider threat exists.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "var client = new FtpClient(\"ftp://server.com\");",
+      "var request = WebRequest.Create(\"http://api.example.com/data\");",
+      "using var telnet = new TcpClient(\"server.com\", 23);"
+    ],
+    "compliant": [
+      "var client = new FtpClient(\"sftp://server.com\");",
+      "var request = WebRequest.Create(\"https://api.example.com/data\");",
+      "using var ssh = new SshClient(\"server.com\", \"user\", \"password\");"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5332"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\"(http|ftp|telnet)://(?!localhost|127\\.0\\.0\\.1)[^\"]+\"",
+        "exclude_patterns": [
+          "Console\\.Write",
+          "Logger\\.",
+          "Debug\\.",
+          "//.*http://",
+          "/\\*.*http://",
+          "Assert\\.",
+          "\\[Test",
+          "\\[Fact"
+        ],
+        "message": "Using clear-text protocols (http, ftp, telnet) is security-sensitive. Use encrypted alternatives (https, sftp, ssh)"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "detection_conditions": "URL string containing clear-text protocol (http://, ftp://, telnet://)",
+    "triggering_conditions": "String literal with http://, ftp://, or telnet:// protocol (excluding localhost)",
+    "exclusion_conditions": ["Localhost URLs", "127.0.0.1 URLs", "Comments", "Logging/Console output", "Unit tests"],
+    "never_trigger_on": [
+      "URLs pointing to localhost or 127.0.0.1",
+      "Comments containing example URLs",
+      "Console.WriteLine with URLs (display context)",
+      "Logger output with URLs",
+      "Unit test assertions",
+      "Documentation strings",
+      "Configuration for local development"
+    ],
+    "reasoning": "Clear-text protocols like HTTP, FTP, and Telnet transmit data without encryption, making them vulnerable to eavesdropping, man-in-the-middle attacks, and data tampering. Localhost and 127.0.0.1 are excluded as they don't traverse the network. HTTPS, SFTP, and SSH should be used instead.",
+    "validation_examples": {
+      "should_trigger": [
+        "var request = WebRequest.Create(\"http://api.example.com/data\");",
+        "var ftpClient = new FtpClient(\"ftp://server.com\");",
+        "string apiUrl = \"http://insecure-api.com/endpoint\";"
+      ],
+      "should_not_trigger": [
+        "var request = WebRequest.Create(\"https://api.example.com/data\");",
+        "var localUrl = \"http://localhost:8080/api\";",
+        "Console.WriteLine(\"See http://docs.example.com\");",
+        "// http://example.com in comment"
+      ]
+    }
+  }
+}

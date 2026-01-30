@@ -1,0 +1,44 @@
+{
+  "filename": "using_intrusive_permissions_is_security_sensitive_metadata.json",
+  "rule_id": "using_intrusive_permissions_is",
+  "title": "Using intrusive permissions is security-sensitive",
+  "description": "This rule highlights intrusive permissions when requested with the future standard (but currently experimental) web browser query API and specific APIs related to the permission. It is highly recommended to customize this rule with the permissions considered as intrusive in the context of the web application. Some powerful features used by the application are not really necessary.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "navigator.permissions.query({name:\"geolocation\"}).then(function(result) {\n});  // Sensitive: geolocation is a powerful feature with high privacy concerns\n\nnavigator.geolocation.getCurrentPosition(function(position) {\n  console.log(\"coordinates x=\"+position.coords.latitude+\" and y=\"+position.coords.longitude);\n}); // Sensitive: geolocation is a powerful feature with high privacy concerns"
+    ],
+    "compliant": [
+      "<html>\n<head>\n    <title>\n        Retailer website example\n    </title>\n</head>\n<body>\n    Type a city, street or zip code where you want to retrieve the closest retail locations of our products:\n    <form method=post>\n        <input type=text value=\"New York\"> <!-- Compliant -->\n    </form>\n</body>\n</html>"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5604"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "MemberExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?<![.\\w])navigator\\.(?:permissions|geolocation)\\b(?!['\"])",
+        "message": "Refactor to eliminate the flagged pattern."
+      }
+    ]
+  }
+}

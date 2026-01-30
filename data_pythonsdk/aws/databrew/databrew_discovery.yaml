@@ -1,0 +1,152 @@
+version: '1.0'
+provider: aws
+service: databrew
+services:
+  client: databrew
+  module: boto3.client
+discovery:
+- discovery_id: aws.databrew.list_jobs
+  calls:
+  - action: list_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+- discovery_id: aws.databrew.list_projects
+  calls:
+  - action: list_projects
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Projects }}'
+- discovery_id: aws.databrew.list_datasets
+  calls:
+  - action: list_datasets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Datasets }}'
+- discovery_id: aws.databrew.list_recipes
+  calls:
+  - action: list_recipes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Recipes }}'
+- discovery_id: aws.databrew.list_rulesets
+  calls:
+  - action: list_rulesets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rulesets }}'
+- discovery_id: aws.databrew.list_schedules
+  calls:
+  - action: list_schedules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Schedules }}'
+- discovery_id: aws.databrew.list_job_runs
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: list_job_runs
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.JobRuns }}'
+- discovery_id: aws.databrew.describe_ruleset
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_ruleset
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.databrew.describe_job
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_job
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Outputs }}'
+- discovery_id: aws.databrew.describe_dataset
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_dataset
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FormatOptions }}'
+- discovery_id: aws.databrew.describe_job_run
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_job_run
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.jobRunRunId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ValidationConfigurations }}'
+- discovery_id: aws.databrew.describe_recipe
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_recipe
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Steps }}'
+- discovery_id: aws.databrew.describe_project
+  for_each: aws.databrew.list_jobs
+  calls:
+  - action: describe_project
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.datasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Sample }}'
+checks: []

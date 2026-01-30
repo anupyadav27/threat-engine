@@ -1,0 +1,52 @@
+{
+  "filename": "fields_that_are_only_assigned_in_the_constructor_s_metadata.json",
+  "rule_id": "fields_that_are_only",
+  "title": "Fields that are only assigned in the constructor should be readonly",
+  "description": "Fields that are only assigned in the constructor should be \"readonly\"Analyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEconfusingWhy is this an issue?How can I fix it?More Inforeadonlyfields can only be assigned in a class constructor. If a class has a field that’s not markedreadonlybut is only set in the constructor, it could cause confusion about the field’s intended use. To avoid confusion, such fields should be markedreadonlyto make their intended use explicit, and to prevent future maintainers from inadvertently changing their use.ExceptionsFields declared in classes marked with theSerializableattribute.Fields declared inpartialclasses.Fields with attributes are ignored.Fields of typestructthat are not primitive or po",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo\n{\n    private int x;\n\n    public Foo(int x)\n    {\n        this.x = x; // Noncompliant: field is only assigned in constructor\n    }\n}"
+    ],
+    "compliant": [
+      "public class Foo\n{\n    private readonly int x;\n\n    public Foo(int x)\n    {\n        this.x = x; // Compliant: field is marked as readonly\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2933"
+  ],
+  "logic": {
+    "custom_function": "check_fields_only_assigned_constructor",
+    "never_trigger_on": [
+      "Fields with readonly modifier already present",
+      "Partial classes (exception in rule)",  
+      "Fields with attributes like [SomeAttribute] private int x (exception in rule)",
+      "Auto-properties with { get; set; } syntax",
+      "Comments",
+      "Public, protected, or internal fields",
+      "Fields modified after constructor"
+    ],
+    "reasoning": "Detects private field declarations that lack the 'readonly' modifier but are only assigned in constructor. Uses custom function to handle complex types like generics (List<T>), arrays, and fields with initializers. Properly excludes attributed fields, commented code, and properties while supporting both simple and complex C# syntax patterns.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Foo { private int x; public Foo(int x) { this.x = x; } }",
+        "public class Bar { private string name; public Bar() { this.name = \"test\"; } }"
+      ],
+      "should_not_trigger": [
+        "public class Foo { private readonly int x; public Foo(int x) { this.x = x; } }",
+        "public partial class Foo { private int x; }",
+        "public class Foo { private int X { get; set; } }",
+        "public class Foo { [SomeAttribute] private int x; }"
+      ]
+    }
+  }
+}

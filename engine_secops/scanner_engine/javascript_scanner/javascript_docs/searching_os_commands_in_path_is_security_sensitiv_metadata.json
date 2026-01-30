@@ -1,0 +1,68 @@
+{
+  "filename": "searching_os_commands_in_path_is_security_sensitiv_metadata.json",
+  "rule_id": "searching_os_commands_path",
+  "title": "Searching OS commands in PATH is security-sensitive",
+  "description": "Searching OS commands in PATH is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweWhen executing an OS command and unless you specify the full path to the executable, then the locations in your application\u2019sPATHenvironment variable will be searched for the executable. That search could leave an opening for an attacker if one of the elements inPATHis a directory under his control.Ask Yourself WhetherThe directories in the PATH environment variable may be defined by not trusted entities.There is a risk if you answered yes to this question.Recommended Secure Coding PracticesFully qualified/absolute path should be used to specify the OS command to execute.Sensitive Code Exampleconst cp = require('child_process'); cp.exec('file.exe'); // SensitiveCompliant So",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "PATH"
+    ],
+    "compliant": [
+      "PATH"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-4036"
+  ],
+  "logic": {
+    "node_types": [
+      "MemberExpression", 
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "process\\.env\\.(PATH|path)",
+        "message": "Accessing PATH environment variable is security-sensitive"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": [
+          "source"
+        ],
+        "pattern": "child_process\\.(exec|spawn|execFile)\\s*\\(\\s*['\"][^/\\\\\"'][^'\"]*['\"]",
+        "message": "Executing OS commands without full path is security-sensitive"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "cp\\.(exec|spawn|execFile)\\s*\\(\\s*['\"][^/\\\\\"'][^'\"]*['\"]",
+        "message": "Executing OS commands without full path is security-sensitive"  
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(which|where)\\s+\\w+",
+        "message": "Using which/where commands to find executables is security-sensitive"
+      }
+    ]
+  }
+}

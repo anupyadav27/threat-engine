@@ -1,0 +1,39 @@
+{
+  "filename": "avoid_reflection_increase_accessibility_records_metadata.json",
+  "rule_id": "bug_avoid_reflection_increase_accessibility_records",
+  "title": "Reflection should not be used to increase accessibility of records' fields",
+  "description": "Using reflection to increase the accessibility of fields in Java records can break encapsulation and lead to unexpected behavior. Records are designed to be immutable data carriers, and their fields should not be made accessible via reflection.",
+  "status": "active",
+  "defaultSeverity": "major",
+  "category": "bug",
+  "recommendation": "Do not use reflection to change the accessibility of record fields. Access record fields only through their canonical accessors.",
+  "impact": "Breaking encapsulation of records can lead to security issues, maintenance problems, and unpredictable application behavior.",
+  "examples": {
+    "noncompliant": [
+      "import java.lang.reflect.Field;\n\nrecord Person(String name) {}\n\npublic class Main {\n  public static void main(String[] args) throws Exception {\n    Person p = new Person(\"Alice\");\n    Field f = Person.class.getDeclaredField(\"name\");\n    f.setAccessible(true); // Noncompliant\n    System.out.println(f.get(p));\n  }\n}"
+    ],
+    "compliant": [
+      "record Person(String name) {}\n\npublic class Main {\n  public static void main(String[] args) {\n    Person p = new Person(\"Alice\");\n    System.out.println(p.name()); // Compliant\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6216"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "name"
+        ],
+        "forbidden_values": [
+          "setAccessible"
+        ],
+        "message": "Do not use reflection to change the accessibility of record fields. Access record fields only through their canonical accessors."
+      }
+    ]
+  }
+}

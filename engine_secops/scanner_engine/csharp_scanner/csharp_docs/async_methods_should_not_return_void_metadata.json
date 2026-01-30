@@ -1,0 +1,53 @@
+{
+  "filename": "async_methods_should_not_return_void_metadata.json",
+  "rule_id": "async_methods_return_void",
+  "title": "async methods should not return void",
+  "description": "\"async\" methods should not return \"void\"Analyze your codeconsistency-conventionalreliabilityBugmulti-threadingasync-awaitWhy is this an issue?How can I fix it?More InfoAnasyncmethod with avoidreturn type does not follow thetask asynchronous programming (TAP)model since the return type should beTaskorTask<TResult>Doing so prevents control over theasynchronous execution, such as:waiting for the execution to completecatching any exception that might occur during executiontesting execution behaviorExceptionsMethods implementing an interfaceMethods overriding a base class methodVirtual methodsMethods with theEventHandlerdelegate signature UsingvoidforEventHandleris compliant with the TAP model.public async void button1_Click(object sender, EventArgs e) { await DoSomethingAsync(); }Methods name",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public async void ProcessDataAsync() // Noncompliant - async method returns void\n{\n    await SomeOperationAsync();\n}",
+      "async void HandleRequest() // Noncompliant\n{\n    // async code here\n}"
+    ],
+    "compliant": [
+      "public async Task ProcessDataAsync() // Compliant - returns Task\n{\n    await SomeOperationAsync();\n}",
+      "public async Task<string> GetDataAsync() // Compliant - returns Task<T>\n{\n    return await FetchDataAsync();\n}",
+      "public async void Button_Click(object sender, EventArgs e) // Compliant - event handler exception\n{\n    await ProcessDataAsync();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3168"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "async\\s+void\\s+\\w+\\s*\\("
+        ],
+        "exclude_patterns": [
+          "async\\s+void\\s+\\w*_?[Cc]lick\\s*\\(",
+          "async\\s+void\\s+\\w*[Hh]andler\\s*\\(",
+          "async\\s+void\\s+.*EventHandler.*\\(",
+          "async\\s+void\\s+On\\w+\\s*\\("
+        ],
+        "message": "Async methods should return Task or Task<T>, not void"
+      }
+    ]
+  }
+}

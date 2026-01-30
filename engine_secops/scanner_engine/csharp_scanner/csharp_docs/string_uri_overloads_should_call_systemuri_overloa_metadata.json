@@ -1,0 +1,58 @@
+{
+  "filename": "string_uri_overloads_should_call_systemuri_overloa_metadata.json",
+  "rule_id": "string_uri_overloads_call",
+  "title": "String URI overloads should call System.Uri overloads",
+  "description": "String URI overloads should call \"System.Uri\" overloadsAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?String representations of URIs or URLs are prone to parsing and encoding errors which can lead to vulnerabilities. TheSystem.Uriclass is a safe alternative and should be preferred.This rule raises an issue when two overloads differ only by the string /Uriparameter and the string overload doesn’t call theUrioverload. It is assumed that the string parameter represents a URI because of the exact match besides that parameter type.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class WebHelper\n{\n    public void Navigate(string uri)  // Noncompliant - doesn't call Uri overload\n    {\n        // Direct implementation instead of calling Navigate(Uri)\n        var client = new HttpClient();\n        client.GetAsync(uri);\n    }\n\n    public void Navigate(Uri uri)\n    {\n        var client = new HttpClient();\n        client.GetAsync(uri);\n    }\n}"
+    ],
+    "compliant": [
+      "public class WebHelper\n{\n    public void Navigate(string uri)  // Compliant - calls Uri overload\n    {\n        Navigate(new Uri(uri));\n    }\n\n    public void Navigate(Uri uri)\n    {\n        var client = new HttpClient();\n        client.GetAsync(uri);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3997"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:public|private|protected|internal)\\s+\\w+\\s+(\\w+)\\s*\\(\\s*string\\s+\\w*uri\\w*\\s*\\)[\\s\\S]*?(?:public|private|protected|internal)\\s+\\w+\\s+\\1\\s*\\(\\s*Uri\\s+\\w+\\s*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\.",
+          "Navigate\\s*\\(\\s*new\\s+Uri"
+        ],
+        "message": "String URI overload should call the System.Uri overload for proper URI parsing and validation"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit tests ([Test], [Fact])",
+      "String overloads that already call the Uri overload",
+      "Methods without both string and Uri overloads"
+    ],
+    "reasoning": "String representations of URIs are prone to parsing and encoding errors which can lead to vulnerabilities. The System.Uri class is a safe alternative. When a class has both string and Uri overloads of a method, the string overload should delegate to the Uri overload.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void Navigate(string uri) { client.GetAsync(uri); }\npublic void Navigate(Uri uri) { client.GetAsync(uri); }"
+      ],
+      "should_not_trigger": [
+        "public void Navigate(string uri) { Navigate(new Uri(uri)); }\npublic void Navigate(Uri uri) { client.GetAsync(uri); }"
+      ]
+    }
+  }
+}

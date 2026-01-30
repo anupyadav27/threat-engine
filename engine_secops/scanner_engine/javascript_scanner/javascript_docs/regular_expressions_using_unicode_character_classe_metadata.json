@@ -1,0 +1,48 @@
+{
+  "filename": "regular_expressions_using_unicode_character_classe_metadata.json",
+  "rule_id": "regular_expressions_using_unicode",
+  "title": "Regular expressions using Unicode character classes or property escapes should enable the unicode flag",
+  "description": "Regular expressions using Unicode character classes or property escapes should enable the unicode flagAnalyze your codeintentionality-logicalreliabilityBugregextype-dependentWhy is this an issue?JavaScript regular expressions provide Unicode character classses and Unicode property escapes for matching characters based on their Unicode values and Unicode properties respectively. When using Unicode property escapes like\\p{Alpha}without theuflag, the regular expression will not match alphabetic characters but rather the'\\p{Alpha}'string literal, which is likely a mistake.This rules raises an issue when Unicode character classses and Unicode property escapes are used without theuflag.Noncompliant code example/\\u{1234}/ /\\p{Alpha}/Compliant solution/\\u{1234}/u /\\p{Alpha}/uAvailable In:Catch iss",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "\\p{Alpha}"
+    ],
+    "compliant": [
+      "u"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5867"
+  ],
+  "logic": {
+    "node_types": [
+      "Literal",
+      "NewExpression",
+      "VariableDeclaration"  
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "/[^/]*\\\\p\\{[^}]+\\}[^/]*/;$",
+          "/[^/]*\\\\u\\{[^}]+\\}[^/]*/;$",
+          "new\\s+RegExp\\s*\\([\"'][^\"']*\\\\p\\{[^}]+\\}[^\"']*[\"']\\s*\\);$",
+          "new\\s+RegExp\\s*\\([\"'][^\"']*\\\\u\\{[^}]+\\}[^\"']*[\"']\\s*\\);$"
+        ],
+        "message": "Regular expressions using Unicode patterns (\\p{} or \\u{}) should enable the 'u' flag"
+      }
+    ]
+  }
+}

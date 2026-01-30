@@ -1,0 +1,111 @@
+version: '1.0'
+provider: aws
+service: ses
+services:
+  client: ses
+  module: boto3.client
+discovery:
+- discovery_id: aws.ses.describe_active_receipt_rule_set
+  calls:
+  - action: describe_active_receipt_rule_set
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+- discovery_id: aws.ses.list_custom_verification_email_templates
+  calls:
+  - action: list_custom_verification_email_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CustomVerificationEmailTemplates }}'
+- discovery_id: aws.ses.get_send_statistics
+  calls:
+  - action: get_send_statistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SendDataPoints }}'
+- discovery_id: aws.ses.list_receipt_filters
+  calls:
+  - action: list_receipt_filters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Filters }}'
+- discovery_id: aws.ses.list_templates
+  calls:
+  - action: list_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TemplatesMetadata }}'
+- discovery_id: aws.ses.get_send_quota
+  calls:
+  - action: get_send_quota
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Max24HourSend }}'
+- discovery_id: aws.ses.describe_configuration_set
+  calls:
+  - action: describe_configuration_set
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EventDestinations }}'
+- discovery_id: aws.ses.get_template
+  for_each: aws.ses.list_custom_verification_email_templates
+  calls:
+  - action: get_template
+    save_as: response
+    on_error: continue
+    params:
+      TemplateName: '{{ item.customVerificationEmailTemplatTemplateName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Template }}'
+- discovery_id: aws.ses.describe_receipt_rule
+  calls:
+  - action: describe_receipt_rule
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rule }}'
+- discovery_id: aws.ses.get_identity_policies
+  calls:
+  - action: get_identity_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+- discovery_id: aws.ses.get_identity_verification_attributes
+  calls:
+  - action: get_identity_verification_attributes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VerificationAttributes }}'
+checks: []

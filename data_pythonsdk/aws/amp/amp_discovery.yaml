@@ -1,0 +1,156 @@
+version: '1.0'
+provider: aws
+service: amp
+services:
+  client: amp
+  module: boto3.client
+discovery:
+- discovery_id: aws.amp.list_scrapers
+  calls:
+  - action: list_scrapers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scrapers }}'
+- discovery_id: aws.amp.list_workspaces
+  calls:
+  - action: list_workspaces
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.workspaces }}'
+- discovery_id: aws.amp.get_default_scraper_configuration
+  calls:
+  - action: get_default_scraper_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.configuration }}'
+- discovery_id: aws.amp.describe_logging_configuration
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: describe_logging_configuration
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.loggingConfiguration }}'
+- discovery_id: aws.amp.describe_scraper
+  for_each: aws.amp.list_scrapers
+  calls:
+  - action: describe_scraper
+    save_as: response
+    on_error: continue
+    params:
+      scraperId: '{{ item.scraperScraperId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scraper }}'
+- discovery_id: aws.amp.describe_scraper_logging_configuration
+  for_each: aws.amp.list_scrapers
+  calls:
+  - action: describe_scraper_logging_configuration
+    save_as: response
+    on_error: continue
+    params:
+      scraperId: '{{ item.scraperScraperId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scraperComponents }}'
+- discovery_id: aws.amp.describe_workspace_configuration
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: describe_workspace_configuration
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.workspaceConfiguration }}'
+- discovery_id: aws.amp.describe_workspace
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: describe_workspace
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.workspace }}'
+- discovery_id: aws.amp.list_anomaly_detectors
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: list_anomaly_detectors
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.anomalyDetectors }}'
+- discovery_id: aws.amp.describe_anomaly_detector
+  for_each: aws.amp.list_anomaly_detectors
+  calls:
+  - action: describe_anomaly_detector
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.anomalyDetector }}'
+- discovery_id: aws.amp.list_rule_groups_namespaces
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: list_rule_groups_namespaces
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ruleGroupsNamespaces }}'
+- discovery_id: aws.amp.describe_rule_groups_namespace
+  for_each: aws.amp.list_rule_groups_namespaces
+  calls:
+  - action: describe_rule_groups_namespace
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ruleGroupsNamespace }}'
+- discovery_id: aws.amp.describe_query_logging_configuration
+  for_each: aws.amp.list_workspaces
+  calls:
+  - action: describe_query_logging_configuration
+    save_as: response
+    on_error: continue
+    params:
+      workspaceId: '{{ item.workspacWorkspaceId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.queryLoggingConfiguration }}'
+checks: []

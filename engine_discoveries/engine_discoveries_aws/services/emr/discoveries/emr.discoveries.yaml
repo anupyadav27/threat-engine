@@ -1,0 +1,30 @@
+version: '1.0'
+provider: aws
+service: emr
+services:
+  client: emr
+  module: boto3.client
+discovery:
+- discovery_id: aws.emr.get_block_public_access_configuration
+  calls:
+  - action: get_block_public_access_configuration
+    save_as: response
+  emit: {}
+- discovery_id: aws.emr.list_clusters
+  calls:
+  - action: list_clusters
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.Clusters }}'
+    as: item
+- discovery_id: aws.emr.describe_cluster
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterId: '{{ item.Id }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}

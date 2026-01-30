@@ -1,0 +1,87 @@
+{
+  "filename": "number_patterns_should_be_regular_metadata.json",
+  "rule_id": "number_patterns_regular",
+  "title": "Number patterns should be regular",
+  "description": "Number patterns should be regularAnalyze your codeconsistency-formattedmaintainabilityCode SmellsuspiciousWhy is this an issue?The use of punctuation characters to separate subgroups in a number can make the number more readable. For instance consider 1,000,000,000 versus 1000000000. But when the grouping is irregular, such as 1,000,00,000; it indicates an error.This rule raises an issue when underscores (_) are used to break a number into irregular subgroups.Noncompliant code exampleint thousand = 100_0; int tenThousand = 100_00; int million = 1_000_00_000;Compliant solutionint thousand = 1000; int tenThousand = 10_000; int tenThousandWithout = 10000; int duos = 1_00_00; int million = 100_000_000;Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Se",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int thousand = 100_0; // Noncompliant: irregular grouping\nint tenThousand = 100_00; // Noncompliant: irregular grouping\nint million = 1_000_00_000; // Noncompliant: irregular grouping"
+    ],
+    "compliant": [
+      "int thousand = 1000; // No separators\nint tenThousand = 10_000; // Regular grouping by thousands\nint million = 100_000_000; // Regular grouping by thousands"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3937"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\d+(?:_\\d+)+\\b",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "\".*\\d+(?:_\\d+)+.*\"",
+          "0x[0-9a-fA-F_]+",
+          "0b[01_]+",
+          "\\d+\\.\\d+[fFdDmM]?",
+          "\\b\\d{1,3}(?:_\\d{3})*\\b",
+          "\\b\\d{2}(?:_\\d{2})*\\b"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "String literals containing numbers",
+      "Hexadecimal literals (0x...)",
+      "Binary literals (0b...)",
+      "Floating point numbers",
+      "Regular 3-digit grouping patterns",
+      "Regular 2-digit grouping patterns (cultural)"
+    ],
+    "reasoning": "Detects numeric literals with irregular underscore grouping patterns. Matches numbers with underscores but excludes regular patterns (3-digit groups like 1_000_000, or 2-digit cultural patterns). Also excludes hexadecimal, binary, floating point numbers, comments, strings, and test contexts where irregular patterns might be intentional for testing purposes.",
+    "validation_examples": {
+      "should_trigger": [
+        "int thousand = 100_0;",
+        "int tenThousand = 100_00;", 
+        "int million = 1_000_00_000;",
+        "long value = 12_3456_78;"
+      ],
+      "should_not_trigger": [
+        "int thousand = 1000;",
+        "int tenThousand = 10_000;",
+        "int million = 100_000_000;",
+        "int duos = 1_00_00;",
+        "string text = \"Value: 100_0\";",
+        "Console.WriteLine($\"Amount: {100_0}\");",
+        "// int value = 100_0;",
+        "[Test] public void TestMethod() { int test = 100_0; }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "filename": "null_pointers_should_not_be_dereferenced_metadata.json",
+  "rule_id": "null_pointers_dereferenced",
+  "title": "Null pointers should not be dereferenced",
+  "description": "Null pointers should not be dereferencedAnalyze your codeintentionality-logicalreliabilityBugcwesymbolic-executionWhy is this an issue?How can I fix it?More InfoAccessing anullvalue will always throw aNullReferenceExceptionmost likely causing an abrupt program termination.Such termination might expose sensitive information that a malicious third party could exploit to, for instance, bypass security measures.ExceptionsIn the following cases, the rule does not raise:Extensions MethodsCalls to extension methods can still operate onnullvalues.using System; using System.Text.RegularExpressions; public static class Program { public static string RemoveVowels(this string value) { if (value == null) { return null; } return Regex.Replace(value, \"[aeoui]*\",\"\", RegexOptions.IgnoreCase); } public stat",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessUser(User user)\n{\n    // Noncompliant - potential null dereference\n    Console.WriteLine(user.Name.Length);\n}\n\npublic string GetUserEmail(User user)\n{\n    if (user == null)\n        return null;\n    \n    // Noncompliant - user.Email might be null\n    return user.Email.ToLower();\n}\n\npublic void UpdateList(List<string> items)\n{\n    items = null;\n    items.Add(\"test\");  // Noncompliant - will throw NullReferenceException\n}"
+    ],
+    "compliant": [
+      "public void ProcessUser(User user)\n{\n    // Compliant - null checks\n    if (user?.Name != null)\n    {\n        Console.WriteLine(user.Name.Length);\n    }\n}\n\npublic string GetUserEmail(User user)\n{\n    if (user == null)\n        return null;\n    \n    // Compliant - safe navigation or null check\n    return user.Email?.ToLower() ?? string.Empty;\n}\n\npublic void UpdateList(List<string> items)\n{\n    if (items != null)  // Compliant - null check before use\n    {\n        items.Add(\"test\");\n    }\n}\n\n// Extension methods can safely operate on null\npublic static string RemoveVowels(this string value)\n{\n    if (value == null)\n        return null;\n    return Regex.Replace(value, \"[aeiou]*\", \"\", RegexOptions.IgnoreCase);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2259"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\s*=\\s*null;[^{}]*?\\w+\\.(\\w+|Length|Count|Add|ToString)",
+        "exclude_patterns": [
+          "\\?\\.",
+          "this\\s+\\w+",
+          "RemoveVowels\\(",
+          "\\[Test",
+          "Assert\\.",
+          "\\w+\\s*!=\\s*null"
+        ]
+      }
+    ],
+    "triggering_conditions": "MethodDeclaration nodes that contain assignments to null followed by member access without null checks",
+    "exclusion_conditions": [
+      "Safe navigation operator (?.) usage",
+      "Extension method calls",
+      "Null checks (if statements checking != null)",
+      "Unit tests and assertions"
+    ],
+    "never_trigger_on": [
+      "Safe navigation operator (?.) usage", 
+      "Extension method calls (this parameter methods)",
+      "Null checks (if statements checking != null)",
+      "Unit tests ([Test], Assert.*)"
+    ],
+    "reasoning": "Detects potential null pointer dereferences where variables are assigned null and then accessed without proper null checks. Uses regex to identify assignment to null followed by member access patterns across multiple lines while excluding safe navigation operators and null checks. Allows triggering in methods with logging or comments as these don't prevent NullReferenceExceptions.",
+    "validation_examples": {
+      "should_trigger": [
+        "user = null; Console.WriteLine(user.Name);",
+        "items = null; items.Add(\"test\");",
+        "User user = null; user.Name;"
+      ],
+      "should_not_trigger": [
+        "user?.Name?.Length",
+        "if (user != null) { user.Name; }",
+        "input.RemoveVowels()",
+        "[Test] public void Test() { text = null; Assert.ThrowsException(() => text.Length); }"
+      ]
+    }
+  }
+}

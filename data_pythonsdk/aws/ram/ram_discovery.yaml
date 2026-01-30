@@ -1,0 +1,103 @@
+version: '1.0'
+provider: aws
+service: ram
+services:
+  client: ram
+  module: boto3.client
+discovery:
+- discovery_id: aws.ram.list_permissions
+  calls:
+  - action: list_permissions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.permissions }}'
+- discovery_id: aws.ram.get_resource_share_invitations
+  calls:
+  - action: get_resource_share_invitations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceShareInvitations }}'
+- discovery_id: aws.ram.list_replace_permission_associations_work
+  calls:
+  - action: list_replace_permission_associations_work
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.replacePermissionAssociationsWorks }}'
+- discovery_id: aws.ram.list_permission_associations
+  calls:
+  - action: list_permission_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.permissions }}'
+- discovery_id: aws.ram.list_resource_types
+  calls:
+  - action: list_resource_types
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resourceTypes }}'
+- discovery_id: aws.ram.get_resource_shares
+  calls:
+  - action: get_resource_shares
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceShares }}'
+- discovery_id: aws.ram.list_resources
+  calls:
+  - action: list_resources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resources }}'
+- discovery_id: aws.ram.get_permission
+  for_each: aws.ram.list_permissions
+  calls:
+  - action: get_permission
+    save_as: response
+    on_error: continue
+    params:
+      permissionArn: '{{ item.permissionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.permission }}'
+- discovery_id: aws.ram.list_principals
+  calls:
+  - action: list_principals
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.principals }}'
+- discovery_id: aws.ram.get_resource_policies
+  calls:
+  - action: get_resource_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policies }}'
+checks: []

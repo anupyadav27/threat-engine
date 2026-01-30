@@ -1,0 +1,66 @@
+{
+  "filename": "property_names_should_not_match_get_methods_metadata.json",
+  "rule_id": "property_names_match_get",
+  "title": "Property names should not match get methods",
+  "description": "Property names should not match get methodsAnalyze your codeconsistency-identifiablemaintainabilityCode SmellconfusingWhy is this an issue?Properties and Get method should have names that makes them clearly distinguishable.This rule raises an issue when the name of a public or protected member starts with 'Get' and otherwise matches the name of a public or protected property.Noncompliant code exampleusing System; namespace MyLibrary { public class Foo { public DateTime Date { get { return DateTime.Today; } } public string GetDate() // Noncompliant { return this.Date.ToString(); } } }Compliant solutionusing System; namespace MyLibrary { public class Foo { public DateTime Date { get { return DateTime.Today; } } public string GetDateAsString() { return this.Date.ToString(); } } }Available In:",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    public class Foo\n    {\n        public DateTime Date\n        {\n            get { return DateTime.Today; }\n        }\n\n        public string GetDate() // Noncompliant\n        {\n            return this.Date.ToString();\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    public class Foo\n    {\n        public DateTime Date\n        {\n            get { return DateTime.Today; }\n        }\n\n        public string GetDateAsString()\n        {\n            return this.Date.ToString();\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4059"
+  ],
+  "logic": {
+    "node_types": ["PropertyDeclaration", "MethodDeclaration"],
+    "custom_function": "check_property_method_name_conflicts",
+    "target_ast_nodes": ["PropertyDeclaration", "MethodDeclaration"],
+    "detection_conditions": "Uses custom function to compare property names with Get method names within the same class",
+    "triggering_conditions": "When a class has both a property named 'X' and a method named 'GetX' with the same accessibility level",
+    "exclusion_conditions": [
+      "Methods and properties with different accessibility levels",
+      "Static methods vs instance properties or vice versa",
+      "Methods with significantly different return types indicating different purposes",
+      "Generated code or compiler-generated members",
+      "Interface implementations",
+      "Methods in different partial class parts"
+    ],
+    "never_trigger_on": [
+      "Private methods vs public properties (different accessibility)",
+      "Static methods vs instance properties",
+      "Methods with different return types indicating different semantics",
+      "Generated or compiler-created code",
+      "Interface method implementations",
+      "Abstract method declarations",
+      "Override methods from base classes"
+    ],
+    "reasoning": "Uses a custom function to analyze class members and detect naming conflicts between properties and Get methods. The custom function 'check_property_method_name_conflicts' examines PropertyDeclaration and MethodDeclaration nodes to find cases where a property 'Name' coexists with a method 'GetName', which can cause confusion for API users. The function considers accessibility, scope, and context to avoid false positives.",
+    "validation_examples": {
+      "should_trigger": [
+        "public DateTime Date { get; } and public string GetDate()",
+        "protected string Name { get; set; } and protected string GetName()",
+        "public int Count { get; } and public int GetCount()"
+      ],
+      "should_not_trigger": [
+        "public DateTime Date { get; } and private string GetDate()",
+        "public static string GetVersion() and public string Version { get; }",
+        "public string Name { get; } and public Person GetName()",
+        "public override string ToString() and public string String { get; }",
+        "property and method in different classes"
+      ]
+    }
+  }
+}

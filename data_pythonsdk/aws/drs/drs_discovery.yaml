@@ -1,0 +1,133 @@
+version: '1.0'
+provider: aws
+service: drs
+services:
+  client: drs
+  module: boto3.client
+discovery:
+- discovery_id: aws.drs.describe_replication_configuration_templates
+  calls:
+  - action: describe_replication_configuration_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_recovery_instances
+  calls:
+  - action: describe_recovery_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_source_servers
+  calls:
+  - action: describe_source_servers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_source_networks
+  calls:
+  - action: describe_source_networks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_launch_configuration_templates
+  calls:
+  - action: describe_launch_configuration_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_jobs
+  calls:
+  - action: describe_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.list_staging_accounts
+  calls:
+  - action: list_staging_accounts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.accounts }}'
+- discovery_id: aws.drs.list_launch_actions
+  calls:
+  - action: list_launch_actions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.describe_recovery_snapshots
+  for_each: aws.drs.describe_recovery_instances
+  calls:
+  - action: describe_recovery_snapshots
+    save_as: response
+    on_error: continue
+    params:
+      sourceServerID: '{{ item.itemSourceServerId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.get_launch_configuration
+  for_each: aws.drs.describe_recovery_instances
+  calls:
+  - action: get_launch_configuration
+    save_as: response
+    on_error: continue
+    params:
+      sourceServerID: '{{ item.itemSourceServerId }}'
+  emit:
+    as: item
+    items_for: '{{ response.launchIntoInstanceProperties }}'
+- discovery_id: aws.drs.describe_job_log_items
+  for_each: aws.drs.describe_recovery_instances
+  calls:
+  - action: describe_job_log_items
+    save_as: response
+    on_error: continue
+    params:
+      jobID: '{{ item.itemJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: aws.drs.list_extensible_source_servers
+  calls:
+  - action: list_extensible_source_servers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+checks: []

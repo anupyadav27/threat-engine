@@ -1,0 +1,89 @@
+{
+  "filename": "generic_exceptions_should_not_be_ignored_metadata.json",
+  "rule_id": "generic_exceptions_ignored",
+  "title": "Generic exceptions should not be ignored",
+  "description": "Generic exceptions should not be ignoredAnalyze your codeintentionality-clearmaintainabilityCode Smellcweerror-handlingsuspiciousWhy is this an issue?More InfoWhen exceptions occur, it is usually a bad idea to simply ignore them. Instead, it is better to handle them properly, or at least to log them.This rule only reports on empty catch clauses that catch genericExceptions.Noncompliant code examplestring text = \"\"; try { text = File.ReadAllText(fileName); } catch (Exception exc) // Noncompliant { }Compliant solutionstring text = \"\"; try { text = File.ReadAllText(fileName); } catch (Exception exc) { logger.Log(exc); }ExceptionsWhen a block contains a comment, it is not considered to be empty.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services,",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try",
+      "{",
+      "    DoSomething();",
+      "}",
+      "catch (Exception) // Noncompliant: empty catch",
+      "{",
+      "}"
+    ],
+    "compliant": [
+      "try",
+      "{",
+      "    DoSomething();",
+      "}",
+      "catch (Exception ex)",
+      "{",
+      "    _logger.LogError(ex, \"Error occurred\");",
+      "    throw;",
+      "}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2486"
+  ],
+  "logic": {
+    "target_ast_nodes": ["TryStatement", "ClassDeclaration", "MethodDeclaration"],
+    "detection_conditions": "Detects empty catch blocks that catch generic Exception type",
+    "triggering_conditions": "Triggers when: catch (Exception) or catch (Exception ex) block is empty (no code, no comments)",
+    "exclusion_conditions": "Excludes: catch blocks with comments, catch blocks with any statements, non-Exception catch clauses (specific exceptions)",
+    "never_trigger_on": [
+      "Catch blocks containing comments (// or /* */)",
+      "Catch blocks with any code statements",
+      "Catch blocks with logging",
+      "Catch blocks with throw statements",
+      "Specific exception types (not generic Exception)",
+      "Generated code"
+    ],
+    "reasoning": "This rule detects empty catch blocks that swallow generic exceptions. It identifies catch clauses that catch Exception (with or without variable name) followed by empty braces. The pattern looks for 'catch (Exception' followed by optional variable name, then '{' and '}' with only whitespace between them. Per the rule specification, catch blocks with comments are NOT considered empty, so the pattern must exclude blocks containing '//' or '/*'. This prevents silent exception swallowing which is a bad practice. The rule specifically targets generic Exception, not specific exception types like FileNotFoundException.",
+    "validation_examples": {
+      "should_trigger": [
+        "catch (Exception) { }",
+        "catch (Exception ex) { }",
+        "catch (Exception e) {  }"
+      ],
+      "should_not_trigger": [
+        "catch (Exception ex) { logger.Log(ex); }",
+        "catch (Exception ex) { throw; }",
+        "catch (Exception) { // Comment explaining why empty }",
+        "catch (FileNotFoundException) { }",
+        "catch (IOException ex) { }"
+      ]
+    },
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "catch\\s*\\(\\s*Exception(?:\\s+\\w+)?\\s*\\)\\s*\\{\\s*\\}",
+        "source_exclude_patterns": ["return\\s+@\"[\\s\\S]*catch\\s*\\(\\s*Exception"],
+        "exclude_patterns": [
+          "catch\\s*\\([^)]*Exception[^)]*\\)\\s*\\{[^}]*//",
+          "catch\\s*\\([^)]*Exception[^)]*\\)\\s*\\{[^}]*/\\*",
+          "catch\\s*\\(\\s*(?!Exception\\b)\\w+(?:Exception)?\\s+\\w+\\s*\\)",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*\\*",
+          "\"[^\"]*catch[^\"]*Exception[^\"]*\"",
+          "@\"[^\"]*catch[^\"]*Exception[^\"]*\""
+        ]
+      }
+    ]
+  }
+}

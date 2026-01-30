@@ -1,0 +1,72 @@
+{
+  "filename": "type_should_not_be_examined_on_systemtype_instance_metadata.json",
+  "rule_id": "type_examined_systemtype_instances",
+  "title": "Type should not be examined on System.Type instances",
+  "description": "Type should not be examined on \"System.Type\" instancesAnalyze your codeintentionality-clearmaintainabilityCode SmellsuspiciousWhy is this an issue?How can I fix it?More InfoCallingGetTypeon aTypevariable will always return theSystem.Typerepresentation, which is equivalent totypeof(System.Type). This also applies to passing aTypeargument toIsInstanceOfTypewhich always returnsfalse.In both cases, the results are entirely predictable and should be avoided.ExceptionsCallingGetTypeonSystem.Typeis considered compliant to get an instance ofSystem.RuntimeType, as demonstrated in the following example:typeof(Type).GetType(); // Can be used by convention to get an instance of 'System.RuntimeType'Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitb",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void CheckType(Type type)\n{\n    // Noncompliant: GetType() on Type returns System.RuntimeType\n    if (type.GetType() == typeof(string))\n    {\n        Console.WriteLine(\"Is string type\");\n    }\n\n    // Noncompliant: IsInstanceOfType on Type variable\n    if (typeof(string).IsInstanceOfType(type))\n    {\n        Console.WriteLine(\"Is instance of string\");\n    }\n}"
+    ],
+    "compliant": [
+      "public void CheckType(Type type)\n{\n    // Compliant: Direct comparison with typeof\n    if (type == typeof(string))\n    {\n        Console.WriteLine(\"Is string type\");\n    }\n\n    // Compliant: Use IsAssignableFrom for inheritance checks\n    if (typeof(IDisposable).IsAssignableFrom(type))\n    {\n        Console.WriteLine(\"Implements IDisposable\");\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3443"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_type_examination_on_system_type"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression", "MethodDeclaration"],
+    "detection_conditions": "Detect GetType() calls on System.Type variables and IsInstanceOfType() with Type arguments, which produce predictable/useless results",
+    "triggering_conditions": {
+      "operator": "OR",
+      "conditions": [
+        "Variable of type Type has GetType() called on it",
+        "IsInstanceOfType() is called with a Type argument instead of an object"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]",
+        "typeof\\(Type\\)\\.GetType\\(\\)"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments describing the pattern",
+      "Test classes with [Test] or [Fact] attributes",
+      "typeof(Type).GetType() - documented way to get RuntimeType",
+      "GetType() on regular objects (not Type variables)",
+      "IsInstanceOfType() with object arguments"
+    ],
+    "reasoning": "Calling GetType() on a Type variable always returns System.RuntimeType, which is equivalent to typeof(System.Type). Passing a Type argument to IsInstanceOfType() always returns false. Both patterns indicate a misunderstanding of the reflection API and produce predictable, usually unintended, results.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (type.GetType() == typeof(string))",
+        "type.IsInstanceOfType(paramType)"
+      ],
+      "should_not_trigger": [
+        "if (type == typeof(string))",
+        "if (obj.GetType() == typeof(string))",
+        "typeof(IDisposable).IsAssignableFrom(type)"
+      ]
+    }
+  }
+}

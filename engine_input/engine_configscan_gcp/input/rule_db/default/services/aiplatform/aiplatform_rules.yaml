@@ -1,0 +1,2229 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+aiplatform:
+  version: '1.0'
+  provider: gcp
+  service: aiplatform
+  scope: regional
+  discovery:
+  - discovery_id: list_batch_prediction_jobs
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: batch_job_name
+      - path: inputConfig
+        var: input_config
+      - path: outputConfig
+        var: output_config
+  - discovery_id: list_custom_jobs
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: custom_job_name
+      - path: jobSpec
+        var: job_spec
+  - discovery_id: list_training_pipelines
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: pipeline_name
+      - path: trainingTaskDefinition
+        var: training_task
+  - discovery_id: list_endpoints
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: endpoint_name
+      - path: encryptionSpec
+        var: encryption_spec
+  - discovery_id: list_models
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: model_name
+      - path: encryptionSpec
+        var: model_encryption
+  - discovery_id: list_datasets
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: dataset_name
+      - path: encryptionSpec
+        var: dataset_encryption
+  - discovery_id: list_hyperparameter_tuning_jobs
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: tuning_job_name
+      - path: trialJobSpec
+        var: trial_spec
+  - discovery_id: list_model_deployment_monitoring_jobs
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: monitoring_job_name
+      - path: modelDeploymentMonitoringObjectiveConfigs
+        var: monitoring_configs
+  - discovery_id: list_featurestores
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: featurestore_name
+      - path: encryptionSpec
+        var: featurestore_encryption
+  - discovery_id: list_tensorboards
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: tensorboard_name
+      - path: encryptionSpec
+        var: tensorboard_encryption
+  checks:
+  - check_id: gcp.aiplatform.batch_prediction_job.data_governance_ai_transform_job_input_output_encrypted
+    title: Ensure AI Platform Batch Prediction Job Data Encryption
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: inputConfig.gcsSource.encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+      - path: outputConfig.gcsDestination.encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_governance_ai_transform_job_logs_enabled
+    title: Enable Logs for AI Platform Batch Prediction Job
+    severity: medium
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_governance_ai_transform_job_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Batch Prediction Jobs
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: model.privateEndpoints
+        operator: exists
+        expected: true
+      - path: networkConfig.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_governance_ai_transform_job_roles_least_privilege
+    title: Enforce Least Privilege for AI Transform Job Roles
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: exists
+        expected: true
+      - path: serviceAccount
+        operator: contains
+        expected: '@'
+  - check_id: gcp.aiplatform.batch_prediction_job.data_privacy_ai_transform_job_input_output_encrypted
+    title: Ensure AI Transform Job Data is Encrypted at Rest
+    severity: critical
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: inputConfig.encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+      - path: outputConfig.encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_privacy_ai_transform_job_logs_enabled
+    title: Enable Logs for AI Transform Jobs to Protect Data Privacy
+    severity: medium
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.enableAccessLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_privacy_ai_transform_job_private_networking_enforced
+    title: Ensure Private Networking for AI Transform Jobs
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.data_privacy_ai_transform_job_roles_least_privilege
+    title: Ensure Least Privilege for AI Platform Batch Prediction Jobs
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: contains
+        expected: batch-prediction
+  - check_id: gcp.aiplatform.batch_prediction_job.machine_learning_transform_job_input_output_encrypted
+    title: Encrypt Input and Output for AI Platform Batch Jobs
+    severity: critical
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: inputConfig.gcsSource.encryptionSpec
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.machine_learning_transform_job_logs_enabled
+    title: Enable Logging for AI Platform Batch Prediction Jobs
+    severity: medium
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.machine_learning_transform_job_private_networking_enforced
+    title: Enforce Private Networking for ML Transform Jobs
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: networkConfig.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.batch_prediction_job.machine_learning_transform_job_roles_least_privilege
+    title: Ensure Least Privilege for AI Platform Batch Prediction Jobs
+    severity: high
+    for_each: list_batch_prediction_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccount
+        operator: contains
+        expected: ml-transform
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_job_inter_container_traffic_enc_enabled
+    title: Ensure AI Platform Custom Job Inter-Container Traffic Encryption
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.workerPoolSpecs[].containerSpec.enableInterContainerEncryption
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_job_network_isolation_enabled
+    title: Ensure Network Isolation for AI Training Jobs
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.network
+        operator: exists
+        expected: true
+      - path: jobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_job_output_encryption_enabled
+    title: Ensure AI Job Output Encryption in Custom Jobs
+    severity: critical
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.baseOutputDirectory.outputUriPrefix
+        operator: exists
+        expected: true
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_job_volume_encryption_enabled
+    title: Ensure AI Training Job Volumes Are Encrypted at Rest
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.workerPoolSpecs[].diskSpec.bootDiskType
+        operator: exists
+        expected: true
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_job_vpc_configured
+    title: Ensure VPC Configuration for AI Platform Custom Jobs
+    severity: medium
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.network
+        operator: exists
+        expected: true
+      - path: jobSpec.network
+        operator: contains
+        expected: projects/
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_pipeline_private_networking_enforced
+    title: Ensure Private Networking for AI Training Pipelines
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.ai_services_training_pipeline_secrets_from_vault_only
+    title: Use Vault for AI Platform Training Pipeline Secrets
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.workerPoolSpecs[].containerSpec.env[].valueFrom.secretKeyRef
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.data_governance_ai_training_job_input_output_encrypted
+    title: Ensure Encryption of AI Platform Custom Job Data at Rest
+    severity: critical
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.data_governance_ai_training_job_logs_enabled
+    title: Enable Comprehensive Logging for AI Training Jobs
+    severity: medium
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.enableWebAccess
+        operator: equals
+        expected: false
+      - path: labels.logging-enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.custom_job.data_governance_ai_training_job_private_networking_enforced
+    title: Enforce Private Networking for Data Governance in AI Training
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.data_governance_ai_training_job_roles_least_privilege
+    title: Ensure Least Privilege Access for AI Training Jobs
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.serviceAccount
+        operator: exists
+        expected: true
+      - path: jobSpec.serviceAccount
+        operator: contains
+        expected: training
+  - check_id: gcp.aiplatform.custom_job.data_privacy_ai_training_job_input_output_encrypted
+    title: Ensure Data Privacy Through Encryption in AI Training Jobs
+    severity: critical
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+      - path: jobSpec.workerPoolSpecs[].diskSpec.bootDiskSizeGb
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.data_privacy_ai_training_job_logs_enabled
+    title: Enable Privacy-Compliant Logging for AI Training Jobs
+    severity: medium
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-logging
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.custom_job.data_privacy_ai_training_job_private_networking_enforced
+    title: Enforce Private Networking for Data Privacy in AI Training
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.network
+        operator: contains
+        expected: private
+  - check_id: gcp.aiplatform.custom_job.data_privacy_ai_training_job_roles_least_privilege
+    title: Ensure Least Privilege for Data Privacy in AI Training Jobs
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.serviceAccount
+        operator: contains
+        expected: privacy
+  - check_id: gcp.aiplatform.custom_job.machine_learning_training_job_input_output_encrypted
+    title: Encrypt ML Training Job Input and Output Data
+    severity: critical
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.machine_learning_training_job_logs_enabled
+    title: Enable Logging for Machine Learning Training Jobs
+    severity: medium
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.custom_job.machine_learning_training_job_private_networking_enforced
+    title: Enforce Private Networking for ML Training Jobs
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.custom_job.machine_learning_training_job_roles_least_privilege
+    title: Ensure Least Privilege for ML Training Job Roles
+    severity: high
+    for_each: list_custom_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: jobSpec.serviceAccount
+        operator: contains
+        expected: ml-training
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_access_controls_enabled
+    title: Enable Access Controls for AI Platform Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_audit_logs_enabled
+    title: Enable Audit Logs for AI Platform Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_encryption_enabled
+    title: Ensure AI Platform Dataset Encryption
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.private-access
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_version_control_enabled
+    title: Enable Version Control for AI Platform Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.version-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.data_governance_dataset_access_controls_enabled
+    title: Enable Data Governance Access Controls for Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.data-governance
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.data_governance_dataset_audit_logs_enabled
+    title: Enable Data Governance Audit Logs for Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.data_governance_dataset_encryption_enabled
+    title: Ensure Data Governance Dataset Encryption
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.dataset.data_governance_dataset_private_networking_enforced
+    title: Enforce Private Networking for Data Governance Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-private
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.data_governance_dataset_version_control_enabled
+    title: Enable Version Control for Data Governance Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.data_privacy_dataset_access_controls_enabled
+    title: Enable Data Privacy Access Controls for Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-controls
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.data_privacy_dataset_audit_logs_enabled
+    title: Enable Data Privacy Audit Logs for Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.data_privacy_dataset_encryption_enabled
+    title: Ensure Data Privacy Dataset Encryption
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.dataset.data_privacy_dataset_private_networking_enforced
+    title: Enforce Private Networking for Data Privacy Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-network
+        operator: equals
+        expected: private
+  - check_id: gcp.aiplatform.dataset.data_privacy_dataset_version_control_enabled
+    title: Enable Version Control for Data Privacy Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.machine_learning_dataset_access_controls_enabled
+    title: Enable Access Controls for ML Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.dataset.machine_learning_dataset_audit_logs_enabled
+    title: Enable Audit Logs for ML Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.machine_learning_dataset_encryption_enabled
+    title: Ensure ML Dataset Encryption
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.dataset.machine_learning_dataset_private_networking_enforced
+    title: Enforce Private Networking for ML Datasets
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-private-network
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.dataset.machine_learning_dataset_version_control_enabled
+    title: Enable Version Control for ML Datasets
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.endpoint.ai_services_endpoint_access_controls_enabled
+    title: Enable Access Controls for AI Platform Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.endpoint.ai_services_endpoint_audit_logs_enabled
+    title: Enable Audit Logs for AI Platform Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.endpoint.ai_services_endpoint_encryption_enabled
+    title: Ensure AI Platform Endpoint Encryption
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.ai_services_endpoint_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.ai_services_endpoint_traffic_split_configured
+    title: Configure Traffic Split for AI Platform Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficSplit
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_governance_endpoint_access_controls_enabled
+    title: Enable Data Governance Access Controls for Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.endpoint.data_governance_endpoint_audit_logs_enabled
+    title: Enable Data Governance Audit Logs for Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.endpoint.data_governance_endpoint_encryption_enabled
+    title: Ensure Data Governance Endpoint Encryption
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_governance_endpoint_private_networking_enforced
+    title: Enforce Private Networking for Data Governance Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_governance_endpoint_traffic_split_configured
+    title: Configure Traffic Split for Data Governance Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficSplit
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_privacy_endpoint_access_controls_enabled
+    title: Enable Data Privacy Access Controls for Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.endpoint.data_privacy_endpoint_audit_logs_enabled
+    title: Enable Data Privacy Audit Logs for Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.endpoint.data_privacy_endpoint_encryption_enabled
+    title: Ensure Data Privacy Endpoint Encryption
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_privacy_endpoint_private_networking_enforced
+    title: Enforce Private Networking for Data Privacy Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.data_privacy_endpoint_traffic_split_configured
+    title: Configure Traffic Split for Data Privacy Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficSplit
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.machine_learning_endpoint_access_controls_enabled
+    title: Enable Access Controls for ML Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.endpoint.machine_learning_endpoint_audit_logs_enabled
+    title: Enable Audit Logs for ML Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.endpoint.machine_learning_endpoint_encryption_enabled
+    title: Ensure ML Endpoint Encryption
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.machine_learning_endpoint_private_networking_enforced
+    title: Enforce Private Networking for ML Endpoints
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.endpoint.machine_learning_endpoint_traffic_split_configured
+    title: Configure Traffic Split for ML Endpoints
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficSplit
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.ai_services_featurestore_access_controls_enabled
+    title: Enable Access Controls for AI Platform Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.featurestore.ai_services_featurestore_audit_logs_enabled
+    title: Enable Audit Logs for AI Platform Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.ai_services_featurestore_encryption_enabled
+    title: Ensure AI Platform Featurestore Encryption
+    severity: critical
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.ai_services_featurestore_online_serving_config_optimized
+    title: Optimize Online Serving Config for AI Platform Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: onlineServingConfig.scaling.minNodeCount
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.ai_services_featurestore_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.private-network
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.data_governance_featurestore_access_controls_enabled
+    title: Enable Data Governance Access Controls for Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.featurestore.data_governance_featurestore_audit_logs_enabled
+    title: Enable Data Governance Audit Logs for Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.data_governance_featurestore_encryption_enabled
+    title: Ensure Data Governance Featurestore Encryption
+    severity: critical
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.data_governance_featurestore_online_serving_config_optimized
+    title: Optimize Online Serving Config for Data Governance Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: onlineServingConfig.scaling.maxNodeCount
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.data_governance_featurestore_private_networking_enforced
+    title: Enforce Private Networking for Data Governance Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-private
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.data_privacy_featurestore_access_controls_enabled
+    title: Enable Data Privacy Access Controls for Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.featurestore.data_privacy_featurestore_audit_logs_enabled
+    title: Enable Data Privacy Audit Logs for Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.data_privacy_featurestore_encryption_enabled
+    title: Ensure Data Privacy Featurestore Encryption
+    severity: critical
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.data_privacy_featurestore_online_serving_config_optimized
+    title: Optimize Online Serving Config for Data Privacy Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: onlineServingConfig.fixedNodeCount
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.data_privacy_featurestore_private_networking_enforced
+    title: Enforce Private Networking for Data Privacy Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-network
+        operator: equals
+        expected: private
+  - check_id: gcp.aiplatform.featurestore.machine_learning_featurestore_access_controls_enabled
+    title: Enable Access Controls for ML Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.featurestore.machine_learning_featurestore_audit_logs_enabled
+    title: Enable Audit Logs for ML Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.featurestore.machine_learning_featurestore_encryption_enabled
+    title: Ensure ML Featurestore Encryption
+    severity: critical
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.machine_learning_featurestore_online_serving_config_optimized
+    title: Optimize Online Serving Config for ML Featurestores
+    severity: medium
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: onlineServingConfig.scaling
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.featurestore.machine_learning_featurestore_private_networking_enforced
+    title: Enforce Private Networking for ML Featurestores
+    severity: high
+    for_each: list_featurestores
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-private-network
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.ai_services_hyperparameter_tuning_job_encryption_enabled
+    title: Ensure AI Platform Hyperparameter Tuning Job Encryption
+    severity: critical
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.ai_services_hyperparameter_tuning_job_logs_enabled
+    title: Enable Logs for AI Platform Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.logging-enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.ai_services_hyperparameter_tuning_job_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Hyperparameter Tuning Jobs
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.ai_services_hyperparameter_tuning_job_resource_limits_configured
+    title: Configure Resource Limits for AI Platform Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: studySpec.parameters
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.ai_services_hyperparameter_tuning_job_roles_least_privilege
+    title: Ensure Least Privilege for AI Platform Hyperparameter Tuning Job Roles
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.serviceAccount
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_governance_hyperparameter_tuning_job_encryption_enabled
+    title: Ensure Data Governance Hyperparameter Tuning Job Encryption
+    severity: critical
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_governance_hyperparameter_tuning_job_logs_enabled
+    title: Enable Data Governance Logs for Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_governance_hyperparameter_tuning_job_private_networking_enforced
+    title: Enforce Private Networking for Data Governance Hyperparameter Tuning Jobs
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_governance_hyperparameter_tuning_job_resource_limits_configured
+    title: Configure Resource Limits for Data Governance Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: studySpec.algorithm
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_governance_hyperparameter_tuning_job_roles_least_privilege
+    title: Ensure Least Privilege for Data Governance Hyperparameter Tuning Job Roles
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.serviceAccount
+        operator: contains
+        expected: governance
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_privacy_hyperparameter_tuning_job_encryption_enabled
+    title: Ensure Data Privacy Hyperparameter Tuning Job Encryption
+    severity: critical
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_privacy_hyperparameter_tuning_job_logs_enabled
+    title: Enable Data Privacy Logs for Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_privacy_hyperparameter_tuning_job_private_networking_enforced
+    title: Enforce Private Networking for Data Privacy Hyperparameter Tuning Jobs
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_privacy_hyperparameter_tuning_job_resource_limits_configured
+    title: Configure Resource Limits for Data Privacy Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: studySpec.studyStoppingConfig
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.data_privacy_hyperparameter_tuning_job_roles_least_privilege
+    title: Ensure Least Privilege for Data Privacy Hyperparameter Tuning Job Roles
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.serviceAccount
+        operator: contains
+        expected: privacy
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.machine_learning_hyperparameter_tuning_job_encryption_enabled
+    title: Ensure ML Hyperparameter Tuning Job Encryption
+    severity: critical
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.machine_learning_hyperparameter_tuning_job_logs_enabled
+    title: Enable ML Logs for Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.machine_learning_hyperparameter_tuning_job_private_networking_enforced
+    title: Enforce Private Networking for ML Hyperparameter Tuning Jobs
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.enablePrivateServiceConnect
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.machine_learning_hyperparameter_tuning_job_resource_limits_configured
+    title: Configure Resource Limits for ML Hyperparameter Tuning Jobs
+    severity: medium
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: studySpec.measurementSelectionType
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.hyperparameter_tuning_job.machine_learning_hyperparameter_tuning_job_roles_least_privilege
+    title: Ensure Least Privilege for ML Hyperparameter Tuning Job Roles
+    severity: high
+    for_each: list_hyperparameter_tuning_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trialJobSpec.serviceAccount
+        operator: contains
+        expected: ml-tuning
+  - check_id: gcp.aiplatform.model.ai_services_model_access_controls_enabled
+    title: Enable Access Controls for AI Platform Models
+    severity: high
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.ai_services_model_audit_logs_enabled
+    title: Enable Audit Logs for AI Platform Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model.ai_services_model_encryption_enabled
+    title: Ensure AI Platform Model Encryption
+    severity: critical
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.ai_services_model_evaluation_metrics_enabled
+    title: Enable Evaluation Metrics for AI Platform Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: modelEvaluation
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.ai_services_model_version_control_enabled
+    title: Enable Version Control for AI Platform Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versionId
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.data_governance_model_access_controls_enabled
+    title: Enable Data Governance Access Controls for Models
+    severity: high
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.data_governance_model_audit_logs_enabled
+    title: Enable Data Governance Audit Logs for Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model.data_governance_model_encryption_enabled
+    title: Ensure Data Governance Model Encryption
+    severity: critical
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.data_governance_model_evaluation_metrics_enabled
+    title: Enable Evaluation Metrics for Data Governance Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-metrics
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.data_governance_model_version_control_enabled
+    title: Enable Version Control for Data Governance Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.data_privacy_model_access_controls_enabled
+    title: Enable Data Privacy Access Controls for Models
+    severity: high
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-access
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.data_privacy_model_audit_logs_enabled
+    title: Enable Data Privacy Audit Logs for Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model.data_privacy_model_encryption_enabled
+    title: Ensure Data Privacy Model Encryption
+    severity: critical
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.data_privacy_model_evaluation_metrics_enabled
+    title: Enable Evaluation Metrics for Data Privacy Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-metrics
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.data_privacy_model_version_control_enabled
+    title: Enable Version Control for Data Privacy Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.privacy-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.machine_learning_model_access_controls_enabled
+    title: Enable Access Controls for ML Models
+    severity: high
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-access-control
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.machine_learning_model_audit_logs_enabled
+    title: Enable Audit Logs for ML Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-audit
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model.machine_learning_model_encryption_enabled
+    title: Ensure ML Model Encryption
+    severity: critical
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model.machine_learning_model_evaluation_metrics_enabled
+    title: Enable Evaluation Metrics for ML Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-metrics
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model.machine_learning_model_version_control_enabled
+    title: Enable Version Control for ML Models
+    severity: medium
+    for_each: list_models
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.ml-versioning
+        operator: equals
+        expected: enabled
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.ai_services_model_monitoring_job_alert_config_enabled
+    title: Enable Alert Config for AI Platform Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: modelMonitoringAlertConfig.emailAlertConfig.userEmails
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.ai_services_model_monitoring_job_encryption_enabled
+    title: Ensure AI Platform Model Monitoring Job Encryption
+    severity: critical
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.ai_services_model_monitoring_job_logs_enabled
+    title: Enable Logs for AI Platform Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: loggingConfig.enableLogging
+        operator: equals
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.ai_services_model_monitoring_job_private_networking_enforced
+    title: Enforce Private Networking for AI Platform Model Monitoring Jobs
+    severity: high
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.private-network
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.ai_services_model_monitoring_job_schedule_configured
+    title: Configure Schedule for AI Platform Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: schedule
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_governance_model_monitoring_job_alert_config_enabled
+    title: Enable Alert Config for Data Governance Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: modelMonitoringAlertConfig.notificationChannels
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_governance_model_monitoring_job_encryption_enabled
+    title: Ensure Data Governance Model Monitoring Job Encryption
+    severity: critical
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_governance_model_monitoring_job_logs_enabled
+    title: Enable Data Governance Logs for Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_governance_model_monitoring_job_private_networking_enforced
+    title: Enforce Private Networking for Data Governance Model Monitoring Jobs
+    severity: high
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.governance-private
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_governance_model_monitoring_job_schedule_configured
+    title: Configure Schedule for Data Governance Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: schedule
+        operator: exists
+        expected: true
+  - check_id: gcp.aiplatform.model_deployment_monitoring_job.data_privacy_model_monitoring_job_alert_config_enabled
+    title: Enable Alert Config for Data Privacy Model Monitoring Jobs
+    severity: medium
+    for_each: list_model_deployment_monitoring_jobs
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: modelMonitoringAlertConfig
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_access_logging_enabled
+    title: Ensure AI Dataset Access Logging is Enabled
+    severity: medium
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_cloud_storage_encrypted_at_rest
+    title: Ensure AI Dataset Storage is Encrypted at Rest
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_encrypted_at_rest_cmek
+    title: Ensure AI Dataset Uses CMEK Encryption
+    severity: high
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec.kmsKeyName
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_public_access_blocked
+    title: Ensure AI Dataset Public Access is Blocked
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_authn_required
+    title: Ensure AI Services Endpoint Requires Authentication
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_authz_policies_enforced
+    title: Ensure AI Services Authorization Policies are Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_kms_encryption_enabled
+    title: Ensure AI Services Endpoint Uses KMS Encryption
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_private_networking_enforced
+    title: Ensure AI Services Private Networking is Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_rate_limiting_enabled
+    title: Ensure AI Services Rate Limiting is Enabled
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: trafficSplit
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_model_deployment_logging_enabled
+    title: Ensure AI Model Deployment Logging is Enabled
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: deployedModels
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.encryption_enabled
+    title: Ensure AI Endpoint Encryption is Enabled
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_authn_required
+    title: Ensure Data Governance Endpoint Requires Authentication
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_authz_policies_enforced
+    title: Ensure Data Governance Authorization Policies are Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_kms_encryption_enabled
+    title: Ensure Data Governance KMS Encryption is Enabled
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_logging_enabled
+    title: Ensure Data Governance Logging is Enabled
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: deployedModels
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_private_networking_enforced
+    title: Ensure Data Governance Private Networking is Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_authn_required
+    title: Ensure Data Privacy Endpoint Requires Authentication
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_authz_policies_enforced
+    title: Ensure Data Privacy Authorization Policies are Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_kms_encryption_enabled
+    title: Ensure Data Privacy KMS Encryption is Enabled
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_logging_enabled
+    title: Ensure Data Privacy Logging is Enabled
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: deployedModels
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_private_networking_enforced
+    title: Ensure Data Privacy Private Networking is Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.machine_learning_authn_required
+    title: Ensure ML Endpoint Requires Authentication
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.machine_learning_authz_policies_enforced
+    title: Ensure ML Authorization Policies are Enforced
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_cloud_storage_block_public_access
+    title: Ensure Dataset Cloud Storage Blocks Public Access
+    severity: critical
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.dataset.ai_services_dataset_lifecycle_policy_configured
+    title: Ensure Dataset Lifecycle Policy is Configured
+    severity: low
+    for_each: list_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: metadata
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_inference_endpoint_kms_encryption_enabled
+    title: Ensure Inference Endpoint Uses KMS Encryption
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_inference_endpoint_private_networking_enforced
+    title: Ensure Inference Endpoint Uses Private Networking
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_model_deployment_endpoint_in_vpc
+    title: Ensure Model Deployment Endpoint is in VPC
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_model_deployment_kms_encryption_enabled
+    title: Ensure Model Deployment Uses KMS Encryption
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_waf_attached
+    title: Ensure WAF is Attached to AI Services
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_prompt_gateway_authn_required
+    title: Ensure Prompt Gateway Requires Authentication
+    severity: critical
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_prompt_gateway_private_networking_enforced
+    title: Ensure Prompt Gateway Uses Private Networking
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_prompt_gateway_token_scopes_least_privilege
+    title: Ensure Prompt Gateway Token Scopes Follow Least Privilege
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_inference_endpoint_data_capture_gcs_encrypted
+    title: Ensure Inference Endpoint Data Capture is Encrypted
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.ai_services_inference_endpoint_group_restrictive
+    title: Ensure Inference Endpoint Security Group is Restrictive
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: network
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_ai_endpoint_config_content_type_whi_enforced
+    title: Ensure AI Endpoint Config Content Type Whitelist is Enforced
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_ai_endpoint_config_data_capture_buck_private
+    title: Ensure AI Endpoint Data Capture Bucket is Private
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_governance_ai_endpoint_config_kms_keys_restricted
+    title: Ensure AI Endpoint KMS Keys are Restricted
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_ai_endpoint_config_capture_store_encryp_private
+    title: Ensure AI Endpoint Capture Store is Encrypted and Private
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_ai_endpoint_config_content_type_whitel_enforced
+    title: Ensure AI Endpoint Content Type Whitelist is Enforced
+    severity: medium
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: name
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.aiplatform.endpoint.data_privacy_ai_endpoint_config_kms_keys_restricted
+    title: Ensure AI Endpoint KMS Keys are Properly Restricted
+    severity: high
+    for_each: list_endpoints
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: encryptionSpec
+        operator: exists
+        expected: true
+        
+  api_name: aiplatform
+  api_version: v1
+  project_param_format: projects/{{project_id}}

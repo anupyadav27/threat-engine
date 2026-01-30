@@ -1,0 +1,81 @@
+{
+  "filename": "variables_should_not_be_checked_against_the_values_metadata.json",
+  "rule_id": "variables_checked_against_values",
+  "title": "Variables should not be checked against the values they're about to be assigned",
+  "description": "Variables should not be checked against the values they're about to be assignedAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEconfusingWhy is this an issue?There’s no point in checking a variable against the value you’re about to assign it. Save the cycles and lines of code, and simply perform the assignment.Noncompliant code exampleif (x != a) // Noncompliant; why bother? { x = a; }Compliant solutionx = a;ExceptionsProperties and checks inside setters are excluded from this rule because they could have side effects and removing the check could lead to undesired side effects.if (MyProperty != a) { MyProperty = a; // Compliant because the setter could be expensive call }private int myField; public int SomeProperty { get",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (x != a)  // Noncompliant - redundant check before assignment\n{\n    x = a;\n}",
+      "if (name != newName) // Noncompliant - unnecessary comparison\n{\n    name = newName;\n}",
+      "if (count != value) // Noncompliant\n{\n    count = value;\n}"
+    ],
+    "compliant": [
+      "x = a; // Compliant - direct assignment",
+      "name = newName; // Compliant - direct assignment",
+      "// Property exception - check may be needed for side effects\nif (MyProperty != a)\n{\n    MyProperty = a; // Compliant - setter might have side effects\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3440"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration"],
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "detection_conditions": "Detects if-statements that check a variable against a value before assigning that same value",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "if\\s*\\(\\s*(\\w+)\\s*!=\\s*(\\w+)\\s*\\)\\s*\\{?\\s*\\1\\s*=\\s*\\2\\s*;",
+        "exclude_patterns": [
+          "\\bthis\\.",
+          "\\.",
+          "Property"
+        ],
+        "message": "Redundant check before assignment - just assign directly"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "if\\s*\\(\\s*(\\w+)\\s*!=\\s*(\\w+)\\s*\\)\\s*\\n?\\s*\\1\\s*=\\s*\\2\\s*;",
+        "exclude_patterns": [
+          "\\bthis\\.",
+          "\\.",
+          "Property"
+        ],
+        "message": "Redundant check before assignment - just assign directly"
+      }
+    ],
+    "triggering_conditions": "if (x != value) { x = value; } OR if (x != value) x = value;",
+    "exclusion_conditions": "Property assignments (may have side effects), member access patterns",
+    "never_trigger_on": [
+      "Property assignments (setter may have side effects)",
+      "Member access patterns (obj.Property != value)",
+      "Assignments involving method calls",
+      "Comments"
+    ],
+    "reasoning": "Checking a variable against a value before assigning that value is redundant for simple variables. The assignment itself is sufficient. Exception: property setters may have side effects that make the check worthwhile.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (x != a) { x = a; }",
+        "if (name != newName) name = newName;",
+        "if (count != value) { count = value; }"
+      ],
+      "should_not_trigger": [
+        "x = a;",
+        "if (MyProperty != a) { MyProperty = a; }",
+        "if (obj.Field != value) { obj.Field = value; }"
+      ]
+    }
+  }
+}

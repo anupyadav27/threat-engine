@@ -1,0 +1,244 @@
+---
+# Data SecOps Service Deployment  
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-secops-service
+  labels:
+    app: data-secops-service
+    tier: security
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-secops-service
+  template:
+    metadata:
+      labels:
+        app: data-secops-service
+        tier: security
+        version: v1
+    spec:
+      containers:
+      - name: data-secops-service
+        image: threat-engine/data-secops-service:latest
+        ports:
+        - containerPort: 8004
+          name: http
+        env:
+        # Database configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        # Module configuration  
+        - name: DATASEC_MODULE_ENABLED
+          value: "true"
+        - name: SECOPS_MODULE_ENABLED
+          value: "true"
+        - name: USERPORTAL_MODULE_ENABLED
+          value: "true"
+        # Scanning configuration
+        - name: SCAN_INPUT_PATH
+          value: "/app/scan_input"
+        - name: SCAN_OUTPUT_PATH
+          value: "/app/scan_output"
+        # Performance tuning
+        - name: MAX_WORKERS
+          value: "3"
+        - name: CACHE_TTL_SECONDS
+          value: "180"
+        # Security scanning tools configuration
+        - name: SEMGREP_ENABLE
+          value: "true"
+        - name: BANDIT_ENABLE
+          value: "true"
+        - name: SAFETY_ENABLE
+          value: "true"
+        # Cloud provider credentials (from secrets)
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: cloud-credentials
+              key: aws_access_key_id
+              optional: true
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cloud-credentials
+              key: aws_secret_access_key
+              optional: true
+        # Logging
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "1.5Gi"
+            cpu: "750m"
+          limits:
+            memory: "3Gi"
+            cpu: "1500m"
+        volumeMounts:
+        - name: scan-input-storage
+          mountPath: /app/scan_input
+        - name: scan-output-storage
+          mountPath: /app/scan_output
+        - name: data-security-rules
+          mountPath: /app/rules
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 15
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: scan-input-storage
+        persistentVolumeClaim:
+          claimName: scan-input-pvc
+      - name: scan-output-storage
+        persistentVolumeClaim:
+          claimName: scan-output-pvc
+      - name: data-security-rules
+        configMap:
+          name: data-security-rules
+          optional: true
+
+---
+# Data SecOps Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-secops-service
+  labels:
+    app: data-secops-service
+    tier: security
+spec:
+  selector:
+    app: data-secops-service
+  ports:
+  - port: 8004
+    targetPort: 8004
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# Data SecOps Service Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: data-secops-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: data-secops-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+
+---
+# Persistent Volume Claim for Scan Input
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scan-input-pvc
+  labels:
+    app: data-secops-service
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: nfs-client
+
+---
+# Persistent Volume Claim for Scan Output
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scan-output-pvc
+  labels:
+    app: data-secops-service
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: nfs-client
+
+---
+# ConfigMap for Data Security Rules (optional)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-security-rules
+  labels:
+    app: data-secops-service
+data:
+  # Custom data security rules would be mounted here
+  # For example, YAML rules for data classification
+  data_classification.yaml: |
+    rules:
+      - name: credit_card_detection
+        pattern: '\b(?:\d{4}[-\s]?){3}\d{4}\b'
+        classification: financial
+        sensitivity: high
+      - name: ssn_detection
+        pattern: '\b\d{3}-?\d{2}-?\d{4}\b'
+        classification: personal
+        sensitivity: critical

@@ -1,0 +1,60 @@
+{
+  "filename": "enumeration_members_should_not_be_named_reserved_metadata.json",
+  "rule_id": "enumeration_members_named_reserved",
+  "title": "Enumeration members should not be named Reserved",
+  "description": "Enumeration members should not be named \"Reserved\"Analyze your codeCode SmellWhy is this an issue?If anenummember’s name contains the word \"reserved\" it implies it is not currently used and will be change in the future. However changing anenummember is a breaking change and can create significant problems. There is no need to reserve anenummember since a new member can be added in the future, and such an addition will usually not be a breaking change.This rule raises an issue when the name of an enumeration member contains \"reserved\".Noncompliant code exampleusing System; namespace MyLibrary { public enum Color { None, Red, Orange, Yellow, ReservedColor // Noncompliant } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, G",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\nnamespace MyLibrary\n{\n    public enum Color\n    {\n        None,\n        Red,\n        Orange,\n        Yellow,\n        ReservedColor // Noncompliant - contains 'Reserved'\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\nnamespace MyLibrary\n{\n    public enum Color\n    {\n        None,\n        Red,\n        Orange,\n        Yellow,\n        Special // Compliant\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4016"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Enum members with names containing 'Reserved'",
+    "triggering_conditions": "Enum member name contains 'Reserved' (case-insensitive)",
+    "exclusion_conditions": "None - all Reserved enum members should be flagged",
+    "never_trigger_on": "Not applicable - Reserved is never acceptable in enum member names",
+    "reasoning": "Enum members named 'Reserved' imply future changes which are breaking changes. New members can be added without reservation. Pattern detects enum declarations with members containing 'Reserved' in the name. Since scanner may not extract enums separately, targets source containing 'enum' keyword.",
+    "validation_examples": {
+      "should_trigger": [
+        "enum Color { Red, Orange, ReservedColor }",
+        "enum Status { Active, Reserved1, Reserved2 }",
+        "enum Priority { Low, High, ReservedStatus }"
+      ],
+      "should_not_trigger": [
+        "enum Color { Red, Orange, Special }",
+        "enum Status { Active, Inactive, Pending }",
+        "enum Priority { Low, Medium, High }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "enum\\s+\\w+[^}]*\\bReserved\\w*\\b[^}]*}",
+        "exclude_patterns": [
+          "//.*Reserved",
+          "/\\*.*Reserved.*\\*/"
+        ],
+        "message": "Remove 'Reserved' from enum member name - add new members instead of reserving"
+      }
+    ]
+  }
+}

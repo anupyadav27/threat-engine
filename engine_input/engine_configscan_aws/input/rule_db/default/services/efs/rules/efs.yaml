@@ -1,0 +1,84 @@
+version: '1.0'
+provider: aws
+service: efs
+services:
+  client: efs
+  module: boto3.client
+discovery:
+- discovery_id: aws.efs.describe_file_systems
+  calls:
+  - action: describe_file_systems
+    save_as: response
+  emit:
+    items_for: '{{ response.FileSystems }}'
+    as: item
+    item:
+      OwnerId: '{{ item.OwnerId }}'
+      CreationToken: '{{ item.CreationToken }}'
+      FileSystemId: '{{ item.FileSystemId }}'
+      FileSystemArn: '{{ item.FileSystemArn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LifeCycleState: '{{ item.LifeCycleState }}'
+      Name: '{{ item.Name }}'
+      NumberOfMountTargets: '{{ item.NumberOfMountTargets }}'
+      SizeInBytes: '{{ item.SizeInBytes }}'
+      PerformanceMode: '{{ item.PerformanceMode }}'
+      Encrypted: '{{ item.Encrypted }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+      ThroughputMode: '{{ item.ThroughputMode }}'
+      ProvisionedThroughputInMibps: '{{ item.ProvisionedThroughputInMibps }}'
+      AvailabilityZoneName: '{{ item.AvailabilityZoneName }}'
+      AvailabilityZoneId: '{{ item.AvailabilityZoneId }}'
+      Tags: '{{ item.Tags }}'
+      FileSystemProtection: '{{ item.FileSystemProtection }}'
+- discovery_id: aws.efs.describe_mount_targets
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_mount_targets
+    params:
+      FileSystemId: '{{ item.FileSystemId }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.MountTargets }}'
+    as: item
+    item:
+      OwnerId: '{{ item.OwnerId }}'
+      MountTargetId: '{{ item.MountTargetId }}'
+      FileSystemId: '{{ item.FileSystemId }}'
+      SubnetId: '{{ item.SubnetId }}'
+      LifeCycleState: '{{ item.LifeCycleState }}'
+      IpAddress: '{{ item.IpAddress }}'
+      Ipv6Address: '{{ item.Ipv6Address }}'
+      NetworkInterfaceId: '{{ item.NetworkInterfaceId }}'
+      AvailabilityZoneId: '{{ item.AvailabilityZoneId }}'
+      AvailabilityZoneName: '{{ item.AvailabilityZoneName }}'
+      VpcId: '{{ item.VpcId }}'
+- discovery_id: aws.efs.describe_backup_policy
+  for_each: aws.efs.describe_file_systems
+  calls:
+  - action: describe_backup_policy
+    params:
+      FileSystemId: '{{ item.FileSystemId }}'
+    save_as: response
+  emit:
+    item:
+      FileSystemId: '{{ item.FileSystemId }}'
+      Status: '{{ response.BackupPolicy.Status }}'
+- discovery_id: aws.efs.describe_access_points
+  calls:
+  - action: describe_access_points
+    save_as: response
+  emit:
+    items_for: '{{ response.AccessPoints }}'
+    as: item
+    item:
+      ClientToken: '{{ item.ClientToken }}'
+      Name: '{{ item.Name }}'
+      Tags: '{{ item.Tags }}'
+      AccessPointId: '{{ item.AccessPointId }}'
+      AccessPointArn: '{{ item.AccessPointArn }}'
+      FileSystemId: '{{ item.FileSystemId }}'
+      PosixUser: '{{ item.PosixUser }}'
+      RootDirectory: '{{ item.RootDirectory }}'
+      OwnerId: '{{ item.OwnerId }}'
+      LifeCycleState: '{{ item.LifeCycleState }}'

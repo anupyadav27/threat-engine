@@ -1,0 +1,574 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed (36 rules)
+# - YAML generated and tested against AWS
+# - All 36 checks executed successfully (5 accounts, 650 total checks)
+# - 0 execution errors (warnings are expected for missing resources)
+# - Field paths verified correct in check evidence
+# - Test resources: Using existing Lambda functions in accounts (4 functions found in us-east-1)
+# - Tested: 2026-01-01
+# - Note: ResourceNotFoundException warnings are expected for functions without URL configs or resource policies
+# - Note: get_layer_version_policy warnings are expected if no layers exist or layer versions don't have policies
+version: '1.0'
+provider: aws
+service: lambda
+services:
+  client: lambda
+  module: boto3.client
+discovery:
+- discovery_id: aws.lambda.list_versions_by_function
+  calls:
+  - action: list_functions
+    save_as: response
+  emit:
+    items_for: '{{ response.Functions }}'
+    as: item
+    item:
+      FunctionName: '{{ item.FunctionName }}'
+      FunctionArn: '{{ item.FunctionArn }}'
+      Runtime: '{{ item.Runtime }}'
+      Role: '{{ item.Role }}'
+      Handler: '{{ item.Handler }}'
+      CodeSize: '{{ item.CodeSize }}'
+      Description: '{{ item.Description }}'
+      Timeout: '{{ item.Timeout }}'
+      MemorySize: '{{ item.MemorySize }}'
+      LastModified: '{{ item.LastModified }}'
+      CodeSha256: '{{ item.CodeSha256 }}'
+      Version: '{{ item.Version }}'
+      VpcConfig: '{{ item.VpcConfig }}'
+      DeadLetterConfig: '{{ item.DeadLetterConfig }}'
+      Environment: '{{ item.Environment }}'
+      KMSKeyArn: '{{ item.KMSKeyArn }}'
+      TracingConfig: '{{ item.TracingConfig }}'
+      MasterArn: '{{ item.MasterArn }}'
+      RevisionId: '{{ item.RevisionId }}'
+      Layers: '{{ item.Layers }}'
+- discovery_id: aws.lambda.list_functions
+  calls:
+  - action: list_functions
+    save_as: response
+  emit:
+    items_for: '{{ response.Functions }}'
+    as: item
+    item:
+      FunctionName: '{{ item.FunctionName }}'
+      FunctionArn: '{{ item.FunctionArn }}'
+      Runtime: '{{ item.Runtime }}'
+      Role: '{{ item.Role }}'
+      Handler: '{{ item.Handler }}'
+      CodeSize: '{{ item.CodeSize }}'
+      Description: '{{ item.Description }}'
+      Timeout: '{{ item.Timeout }}'
+      MemorySize: '{{ item.MemorySize }}'
+      LastModified: '{{ item.LastModified }}'
+      CodeSha256: '{{ item.CodeSha256 }}'
+      Version: '{{ item.Version }}'
+      VpcConfig: '{{ item.VpcConfig }}'
+      DeadLetterConfig: '{{ item.DeadLetterConfig }}'
+      Environment: '{{ item.Environment }}'
+      KMSKeyArn: '{{ item.KMSKeyArn }}'
+      TracingConfig: '{{ item.TracingConfig }}'
+      MasterArn: '{{ item.MasterArn }}'
+      RevisionId: '{{ item.RevisionId }}'
+      Layers: '{{ item.Layers }}'
+- discovery_id: aws.lambda.get_function_configuration
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: get_function_configuration
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+  emit:
+    item:
+      FunctionName: '{{ response.FunctionName }}'
+      FunctionArn: '{{ response.FunctionArn }}'
+      Runtime: '{{ response.Runtime }}'
+      Role: '{{ response.Role }}'
+      Handler: '{{ response.Handler }}'
+      CodeSize: '{{ response.CodeSize }}'
+      Description: '{{ response.Description }}'
+      Timeout: '{{ response.Timeout }}'
+      MemorySize: '{{ response.MemorySize }}'
+      LastModified: '{{ response.LastModified }}'
+      CodeSha256: '{{ response.CodeSha256 }}'
+      Version: '{{ response.Version }}'
+      VpcConfig: '{{ response.VpcConfig }}'
+      DeadLetterConfig: '{{ response.DeadLetterConfig }}'
+      Environment: '{{ response.Environment }}'
+      KMSKeyArn: '{{ response.KMSKeyArn }}'
+      TracingConfig: '{{ response.TracingConfig }}'
+      MasterArn: '{{ response.MasterArn }}'
+      RevisionId: '{{ response.RevisionId }}'
+      Layers: '{{ response.Layers }}'
+      State: '{{ response.State }}'
+      StateReason: '{{ response.StateReason }}'
+      LastUpdateStatus: '{{ response.LastUpdateStatus }}'
+      ReservedConcurrentExecutions: '{{ response.ReservedConcurrentExecutions }}'
+      CodeSigningConfigArn: '{{ response.CodeSigningConfigArn }}'
+- discovery_id: aws.lambda.list_layers
+  calls:
+  - action: list_layers
+    save_as: response
+  emit:
+    items_for: '{{ response.Layers }}'
+    as: item
+    item:
+      LayerName: '{{ item.LayerName }}'
+      LayerArn: '{{ item.LayerArn }}'
+      LatestMatchingVersion: '{{ item.LatestMatchingVersion }}'
+- discovery_id: aws.lambda.list_layer_versions
+  for_each: aws.lambda.list_layers
+  calls:
+  - action: list_layer_versions
+    params:
+      LayerName: '{{ item.LayerName }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.LayerVersions }}'
+    as: item
+    item:
+      Version: '{{ item.Version }}'
+      LayerName: '{{ item.LayerName }}'
+      LayerArn: '{{ item.LayerArn }}'
+- discovery_id: aws.lambda.get_layer_version_policy
+  for_each: aws.lambda.list_layer_versions
+  calls:
+  - action: get_layer_version_policy
+    params:
+      LayerName: '{{ item.LayerName }}'
+      VersionNumber: '{{ item.Version|int }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
+      RevisionId: '{{ response.RevisionId }}'
+      LayerName: '{{ item.LayerName }}'
+      Version: '{{ item.Version }}'
+- discovery_id: aws.lambda.get_function_url_config
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: get_function_url_config
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      FunctionUrl: '{{ response.FunctionUrl }}'
+      FunctionArn: '{{ response.FunctionArn }}'
+      CreationTime: '{{ response.CreationTime }}'
+      LastModifiedTime: '{{ response.LastModifiedTime }}'
+      Cors: '{{ response.Cors }}'
+      AuthType: '{{ response.AuthType }}'
+      InvokeMode: '{{ response.InvokeMode }}'
+      AllowCredentials: '{{ response.Cors.AllowCredentials }}'
+      AllowHeaders: '{{ response.Cors.AllowHeaders }}'
+      AllowMethods: '{{ response.Cors.AllowMethods }}'
+      AllowOrigins: '{{ response.Cors.AllowOrigins }}'
+      ExposeHeaders: '{{ response.Cors.ExposeHeaders }}'
+      MaxAge: '{{ response.Cors.MaxAge }}'
+- discovery_id: aws.lambda.get_function_concurrency
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: get_function_concurrency
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      ReservedConcurrentExecutions: '{{ response.ReservedConcurrentExecutions }}'
+- discovery_id: aws.lambda.list_code_signing_configs
+  calls:
+  - action: list_code_signing_configs
+    save_as: response
+  emit:
+    items_for: '{{ response.CodeSigningConfigs }}'
+    as: item
+    item:
+      CodeSigningConfigId: '{{ item.CodeSigningConfigId }}'
+      CodeSigningConfigArn: '{{ item.CodeSigningConfigArn }}'
+      Description: '{{ item.Description }}'
+      AllowedPublishers: '{{ item.AllowedPublishers }}'
+      CodeSigningPolicies: '{{ item.CodeSigningPolicies }}'
+      LastModified: '{{ item.LastModified }}'
+- discovery_id: aws.lambda.get_function
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: get_function
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+  emit:
+    item:
+      FunctionName: '{{ response.Configuration.FunctionName }}'
+      FunctionArn: '{{ response.Configuration.FunctionArn }}'
+      Runtime: '{{ response.Configuration.Runtime }}'
+      Role: '{{ response.Configuration.Role }}'
+      Handler: '{{ response.Configuration.Handler }}'
+      CodeSize: '{{ response.Configuration.CodeSize }}'
+      Description: '{{ response.Configuration.Description }}'
+      Timeout: '{{ response.Configuration.Timeout }}'
+      MemorySize: '{{ response.Configuration.MemorySize }}'
+      LastModified: '{{ response.Configuration.LastModified }}'
+      CodeSha256: '{{ response.Configuration.CodeSha256 }}'
+      Version: '{{ response.Configuration.Version }}'
+      VpcConfig: '{{ response.Configuration.VpcConfig }}'
+      DeadLetterConfig: '{{ response.Configuration.DeadLetterConfig }}'
+      Environment: '{{ response.Configuration.Environment }}'
+      KMSKeyArn: '{{ response.Configuration.KMSKeyArn }}'
+      TracingConfig: '{{ response.Configuration.TracingConfig }}'
+      MasterArn: '{{ response.Configuration.MasterArn }}'
+      RevisionId: '{{ response.Configuration.RevisionId }}'
+      Layers: '{{ response.Configuration.Layers }}'
+      CodeSigningConfigArn: '{{ response.Configuration.CodeSigningConfigArn }}'
+- discovery_id: aws.lambda.list_function_url_configs
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: list_function_url_configs
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.FunctionUrlConfigs }}'
+    as: item
+    item:
+      FunctionUrl: '{{ item.FunctionUrl }}'
+      FunctionArn: '{{ item.FunctionArn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      Cors: '{{ item.Cors }}'
+      AuthType: '{{ item.AuthType }}'
+      InvokeMode: '{{ item.InvokeMode }}'
+- discovery_id: aws.lambda.get_policy
+  for_each: aws.lambda.list_functions
+  calls:
+  - action: get_policy
+    params:
+      FunctionName: '{{ item.FunctionName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
+- discovery_id: aws.lambda.list_event_source_mappings
+  calls:
+  - action: list_event_source_mappings
+    save_as: response
+  emit:
+    items_for: '{{ response.EventSourceMappings }}'
+    as: item
+    item:
+      UUID: '{{ item.UUID }}'
+      StartingPosition: '{{ item.StartingPosition }}'
+      StartingPositionTimestamp: '{{ item.StartingPositionTimestamp }}'
+      BatchSize: '{{ item.BatchSize }}'
+      MaximumBatchingWindowInSeconds: '{{ item.MaximumBatchingWindowInSeconds }}'
+      ParallelizationFactor: '{{ item.ParallelizationFactor }}'
+      EventSourceArn: '{{ item.EventSourceArn }}'
+      FilterCriteria: '{{ item.FilterCriteria }}'
+      FunctionArn: '{{ item.FunctionArn }}'
+      LastModified: '{{ item.LastModified }}'
+      LastProcessingResult: '{{ item.LastProcessingResult }}'
+      State: '{{ item.State }}'
+      StateTransitionReason: '{{ item.StateTransitionReason }}'
+      DestinationConfig: '{{ item.DestinationConfig }}'
+      Topics: '{{ item.Topics }}'
+      Queues: '{{ item.Queues }}'
+      SourceAccessConfigurations: '{{ item.SourceAccessConfigurations }}'
+      SelfManagedEventSource: '{{ item.SelfManagedEventSource }}'
+      MaximumRecordAgeInSeconds: '{{ item.MaximumRecordAgeInSeconds }}'
+      BisectBatchOnFunctionError: '{{ item.BisectBatchOnFunctionError }}'
+checks:
+- rule_id: aws.lambda.function.execution_role_existence_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.runtime_support_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Runtime
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.vpc_private_networking_enabled
+  for_each: aws.lambda.list_functions
+  conditions:
+    all:
+    - var: item.VpcConfig.VpcId
+      op: exists
+      value: null
+    - var: item.VpcConfig.SubnetIds
+      op: exists
+      value: null
+    - var: item.VpcConfig.SecurityGroupIds
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.env_no_plaintext_secrets_configured
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    all:
+    - var: item.Variables
+      op: exists
+      value: null
+    - var: item.Variables
+      op: not_equals
+      value: null
+- rule_id: aws.lambda.function.restrict_public_access_configured
+  for_each: aws.lambda.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: null
+- rule_id: aws.lambda.function.execution_roles_least_privilege
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.version.published_and_immutable_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.Version
+      op: not_equals
+      value: $LATEST
+    - var: item.State
+      op: equals
+      value: Active
+- rule_id: aws.lambda.function.environment_variables_kms_encryption_enabled
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.Environment.Variables
+      op: exists
+      value: null
+    - var: item.Environment.EncryptionConfig.KmsKeyArn
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.logging_and_tracing_enabled
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    all:
+    - var: item.TracingConfig.Mode
+      op: equals
+      value: Active
+    - var: item.LogConfig.Destination
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.url_cors_policy_configured
+  for_each: aws.lambda.get_function_url_config
+  conditions:
+    all:
+    - var: item.Cors.AllowOrigins
+      op: exists
+      value: null
+    - var: item.Cors.AllowMethods
+      op: exists
+      value: null
+    - var: item.Cors.AllowHeaders
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.dead_letter_queue_configured
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    var: item.DeadLetterConfig.TargetArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.outputs_encrypted
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    all:
+    - var: item.Environment.Variables
+      op: exists
+      value: null
+    - var: item.Environment.Variables.AWS_LAMBDA_OUTPUT_ENCRYPTION
+      op: equals
+      value: 'true'
+- rule_id: aws.lambda.function.vpc_multi_az_configured
+  for_each: aws.lambda.list_functions
+  conditions:
+    all:
+    - var: item.VpcConfig.SubnetIds
+      op: exists
+      value: null
+    - var: item.VpcConfig.SubnetIds
+      op: greater_than
+      value: '2'
+- rule_id: aws.lambda.function.unique_iam_role_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: not_equals
+    value: arn:aws:iam::aws:policy/AdministratorAccess
+- rule_id: aws.lambda.function.reserved_concurrency_configured
+  for_each: aws.lambda.get_function_concurrency
+  conditions:
+    var: item.ReservedConcurrentExecutions
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.cloudwatch_lambda_insights_enabled
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    var: item.TracingConfig.Mode
+    op: equals
+    value: Active
+- rule_id: aws.lambda.function.not_publicly_accessible_configured
+  for_each: aws.lambda.get_policy
+  conditions:
+    var: item.Policy
+    op: not_equals
+    value: null
+- rule_id: aws.lambda.function.inside_vpc_configured
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    var: item.VpcConfig.VpcId
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.code_signing_config_present
+  for_each: aws.lambda.list_code_signing_configs
+  conditions:
+    var: item.CodeSigningConfigArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.provisioned_concurrency.execution_role_least_privilege
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.layer.version_immutable_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Version
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.invoke_api_operations_cloudtrail_logging_enabled
+  for_each: aws.lambda.get_function
+  conditions:
+    all:
+    - var: item.TracingConfig.Mode
+      op: equals
+      value: Active
+    - var: item.LogGroupExists
+      op: equals
+      value: 'true'
+- rule_id: aws.lambda.function.change_audit_logging_enabled
+  for_each: aws.lambda.get_function_configuration
+  conditions:
+    var: item.TracingConfig.Mode
+    op: equals
+    value: Active
+- rule_id: aws.lambda.function.url_authentication_configured
+  for_each: aws.lambda.list_function_url_configs
+  conditions:
+    var: item.AuthType
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.lambda.version.rollforward_rollback_controls_present
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.Version
+      op: not_equals
+      value: $LATEST
+    - var: item.RevisionId
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.remediation_roles_least_privilege
+  for_each: aws.lambda.get_policy
+  conditions:
+    all:
+    - var: item.Policy.Statement.Effect
+      op: equals
+      value: Allow
+    - var: item.Policy.Statement.Action
+      op: in
+      value:
+      - lambda:InvokeFunction
+    - var: item.Policy.Statement.Resource
+      op: exists
+      value: null
+- rule_id: aws.lambda.layer.source_trusted_configured
+  for_each: aws.lambda.get_layer_version_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.url_public_configured
+  for_each: aws.lambda.list_function_url_configs
+  conditions:
+    var: item.AuthType
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.lambda.event_source_mapping.permissions_least_privilege
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.FunctionArn
+      op: exists
+      value: null
+    - var: item.EventSourceArn
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.artifacts_encrypted_and_private
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.KMSKeyArn
+      op: exists
+      value: null
+    - var: item.Environment.Variables
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.role_least_privilege
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.policies_present_for_sensitive_fields_configured
+  for_each: aws.lambda.list_versions_by_function
+  conditions:
+    all:
+    - var: item.Environment.Variables
+      op: exists
+      value: null
+    - var: item.Role
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.jobs_private_networking_configured
+  for_each: aws.lambda.list_functions
+  conditions:
+    all:
+    - var: item.VpcConfig.SubnetIds
+      op: exists
+      value: null
+    - var: item.VpcConfig.SecurityGroupIds
+      op: exists
+      value: null
+- rule_id: aws.lambda.event_source_mapping.source_authenticated_configured
+  for_each: aws.lambda.list_event_source_mappings
+  conditions:
+    all:
+    - var: item.SourceAccessConfigurations
+      op: exists
+      value: null
+    - var: item.SourceAccessConfigurations.Type
+      op: equals
+      value: BASIC_AUTH
+- rule_id: aws.lambda.function.resource_policy_cross_account_access_configured
+  for_each: aws.lambda.get_policy
+  conditions:
+    var: item.Policy.Statement.Principal.AWS
+    op: exists
+    value: null

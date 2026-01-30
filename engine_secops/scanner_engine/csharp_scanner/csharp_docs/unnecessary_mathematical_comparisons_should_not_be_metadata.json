@@ -1,0 +1,67 @@
+{
+  "filename": "unnecessary_mathematical_comparisons_should_not_be_metadata.json",
+  "rule_id": "unnecessary_mathematical_comparisons_made",
+  "title": "Unnecessary mathematical comparisons should not be made",
+  "description": "Unnecessary mathematical comparisons should not be madeAnalyze your codeintentionality-logicalmaintainabilityCode SmellsuspiciousWhy is this an issue?More InfoCertainmathematical comparisonswill always return the same value, and should not be performed.Specifically, the following comparisons will return either alwaystrueor alwaysfalsedepending on the kind of comparison:comparing acharwith a numeric constant that is outside of the range ofcharcomparing afloatwith a numeric constant that is outside of the range offloatcomparing alongwith a numeric constant that is outside of the range oflongcomparing aulongwith a numeric constant that is outside of the range ofulongetc.Noncompliant code examplefloat f = 42.0f; if (f <= double.MaxValue) { } // Noncompliant: always true if (f > double.MaxValue",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "float f = 42.0f;\nif (f <= double.MaxValue) { } // Noncompliant - always true\nif (f > double.MaxValue) { } // Noncompliant - always false"
+    ],
+    "compliant": [
+      "float f = 42.0f;\n// Remove unnecessary comparisons that are always true or false\nif (someOtherCondition) { }\n// Or use appropriate range checks"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2198"
+  ],
+  "logic": {
+    "target_ast_nodes": ["BinaryExpression", "IfStatement"],
+    "node_types": ["Expression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unnecessary_math_comparisons"
+      }
+    ],
+    "detection_conditions": "Find comparisons of numeric types with out-of-range constants",
+    "triggering_conditions": {
+      "operator": "OR",
+      "conditions": [
+        "float compared to double.MaxValue (always true/false)",
+        "int compared to long.MaxValue (always true/false)",
+        "Type compared to value outside its range"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments",
+      "Valid range comparisons"
+    ],
+    "reasoning": "Comparing a type to a constant outside its range always gives the same result, making the comparison useless.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (f <= double.MaxValue) { }",
+        "if (f > double.MaxValue) { }"
+      ],
+      "should_not_trigger": [
+        "if (d <= double.MaxValue) { }",
+        "if (someOtherCondition) { }"
+      ]
+    }
+  }
+}

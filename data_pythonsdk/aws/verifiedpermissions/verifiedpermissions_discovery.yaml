@@ -1,0 +1,109 @@
+version: '1.0'
+provider: aws
+service: verifiedpermissions
+services:
+  client: verifiedpermissions
+  module: boto3.client
+discovery:
+- discovery_id: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: list_policy_stores
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.policyStores }}'
+- discovery_id: aws.verifiedpermissions.list_policies
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: list_policies
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.policies }}'
+- discovery_id: aws.verifiedpermissions.list_identity_sources
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: list_identity_sources
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.identitySources }}'
+- discovery_id: aws.verifiedpermissions.get_identity_source
+  for_each: aws.verifiedpermissions.list_identity_sources
+  calls:
+  - action: get_identity_source
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.details }}'
+- discovery_id: aws.verifiedpermissions.get_policy
+  for_each: aws.verifiedpermissions.list_policies
+  calls:
+  - action: get_policy
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.actions }}'
+- discovery_id: aws.verifiedpermissions.get_schema
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: get_schema
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.namespaces }}'
+- discovery_id: aws.verifiedpermissions.get_policy_store
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: get_policy_store
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+  emit:
+    as: item
+    items_for: '{{ response.validationSettings }}'
+- discovery_id: aws.verifiedpermissions.list_policy_templates
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: list_policy_templates
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyStorPolicyStoreId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.policyTemplates }}'
+- discovery_id: aws.verifiedpermissions.get_policy_template
+  for_each: aws.verifiedpermissions.list_policy_stores
+  calls:
+  - action: get_policy_template
+    save_as: response
+    on_error: continue
+    params:
+      policyStoreId: '{{ item.policyTemplatPolicyTemplateId }}'
+  emit:
+    as: item
+    items_for: '{{ response.policyStoreId }}'
+checks: []

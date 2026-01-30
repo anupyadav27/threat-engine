@@ -1,0 +1,69 @@
+{
+  "filename": "logging_in_a_catch_clause_should_pass_the_caught_e_metadata.json",
+  "rule_id": "logging_catch_clause_pass",
+  "title": "Logging in a catch clause should pass the caught exception as a parameter.",
+  "description": "Logging in a catch clause should pass the caught exception as a parameter.Analyze your codeintentionality-completemaintainabilityCode Smellerror-handlingloggingThis rule raises an issue on logging calls inside acatchclause that does not pass the raisedException.Why is this an issue?How can I fix it?More InfoA log entry should contain all the relevant information about the current execution context. TheExceptionraised in a catch block not only provides the message but also:the exception typethestack traceanyinner exceptionsand more about the cause of the error.Logging methodsprovide overloads that accept anExceptionas a parameter andlogging providerspersist theExceptionin a structured way to facilitate the tracking of system failures. ThereforeExceptionsshould be passed to the logger.The ru",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Exception not passed to logger\ntry\n{\n    ProcessData();\n}\ncatch (Exception ex)\n{\n    logger.LogError(\"An error occurred\"); // Noncompliant\n}",
+      "// Noncompliant: Only logging exception message\ntry\n{\n    SaveFile();\n}\ncatch (IOException ex)\n{\n    logger.LogError(\"IO Error: {0}\", ex.Message); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "// Compliant: Exception passed as parameter\ntry\n{\n    ProcessData();\n}\ncatch (Exception ex)\n{\n    logger.LogError(ex, \"An error occurred\"); // Compliant\n}",
+      "// Compliant: Full exception logged\ntry\n{\n    SaveFile();\n}\ncatch (IOException ex)\n{\n    logger.LogError(ex, \"IO Error occurred\"); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6667"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_logging_in_catch_clause"
+      }
+    ],
+    "triggering_conditions": "Logging call exists in catch block AND exception parameter not passed to logger method",
+    "exclusion_conditions": [
+      "Exception passed as first parameter to Log method",
+      "Test methods with [Test] or [Fact] attributes",
+      "String formatting contexts ($\"\", string.Format)",
+      "Console or Debug logging",
+      "Comments",
+      "ToString implementations"
+    ],
+    "never_trigger_on": [
+      "Logging statements that pass exception as first parameter (e.g., logger.LogError(ex, message))",
+      "Unit test methods with [Test] or [Fact] attributes",
+      "String interpolation or formatting for display purposes",
+      "Console.WriteLine or Debug.WriteLine statements",
+      "Comments (// or /* */)",
+      "ToString() method implementations"
+    ],
+    "reasoning": "Detects logging calls within catch blocks that do not pass the caught exception as a parameter. Uses custom function to properly parse catch blocks and their logging calls. The function extracts catch clauses, identifies the exception variable, and checks if it's passed as the first parameter to any Log method call. Exclusions prevent false positives in test code.",
+    "validation_examples": {
+      "should_trigger": [
+        "try { DoWork(); } catch (Exception ex) { logger.LogError(\"Error occurred\"); }",
+        "catch (IOException ex) { _logger.LogError(\"IO Error: {0}\", ex.Message); }",
+        "catch (InvalidOperationException ex) { logger.LogWarning(\"Invalid operation\"); }"
+      ],
+      "should_not_trigger": [
+        "try { DoWork(); } catch (Exception ex) { logger.LogError(ex, \"Error occurred\"); }",
+        "catch (IOException ex) { _logger.LogError(ex, \"IO Error occurred\"); }",
+        "[Test] public void Test() { try {} catch (Exception ex) { logger.LogError(\"Test error\"); } }",
+        "try { DoWork(); } catch { throw; }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "filename": "equals_and_the_comparison_operators_should_be_over_metadata.json",
+  "rule_id": "equals_comparison_operators_overridden",
+  "title": "Equals and the comparison operators should be overridden when implementing IComparable",
+  "description": "\"Equals\" and the comparison operators should be overridden when implementing \"IComparable\"Analyze your codeintentionality-completemaintainabilityCode SmellWhy is this an issue?When you implementIComparableorIComparable<T>on a class you should also overrideEquals(object)and overload the comparison operators (==,!=,<,<=,>,>=). That’s because the CLR cannot automatically call yourCompareToimplementation fromEquals(object)or from the base comparison operator implementations. Additionally, it is best practice to overrideGetHashCodealong withEquals.This rule raises an issue when a class implementsIComparablewithout also overridingEquals(object)and the comparison operators.Noncompliant code examplepublic class Foo: IComparable // Noncompliant { public int CompareTo(object obj) { /* ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo: IComparable // Noncompliant\n{\n    public int CompareTo(object obj)\n    {\n        /* ... */\n    }\n}"
+    ],
+    "compliant": [
+      "public class Foo: IComparable\n{\n    public int CompareTo(object obj)\n    {\n        /* ... */\n    }\n\n    public override bool Equals(object obj)\n    {\n        /* ... */\n    }\n\n    public override int GetHashCode()\n    {\n        /* ... */\n    }\n\n    public static bool operator ==(Foo left, Foo right)\n    {\n        /* ... */\n    }\n\n    public static bool operator !=(Foo left, Foo right)\n    {\n        /* ... */\n    }\n\n    public static bool operator <(Foo left, Foo right)\n    {\n        /* ... */\n    }\n\n    public static bool operator >(Foo left, Foo right)\n    {\n        /* ... */\n    }\n\n    public static bool operator <=(Foo left, Foo right)\n    {\n        /* ... */\n    }\n\n    public static bool operator >=(Foo left, Foo right)\n    {\n        /* ... */\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1210"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Class implements IComparable without overriding Equals and comparison operators",
+    "triggering_conditions": "Class inherits IComparable/IComparable<T> but missing 'override bool Equals' or comparison operators",
+    "exclusion_conditions": "Exclude classes with full implementation (Equals + all 6 operators), abstract classes, test code",
+    "never_trigger_on": [
+      "Test code ([Test], [Fact], Assert.*)",
+      "Classes with full implementation (Equals, GetHashCode, ==, !=, <, >, <=, >=)",
+      "Classes not implementing IComparable",
+      "Abstract classes",
+      "Interfaces",
+      "Logging statements"
+    ],
+    "reasoning": "Enforces that classes implementing IComparable must also override Equals(object) and all comparison operators (==, !=, <, >, <=, >=). The CLR cannot automatically call CompareTo from Equals or base operators. Detects classes with 'IComparable' in declaration but missing required operators. Uses multiple checks: one for IComparable presence, and exclusion patterns to avoid false positives when all members are present. This catches incomplete implementations.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Foo : IComparable { public int CompareTo(object obj) { } }",
+        "public class Bar : IComparable<Bar> { public int CompareTo(Bar other) { } }",
+        "public class Baz : IComparable { public int CompareTo(object obj) { } public static bool operator ==(Baz a, Baz b) { } }"
+      ],
+      "should_not_trigger": [
+        "public class Foo : IComparable { public int CompareTo(object obj) { } public override bool Equals(object obj) { } public static bool operator ==(Foo a, Foo b) { } public static bool operator !=(Foo a, Foo b) { } public static bool operator <(Foo a, Foo b) { } public static bool operator >(Foo a, Foo b) { } public static bool operator <=(Foo a, Foo b) { } public static bool operator >=(Foo a, Foo b) { } }",
+        "public class Bar { public override bool Equals(object obj) { } }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+\\w+\\s*:.*IComparable",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "abstract\\s+class",
+          "interface\\s+",
+          "override\\s+bool\\s+Equals\\s*\\(\\s*object.*operator\\s*==.*operator\\s*!=.*operator\\s*<(?!=).*operator\\s*>(?!=).*operator\\s*<=.*operator\\s*>="
+        ]
+      }
+    ]
+  }
+}

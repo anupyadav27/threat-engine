@@ -1,0 +1,112 @@
+version: '1.0'
+provider: aws
+service: workdocs
+services:
+  client: workdocs
+  module: boto3.client
+discovery:
+- discovery_id: aws.workdocs.describe_users
+  calls:
+  - action: describe_users
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Users }}'
+- discovery_id: aws.workdocs.get_resources
+  calls:
+  - action: get_resources
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Folders }}'
+- discovery_id: aws.workdocs.describe_activities
+  calls:
+  - action: describe_activities
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.UserActivities }}'
+- discovery_id: aws.workdocs.describe_comments
+  calls:
+  - action: describe_comments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Comments }}'
+- discovery_id: aws.workdocs.describe_document_versions
+  calls:
+  - action: describe_document_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DocumentVersions }}'
+- discovery_id: aws.workdocs.describe_notification_subscriptions
+  for_each: aws.workdocs.describe_users
+  calls:
+  - action: describe_notification_subscriptions
+    save_as: response
+    on_error: continue
+    params:
+      OrganizationId: '{{ item.userActivityOrganizationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Subscriptions }}'
+- discovery_id: aws.workdocs.describe_resource_permissions
+  calls:
+  - action: describe_resource_permissions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Principals }}'
+- discovery_id: aws.workdocs.get_document_path
+  calls:
+  - action: get_document_path
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Path }}'
+- discovery_id: aws.workdocs.get_current_user
+  calls:
+  - action: get_current_user
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.User }}'
+- discovery_id: aws.workdocs.get_document
+  calls:
+  - action: get_document
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Metadata }}'
+- discovery_id: aws.workdocs.describe_groups
+  calls:
+  - action: describe_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Groups }}'
+checks: []

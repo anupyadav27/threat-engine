@@ -1,0 +1,55 @@
+{
+  "filename": "cipher_block_chaining_ivs_should_be_unpredictable_metadata.json",
+  "rule_id": "cipher_block_chaining_ivs",
+  "title": "Cipher Block Chaining IVs should be unpredictable",
+  "description": "Encryption algorithms are essential for protecting sensitive information and ensuring secure communications in a variety of domains. They are used for several important reasons: Confidentiality, privacy, and intellectual property protection Security during transmission or on storage devices Data integrity, general trust, and authentication When selecting encryption algorithms, tools, or combinations, you should also consider two things: No encryption is unbreakable. The strength of an encryption algorithm is usually measured by the effort required to crack it within a reasonable time frame.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - IV is all zeros (predictable)\nvar aes = new AesCryptoServiceProvider();\naes.IV = new byte[16];",
+      "// Noncompliant - hardcoded IV is predictable\nvar aes = new AesCryptoServiceProvider();\naes.IV = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };"
+    ],
+    "compliant": [
+      "// Compliant - generates random IV\nvar aes = new AesCryptoServiceProvider();\naes.GenerateIV();",
+      "// Compliant - using cryptographically secure random generator\nusing var rng = new RNGCryptoServiceProvider();\nvar aes = new AesCryptoServiceProvider();\nvar iv = new byte[16];\nrng.GetBytes(iv);\naes.IV = iv;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3329"
+  ],
+  "logic": {
+    "node_types": [
+      "Assignment",
+      "MethodDeclaration",
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\.IV\\s*=\\s*new\\s+byte\\s*\\[",
+          "\\.IV\\s*=\\s*new\\s+byte\\s*\\[\\s*\\]\\s*\\{",
+          "\\bIV\\s*=\\s*new\\s+byte\\s*\\[",
+          "\\bbyte\\[\\]\\s+(constantIV|iv)\\s*=\\s*new\\s+byte"
+        ],
+        "exclude_patterns": [
+          "^\\s*//.*$",
+          "GetBytes\\s*\\(\\s*iv\\s*\\)"
+        ],
+        "message": "Initialization Vector (IV) should be unpredictable. Use GenerateIV() or a cryptographically secure random generator."
+      }
+    ]
+  }
+}

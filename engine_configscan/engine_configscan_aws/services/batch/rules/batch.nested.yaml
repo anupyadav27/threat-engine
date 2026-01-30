@@ -1,0 +1,82 @@
+version: '1.0'
+provider: aws
+service: batch
+services:
+  client: batch
+  module: boto3.client
+discovery:
+- discovery_id: aws.batch.describe_compute_environments
+  calls:
+  - action: describe_compute_environments
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.computeEnvironments }}'
+    as: item
+- discovery_id: aws.batch.describe_job_queues
+  calls:
+  - action: describe_job_queues
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.jobQueues }}'
+    as: item
+checks:
+- rule_id: aws.batch.compute_environment.batch_uses_approved_launch_template_configured
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.computeResources
+    op: exists
+    value: null
+- rule_id: aws.batch.compute_environment.instance_profile_least_privilege
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    all:
+    - var: item.computeResources
+      op: exists
+      value: null
+    - var: item.serviceRole
+      op: exists
+      value: null
+- rule_id: aws.batch.compute_environment.no_public_ip_assigned_configured
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.computeResources
+    op: exists
+    value: null
+- rule_id: aws.batch.compute_environment.volumes_encrypted
+  for_each: aws.batch.describe_compute_environments
+  conditions:
+    var: item.computeResources
+    op: exists
+    value: null
+- rule_id: aws.batch.jobqueue.batch_uses_approved_launch_template_configured
+  for_each: aws.batch.describe_job_queues
+  conditions:
+    var: item.computeEnvironmentOrder
+    op: exists
+    value: null
+- rule_id: aws.batch.jobqueue.instance_profile_least_privilege
+  for_each: aws.batch.describe_job_queues
+  conditions:
+    all:
+    - var: item.jobQueueArn
+      op: exists
+      value: null
+    - var: item.tags
+      op: exists
+      value: null
+- rule_id: aws.batch.jobqueue.no_public_ip_assigned_configured
+  for_each: aws.batch.describe_job_queues
+  conditions:
+    var: item.computeEnvironmentOrder
+    op: equals
+    value: []
+- rule_id: aws.batch.jobqueue.volumes_encrypted
+  for_each: aws.batch.describe_job_queues
+  conditions:
+    var: item.tags
+    op: exists
+    value: null

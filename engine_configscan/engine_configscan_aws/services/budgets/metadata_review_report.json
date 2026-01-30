@@ -1,0 +1,179 @@
+{
+  "service": "budgets",
+  "review_date": "2026-01-08",
+  "review_summary": {
+    "total_rules": 4,
+    "rules_reviewed": 4,
+    "consolidation_opportunities": 0,
+    "cross_service_suggestions": 0
+  },
+  "consolidation_suggestions": {
+    "duplicates": []
+  },
+  "cross_service_suggestions": [],
+  "confidence_scores": {
+    "consolidation_opportunities": 0,
+    "cross_service_placement": 0
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "action": "fix_discovery_chains",
+      "rule_ids": [
+        "aws.budgets.budget.alert_destinations_configured",
+        "aws.budgets.budget.alert_thresholds_configured",
+        "aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured",
+        "aws.budgets.budget.modify_permissions_restricted"
+      ],
+      "description": "Add independent discovery for describe_budgets, then chain dependent discoveries with for_each and params. All parameter-dependent discoveries are missing required AccountId, BudgetName, ActionId parameters.",
+      "impact": "Fixes parameter validation errors, enables proper discovery chain"
+    },
+    {
+      "priority": "critical",
+      "action": "fix_field_paths",
+      "rule_ids": [
+        "aws.budgets.budget.alert_destinations_configured",
+        "aws.budgets.budget.alert_thresholds_configured",
+        "aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured",
+        "aws.budgets.budget.modify_permissions_restricted"
+      ],
+      "description": "Fix field paths in conditions to match emit structure. Remove Actions., Notifications., Budgets. wrappers - fields are emitted directly.",
+      "impact": "Fixes field path errors, enables correct condition evaluation"
+    },
+    {
+      "priority": "high",
+      "action": "fix_discovery_methods",
+      "rule_ids": [
+        "aws.budgets.budget.alert_destinations_configured",
+        "aws.budgets.budget.modify_permissions_restricted",
+        "aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured"
+      ],
+      "description": "Use list methods (describe_budgets, describe_budget_actions_for_budget) instead of singular methods (describe_budget, describe_budget_action) for initial discovery.",
+      "impact": "Enables proper resource enumeration before detailed checks"
+    },
+    {
+      "priority": "medium",
+      "action": "add_items_for",
+      "rule_ids": [
+        "aws.budgets.budget.alert_thresholds_configured",
+        "aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured"
+      ],
+      "description": "Add items_for to emit sections for APIs that return lists (Notifications[], Budgets[]).",
+      "impact": "Enables proper iteration over list responses"
+    }
+  ],
+  "notes": {
+    "validation_issues": [
+      "All 4 rules have discovery chain issues - missing for_each and params",
+      "All 4 rules have field path mismatches - conditions don't match emit structure",
+      "3 rules use wrong discovery methods - should use list methods first",
+      "2 rules need items_for for list responses"
+    ],
+    "field_analysis": {
+      "field_path_errors": 4,
+      "discovery_chain_errors": 4,
+      "discovery_method_errors": 3,
+      "items_for_missing": 2
+    },
+    "api_structure": {
+      "describe_budgets": "Returns Budgets[] - needs items_for, only requires AccountId",
+      "describe_budget": "Returns single Budget - requires AccountId + BudgetName",
+      "describe_budget_actions_for_budget": "Returns Actions[] - needs items_for, requires AccountId + BudgetName",
+      "describe_budget_action": "Returns single Action - requires AccountId + BudgetName + ActionId",
+      "describe_notifications_for_budget": "Returns Notifications[] - needs items_for, requires AccountId + BudgetName"
+    }
+  },
+  "validation_summary": {
+    "validation_date": "2026-01-08",
+    "rules_validated": 4,
+    "rules_passing": 0,
+    "rules_fixed": 0,
+    "validation_status": "CRITICAL_ISSUES",
+    "intent_match": {
+      "all_rules_match": false,
+      "field_paths_correct": false,
+      "operators_correct": true,
+      "values_correct": true,
+      "discoveries_correct": false,
+      "issues": [
+        "All discoveries missing required parameters (AccountId, BudgetName, ActionId)",
+        "All field paths incorrect - don't match emit structure",
+        "Wrong discovery methods used (singular instead of plural)",
+        "Missing items_for for list responses"
+      ]
+    },
+    "test_results": {
+      "test_date": "2026-01-08",
+      "scan_id": "scan_20260108_141148",
+      "total_checks": 4,
+      "pass": 0,
+      "fail": 0,
+      "errors": 12,
+      "warnings": [
+        "describe_budget_action: Missing required parameter AccountId, BudgetName, ActionId (4 occurrences)",
+        "describe_notifications_for_budget: Missing required parameter AccountId, BudgetName (4 occurrences)",
+        "describe_budget: Missing required parameter AccountId, BudgetName (4 occurrences)"
+      ],
+      "test_status": "FAIL",
+      "note": "4 checks found (likely from describe_budgets working), but 12 parameter validation errors for dependent discoveries"
+    },
+    "per_rule_validation": {
+      "aws.budgets.budget.alert_destinations_configured": {
+        "intent_match": false,
+        "field_paths": "incorrect",
+        "operators": "correct",
+        "values": "correct",
+        "discovery": "incorrect",
+        "test_result": "FAIL",
+        "issues": [
+          "Missing discovery chain - describe_budget_action requires AccountId, BudgetName, ActionId",
+          "Wrong field path: item.Actions.Subscribers should be item.Subscribers",
+          "Wrong discovery method: should use describe_budget_actions_for_budget to list actions first"
+        ],
+        "recommendation": "Add independent describe_budgets discovery, chain describe_budget_actions_for_budget, fix field paths"
+      },
+      "aws.budgets.budget.alert_thresholds_configured": {
+        "intent_match": false,
+        "field_paths": "incorrect",
+        "operators": "correct",
+        "values": "correct",
+        "discovery": "incorrect",
+        "test_result": "FAIL",
+        "issues": [
+          "Missing discovery chain - describe_notifications_for_budget requires AccountId, BudgetName",
+          "Wrong field paths: item.Notifications.Threshold/NotificationType should be item.Threshold/NotificationType",
+          "Missing items_for: API returns Notifications[] list, need items_for to iterate"
+        ],
+        "recommendation": "Add for_each from describe_budgets, add params, add items_for, fix field paths"
+      },
+      "aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured": {
+        "intent_match": false,
+        "field_paths": "incorrect",
+        "operators": "correct",
+        "values": "correct",
+        "discovery": "incorrect",
+        "test_result": "PARTIAL",
+        "issues": [
+          "Wrong discovery method: should use describe_budgets (lists all) instead of describe_budget (single)",
+          "Wrong field paths: item.Budgets.BudgetName/BudgetLimit should be item.BudgetName/BudgetLimit",
+          "Missing items_for: API returns Budgets[] list, need items_for to iterate"
+        ],
+        "recommendation": "Change to describe_budgets, add items_for, fix field paths"
+      },
+      "aws.budgets.budget.modify_permissions_restricted": {
+        "intent_match": false,
+        "field_paths": "incorrect",
+        "operators": "correct",
+        "values": "correct",
+        "discovery": "incorrect",
+        "test_result": "FAIL",
+        "issues": [
+          "Missing discovery chain - describe_budget_action requires AccountId, BudgetName, ActionId",
+          "Wrong field paths: item.Actions.ExecutionRoleArn/ApprovalModel should be item.ExecutionRoleArn/ApprovalModel",
+          "Wrong discovery method: should use describe_budget_actions_for_budget to list actions first"
+        ],
+        "recommendation": "Add independent describe_budgets discovery, chain describe_budget_actions_for_budget, fix field paths"
+      }
+    }
+  }
+}

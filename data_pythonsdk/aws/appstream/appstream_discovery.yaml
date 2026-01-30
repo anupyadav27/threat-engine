@@ -1,0 +1,228 @@
+version: '1.0'
+provider: aws
+service: appstream
+services:
+  client: appstream
+  module: boto3.client
+discovery:
+- discovery_id: aws.appstream.describe_fleets
+  calls:
+  - action: describe_fleets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Fleets }}'
+- discovery_id: aws.appstream.describe_images
+  calls:
+  - action: describe_images
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Images }}'
+- discovery_id: aws.appstream.describe_image_builders
+  calls:
+  - action: describe_image_builders
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ImageBuilders }}'
+- discovery_id: aws.appstream.describe_stacks
+  calls:
+  - action: describe_stacks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Stacks }}'
+- discovery_id: aws.appstream.describe_applications
+  calls:
+  - action: describe_applications
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+- discovery_id: aws.appstream.describe_app_block_builders
+  calls:
+  - action: describe_app_block_builders
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AppBlockBuilders }}'
+- discovery_id: aws.appstream.describe_app_blocks
+  calls:
+  - action: describe_app_blocks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AppBlocks }}'
+- discovery_id: aws.appstream.list_export_image_tasks
+  calls:
+  - action: list_export_image_tasks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ExportImageTasks }}'
+- discovery_id: aws.appstream.get_export_image_task
+  calls:
+  - action: get_export_image_task
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ExportImageTask }}'
+- discovery_id: aws.appstream.describe_user_stack_associations
+  calls:
+  - action: describe_user_stack_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.UserStackAssociations }}'
+- discovery_id: aws.appstream.describe_directory_configs
+  calls:
+  - action: describe_directory_configs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DirectoryConfigs }}'
+- discovery_id: aws.appstream.describe_usage_report_subscriptions
+  calls:
+  - action: describe_usage_report_subscriptions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.UsageReportSubscriptions }}'
+- discovery_id: aws.appstream.describe_application_fleet_associations
+  calls:
+  - action: describe_application_fleet_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationFleetAssociations }}'
+- discovery_id: aws.appstream.describe_app_block_builder_app_block_associations
+  calls:
+  - action: describe_app_block_builder_app_block_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AppBlockBuilderAppBlockAssociations }}'
+- discovery_id: aws.appstream.describe_sessions
+  for_each: aws.appstream.describe_application_fleet_associations
+  calls:
+  - action: describe_sessions
+    save_as: response
+    on_error: continue
+    params:
+      StackName: '{{ item.userStackAssociationStackName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Sessions }}'
+- discovery_id: aws.appstream.describe_theme_for_stack
+  for_each: aws.appstream.describe_user_stack_associations
+  calls:
+  - action: describe_theme_for_stack
+    save_as: response
+    on_error: continue
+    params:
+      StackName: '{{ item.userStackAssociationStackName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Theme }}'
+- discovery_id: aws.appstream.describe_users
+  for_each: aws.appstream.describe_user_stack_associations
+  calls:
+  - action: describe_users
+    save_as: response
+    on_error: continue
+    params:
+      AuthenticationType: '{{ item.userStackAssociationAuthenticationType }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Users }}'
+- discovery_id: aws.appstream.describe_entitlements
+  for_each: aws.appstream.describe_user_stack_associations
+  calls:
+  - action: describe_entitlements
+    save_as: response
+    on_error: continue
+    params:
+      StackName: '{{ item.userStackAssociationStackName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Entitlements }}'
+- discovery_id: aws.appstream.describe_image_permissions
+  for_each: aws.appstream.describe_fleets
+  calls:
+  - action: describe_image_permissions
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.appBlockBuilderName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SharedImagePermissionsList }}'
+- discovery_id: aws.appstream.describe_software_associations
+  calls:
+  - action: describe_software_associations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SoftwareAssociations }}'
+- discovery_id: aws.appstream.list_entitled_applications
+  for_each: aws.appstream.describe_user_stack_associations
+  calls:
+  - action: list_entitled_applications
+    save_as: response
+    on_error: continue
+    params:
+      StackName: '{{ item.userStackAssociationStackName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EntitledApplications }}'
+checks: []

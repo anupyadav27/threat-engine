@@ -1,0 +1,38 @@
+{
+  "filename": "private_methods_called_only_by_inner_classes_shoul_metadata.json",
+  "rule_id": "private_methods_called_only",
+  "title": "private methods called only by inner classes should be moved to those classes",
+  "description": "\"private\" methods called only by inner classes should be moved to those classesAnalyze your codeintentionality-clearmaintainabilityCode SmellconfusingWhy is this an issue?When aprivate staticmethod is only invoked by a nested class, there’s no reason not to move it into that class. It will still have the same access to the outer class' static members, but the outer class will be clearer and less cluttered.Noncompliant code examplepublic class Outer { private const int base = 42; private static void Print(int num) // Noncompliant - static method is only used by the nested class, should be moved there { Console.WriteLine(num + base); } public class Nested { public void SomeMethod() { Outer.Print(1); } } }Compliant solutionpublic class Outer { private const int base = 42; public class Nested",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Outer\n{\n    private const int base = 42;\n\n    private static void Print(int num) // Noncompliant - static method is only used by the nested class, should be moved there\n    {\n        Console.WriteLine(num + base);\n    }\n\n    public class Nested\n    {\n        public void SomeMethod()\n        {\n            Outer.Print(1);\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "public class Outer\n{\n    private const int base = 42;\n\n    public class Nested\n    {\n        private static void Print(int num) // Compliant - moved to nested class\n        {\n            Console.WriteLine(num + base);\n        }\n\n        public void SomeMethod()\n        {\n            Print(1);\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3398"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "private\\s+.*void\\s+\\w+\\s*\\(",
+        "description": "Detect private methods"
+      }
+    ]
+  }
+}

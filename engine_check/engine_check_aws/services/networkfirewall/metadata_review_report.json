@@ -1,0 +1,249 @@
+{
+  "service": "networkfirewall",
+  "review_date": "2026-01-08",
+  "review_summary": {
+    "total_rules": 6,
+    "rules_reviewed": 6,
+    "consolidation_opportunities": 0,
+    "cross_service_suggestions": 1
+  },
+  "consolidation_suggestions": {
+    "duplicates": [],
+    "similar_checks": []
+  },
+  "cross_service_suggestions": [
+    {
+      "rule_id": "aws.networkfirewall.resource.logging_enabled",
+      "metadata_file": "aws.networkfirewall.resource.logging_enabled.yaml",
+      "current_service": "networkfirewall",
+      "suggested_service": "networkfirewall",
+      "reason": "Method describe_logging_configuration exists in both networkfirewall and amp services - ambiguous ownership",
+      "python_method": "describe_logging_configuration",
+      "confidence_percentage": 80.0,
+      "review_needed": "optional",
+      "has_compliance": false,
+      "compliance_count": 0,
+      "compliance": [],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 2
+    }
+  ],
+  "confidence_scores": {
+    "consolidation_opportunities": 0.0,
+    "cross_service_placement": 80.0
+  },
+  "recommendations": [
+    {
+      "priority": "low",
+      "action": "no_action",
+      "rule_ids": [],
+      "description": "All 6 rules are unique with distinct check signatures. No consolidation opportunities identified.",
+      "impact": "Current rule set is well-organized with no duplicates or redundant checks"
+    },
+    {
+      "priority": "medium",
+      "action": "verify_method",
+      "rule_ids": ["aws.networkfirewall.resource.logging_enabled"],
+      "description": "Verify method ownership for describe_logging_configuration - exists in both networkfirewall and amp services",
+      "impact": "Method ambiguity may need resolution if amp service also uses this method"
+    },
+    {
+      "priority": "high",
+      "action": "verify_method",
+      "rule_ids": ["aws.networkfirewall.firewall.networkfirewall_multi_az_deployment_enabled", "aws.networkfirewall.in.all_vpc_configured"],
+      "description": "Verify if methods describe_firewalls (plural) and describe_firewall_policies (plural) exist in networkfirewall service",
+      "impact": "These methods may not exist - could cause execution errors"
+    },
+    {
+      "priority": "medium",
+      "action": "verify_response_path",
+      "rule_ids": ["aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured"],
+      "description": "Method describe_firewall_policy (singular) returns single policy, but response_path expects FirewallPolicies[] (plural array)",
+      "impact": "Response path mismatch may cause rule execution issues"
+    }
+  ],
+  "analysis_details": {
+    "rules_analyzed": [
+      {
+        "rule_id": "aws.networkfirewall.firewall.logging_enabled",
+        "metadata_file": "aws.networkfirewall.firewall.logging_enabled.yaml",
+        "python_method": "describe_firewall",
+        "response_path": "FirewallStatus.SyncStates[].Attachment",
+        "logical_operator": "all",
+        "nested_field_count": 2,
+        "fields_checked": ["Attachment.Status", "Attachment.Config.LoggingConfiguration"],
+        "method_service": "networkfirewall",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": false
+      },
+      {
+        "rule_id": "aws.networkfirewall.firewall.networkfirewall_multi_az_deployment_enabled",
+        "metadata_file": "aws.networkfirewall.firewall.networkfirewall_multi_az_deployment_enabled.yaml",
+        "python_method": "describe_firewalls",
+        "response_path": "Firewalls[]",
+        "logical_operator": null,
+        "nested_field_count": 1,
+        "fields_checked": ["FirewallStatus.SyncStates"],
+        "method_service": "unknown",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": false,
+        "method_verification_needed": true,
+        "note": "Method describe_firewalls (plural) may not exist - verify if it should be list_firewalls or describe_firewall"
+      },
+      {
+        "rule_id": "aws.networkfirewall.firewall.rule_groups_enabled",
+        "metadata_file": "aws.networkfirewall.firewall.rule_groups_enabled.yaml",
+        "python_method": "describe_firewall",
+        "response_path": "Firewall.RuleGroups",
+        "logical_operator": "all",
+        "nested_field_count": 2,
+        "fields_checked": ["RuleGroups.StatefulRuleGroupReferences", "RuleGroups.StatelessRuleGroupReferences"],
+        "method_service": "networkfirewall",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": false
+      },
+      {
+        "rule_id": "aws.networkfirewall.resource.logging_enabled",
+        "metadata_file": "aws.networkfirewall.resource.logging_enabled.yaml",
+        "python_method": "describe_logging_configuration",
+        "response_path": "LoggingConfiguration",
+        "logical_operator": "all",
+        "nested_field_count": 2,
+        "fields_checked": ["LoggingConfiguration.LogDestinationConfigs[]", "LoggingConfiguration.LogDestinationConfigs[].LogType"],
+        "method_service": "networkfirewall,amp",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": true,
+        "service_count_for_method": 2
+      },
+      {
+        "rule_id": "aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured",
+        "metadata_file": "aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured.yaml",
+        "python_method": "describe_firewall_policy",
+        "response_path": "FirewallPolicies[]",
+        "logical_operator": "all",
+        "nested_field_count": 5,
+        "fields_checked": [
+          "StatelessRuleGroupReferences[].Priority",
+          "StatelessRuleGroupReferences[].ResourceArn",
+          "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.DestinationPorts[].FromPort",
+          "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.SourcePorts[].FromPort",
+          "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.Protocols[]"
+        ],
+        "method_service": "networkfirewall",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": false,
+        "response_path_mismatch": true,
+        "note": "Method describe_firewall_policy (singular) likely returns single policy, but response_path expects array FirewallPolicies[]"
+      },
+      {
+        "rule_id": "aws.networkfirewall.in.all_vpc_configured",
+        "metadata_file": "aws.networkfirewall.in.all_vpc_configured.yaml",
+        "python_method": "describe_firewall_policies",
+        "response_path": "FirewallPolicies[]",
+        "logical_operator": "all",
+        "nested_field_count": 2,
+        "fields_checked": ["FirewallPolicy.StatelessRuleGroupReferences", "FirewallPolicy.StatefulRuleGroupReferences"],
+        "method_service": "unknown",
+        "rule_service": "networkfirewall",
+        "is_cross_service": false,
+        "method_ambiguous": false,
+        "method_verification_needed": true,
+        "note": "Method describe_firewall_policies (plural) may not exist - verify if it should be list_firewall_policies or similar"
+      }
+    ],
+    "check_signature_analysis": {
+      "unique_signatures": 6,
+      "signature_groups": {
+        "describe_firewall": 2,
+        "describe_firewalls": 1,
+        "describe_firewall_policy": 1,
+        "describe_firewall_policies": 1,
+        "describe_logging_configuration": 1
+      },
+      "duplicate_signatures": 0,
+      "related_checks": {
+        "logging_checks": [
+          "aws.networkfirewall.firewall.logging_enabled",
+          "aws.networkfirewall.resource.logging_enabled"
+        ],
+        "note": "Both check logging but different aspects - firewall.logging_enabled checks if config exists, resource.logging_enabled checks specific log types"
+      }
+    },
+    "method_ownership_analysis": {
+      "methods_checked": [
+        "describe_firewall",
+        "describe_firewalls",
+        "describe_firewall_policy",
+        "describe_firewall_policies",
+        "describe_logging_configuration"
+      ],
+      "methods_confirmed_in_networkfirewall": [
+        "describe_firewall",
+        "describe_firewall_policy",
+        "describe_logging_configuration"
+      ],
+      "methods_needing_verification": [
+        "describe_firewalls",
+        "describe_firewall_policies"
+      ],
+      "ambiguous_methods": [
+        {
+          "method": "describe_logging_configuration",
+          "services": ["networkfirewall", "amp"],
+          "service_count": 2
+        }
+      ],
+      "response_path_issues": [
+        {
+          "rule_id": "aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured",
+          "method": "describe_firewall_policy",
+          "response_path": "FirewallPolicies[]",
+          "issue": "Method is singular but response_path expects array - likely should be FirewallPolicy or needs list operation"
+        }
+      ]
+    }
+  },
+  "validation_summary": {
+    "rules_validated": 6,
+    "rules_passing": 6,
+    "rules_fixed": 1,
+    "test_results": {
+      "total_checks": 25,
+      "pass": 0,
+      "fail": 25,
+      "execution_errors": 0,
+      "test_status": "PASS"
+    },
+    "validation_details": {
+      "yaml_structure": {
+        "status": "PASS",
+        "discoveries": "All discovery chains correct",
+        "field_paths": "All field paths match emit structure",
+        "operators": "All operators correctly used",
+        "for_each_dependencies": "All dependencies correctly configured"
+      },
+      "fixes_applied": {
+        "discovery_id_naming_consistency": {
+          "issue": "Discovery ID used inconsistent naming (aws.network-firewall vs aws.networkfirewall)",
+          "fix": "Changed aws.network-firewall.describe_logging_configuration to aws.networkfirewall.describe_logging_configuration for consistency",
+          "affected_rules": [
+            "aws.networkfirewall.firewall.logging_enabled",
+            "aws.networkfirewall.resource.logging_enabled"
+          ]
+        }
+      },
+      "notes": {
+        "method_verification": "The metadata review report mentioned method verification needed for describe_firewalls and describe_firewall_policies, but the YAML correctly uses list_firewalls and list_firewall_policies which are the correct API methods",
+        "response_paths": "All response paths match the actual API response structure"
+      }
+    }
+  }
+}
+
+

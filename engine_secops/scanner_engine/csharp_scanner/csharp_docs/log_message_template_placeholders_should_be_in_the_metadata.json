@@ -1,0 +1,58 @@
+{
+  "filename": "log_message_template_placeholders_should_be_in_the_metadata.json",
+  "rule_id": "log_message_template_placeholders",
+  "title": "Log message template placeholders should be in the right order",
+  "description": "The placeholders of a message template are defined by their name and their position. Log methods specify the values for the placeholder at runtime by passing them in a params array: logger.LogError(\"{First} placeholder and {Second} one.\", first, second); This rule raises an issue if the position of an argument does not match the position of the corresponding placeholder: // 'first' and 'second' are swapped logger.LogError(\"{First} placeholder and {Second} one.\", second, first); // ^^^^^^ ^^^^^ What is the potential impact? Logging providers use placeholder names to create key/value pairs in the log entry. The key corresponds to the placeholder and the value is the argument passed in the log call.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Arguments are in wrong order\nlogger.LogError(\"{First} placeholder and {Second} one.\", second, first); // Noncompliant",
+      "// Noncompliant: Mismatched positions\nvar name = \"John\";\nvar age = 30;\nlogger.LogInformation(\"{Name} is {Age} years old\", age, name); // Noncompliant"
+    ],
+    "compliant": [
+      "// Compliant: Arguments match placeholder order\nlogger.LogError(\"{First} placeholder and {Second} one.\", first, second); // Compliant",
+      "// Compliant: Correct order\nvar name = \"John\";\nvar age = 30;\nlogger.LogInformation(\"{Name} is {Age} years old\", name, age); // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6673"
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_log_message_template_placeholders",
+        "triggering_conditions": [
+          "Placeholder names do not match argument names",
+          "Argument order does not match placeholder order"
+        ],
+        "exclusion_conditions": [
+          "Placeholder names match argument names",
+          "Correct argument order"
+        ],
+        "never_trigger_on": [
+          "Non-logging method calls"
+        ],
+        "reasoning": "Logging providers create key/value pairs using placeholder names, so argument order must match placeholder order",
+        "validation_examples": {
+          "violations": [
+            "logger.LogError(\"{First} and {Second}\", second, first)"
+          ],
+          "compliant": [
+            "logger.LogError(\"{First} and {Second}\", first, second)"
+          ]
+        }
+      }
+    ]
+  }
+}

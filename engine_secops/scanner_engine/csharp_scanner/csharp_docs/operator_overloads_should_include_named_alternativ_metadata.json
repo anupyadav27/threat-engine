@@ -1,0 +1,56 @@
+{
+  "filename": "operator_overloads_should_include_named_alternativ_metadata.json",
+  "rule_id": "operator_overloads_include_named",
+  "title": "Operator overloads should include named alternatives",
+  "description": "Operator overloads should have named alternativesAnalyze your codeconsistency-conventionalmaintainabilityCode SmellconventionWhy is this an issue?Operator overloading is convenient but unfortunately not portable across languages. To be able to access the same functionality from another language you need to provide an alternate named method following the convention:OperatorMethod Name+(binary)Add&BitwiseAnd|BitwiseOr/Divide==Equals^Xor>Compare>=Compare!=Equals<Compare<=Compare!LogicalNot%Mod*(binary)Multiply~OnesComplement-(binary)Subtract-(unary)Negate+(unary)PlusThis rule raises an issue when there is an operator overload without the expected named alternative method.ExceptionsThis rule does not raise an issue when the class implementing the comparison operators>,<,>=and<=contains a metho",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public struct Money\n{\n    public static Money operator +(Money left, Money right) // Noncompliant: no Add method\n    {\n        return new Money(left.Amount + right.Amount);\n    }\n}"
+    ],
+    "compliant": [
+      "public struct Money\n{\n    public static Money operator +(Money left, Money right)\n    {\n        return Add(left, right);\n    }\n\n    public static Money Add(Money left, Money right) // Named alternative\n    {\n        return new Money(left.Amount + right.Amount);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4069"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "operator\\s*\\+\\s*\\(",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "public.*Add\\(",
+          "public.*Plus\\("
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Test classes ([Test], [Fact])",
+      "Classes with named alternatives (Add, Plus, etc.)"
+    ],
+    "reasoning": "Detects operator overloads that should include named alternatives for better readability and language interoperability.",
+    "validation_examples": {
+      "should_trigger": [
+        "public static MyClass operator +(MyClass a, MyClass b) { }"
+      ],
+      "should_not_trigger": [
+        "Classes with Add methods as named alternatives"
+      ]
+    }
+  }
+}

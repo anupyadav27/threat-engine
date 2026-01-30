@@ -1,0 +1,176 @@
+version: '1.0'
+provider: aws
+service: xray
+services:
+  client: xray
+  module: boto3.client
+discovery:
+- discovery_id: aws.xray.get_sampling_statistic_summaries
+  calls:
+  - action: get_sampling_statistic_summaries
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SamplingStatisticSummaries }}'
+- discovery_id: aws.xray.get_group
+  calls:
+  - action: get_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Group }}'
+- discovery_id: aws.xray.list_resource_policies
+  calls:
+  - action: list_resource_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourcePolicies }}'
+- discovery_id: aws.xray.get_encryption_config
+  calls:
+  - action: get_encryption_config
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EncryptionConfig }}'
+- discovery_id: aws.xray.get_sampling_rules
+  calls:
+  - action: get_sampling_rules
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SamplingRuleRecords }}'
+- discovery_id: aws.xray.get_indexing_rules
+  calls:
+  - action: get_indexing_rules
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IndexingRules }}'
+- discovery_id: aws.xray.get_trace_segment_destination
+  calls:
+  - action: get_trace_segment_destination
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Destination }}'
+- discovery_id: aws.xray.get_trace_graph
+  calls:
+  - action: get_trace_graph
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Services }}'
+- discovery_id: aws.xray.get_trace_summaries
+  for_each: aws.xray.get_trace_graph
+  calls:
+  - action: get_trace_summaries
+    save_as: response
+    on_error: continue
+    params:
+      StartTime: '{{ item.insightStartTime }}'
+  emit:
+    as: item
+    items_for: '{{ response.TraceSummaries }}'
+- discovery_id: aws.xray.get_insight_summaries
+  for_each: aws.xray.get_trace_graph
+  calls:
+  - action: get_insight_summaries
+    save_as: response
+    on_error: continue
+    params:
+      StartTime: '{{ item.insightStartTime }}'
+  emit:
+    as: item
+    items_for: '{{ response.InsightSummaries }}'
+- discovery_id: aws.xray.get_sampling_targets
+  calls:
+  - action: get_sampling_targets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SamplingTargetDocuments }}'
+- discovery_id: aws.xray.get_time_series_service_statistics
+  for_each: aws.xray.get_trace_graph
+  calls:
+  - action: get_time_series_service_statistics
+    save_as: response
+    on_error: continue
+    params:
+      StartTime: '{{ item.insightStartTime }}'
+  emit:
+    as: item
+    items_for: '{{ response.TimeSeriesServiceStatistics }}'
+- discovery_id: aws.xray.get_insight_impact_graph
+  for_each: aws.xray.get_trace_graph
+  calls:
+  - action: get_insight_impact_graph
+    save_as: response
+    on_error: continue
+    params:
+      InsightId: '{{ item.insightStartTime }}'
+  emit:
+    as: item
+    items_for: '{{ response.Services }}'
+- discovery_id: aws.xray.get_retrieved_traces_graph
+  calls:
+  - action: get_retrieved_traces_graph
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Services }}'
+- discovery_id: aws.xray.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.xray.get_insight
+  for_each: aws.xray.get_insight_summaries
+  calls:
+  - action: get_insight
+    save_as: response
+    on_error: continue
+    params:
+      InsightId: '{{ item.insightInsightId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Insight }}'
+- discovery_id: aws.xray.get_insight_events
+  for_each: aws.xray.get_insight_summaries
+  calls:
+  - action: get_insight_events
+    save_as: response
+    on_error: continue
+    params:
+      InsightId: '{{ item.insightInsightId }}'
+  emit:
+    as: item
+    items_for: '{{ response.InsightEvents }}'
+- discovery_id: aws.xray.list_retrieved_traces
+  calls:
+  - action: list_retrieved_traces
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Traces }}'
+checks: []

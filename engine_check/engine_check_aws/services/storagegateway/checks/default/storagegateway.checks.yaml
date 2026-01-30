@@ -1,0 +1,89 @@
+version: '1.0'
+provider: aws
+service: storagegateway
+checks:
+- rule_id: aws.storagegateway.volume.snapshots_encrypted
+  for_each: aws.storagegateway.list_volumes
+  conditions:
+    all:
+    - var: item.VolumeARN
+      op: exists
+      value: null
+    - var: item.VolumeId
+      op: exists
+      value: null
+- rule_id: aws.storagegateway.volume.kms_key_policy_least_privilege
+  for_each: aws.storagegateway.list_volume_recovery_points
+  conditions:
+    var: item.VolumeARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.gateway.snapshots_enabled
+  for_each: aws.storagegateway.list_volume_recovery_points
+  conditions:
+    var: item.VolumeARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.volume.encryption_at_rest_enabled
+  for_each: aws.storagegateway.list_volume_recovery_points
+  conditions:
+    var: item.VolumeARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.volume.snapshots_enabled
+  for_each: aws.storagegateway.list_volume_recovery_points
+  conditions:
+    var: item.VolumeARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.gateway.private_network_only_configured
+  for_each: aws.storagegateway.list_gateways
+  conditions:
+    all:
+    - var: item.GatewayARN
+      op: exists
+      value: null
+    - var: item.GatewayOperationalState
+      op: equals
+      value: ACTIVE
+- rule_id: aws.storagegateway.gateway.kms_key_policy_least_privilege
+  for_each: aws.storagegateway.list_gateways
+  conditions:
+    var: item.GatewayARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.volume.storagegateway_cmk_cmek_configured
+  for_each: aws.storagegateway.describe_tape_archives
+  conditions:
+    var: item.KMSKey
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.resource.fileshare_encryption_enabled
+  for_each: aws.storagegateway.describe_nfs_file_shares
+  conditions:
+    var: item.KMSEncrypted
+    op: equals
+    value: true
+- rule_id: aws.storagegateway.gateway.encryption_at_rest_enabled
+  for_each: aws.storagegateway.list_gateways
+  conditions:
+    all:
+    - var: item.GatewayARN
+      op: exists
+      value: null
+    - var: item.GatewayType
+      op: exists
+      value: null
+    - var: item.GatewayOperationalState
+      op: equals
+      value: ACTIVE
+- rule_id: aws.storagegateway.volume.private_network_only_configured
+  for_each: aws.storagegateway.list_volume_recovery_points
+  conditions:
+    all:
+    - var: item.VolumeType
+      op: equals
+      value: gp2
+    - var: item.VolumeAttachmentStatus
+      op: equals
+      value: attached

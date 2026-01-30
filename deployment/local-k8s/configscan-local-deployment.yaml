@@ -1,0 +1,165 @@
+---
+# ConfigScan Service Local Kubernetes Deployment
+# For Docker Desktop Kubernetes
+
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: threat-engine-local
+  labels:
+    app: threat-engine
+    environment: local
+
+---
+# ConfigMap for ConfigScan configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configscan-config
+  namespace: threat-engine-local
+data:
+  DATABASE_URL: "postgresql://configscan_user:configscan_password@host.docker.internal:5432/threat_engine_configscan"
+  PORT: "8002"
+  HOST: "0.0.0.0"
+  ENVIRONMENT: "local"
+  LOG_LEVEL: "INFO"
+  AWS_REGION: "us-east-1"
+  MAX_CONCURRENT_SCANS: "3"
+  SCAN_TIMEOUT_SECONDS: "3600"
+  ENABLE_DRIFT_DETECTION: "true"
+  ENABLE_RESULT_CACHING: "true"
+  PROMETHEUS_ENABLED: "false"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: configscan-secrets
+  namespace: threat-engine-local
+type: Opaque
+stringData:
+  # Add your CSP credentials here if testing real scans
+  # AWS_ACCESS_KEY_ID: "your-access-key"
+  # AWS_SECRET_ACCESS_KEY: "your-secret-key"
+  # AZURE_SUBSCRIPTION_ID: "your-subscription-id"
+  # AZURE_TENANT_ID: "your-tenant-id"
+  # AZURE_CLIENT_ID: "your-client-id"  
+  # AZURE_CLIENT_SECRET: "your-client-secret"
+  # GCP_PROJECT_ID: "your-project-id"
+
+---
+# ConfigScan Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configscan-service
+  namespace: threat-engine-local
+  labels:
+    app: configscan-service
+    tier: scanning
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configscan-service
+  template:
+    metadata:
+      labels:
+        app: configscan-service
+        tier: scanning
+        version: v1
+      annotations:
+        prometheus.io/scrape: "false"  # Disabled for local development
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: configscan-service
+        image: threat-engine/configscan-service:local
+        ports:
+        - containerPort: 8002
+          name: http
+        envFrom:
+        - configMapRef:
+            name: configscan-config
+        - secretRef:
+            name: configscan-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+---
+# ConfigScan Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-service
+  namespace: threat-engine-local
+  labels:
+    app: configscan-service
+    tier: scanning
+spec:
+  selector:
+    app: configscan-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# NodePort Service for external access (local development)
+apiVersion: v1
+kind: Service
+metadata:
+  name: configscan-external
+  namespace: threat-engine-local
+  labels:
+    app: configscan-service
+    tier: scanning
+spec:
+  selector:
+    app: configscan-service
+  ports:
+  - port: 8002
+    targetPort: 8002
+    nodePort: 30002
+    protocol: TCP
+    name: http
+  type: NodePort

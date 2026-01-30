@@ -1,0 +1,108 @@
+{
+  "filename": "increment_and_decrement_operators_should_be_avoide_metadata.json",
+  "rule_id": "increment_decrement_operators_avoided",
+  "title": "Increment (++) and decrement (--) operators should be avoided in a method call or mixed with other operators in an expression",
+  "description": "Increment (++) and decrement (--) operators should not be used in a method call or mixed with other operators in an expressionAnalyze your codeintentionality-logicalmaintainabilityCode SmellWhy is this an issue?The use of increment and decrement operators in method calls or in combination with other arithmetic operators is not recommended, because:It can significantly impair the readability of the code.It introduces additional side effects into a statement, with the potential for undefined behavior.It is safer to use these operators in isolation from any other arithmetic operators.Noncompliant code exampleu8a = ++u8b + u8c--; foo = bar++ / 4;Compliant solutionThe following sequence is clearer and therefore safer:++u8b; u8a = u8b + u8c; u8c--; foo = bar / 4; bar++;Available In:Catch issues",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int result = ++count + value--; // Noncompliant: mixing increment/decrement with other operators",
+      "int foo = bar++ / 4; // Noncompliant: increment operator mixed with division",
+      "DoSomething(index++); // Noncompliant: increment in method call"
+    ],
+    "compliant": [
+      "++count;\nint result = count + value;\nvalue--; // OK: operators used in isolation",
+      "int foo = bar / 4;\nbar++; // OK: increment used separately",
+      "int temp = index;\nindex++;\nDoSomething(temp); // OK: increment not in method call"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-881"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "CallExpression"],
+    "detection_conditions": "Detects increment/decrement operators (++/--) when mixed with other operators in expressions or used within method calls",
+    "triggering_conditions": "(Assignment containing ++/-- mixed with other operators) OR (CallExpression with ++/-- in arguments)",
+    "exclusion_conditions": [
+      "Standalone ++/-- statements (not mixed with other operators)",
+      "For loop increment expressions",
+      "Logging or debug statements",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "For loop increment clause (for(...; ...; i++))",
+      "Standalone increment/decrement statements"
+    ],
+    "reasoning": "This rule targets unsafe mixing of increment/decrement operators with other operations. It detects: (1) ++/-- mixed with arithmetic operators in Assignment nodes, (2) ++/-- used inside CallExpression arguments. AST-based approach examines Assignment.source for patterns like 'x = a++ + b' or 'foo(index++)'.",
+    "validation_examples": {
+      "should_trigger": [
+        "int result = ++count + value--;",
+        "int foo = bar++ / 4;",
+        "DoSomething(index++);",
+        "x = a++ * b;",
+        "return value++;"
+      ],
+      "should_not_trigger": [
+        "++count;",
+        "value--;",
+        "for (int i = 0; i < 10; i++)",
+        "Console.WriteLine($\"Value: {count++}\");",
+        "count++;\nint result = count + value;"
+      ]
+    },
+    "node_types": ["Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(\\+\\+|\\-\\-).*[+\\-*/%&|^<>=]|[+\\-*/%&|^<>=].*(\\+\\+|\\-\\-)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "for\\s*\\(",
+          "^\\s*(\\+\\+|\\-\\-)\\w+\\s*;\\s*$",
+          "^\\s*\\w+(\\+\\+|\\-\\-)\\s*;\\s*$",
+          "=>\\s*\\w+(\\+\\+|\\-\\-)",
+          "\\(\\)\\s*=>"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\([^)]*\\+\\+|\\w+\\([^)]*\\-\\-",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "WriteLine",
+          "Write\\(",
+          "\\$\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "for\\s*\\(",
+          "=>\\s*\\w+(\\+\\+|\\-\\-)\\s*;",
+          "\\(\\)\\s*=>\\s*\\w+(\\+\\+|\\-\\-)"
+        ]
+      }
+    ]
+  }
+}

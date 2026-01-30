@@ -1,0 +1,65 @@
+{
+  "filename": "unused_private_types_or_members_should_be_removed_metadata.json",
+  "rule_id": "unused_private_types_members",
+  "title": "Unused private types or members should be removed",
+  "description": "This rule raises an issue when a private/internal type or member is never referenced in the code. A type or member that is never called is dead code, and should be removed. Cleaning out dead code decreases the size of the maintained codebase, making it easier to understand the program and preventing bugs from being introduced.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass\n{\n    private int unusedField = 42; // Noncompliant - never used\n\n    private void UnusedMethod() // Noncompliant - never called\n    {\n    }\n\n    public void UsedMethod()\n    {\n        Console.WriteLine(\"Hello\");\n    }\n}"
+    ],
+    "compliant": [
+      "public class MyClass\n{\n    private int usedField = 42;\n\n    public int GetValue()\n    {\n        return usedField; // Field is used\n    }\n\n    private void HelperMethod()\n    {\n        // Called from elsewhere\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1144"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bprivate\\s+(?:static\\s+)?(?:readonly\\s+)?(?:\\w+\\s+)+\\w+\\s*[;={]",
+        "exclude_patterns": [
+          "\\[Serialize",
+          "\\[JsonProperty",
+          "\\[XmlElement",
+          "\\bevent\\s+",
+          "\\[UnityEngine",
+          "\\bMain\\s*\\(",
+          "\\bDispose\\s*\\("
+        ],
+        "message": "Unused private type or member should be removed"
+      }
+    ],
+    "never_trigger_on": [
+      "Serialization attributes ([Serialize], [JsonProperty], [XmlElement])",
+      "Unity callbacks ([UnityEngine])",
+      "Event handlers (event keyword)",
+      "Entry points (Main method)",
+      "IDisposable implementations (Dispose method)"
+    ],
+    "reasoning": "Private members that are declared but never used are dead code. They add maintenance burden and confusion. However, serialization attributes, event handlers, and framework callbacks may appear unused but are invoked by the framework.",
+    "validation_examples": {
+      "should_trigger": [
+        "private int unusedField = 42;",
+        "private void UnusedMethod() { }"
+      ],
+      "should_not_trigger": [
+        "[JsonProperty] private string serializedField;",
+        "private void Dispose() { }"
+      ]
+    }
+  }
+}

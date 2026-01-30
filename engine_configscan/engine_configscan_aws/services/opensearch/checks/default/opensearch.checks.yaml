@@ -1,0 +1,95 @@
+version: '1.0'
+provider: aws
+service: opensearch
+checks:
+- rule_id: aws.opensearch.service.domains_encryption_at_rest_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.EncryptionAtRestOptions.Enabled
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.opensearch_domains_https_communications_enforced
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.EndpointOptions.EnforceHTTPS
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.domains_node_to_node_encryption_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.NodeToNodeEncryptionOptions.Enabled
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.domains_not_publicly_accessible_configured
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.AccessPolicies
+    op: exists
+    value: null
+- rule_id: aws.opensearch.service.domains_fault_tolerant_data_nodes_configured
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    all:
+    - var: item.ClusterConfig.InstanceCount
+      op: greater_than
+      value: 3
+    - var: item.ClusterConfig.ZoneAwarenessEnabled
+      op: equals
+      value: true
+- rule_id: aws.opensearch.service.domains_audit_logging_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.LogPublishingOptions.AUDIT_LOGS.Enabled
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.domains_access_control_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    all:
+    - var: item.AccessPolicies
+      op: exists
+      value: null
+    - var: item.NodeToNodeEncryptionOptions.Enabled
+      op: equals
+      value: true
+    - var: item.EncryptionAtRestOptions.Enabled
+      op: equals
+      value: true
+- rule_id: aws.opensearch.service.domains_cloudwatch_logging_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    all:
+    - var: item.LogPublishingOptions.ES_APPLICATION_LOGS.Enabled
+      op: equals
+      value: true
+    - var: item.LogPublishingOptions.SEARCH_SLOW_LOGS.Enabled
+      op: equals
+      value: true
+    - var: item.LogPublishingOptions.INDEX_SLOW_LOGS.Enabled
+      op: equals
+      value: true
+    - var: item.LogPublishingOptions.AUDIT_LOGS.Enabled
+      op: equals
+      value: true
+- rule_id: aws.opensearch.service.domains_internal_user_database_enabled
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    var: item.AdvancedSecurityOptions.InternalUserDatabaseEnabled
+    op: equals
+    value: true
+- rule_id: aws.opensearch.service.domains_fault_tolerant_master_nodes_configured
+  for_each: aws.opensearch.describe_domain
+  conditions:
+    all:
+    - var: item.ClusterConfig.DedicatedMasterEnabled
+      op: equals
+      value: true
+    - var: item.ClusterConfig.ZoneAwarenessEnabled
+      op: equals
+      value: true
+    - var: item.ClusterConfig.DedicatedMasterType
+      op: exists
+      value: null
+    - var: item.ClusterConfig.DedicatedMasterCount
+      op: greater_than
+      value: 3

@@ -1,0 +1,32 @@
+version: '1.0'
+provider: azure
+service: purview
+services:
+  client: purview
+  module: azure.mgmt.purview
+discovery:
+- discovery_id: azure.purview.defaultaccounts.set
+  calls:
+  - action: set
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.account_name }}'
+- discovery_id: azure.purview.accounts.list_by_subscription
+  calls:
+  - action: list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+- discovery_id: azure.purview.accounts.check_name_availability
+  calls:
+  - action: check_name_availability
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.message }}'
+checks: []

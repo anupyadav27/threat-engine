@@ -1,0 +1,39 @@
+{
+  "filename": "cache_should_be_cleaned_after_package_installation_metadata.json",
+  "rule_id": "cache_cleaned_after_package",
+  "title": "Cache should be cleaned after package installation",
+  "description": "Cache should be cleaned after package installationAnalyze your codeintentionality-efficientmaintainabilityCode SmellIn Docker, when packages are installed via a package manager, an index is cached locally by default. This index should either be cleaned up or stored in a dedicated cache mount.Why is this an issue?How can I fix it?More InfoDocker images should only contain the necessary data. The package index is redundant for the correct operation of the installed software.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "docker"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-6587"
+  ],
+  "logic": {
+    "instruction_types": [
+      "RUN"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "\\b(apt-get|apt)\\s+.*\\b(update|install)\\b(?!.*(apt-get\\s+clean|rm\\s+-rf\\s+/var/lib/apt/lists))",
+          "\\byum\\s+.*\\binstall\\b(?!.*yum\\s+clean\\s+all)",
+          "\\bdnf\\s+.*\\binstall\\b(?!.*dnf\\s+clean\\s+all)",
+          "\\bapk\\s+(add|update)\\b(?!.*--no-cache)(?!.*rm\\s+-rf\\s+/var/cache/apk)"
+        ],
+        "message": "Cache should be cleaned after package installation. Package manager cache should be removed to reduce Docker image size. Use 'apt-get clean && rm -rf /var/lib/apt/lists/*' for apt, 'yum clean all' for yum, 'dnf clean all' for dnf, or '--no-cache' flag for apk."
+      }
+    ]
+  }
+}

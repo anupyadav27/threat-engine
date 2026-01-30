@@ -1,0 +1,322 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+cloudfunctions:
+  version: '1.0'
+  provider: gcp
+  service: cloudfunctions
+  scope: regional
+  discovery:
+  - discovery_id: list_cloudfunctions_resources
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: resource_name
+      - path: sourceArchiveUrl
+        var: source_archive_url
+      - path: httpsTrigger
+        var: https_trigger
+      - path: eventTrigger
+        var: event_trigger
+  - discovery_id: get_function_iam_policy
+    for_each: list_cloudfunctions_resources
+    calls:
+    - action: get_iam_policy
+      fields:
+      - path: bindings
+        var: iam_bindings
+  checks:
+  - check_id: gcp.cloudfunctions.function.concurrency_limit_configured
+    title: Ensure Concurrency Limit is Configured for Cloud Functions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: maxInstances
+        operator: exists
+      - path: maxInstances
+        operator: not_equals
+        expected: 0
+  - check_id: gcp.cloudfunctions.function.not_publicly_accessible
+    title: Ensure Cloud Functions are Not Publicly Accessible
+    severity: high
+    for_each: get_function_iam_policy
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  - check_id: gcp.cloudfunctions.function.serverless_dead_letter_queue_configured
+    title: Ensure Dead Letter Queue Configured for Cloud Functions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: eventTrigger.failurePolicy.retry
+        operator: exists
+    - action: eval
+      fields:
+      - path: eventTrigger.failurePolicy.deadLetterPolicy
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.serverless_env_no_plaintext_secrets
+    title: Avoid Plaintext Secrets in Cloud Functions Environment Variables
+    severity: high
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: environmentVariables
+        operator: not_contains
+        expected: password
+      - path: environmentVariables
+        operator: not_contains
+        expected: secret
+      - path: environmentVariables
+        operator: not_contains
+        expected: key
+      - path: environmentVariables
+        operator: not_contains
+        expected: token
+  - check_id: gcp.cloudfunctions.function.serverless_logging_and_tracing_enabled
+    title: Enable Logging and Tracing for Cloud Functions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels['cloud-function-logging']
+        operator: not_equals
+        expected: disabled
+    - action: eval
+      fields:
+      - path: environmentVariables.GOOGLE_CLOUD_PROJECT
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.serverless_permissions_least_privilege
+    title: Ensure Least Privilege for GCP Cloud Functions Permissions
+    severity: high
+    for_each: get_function_iam_policy
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/owner
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/editor
+      - path: bindings[].role
+        operator: not_contains
+        expected: roles/iam.serviceAccountTokenCreator
+  - check_id: gcp.cloudfunctions.function.serverless_prov_conc_execution_role_least_privilege
+    title: Ensure Cloud Functions Use Least Privilege for Execution Roles
+    severity: high
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccountEmail
+        operator: exists
+      - path: serviceAccountEmail
+        operator: not_contains
+        expected: compute@developer.gserviceaccount.com
+  - check_id: gcp.cloudfunctions.function.serverless_published_and_immutable
+    title: Ensure Cloud Functions Are Published and Immutable
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: status
+        operator: equals
+        expected: ACTIVE
+      - path: versionId
+        operator: exists
+      - path: updateTime
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.serverless_role_least_privilege
+    title: Ensure Least Privilege for Cloud Functions Service Accounts
+    severity: high
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: serviceAccountEmail
+        operator: exists
+    - action: get_service_account_roles
+      fields:
+      - path: roles[]
+        operator: not_contains
+        expected: roles/owner
+      - path: roles[]
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.cloudfunctions.function.serverless_rollforward_rollback_controls_present
+    title: Ensure Rollforward and Rollback Controls for Cloud Functions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels['deployment-tool']
+        operator: exists
+      - path: labels['version']
+        operator: exists
+    - action: eval
+      fields:
+      - path: sourceArchiveUrl
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.serverless_source_authenticated
+    title: Ensure Cloud Functions Have Authenticated Source Traffic
+    severity: high
+    for_each: list_cloudfunctions_resources
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: httpsTrigger.securityLevel
+        operator: equals
+        expected: SECURE_ALWAYS
+    - action: eval
+      fields:
+      - path: eventTrigger
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.serverless_source_trusted
+    title: Ensure Cloud Functions Source is from Trusted Locations
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: sourceArchiveUrl
+        operator: contains
+        expected: gs://
+    - action: eval
+      fields:
+      - path: sourceRepository.url
+        operator: contains
+        expected: source.developers.google.com
+    - action: eval
+      fields:
+      - path: sourceRepository.url
+        operator: contains
+        expected: github.com
+  - check_id: gcp.cloudfunctions.function.serverless_version_immutable
+    title: Ensure Cloud Functions Use Immutable Serverless Versions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: versionId
+        operator: exists
+      - path: sourceArchiveUrl
+        operator: exists
+    - action: eval
+      fields:
+      - path: labels['immutable']
+        operator: not_equals
+        expected: 'false'
+  - check_id: gcp.cloudfunctions.function.serverless_vpc_private_networking_enabled
+    title: Enable Serverless VPC Access for Cloud Functions
+    severity: medium
+    for_each: list_cloudfunctions_resources
+    logic: OR
+    calls:
+    - action: eval
+      fields:
+      - path: vpcConnector
+        operator: exists
+    - action: eval
+      fields:
+      - path: vpcConnectorEgressSettings
+        operator: exists
+  - check_id: gcp.cloudfunctions.function.url_public
+    title: Restrict Public Access to GCP Cloud Functions URLs
+    severity: critical
+    for_each: get_function_iam_policy
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[].members[]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+    - action: eval
+      fields:
+      - path: bindings[].role
+        operator: not_equals
+        expected: roles/cloudfunctions.invoker
+        when:
+        - path: bindings[].members[]
+          operator: contains
+          expected: allUsers
+  api_name: cloudfunctions
+  api_version: v1

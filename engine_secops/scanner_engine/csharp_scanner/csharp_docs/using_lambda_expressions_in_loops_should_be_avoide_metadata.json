@@ -1,0 +1,73 @@
+{
+  "filename": "using_lambda_expressions_in_loops_should_be_avoide_metadata.json",
+  "rule_id": "using_lambda_expressions_loops",
+  "title": "Using lambda expressions in loops should be avoided in Blazor markup section",
+  "description": "Using lambda expressions in loops should be avoided in Blazor markup sectionAnalyze your codeintentionality-efficientmaintainabilityCode SmellblazorWhy is this an issue?How can I fix it?More InfoIn Blazor, usinglambda expressionsasevent handlerswhen the UI elements are rendered in a loop can lead to negative user experiences and performance issues. This is particularly noticeable when rendering a large number of elements.The reason behind this is that Blazor rebuilds all lambda expressions within the loop every time the UI elements are rendered.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms o",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "@foreach (var item in items)\n{\n    <button @onclick=\"() => HandleClick(item)\">Click</button>\n}",
+      "@for (int i = 0; i < items.Count; i++)\n{\n    <button @onclick=\"() => Process(items[i])\">Process</button>\n}"
+    ],
+    "compliant": [
+      "@foreach (var item in items)\n{\n    <ItemComponent Item=\"item\" OnClick=\"HandleClick\" />\n}",
+      "@code {\n    private void HandleItemClick(Item item)\n    {\n        HandleClick(item);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6802"
+  ],
+  "logic": {
+    "node_types": ["ForStatement"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(foreach|for)\\s*\\([^)]+\\)[^}]*(=\\s*\\(\\s*\\)\\s*=>|=>\\s*[A-Za-z]+\\()",
+        "exclude_patterns": [
+          "//.*=>",
+          "/\\*.*=>",
+          "Assert\\.",
+          "\\[Test",
+          "\\[Fact",
+          "\\.Select\\(",
+          "\\.Where\\(",
+          "\\.Any\\("
+        ],
+        "message": "Avoid using lambda expressions as event handlers in loops in Blazor - they are rebuilt on every render causing performance issues"
+      }
+    ],
+    "target_ast_nodes": ["ForStatement"],
+    "detection_conditions": "Lambda expression used as event handler inside a loop",
+    "triggering_conditions": "AND: (1) Inside foreach or for loop AND (2) Lambda expression assigned to handler (() => or => method)",
+    "exclusion_conditions": ["Comments", "Unit tests", "LINQ expressions", "Lambda outside loops"],
+    "never_trigger_on": [
+      "Lambda expressions outside of loops",
+      "LINQ methods (Select, Where, Any)",
+      "Comments containing lambda examples",
+      "Unit test assertions",
+      "Method references without lambda"
+    ],
+    "reasoning": "In Blazor, lambda expressions used as event handlers in loops are rebuilt on every render cycle. This causes unnecessary memory allocations and can lead to performance issues, especially with large lists. Using child components with callbacks or pre-bound methods avoids this overhead.",
+    "validation_examples": {
+      "should_trigger": [
+        "foreach (var item in items) { button.OnClick = () => HandleClick(item); }",
+        "for (int i = 0; i < items.Count; i++) { elem.Click = () => Process(items[i]); }"
+      ],
+      "should_not_trigger": [
+        "foreach (var item in items) { <ItemComponent OnClick=\"HandleClick\" /> }",
+        "items.Select(x => x.Id)",
+        "// foreach with lambda example"
+      ]
+    }
+  }
+}

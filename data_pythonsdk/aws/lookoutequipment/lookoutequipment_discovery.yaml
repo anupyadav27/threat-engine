@@ -1,0 +1,188 @@
+version: '1.0'
+provider: aws
+service: lookoutequipment
+services:
+  client: lookoutequipment
+  module: boto3.client
+discovery:
+- discovery_id: aws.lookoutequipment.list_models
+  calls:
+  - action: list_models
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ModelSummaries }}'
+- discovery_id: aws.lookoutequipment.list_inference_schedulers
+  calls:
+  - action: list_inference_schedulers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InferenceSchedulerSummaries }}'
+- discovery_id: aws.lookoutequipment.list_retraining_schedulers
+  calls:
+  - action: list_retraining_schedulers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RetrainingSchedulerSummaries }}'
+- discovery_id: aws.lookoutequipment.list_data_ingestion_jobs
+  calls:
+  - action: list_data_ingestion_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DataIngestionJobSummaries }}'
+- discovery_id: aws.lookoutequipment.list_label_groups
+  calls:
+  - action: list_label_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LabelGroupSummaries }}'
+- discovery_id: aws.lookoutequipment.list_sensor_statistics
+  for_each: aws.lookoutequipment.list_models
+  calls:
+  - action: list_sensor_statistics
+    save_as: response
+    on_error: continue
+    params:
+      DatasetName: '{{ item.dataIngestionJobSummaryDatasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SensorStatisticsSummaries }}'
+- discovery_id: aws.lookoutequipment.describe_model
+  for_each: aws.lookoutequipment.list_models
+  calls:
+  - action: describe_model
+    save_as: response
+    on_error: continue
+    params:
+      ModelName: '{{ item.inferenceSchedulerSummaryModelName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LabelsInputConfiguration }}'
+- discovery_id: aws.lookoutequipment.list_inference_executions
+  for_each: aws.lookoutequipment.list_inference_schedulers
+  calls:
+  - action: list_inference_executions
+    save_as: response
+    on_error: continue
+    params:
+      InferenceSchedulerName: '{{ item.inferenceSchedulerSummaryInferenceSchedulerName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InferenceExecutionSummaries }}'
+- discovery_id: aws.lookoutequipment.list_labels
+  for_each: aws.lookoutequipment.list_label_groups
+  calls:
+  - action: list_labels
+    save_as: response
+    on_error: continue
+    params:
+      LabelGroupName: '{{ item.labelGroupSummaryLabelGroupName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LabelSummaries }}'
+- discovery_id: aws.lookoutequipment.describe_data_ingestion_job
+  for_each: aws.lookoutequipment.list_data_ingestion_jobs
+  calls:
+  - action: describe_data_ingestion_job
+    save_as: response
+    on_error: continue
+    params:
+      JobId: '{{ item.dataIngestionJobSummaryJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IngestionInputConfiguration }}'
+- discovery_id: aws.lookoutequipment.list_inference_events
+  for_each: aws.lookoutequipment.list_inference_schedulers
+  calls:
+  - action: list_inference_events
+    save_as: response
+    on_error: continue
+    params:
+      InferenceSchedulerName: '{{ item.inferenceSchedulerSummaryInferenceSchedulerName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InferenceEventSummaries }}'
+- discovery_id: aws.lookoutequipment.describe_inference_scheduler
+  for_each: aws.lookoutequipment.list_inference_schedulers
+  calls:
+  - action: describe_inference_scheduler
+    save_as: response
+    on_error: continue
+    params:
+      InferenceSchedulerName: '{{ item.inferenceSchedulerSummaryInferenceSchedulerName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DataInputConfiguration }}'
+- discovery_id: aws.lookoutequipment.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.lookoutequipment.describe_model_version
+  for_each: aws.lookoutequipment.list_inference_executions
+  calls:
+  - action: describe_model_version
+    save_as: response
+    on_error: continue
+    params:
+      ModelName: '{{ item.inferenceSchedulerSummaryModelName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LabelsInputConfiguration }}'
+- discovery_id: aws.lookoutequipment.describe_dataset
+  for_each: aws.lookoutequipment.list_models
+  calls:
+  - action: describe_dataset
+    save_as: response
+    on_error: continue
+    params:
+      DatasetName: '{{ item.dataIngestionJobSummaryDatasetName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IngestionInputConfiguration }}'
+- discovery_id: aws.lookoutequipment.describe_label
+  for_each: aws.lookoutequipment.list_label_groups
+  calls:
+  - action: describe_label
+    save_as: response
+    on_error: continue
+    params:
+      LabelGroupName: '{{ item.labelSummaryLabelId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LabelGroupName }}'
+checks: []

@@ -1,0 +1,202 @@
+version: '1.0'
+provider: aws
+service: eventbridge
+services:
+  client: events
+  module: boto3.client
+discovery:
+- discovery_id: aws.eventbridge.describe_event_bus
+  calls:
+  - action: describe_event_bus
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.events.list_api_destinations
+  calls:
+  - action: list_api_destinations
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.ApiDestinations }}'
+    as: item
+- discovery_id: aws.events.list_partner_event_sources
+  calls:
+  - action: list_api_destinations
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.ApiDestinations }}'
+    as: item
+- discovery_id: aws.events.list_event_buses
+  calls:
+  - action: list_event_buses
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.EventBuses }}'
+    as: item
+- discovery_id: aws.events.list_endpoints
+  calls:
+  - action: list_endpoints
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Endpoints }}'
+    as: item
+- discovery_id: aws.events.list_rules
+  calls:
+  - action: list_rules
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Rules }}'
+    as: item
+- discovery_id: aws.events.describe_rule
+  for_each: aws.events.list_rules
+  calls:
+  - action: describe_rule
+    params:
+      Name: '{{ item.Name }}'
+      EventBusName: '{{ item.EventBusName }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.events.list_targets_by_rule
+  for_each: aws.events.list_rules
+  calls:
+  - action: list_targets_by_rule
+    params:
+      Rule: '{{ item.Name }}'
+      EventBusName: '{{ item.EventBusName }}'
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.Targets }}'
+    as: target_item
+checks:
+- rule_id: aws.eventbridge.eventbus.change_audit_logging_enabled
+  for_each: aws.eventbridge.describe_event_bus
+  conditions:
+    var: item.LogConfig
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.eventbus.endpoints_authenticated_configured
+  for_each: aws.events.list_endpoints
+  conditions:
+    var: item.RoleArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.eventbus.eventbridge_destinations_configured
+  for_each: aws.events.list_api_destinations
+  conditions:
+    var: item.ApiDestinationArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.eventbus.message_encryption_in_transit_configured
+  for_each: aws.eventbridge.describe_event_bus
+  conditions:
+    var: item.KmsKeyIdentifier
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.eventbus.no_public_webhooks_configured
+  for_each: aws.events.list_api_destinations
+  conditions:
+    var: item.InvocationEndpoint
+    op: not_contains
+    value: public
+- rule_id: aws.eventbridge.eventbus.oncall_contacts_verified
+  for_each: aws.events.list_event_buses
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.eventbus.policy_exists_for_critical_severity_configured
+  for_each: aws.events.list_event_buses
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.resource.global_endpoint_event_replication_enabled
+  for_each: aws.events.list_endpoints
+  conditions:
+    var: item.ReplicationConfig
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.change_audit_logging_enabled
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.endpoints_authenticated_configured
+  for_each: aws.events.list_endpoints
+  conditions:
+    var: item.RoleArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.eventbridge_artifacts_private_and_encrypted
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.eventbridge_destinations_configured
+  for_each: aws.events.list_targets_by_rule
+  conditions:
+    var: item.TargetArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.eventbridge_logs_and_metrics_enabled
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.execution_roles_least_privilege
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.RoleArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.kms_encryption_enabled
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.message_encryption_in_transit_configured
+  for_each: aws.events.list_targets_by_rule
+  conditions:
+    var: item.TargetArn
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.no_public_webhooks_configured
+  for_each: aws.events.list_api_destinations
+  conditions:
+    var: item.InvocationEndpoint
+    op: not_contains
+    value: public
+- rule_id: aws.eventbridge.rule.oncall_contacts_verified
+  for_each: aws.events.list_rules
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.policy_exists_for_critical_severity_configured
+  for_each: aws.events.describe_rule
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: aws.eventbridge.rule.private_networking_enforced
+  for_each: aws.events.list_targets_by_rule
+  conditions:
+    var: item.TargetArn
+    op: exists
+    value: null

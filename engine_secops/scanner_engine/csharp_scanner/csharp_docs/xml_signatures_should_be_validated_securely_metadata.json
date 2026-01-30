@@ -1,0 +1,58 @@
+{
+  "filename": "xml_signatures_should_be_validated_securely_metadata.json",
+  "rule_id": "xml_signatures_validated_securely",
+  "title": "XML signatures should be validated securely",
+  "description": "XML can be used for a wide variety of purposes. Using a signature on an XML message generally indicates this message requires authenticity and integrity. However, if the signature validation is not properly implemented this authenticity can not be guaranteed.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - Not checking the signature properly\nSignedXml signedXml = new SignedXml(doc);\nsignedXml.LoadXml(signatureNode);\nbool isValid = signedXml.CheckSignature(); // May be vulnerable to signature wrapping\n\n// Noncompliant - Using insecure transform\nvar transform = new XmlDsigXPathTransform();\nreference.AddTransform(transform);"
+    ],
+    "compliant": [
+      "// Compliant - Validating the signature with certificate\nSignedXml signedXml = new SignedXml(doc);\nsignedXml.LoadXml(signatureNode);\nbool isValid = signedXml.CheckSignature(certificate, true);\n\n// Compliant - Verifying the signed info references\nforeach (Reference reference in signedXml.SignedInfo.References)\n{\n    if (!expectedUri.Equals(reference.Uri))\n        throw new SecurityException(\"Unexpected reference URI\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6377"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "CheckSignature\\s*\\(\\s*\\)",
+        "exclude_patterns": [
+          "CheckSignature\\s*\\([^)]+certificate",
+          "CheckSignature\\s*\\([^)]+,\\s*true"
+        ],
+        "message": "XML signature validation may be vulnerable. Use CheckSignature(certificate, true) to verify the signature with a trusted certificate."
+      }
+    ],
+    "never_trigger_on": [
+      "CheckSignature called with certificate parameter",
+      "CheckSignature with verifySignatureOnly=true",
+      "Comments (// or /* */)",
+      "Unit tests ([Test], [Fact])"
+    ],
+    "reasoning": "Detects insecure XML signature validation using parameterless CheckSignature(). This can be vulnerable to signature wrapping attacks. Secure validation requires passing a trusted certificate and verification flags.",
+    "validation_examples": {
+      "should_trigger": [
+        "bool isValid = signedXml.CheckSignature();"
+      ],
+      "should_not_trigger": [
+        "bool isValid = signedXml.CheckSignature(certificate, true);",
+        "bool isValid = signedXml.CheckSignature(key);"
+      ]
+    }
+  }
+}

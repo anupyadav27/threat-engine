@@ -1,0 +1,60 @@
+{
+  "rule_id": "aws_iam_policies_should_limit_the_scope_of_permissions_given",
+  "title": "AWS IAM policies should limit the scope of permissions given",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "This rule checks if AWS IAM policies have unnecessary permissions that can lead to security risks.",
+  "message": "AWS IAM policy has excessive permissions.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "iam",
+    "permissions"
+  ],
+  "impact": "Potential unauthorized access or data breach",
+  "recommendation": "Limit permissions to the least privilege necessary",
+  "references": [
+    "https://aws.amazon.com/iam/best-practices/",
+    "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#granteleastprivilege"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "policy = {\n    'Version': '2012-10-17',\n    'Statement': [\n        {\n            'Effect': 'Allow',\n            'Action': ['s3:*'],\n            'Resource': ['arn:aws:s3:::*']\n        }\n    ]\n}",
+        "description": "This policy allows all S3 actions on all resources, which is too permissive."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "policy = {\n    'Version': '2012-10-17',\n    'Statement': [\n        {\n            'Effect': 'Allow',\n            'Action': ['s3:GetObject'],\n            'Resource': ['arn:aws:s3:::my_bucket/*']\n        }\n    ]\n}",
+        "description": "This policy only allows getting objects from a specific S3 bucket, which is less permissive."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Excessive permissions can lead to unauthorized access or data breaches.",
+  "how_to_fix": "Limit permissions to the least privilege necessary.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+      "node_types": ["Dict"],
+      "checks": [
+        {
+          "type": "custom_function",
+          "function": "check_iam_policy_least_privilege"
+        }
+      ]
+  }
+}

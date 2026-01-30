@@ -1,0 +1,60 @@
+{
+  "filename": "track_uses_of_todo_tags_metadata.json",
+  "rule_id": "track_uses_todo_tags",
+  "title": "Track uses of TODO tags",
+  "description": "Developers often use TODO tags to mark areas in the code where additional work or improvements are needed but are not implemented immediately. However, these TODO tags sometimes get overlooked or forgotten, leading to incomplete or unfinished code. This rule aims to identify and address unattended TODO tags to ensure a clean and maintainable codebase.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void DoSomething()\n{\n    // TODO: implement this method\n}",
+      "public int Calculate()\n{\n    /* TODO add error handling */\n    return 0;\n}",
+      "// TODO: refactor this code\npublic void ProcessData() { }"
+    ],
+    "compliant": [
+      "public void DoSomething()\n{\n    // Implementation complete\n    Console.WriteLine(\"Done\");\n}",
+      "public int Calculate()\n{\n    try {\n        return ComputeValue();\n    } catch (Exception ex) {\n        // Proper error handling\n        throw;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1135"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "//[^\n]*TODO|/\\*[^*]*TODO",
+        "exclude_patterns": [],
+        "message": "TODO tag found - this indicates incomplete or planned work that should be addressed."
+      }
+    ],
+    "never_trigger_on": [
+      "TODO in string literals (pattern only matches comments)",
+      "Regular comments without TODO keyword",
+      "Completed implementations"
+    ],
+    "reasoning": "Developers use TODO tags to mark areas where additional work or improvements are needed. However, these tags sometimes get overlooked, leading to incomplete code. This rule tracks TODO tags to ensure they are addressed and the codebase remains clean and maintainable.",
+    "validation_examples": {
+      "should_trigger": [
+        "// TODO: implement this method",
+        "/* TODO add error handling */",
+        "// TODO fix bug"
+      ],
+      "should_not_trigger": [
+        "// Regular comment",
+        "string msg = \"Use TODO for tasks\";",
+        "// Implementation complete"
+      ]
+    }
+  }
+}

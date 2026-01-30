@@ -1,0 +1,41 @@
+{
+  "filename": "xml_injection_protection_metadata.json",
+  "rule_id": "vulnerability_prevent_xml_injection_java",
+  "title": "XML operations should not be vulnerable to injection attacks",
+  "description": "This rule detects and prevents XML injection vulnerabilities in Java code. XML injection occurs when untrusted input is used to construct XML documents or queries, potentially allowing attackers to alter the structure or content of the XML. This can lead to data corruption, unauthorized data access, or denial of service.",
+  "status": "active",
+  "defaultSeverity": "CRITICAL",
+  "category": "vulnerability",
+  "recommendation": "Always validate and sanitize user input before using it in XML operations. Use secure XML APIs and avoid string concatenation when building XML documents. Prefer parameterized APIs and enable security features such as XML entity restrictions.",
+  "impact": "Exploiting XML injection can allow attackers to manipulate application data, access sensitive information, or disrupt application functionality.",
+  "examples": [
+    {
+      "bad": "DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\nDocumentBuilder builder = factory.newDocumentBuilder();\nDocument doc = builder.parse(new InputSource(new StringReader(userInput))); // userInput is untrusted",
+      "good": "// Validate and sanitize userInput before use\n// Use secure XML parsing features\nDocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n// factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);\n// ... additional security features ...\nDocumentBuilder builder = factory.newDocumentBuilder();\nDocument doc = builder.parse(new InputSource(new StringReader(safeInput)));"
+    }
+  ],
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6399",
+    "https://cwe.mitre.org/data/definitions/91.html",
+    "https://owasp.org/www-community/vulnerabilities/XML_Injection"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "parse\\s*\\(.*userInput.*\\)",
+          "parse\\s*\\(.*StringReader\\s*\\(",
+          "newDocumentBuilder\\s*\\(\\s*\\)\\.parse"
+        ],
+        "message": "Always validate and sanitize user input before using it in XML operations. Use secure XML APIs and avoid string concatenation when building XML documents. Prefer parameterized APIs and enable security features such as XML entity restrictions."
+      }
+    ]
+  }
+}

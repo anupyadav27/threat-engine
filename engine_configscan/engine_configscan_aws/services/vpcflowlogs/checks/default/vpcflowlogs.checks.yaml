@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: vpcflowlogs
+checks:
+- rule_id: aws.vpcflowlogs.flowlog.alerts_for_anomalies_configured
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    all:
+    - var: item.LogDestinationType
+      op: equals
+      value: cloud-watch-logs
+    - var: item.LogFormat
+      op: exists
+      value: null
+    - var: item.DeliverLogsStatus
+      op: equals
+      value: SUCCESS
+- rule_id: aws.vpcflowlogs.flowlog.log_s_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    var: item.LogDestinationType
+    op: equals
+    value: s3
+- rule_id: aws.vpcflowlogs.flowlog.alert_destinations_configured
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    all:
+    - var: item.LogDestinationType
+      op: equals
+      value: cloud-watch-logs
+    - var: item.LogDestination
+      op: exists
+      value: null
+- rule_id: aws.vpcflowlogs.flowlog.log_ids_ips_enabled_if_supported
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    all:
+    - var: item.LogDestinationType
+      op: equals
+      value: cloud-watch-logs
+    - var: item.LogFormat
+      op: exists
+      value: null

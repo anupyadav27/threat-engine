@@ -1,0 +1,73 @@
+{
+  "filename": "loop_boundaries_should_not_be_vulnerable_to_inject_metadata.json",
+  "rule_id": "loop_boundaries_vulnerable_injection",
+  "title": "Loop boundaries should not be vulnerable to injection attacks",
+  "description": "Loop boundary injections occur in an application when the application retrieves data from a user or a third-party service and inserts it into a loop or a function acting as a loop, without sanitizing it first. If an application contains a loop that is vulnerable to injections, it is exposed to attacks that target its availability where that loop is used. A user with malicious intent carefully performs actions whose goal is to cause the loop to run for more iterations than the developer intended, resulting in unexpected behavior or even a crash of the program.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessItems(int count)\n{\n    for (int i = 0; i < count; i++) // Noncompliant: count comes from untrusted source\n    {\n        ProcessItem(i);\n    }\n}"
+    ],
+    "compliant": [
+      "public void ProcessItems(int count)\n{\n    int maxIterations = Math.Min(count, 1000); // Compliant: limit maximum iterations\n    for (int i = 0; i < maxIterations; i++)\n    {\n        ProcessItem(i);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6680"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "for\\s*\\([^;]+;[^<]*<\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+        "exclude_patterns": [
+          "\\.Length",
+          "\\.Count",
+          "Math\\.Min",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Assert\\."
+        ],
+        "source_exclude_patterns": [
+          "Math\\.Min\\s*\\(",
+          "const\\s+int\\s+"
+        ],
+        "context_exclude_patterns": ["\\[Fact\\]", "\\[Test\\]"],
+        "context_lines_to_check": 5
+      }
+    ],
+    "triggering_conditions": "Loop boundary uses untrusted variable without validation (no Math.Min or const)",
+    "exclusion_conditions": [
+      "Loops with Math.Min to limit iterations",
+      "Loops with const boundaries",
+      "Test methods"
+    ],
+    "never_trigger_on": [
+      "Loops with Math.Min(userInput, MAX_VALUE)",
+      "Loops with constant boundaries",
+      "Unit tests with [Test] or Assert"
+    ],
+    "reasoning": "Detects for loops where the boundary condition uses a variable that could come from untrusted sources without proper validation. Excludes cases where Math.Min is used to limit iterations or where constants are used.",
+    "validation_examples": {
+      "should_trigger": [
+        "for (int i = 0; i < count; i++)",
+        "for (int i = 0; i < userInput; i++)"
+      ],
+      "should_not_trigger": [
+        "for (int i = 0; i < Math.Min(count, 1000); i++)",
+        "for (int i = 0; i < MAX_ITEMS; i++)"
+      ]
+    }
+  }
+}

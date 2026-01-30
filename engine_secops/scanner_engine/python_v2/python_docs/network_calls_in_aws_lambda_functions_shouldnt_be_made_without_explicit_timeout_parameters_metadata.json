@@ -1,0 +1,72 @@
+{
+  "rule_id": "network_calls_in_aws_lambda_functions_shouldnt_be_made_without_explicit_timeout_parameters",
+  "title": "Network calls in AWS Lambda functions should not be made without explicit timeout parameters",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "This rule checks for AWS Lambda functions making network calls without explicit timeout parameters.",
+  "message": "AWS Lambda function may have network calls without explicit timeout parameters.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "network",
+    "aws",
+    "lambda",
+    "timeout"
+  ],
+  "impact": "Performance and cost implications",
+  "recommendation": "Add explicit timeout parameters to network calls.",
+  "references": [
+    "https://docs.aws.amazon.com/sdk-for-python/v1/developer-guide/boto3-example-sync-call.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import boto3\nclient = boto3.client('s3')\nclient.get_object(Bucket='mybucket', Key='myfile')",
+        "description": "Lambda function using S3 client without timeout"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import boto3\nclient = boto3.client('s3', config=boto3.session.Config(timeout=60))\nclient.get_object(Bucket='mybucket', Key='myfile')",
+        "description": "Lambda function using S3 client with timeout"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Network calls without explicit timeout parameters can lead to performance and cost issues, as the Lambda function may take longer than necessary.",
+  "how_to_fix": "Add explicit timeout parameters to network calls.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "check_type": "property_comparison",
+    "property_path": [
+      "ast.Call",
+      "func.name",
+      "value"
+    ],
+    "forbidden_values": [
+      "boto3.*",
+      "requests.*",
+      "urllib.*",
+      "httplib.*"
+    ]
+  },
+  "metadata": {
+    "filename": "network_calls_in_aws_lambda_functions_shouldnt_be_made_without_explicit_timeout_parameters.json",
+    "rule_id": "network_calls_in_aws_lambda_functions_shouldnt_be_made_without_explicit_timeout_parameters",
+    "title": "Network calls in AWS Lambda functions should not be made without explicit timeout parameters",
+    "status": "ready",
+    "defaultSeverity": "Major"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "filename": "redundant_modifiers_should_be_avoided_metadata.json",
+  "rule_id": "redundant_modifiers_avoided",
+  "title": "Redundant modifiers should be avoided",
+  "description": "Redundant modifiers should not be usedAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEunusedfindingclumsyWhy is this an issue?Unnecessary keywords simply clutter the code and should be removed. Specifically:partialon type declarations that are completely defined in one placesealedon members ofsealedclassesunsafemethod or block inside construct already marked withunsafe, or when there are nounsafeconstructs in the blockcheckedanduncheckedblocks with no integral-type arithmetic operationsNoncompliant code examplepublic partial class MyClass // Noncompliant { public virtual void Method() { } } public sealed class MyOtherClass : MyClass { public sealed override void Method() // Noncompliant { } }Compliant solutionpublic cla",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public interface IExample\n{\n    public void Method(); // Noncompliant - interface members are public by default\n    public abstract void AbstractMethod(); // Noncompliant\n}",
+      "public sealed class Example\n{\n    public virtual void Method() {} // Noncompliant - sealed class members can't be overridden\n}",
+      "public static class Utilities\n{\n    public static void Method() {} // Noncompliant - static class members are implicitly static\n}"
+    ],
+    "compliant": [
+      "public interface IExample\n{\n    void Method(); // OK - no redundant public modifier\n    void AbstractMethod(); // OK\n}",
+      "public sealed class Example\n{\n    public void Method() {} // OK - no virtual modifier\n}",
+      "public class Utilities\n{\n    public static void Method() {} // OK - not in static class\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2333"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "PropertyDeclaration", "ClassDeclaration", "InterfaceDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(interface\\s+\\w+\\s*\\{[^}]*public\\s+\\w+)|(interface\\s+\\w+\\s*\\{[^}]*abstract\\s+\\w+)|(sealed\\s+class\\s+\\w+\\s*\\{[^}]*virtual\\s+\\w+)|(static\\s+class\\s+\\w+\\s*\\{[^}]*static\\s+\\w+)|(sealed\\s+override)|(public\\s+public)|(static\\s+static)|(abstract\\s+sealed)|(private\\s+protected)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "^\\s*//",
+          "/\\*",
+          "\\*/"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration", "PropertyDeclaration", "ClassDeclaration", "InterfaceDeclaration"],
+    "detection_conditions": "Regex detects redundant or contradictory modifiers in interfaces, sealed/static classes, and duplicate/contradictory modifiers.",
+    "triggering_conditions": "Pattern matches redundant or contradictory modifiers.",
+    "exclusion_conditions": [
+      "Valid modifier combinations (public static, protected virtual)",
+      "Single modifiers without duplication",
+      "Logging statements",
+      "String formatting",
+      "Unit test code",
+      "Comments",
+      "Generated code patterns"
+    ],
+    "never_trigger_on": [
+      "Valid modifier combinations",
+      "Single modifiers",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /**/)",
+      "Generated code",
+      "Attribute declarations",
+      "Interface implementations"
+    ]
+  }
+}

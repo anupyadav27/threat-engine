@@ -1,0 +1,331 @@
+version: '1.0'
+provider: alicloud
+service: analyticdb
+discovery:
+- discovery_id: alicloud.analyticdb.backup
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeBackups
+    params: {}
+    save_as: backup_response
+  emit:
+    items_for: '{ backup_response.Backups.Backup }'
+    as: r
+    item:
+      id: '{{ r.BackupId }}'
+      name: '{{ r.BackupId }}'
+      resource_type: backup
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.analyticdb.cluster
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClusters
+    params: {}
+    save_as: cluster_response
+  emit:
+    items_for: '{ cluster_response.Clusters.Cluster }'
+    as: r
+    item:
+      id: '{{ r.ClusterId }}'
+      name: '{{ r.ClusterId }}'
+      resource_type: cluster
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.analyticdb.cluster_audit_logging_enabled
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClusterAuditLoggingEnableds
+    params: {}
+    save_as: cluster_audit_logging_enabled_response
+  emit:
+    items_for: '{ cluster_audit_logging_enabled_response.ClusterAuditLoggingEnableds.ClusterAuditLoggingEnabled }'
+    as: r
+    item:
+      id: '{{ r.ClusterAuditLoggingEnabledId }}'
+      name: '{{ r.ClusterAuditLoggingEnabledId }}'
+      resource_type: cluster_audit_logging_enabled
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.analyticdb.cluster_automated_snapshot_enabled_30_day_retention
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClusterAutomatedSnapshotEnabled30DayRetentions
+    params: {}
+    save_as: cluster_automated_snapshot_enabled_30_day_retention_response
+  emit:
+    items_for: '{ cluster_automated_snapshot_enabled_30_day_retention_response.ClusterAutomatedSnapshotEnabled30DayRetentions.ClusterAutomatedSnapshotEnabled30DayRetention
+      }'
+    as: r
+    item:
+      id: '{{ r.ClusterAutomatedSnapshotEnabled30DayRetentionId }}'
+      name: '{{ r.ClusterAutomatedSnapshotEnabled30DayRetentionId }}'
+      resource_type: cluster_automated_snapshot_enabled_30_day_retention
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.analyticdb.cluster_public_access_blocked
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeClusterPublicAccessBlockeds
+    params: {}
+    save_as: cluster_public_access_blocked_response
+  emit:
+    items_for: '{ cluster_public_access_blocked_response.ClusterPublicAccessBlockeds.ClusterPublicAccessBlocked }'
+    as: r
+    item:
+      id: '{{ r.ClusterPublicAccessBlockedId }}'
+      name: '{{ r.ClusterPublicAccessBlockedId }}'
+      resource_type: cluster_public_access_blocked
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.analyticdb.backup.enabled
+  title: AnalyticDB for MySQL backup should be enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.analyticdb.backup
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.admin_access_least_privilege
+  title: AnalyticDB for MySQL Cluster Admin Access Should Follow Least Privilege Principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.analyticdb.cluster.audit_logging
+  title: AnalyticDB for MySQL cluster should have audit logging enabled
+  severity: medium
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AU-2_0024
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.audit_logging_enabled
+  title: AnalyticDB for MySQL Cluster Audit Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.automated_snapshot_enabled
+  title: AnalyticDB for MySQL cluster should have automated snapshot enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.automatic_version_upgrades_enabled
+  title: AnalyticDB for MySQL Cluster Should Have Automatic Version Upgrades Enabled
+  severity: low
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CM-2_0042
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.versioning_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.encryption_at_rest_cmek
+  title: AnalyticDB clusters should use customer-managed encryption keys (CMEK) for encryption at rest
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.analyticdb.cluster.encryption_at_rest_enabled
+  title: Ensure AliCloud AnalyticDB for MySQL cluster has encryption at rest enabled
+  severity: high
+  assertion_id: iso27001_2022_multi_cloud_A.8.24_0080
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.encryption_in_transit_enabled
+  title: AnalyticDB for MySQL cluster should have encryption in transit enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.enhanced_vpc_routing_enabled
+  title: AnalyticDB for PostgreSQL cluster should have Enhanced VPC Routing enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.analyticdb.cluster.maintenance_window_configured
+  title: AnalyticDB for MySQL Cluster Should Have Maintenance Window Configured
+  severity: low
+  assertion_id: cisa_ce_v1_multi_cloud_Booting_Up-3_0011
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.analyticdb.cluster.multi_az_enabled_with_encryption_at_rest_enabled
+  title: AnalyticDB for MySQL clusters should have multi-AZ deployment enabled with encryption at rest
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.private_networking_enforced
+  title: AnalyticDB for MySQL Cluster Should Enforce Private Networking
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.analyticdb.cluster.public_access
+  title: AnalyticDB for MySQL cluster should not have public access enabled
+  severity: high
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_AC-17_0013
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.analyticdb.cluster.public_access_blocked
+  title: AnalyticDB for MySQL Cluster Should Block Public Access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+    - var: item.security_group_rules
+      op: not_contains
+      value: 0.0.0.0/0:3306
+- rule_id: alicloud.analyticdb.cluster.security_configuration_baseline_enforced
+  title: AnalyticDB for MySQL Cluster Security Configuration Baseline Enforced
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.analyticdb.cluster.snapshot_automated_enabled
+  title: AnalyticDB for MySQL cluster should have automated snapshot enabled
+  severity: low
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_CP-6_0056
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster.tls_min_1_2_enforced
+  title: AnalyticDB for MySQL Cluster Should Enforce TLS Version 1.2 or Higher
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster
+  params: {}
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster_audit_logging_enabled.configured
+  title: AnalyticDB for MySQL cluster audit logging should be configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster_audit_logging_enabled
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster_automated_snapshot_enabled_30_day_retention.configured
+  title: AnalyticDB for MySQL cluster automated snapshot enabled with 30-day retention configured
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster_automated_snapshot_enabled_30_day_retention
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.analyticdb.cluster_public_access_blocked.configured
+  title: AnalyticDB for MySQL Cluster Public Access Should Be Blocked
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.analyticdb.cluster_public_access_blocked
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+    - var: item.security_group_rules
+      op: not_contains
+      value: 0.0.0.0/0:3306

@@ -1,0 +1,74 @@
+version: '1.0'
+provider: aws
+service: mediapackage-vod
+services:
+  client: mediapackage-vod
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediapackage-vod.list_packaging_configurations
+  calls:
+  - action: list_packaging_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PackagingConfigurations }}'
+- discovery_id: aws.mediapackage-vod.list_assets
+  calls:
+  - action: list_assets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Assets }}'
+- discovery_id: aws.mediapackage-vod.list_packaging_groups
+  calls:
+  - action: list_packaging_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PackagingGroups }}'
+- discovery_id: aws.mediapackage-vod.describe_packaging_configuration
+  for_each: aws.mediapackage-vod.list_packaging_configurations
+  calls:
+  - action: describe_packaging_configuration
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.assetId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CmafPackage }}'
+- discovery_id: aws.mediapackage-vod.describe_asset
+  for_each: aws.mediapackage-vod.list_packaging_configurations
+  calls:
+  - action: describe_asset
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.assetId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EgressEndpoints }}'
+- discovery_id: aws.mediapackage-vod.describe_packaging_group
+  for_each: aws.mediapackage-vod.list_packaging_configurations
+  calls:
+  - action: describe_packaging_group
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.assetId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Authorization }}'
+checks: []

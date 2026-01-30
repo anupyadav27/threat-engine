@@ -1,0 +1,96 @@
+{
+  "filename": "using_host_operating_system_namespaces_is_security_metadata.json",
+  "rule_id": "using_host_operating_system",
+  "title": "Using host operating system namespaces is security-sensitive",
+  "description": "Using host operating system namespaces is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotdockercweUsing host operating system namespaces can lead to compromise of the host systems.These attacks would target:host processeshost inter-process communication (IPC) mechanismsnetwork services of the local host systemThese three items likely include systems that support either the internal operation of the Kubernetes cluster or the enterprise’s internal infrastructure.Opening these points to containers opens new attack surfaces for attackers who have already successfully exploited services exposed by containers. Depending on how resilient the cluster is, attackers can extend their attack to the cluster by compromising the nodes from which the cluster started the",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "- name: Create a Pod\n  kubernetes.core.k8s:\n    state: present\n    definition:\n      apiVersion: v1\n      kind: Pod\n      metadata:\n        name: example\n      spec:\n        containers:\n          - name: web\n            image: nginx\n            ports:\n              - name: web\n                containerPort: 80\n                protocol: TCP\n        hostPID: true     # Sensitive\n        hostIPC: true     # Sensitive\n        hostNetwork: true # Sensitive"
+    ],
+    "compliant": [
+      "- name: Create a Pod\n  kubernetes.core.k8s:\n    state: present\n    definition:\n      apiVersion: v1\n      kind: Pod\n      metadata:\n        name: example\n      spec:\n        containers:\n          - name: web\n            image: nginx\n            ports:\n              - name: web\n                containerPort: 80\n                protocol: TCP\n        hostPID: false\n        hostIPC: false\n        hostNetwork: false"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/ansible/RSPEC-6431"
+  ],
+  "logic": {
+    "node_types": ["task", "docker_container", "kubernetes"],
+    "checks": [
+      {
+        "type": "property_comparison",
+        "property_path": ["module"],
+        "operator": "in_list",
+        "value": ["k8s", "kubernetes.core.k8s", "community.kubernetes.k8s"],
+        "message": "Kubernetes resource configuration - verify host namespaces are not enabled"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "hostPID:\\s*true",
+          "hostPID:\\s*True",
+          "hostPID:\\s*yes"
+        ],
+        "message": "hostPID: true grants access to host process namespace - security risk"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "hostIPC:\\s*true",
+          "hostIPC:\\s*True",
+          "hostIPC:\\s*yes"
+        ],
+        "message": "hostIPC: true grants access to host IPC namespace - security risk"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "hostNetwork:\\s*true",
+          "hostNetwork:\\s*True",
+          "hostNetwork:\\s*yes"
+        ],
+        "message": "hostNetwork: true grants access to host network namespace - security risk"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "network_mode:\\s*[\"']?host[\"']?",
+          "network_mode:\\s*[\"']?Host[\"']?"
+        ],
+        "message": "network_mode: host grants access to host network namespace - security risk"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "pid_mode:\\s*[\"']?host[\"']?",
+          "pid_mode:\\s*[\"']?Host[\"']?"
+        ],
+        "message": "pid_mode: host grants access to host process namespace - security risk"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["parent_source"],
+        "patterns": [
+          "ipc_mode:\\s*[\"']?host[\"']?",
+          "ipc_mode:\\s*[\"']?Host[\"']?"
+        ],
+        "message": "ipc_mode: host grants access to host IPC namespace - security risk"
+      }
+    ]
+  }
+}

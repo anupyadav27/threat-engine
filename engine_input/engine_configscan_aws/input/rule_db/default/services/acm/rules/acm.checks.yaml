@@ -1,0 +1,127 @@
+version: '1.0'
+provider: aws
+service: acm
+checks:
+- rule_id: aws.acm.certificate.expiration_monitored
+  for_each: aws.acm.get_account_configuration
+  conditions:
+    var: item.DaysBeforeExpiry
+    op: exists
+    value: null
+- rule_id: aws.acm.certificate.key_length_minimum
+  for_each: aws.acm.list_certificates
+  conditions:
+    var: item.KeyAlgorithm
+    op: in
+    value:
+    - RSA_2048
+    - RSA_3072
+    - RSA_4096
+    - EC_prime256v1
+    - EC_secp384r1
+    - EC_secp521r1
+- rule_id: aws.acm.certificate.mtls_required_for_internal_services_if_supported
+  for_each: aws.acm.describe_certificate
+  conditions:
+    var: item.Certificate.Options
+    op: exists
+    value: null
+- rule_id: aws.acm.certificate.tls_min_1_2_enforced
+  for_each: aws.acm.describe_certificate
+  conditions:
+    var: item.Certificate.Options
+    op: equals
+    value: TLS_1_2
+- rule_id: aws.acm.certificate.trusted_issuer_verified
+  for_each: aws.acm.describe_certificate
+  conditions:
+    var: item.Certificate.Issuer
+    op: exists
+    value: null
+- rule_id: aws.acm.certificate.valid
+  for_each: aws.acm.list_certificates
+  conditions:
+    all:
+    - var: item.Status
+      op: equals
+      value: ISSUED
+    - var: item.NotAfter
+      op: exists
+      value: null
+- rule_id: aws.acm.certificates.certificate_expiration_monitored
+  for_each: aws.acm.get_account_configuration
+  conditions:
+    var: item.DaysBeforeExpiry
+    op: exists
+    value: null
+- rule_id: aws.acm.privateca.ca_access_rbac_least_privilege
+  for_each: aws.acm.describe_certificate
+  conditions:
+    all:
+    - var: item.Certificate.CertificateAuthorityArn
+      op: exists
+      value: null
+    - var: item.Certificate.Status
+      op: equals
+      value: ISSUED
+    - var: item.Certificate.InUseBy
+      op: exists
+      value: null
+- rule_id: aws.acm.privateca.ca_certificate_crl_or_ocsp_configured
+  for_each: aws.acm.describe_certificate
+  conditions:
+    any:
+    - var: item.Certificate.CertificateAuthorityArn
+      op: exists
+      value: null
+    - var: item.Certificate.Status
+      op: equals
+      value: ISSUED
+- rule_id: aws.acm.privateca.ca_certificate_path_length_constraints_configured
+  for_each: aws.acm.list_certificates
+  conditions:
+    var: item.CertificateAuthorityArn
+    op: exists
+    value: null
+- rule_id: aws.acm.privateca.ca_certificate_trusted_issuer_verified
+  for_each: aws.acm.describe_certificate
+  conditions:
+    all:
+    - var: item.Certificate.Issuer
+      op: exists
+      value: null
+    - var: item.Certificate.CertificateAuthorityArn
+      op: exists
+      value: null
+- rule_id: aws.acm.privateca.ca_certificate_valid
+  for_each: aws.acm.list_certificates
+  conditions:
+    all:
+    - var: item.NotAfter
+      op: exists
+      value: null
+    - var: item.Status
+      op: equals
+      value: ISSUED
+- rule_id: aws.acm.privateca.ca_key_in_hsm_enabled_if_supported
+  for_each: aws.acm.list_certificates
+  conditions:
+    all:
+    - var: item.KeyAlgorithm
+      op: equals
+      value: RSA_2048
+    - var: item.CertificateAuthorityArn
+      op: exists
+      value: null
+- rule_id: aws.acm.privateca.key_length_minimum
+  for_each: aws.acm.list_certificates
+  conditions:
+    var: item.KeyAlgorithm
+    op: in
+    value:
+    - RSA_2048
+    - RSA_3072
+    - RSA_4096
+    - EC_prime256v1
+    - EC_secp384r1
+    - EC_secp521r1

@@ -1,0 +1,75 @@
+{
+  "filename": "server_side_requests_should_not_be_vulnerable_to_t_metadata.json",
+  "rule_id": "serverside_requests_vulnerable_traversing",
+  "title": "Server-side requests should not be vulnerable to traversing attacks",
+  "description": "Path Traversal Server-Side Request Forgery is a sub-class of Server-Side Request Forgery (SSRF). In this type of attack, the attacker manipulates the path of the URL in the server-side request, rather than controlling the entire URL. This can lead to unauthorized access to endpoints or data by altering the request path.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Path traversal in URL construction\n[HttpGet(\"api/{path}\")]\npublic async Task<string> GetApiData(string path)\n{\n    var baseUrl = \"https://internal-api.com/\";\n    // Vulnerable: ../../admin/secrets\n    var fullUrl = $\"{baseUrl}{path}\";\n    return await new HttpClient().GetStringAsync(fullUrl);\n}",
+      "// Direct path concatenation\npublic async Task<string> FetchFile(string fileName)\n{\n    var apiEndpoint = $\"https://fileserver.com/files/{fileName}\";\n    // Vulnerable: ../../../etc/passwd\n    return await new HttpClient().GetStringAsync(apiEndpoint);\n}",
+      "// Unvalidated relative paths\npublic async Task<IActionResult> DownloadDocument(string documentPath)\n{\n    var url = $\"https://docs.internal/{documentPath}\";\n    var response = await new HttpClient().GetAsync(url);\n    return File(await response.Content.ReadAsStreamAsync(), \"application/pdf\");\n}"
+    ],
+    "compliant": [
+      "// Path validation and sanitization\n[HttpGet(\"api/{path}\")]\npublic async Task<string> GetApiData(string path)\n{\n    // Validate path doesn't contain traversal sequences\n    if (path.Contains(\"..\") || path.Contains(\"/\") || path.Contains(\"\\\"))\n    {\n        throw new ArgumentException(\"Invalid path\");\n    }\n    \n    var allowedPaths = new[] { \"users\", \"products\", \"orders\" };\n    if (!allowedPaths.Contains(path))\n    {\n        throw new ArgumentException(\"Path not allowed\");\n    }\n    \n    var baseUrl = \"https://internal-api.com/\";\n    var fullUrl = $\"{baseUrl}{path}\";\n    return await new HttpClient().GetStringAsync(fullUrl);\n}",
+      "// Using Path.GetFileName to prevent traversal\npublic async Task<string> FetchFile(string fileName)\n{\n    // Extract only the filename, removing any path components\n    var safeName = Path.GetFileName(fileName);\n    \n    // Additional validation\n    if (string.IsNullOrEmpty(safeName) || safeName.Contains('.'))\n    {\n        throw new ArgumentException(\"Invalid filename\");\n    }\n    \n    var apiEndpoint = $\"https://fileserver.com/files/{safeName}\";\n    return await new HttpClient().GetStringAsync(apiEndpoint);\n}",
+      "// Allowlist approach for documents\npublic async Task<IActionResult> DownloadDocument(string documentId)\n{\n    var allowedDocuments = new Dictionary<string, string>\n    {\n        [\"report1\"] = \"reports/monthly-summary.pdf\",\n        [\"guide1\"] = \"guides/user-manual.pdf\"\n    };\n    \n    if (!allowedDocuments.TryGetValue(documentId, out var documentPath))\n    {\n        return NotFound();\n    }\n    \n    var url = $\"https://docs.internal/{documentPath}\";\n    var response = await new HttpClient().GetAsync(url);\n    return File(await response.Content.ReadAsStreamAsync(), \"application/pdf\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-7044"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_path_traversal_vulnerabilities"
+      }
+    ],
+    "triggering_conditions": {
+      "description": "URL construction using string interpolation, concatenation, or formatting with user input AND no path validation/sanitization",
+      "logic": "Custom function detects vulnerable URL construction patterns and checks for mitigation"
+    },
+    "exclusion_conditions": [
+      {
+        "description": "Logging, testing, comments, ToString methods, and methods with path validation",
+        "handled_by": "Custom function with comprehensive exclusion logic"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting in logs ($\"\", string.Format for display)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /*/, ///)",
+      "ToString() implementations",
+      "Hard-coded URLs without user input",
+      "Configuration-based URLs (ConfigurationManager.AppSettings)",
+      "Methods with explicit path validation (Contains(\"..\"), Path.GetFileName)",
+      "Allowlist-based approaches (Dictionary.TryGetValue, allowedPaths)"
+    ],
+    "reasoning": "Detects server-side request forgery (SSRF) path traversal vulnerabilities by identifying URL construction patterns that concatenate user input without validation. Focuses on HTTP client calls with string interpolation, Format, or concatenation. Excludes safe patterns like Path.GetFileName, allowlist validation, and traversal sequence checks. Prevents false positives in logging, testing, and properly validated code.",
+    "validation_examples": {
+      "should_trigger": [
+        "var url = $\"https://api.com/{userPath}\";\nreturn await new HttpClient().GetStringAsync(url);",
+        "var endpoint = string.Format(\"https://files.com/{0}\", fileName);\nreturn await client.GetAsync(endpoint);",
+        "var fullUrl = \"https://docs.internal/\" + documentPath;\nvar response = await httpClient.GetAsync(fullUrl);"
+      ],
+      "should_not_trigger": [
+        "if (path.Contains(\"..\")) throw new Exception();\nvar url = $\"https://api.com/{path}\";",
+        "var safeName = Path.GetFileName(fileName);\nvar url = $\"https://files.com/{safeName}\";",
+        "Console.WriteLine($\"Calling https://api.com/{userInput}\");",
+        "var url = \"https://api.com/status\"; // Hard-coded, no user input"
+      ]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+# Init threat-engine DBs on NEW RDS only. Do not use for vulnerability DB.
+# 1. Create secret: kubectl create secret generic threat-engine-rds-credentials -n threat-engine-engines \
+#      --from-literal=RDS_HOST=<new-rds-endpoint> --from-literal=RDS_PORT=5432 \
+#      --from-literal=RDS_SUPERUSER=postgres --from-literal=RDS_SUPERUSER_PASSWORD='<password>'
+# 2. Build image from repo root: docker build -f deployment/aws/eks/jobs/Dockerfile.dbinit -t <registry>/threat-engine-db-init:latest .
+# 3. Push and set image below, then: kubectl apply -f deployment/aws/eks/jobs/init-threat-engine-databases-job.yaml -n threat-engine-engines
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-threat-engine-databases
+  namespace: threat-engine-engines
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-init
+          image: YOUR_REGISTRY/threat-engine-db-init:latest
+          env:
+            - name: RDS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-rds-credentials
+                  key: RDS_HOST
+            - name: RDS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-rds-credentials
+                  key: RDS_PORT
+            - name: RDS_SUPERUSER
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-rds-credentials
+                  key: RDS_SUPERUSER
+            - name: RDS_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-rds-credentials
+                  key: RDS_SUPERUSER_PASSWORD
+            - name: PGSSLMODE
+              value: "require"
+      imagePullSecrets: []
+  # Uncomment if using private registry:
+  # imagePullSecrets:
+  #   - name: registry-credentials

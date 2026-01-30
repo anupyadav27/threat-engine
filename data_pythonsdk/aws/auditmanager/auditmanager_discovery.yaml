@@ -1,0 +1,176 @@
+version: '1.0'
+provider: aws
+service: auditmanager
+services:
+  client: auditmanager
+  module: boto3.client
+discovery:
+- discovery_id: aws.auditmanager.list_notifications
+  calls:
+  - action: list_notifications
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.notifications }}'
+- discovery_id: aws.auditmanager.get_delegations
+  calls:
+  - action: get_delegations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.delegations }}'
+- discovery_id: aws.auditmanager.list_assessment_reports
+  calls:
+  - action: list_assessment_reports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assessmentReports }}'
+- discovery_id: aws.auditmanager.list_assessments
+  calls:
+  - action: list_assessments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assessmentMetadata }}'
+- discovery_id: aws.auditmanager.get_insights
+  calls:
+  - action: get_insights
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.insights }}'
+- discovery_id: aws.auditmanager.list_control_domain_insights
+  calls:
+  - action: list_control_domain_insights
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.controlDomainInsights }}'
+- discovery_id: aws.auditmanager.get_services_in_scope
+  calls:
+  - action: get_services_in_scope
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.serviceMetadata }}'
+- discovery_id: aws.auditmanager.get_organization_admin_account
+  calls:
+  - action: get_organization_admin_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.adminAccountId }}'
+- discovery_id: aws.auditmanager.get_evidence_folders_by_assessment
+  for_each: aws.auditmanager.list_notifications
+  calls:
+  - action: get_evidence_folders_by_assessment
+    save_as: response
+    on_error: continue
+    params:
+      assessmentId: '{{ item.delegationAssessmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.evidenceFolders }}'
+- discovery_id: aws.auditmanager.get_control
+  for_each: aws.auditmanager.get_evidence_folders_by_assessment
+  calls:
+  - action: get_control
+    save_as: response
+    on_error: continue
+    params:
+      controlId: '{{ item.evidenceFolderControlId }}'
+  emit:
+    as: item
+    items_for: '{{ response.control }}'
+- discovery_id: aws.auditmanager.list_assessment_framework_share_requests
+  calls:
+  - action: list_assessment_framework_share_requests
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assessmentFrameworkShareRequests }}'
+- discovery_id: aws.auditmanager.get_settings
+  calls:
+  - action: get_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.settings }}'
+- discovery_id: aws.auditmanager.get_assessment
+  for_each: aws.auditmanager.list_notifications
+  calls:
+  - action: get_assessment
+    save_as: response
+    on_error: continue
+    params:
+      assessmentId: '{{ item.delegationAssessmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.assessment }}'
+- discovery_id: aws.auditmanager.list_assessment_frameworks
+  for_each: aws.auditmanager.get_control
+  calls:
+  - action: list_assessment_frameworks
+    save_as: response
+    on_error: continue
+    params:
+      frameworkType: '{{ item.frameworkType }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.frameworkMetadataList }}'
+- discovery_id: aws.auditmanager.get_change_logs
+  for_each: aws.auditmanager.list_notifications
+  calls:
+  - action: get_change_logs
+    save_as: response
+    on_error: continue
+    params:
+      assessmentId: '{{ item.delegationAssessmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.changeLogs }}'
+- discovery_id: aws.auditmanager.get_assessment_report_url
+  for_each: aws.auditmanager.list_notifications
+  calls:
+  - action: get_assessment_report_url
+    save_as: response
+    on_error: continue
+    params:
+      assessmentReportId: '{{ item.delegationAssessmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.preSignedUrl }}'
+- discovery_id: aws.auditmanager.get_assessment_framework
+  for_each: aws.auditmanager.list_assessment_framework_share_requests
+  calls:
+  - action: get_assessment_framework
+    save_as: response
+    on_error: continue
+    params:
+      frameworkId: '{{ item.assessmentFrameworkShareRequestFrameworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.framework }}'
+checks: []

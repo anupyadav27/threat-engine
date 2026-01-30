@@ -1,0 +1,39 @@
+{
+  "filename": "methods_should_avoid_having_too_many_parameters_metadata.json",
+  "rule_id": "methods_avoid_having_too",
+  "title": "Methods should avoid having too many parameters",
+  "description": "Methods should not have too many parametersAnalyze your codeadaptability-focusedmaintainabilityCode Smellbrain-overloadWhy is this an issue?Methods with a long parameter list are difficult to use because maintainers must figure out the role of each parameter and keep track of their position.void SetCoordinates(int x1, int y1, int z1, int x2, int y2, int z2) // Noncompliant { // ... }The solution can be to:Split the method into smaller ones// Each function does a part of what the original setCoordinates function was doing, so confusion risks are lower void SetOrigin(int x, int y, int z) { // ... } void SetSize(int width, int height, int depth) { // }Find a better data structure for the parameters that group data in a way that makes sense for the specific application domain// In geometry, Po",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void CreateUser(string firstName, string lastName, string email, string phone, DateTime birthDate, string address, string city, string zipCode, string country) // Noncompliant: too many parameters\n{\n    // Implementation\n}",
+      "public void ConfigureService(string host, int port, string username, string password, bool useSSL, int timeout, int retries, string logLevel) // Noncompliant: 8 parameters\n{\n    // Configuration logic\n}"
+    ],
+    "compliant": [
+      "public class UserInfo\n{\n    public string FirstName { get; set; }\n    public string LastName { get; set; }\n    public string Email { get; set; }\n    public DateTime BirthDate { get; set; }\n}\n\npublic class Address\n{\n    public string Street { get; set; }\n    public string City { get; set; }\n    public string ZipCode { get; set; }\n}\n\npublic void CreateUser(UserInfo userInfo, Address address) // Compliant: grouped parameters\n{\n    // Implementation\n}",
+      "public class ServiceConfiguration\n{\n    public string Host { get; set; }\n    public int Port { get; set; }\n    public string Username { get; set; }\n    public bool UseSSL { get; set; }\n}\n\npublic void ConfigureService(ServiceConfiguration config) // Compliant: single parameter object\n{\n    // Configuration logic\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-107"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ConstructorDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_methods_avoid_too_many_parameters",
+        "description": "Check for methods and constructors that have too many parameters (>6)"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+version: '1.0'
+provider: aws
+service: opensearchserverless
+services:
+  client: opensearchserverless
+  module: boto3.client
+discovery:
+- discovery_id: aws.opensearchserverless.get_policies_stats
+  calls:
+  - action: get_policies_stats
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AccessPolicyStats }}'
+- discovery_id: aws.opensearchserverless.list_collections
+  calls:
+  - action: list_collections
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.collectionSummaries }}'
+- discovery_id: aws.opensearchserverless.get_account_settings
+  calls:
+  - action: get_account_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountSettingsDetail }}'
+- discovery_id: aws.opensearchserverless.get_security_config
+  for_each: aws.opensearchserverless.list_collections
+  calls:
+  - action: get_security_config
+    save_as: response
+    on_error: continue
+    params:
+      id: '{{ item.collectionSummaryId }}'
+  emit:
+    as: item
+    items_for: '{{ response.securityConfigDetail }}'
+- discovery_id: aws.opensearchserverless.get_access_policy
+  for_each: aws.opensearchserverless.get_security_config
+  calls:
+  - action: get_access_policy
+    save_as: response
+    on_error: continue
+    params:
+      type: '{{ item.collectionSummaryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.accessPolicyDetail }}'
+- discovery_id: aws.opensearchserverless.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

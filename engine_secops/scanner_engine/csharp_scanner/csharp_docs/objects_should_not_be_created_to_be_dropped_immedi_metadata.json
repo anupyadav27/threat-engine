@@ -1,0 +1,78 @@
+{
+  "filename": "objects_should_not_be_created_to_be_dropped_immedi_metadata.json",
+  "rule_id": "objects_created_dropped_immediately",
+  "title": "Objects should not be created to be dropped immediately without being used",
+  "description": "Objects should not be created to be dropped immediately without being usedAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?How can I fix it?Creating objects that are not used is a vulnerability that can lead to unexpected behavior.If this was done intentionally due to side effects in the object’s constructor, the code should be moved to a dedicated method.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "new MyClass(); // Noncompliant: object created but not used\n\npublic void Method()\n{\n    new StringBuilder(); // Noncompliant: created but never referenced\n}"
+    ],
+    "compliant": [
+      "var myObj = new MyClass(); // Compliant: object is assigned and can be used\nmyObj.DoSomething();\n\n// If constructor has side effects, extract to method:\npublic void InitializeLogging()\n{\n    // Move side effect logic here instead of relying on constructor\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1848"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "new\\s+\\w+\\s*\\([^)]*\\)\\s*;",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "//.*new",
+          "/\\*.*new.*\\*/",
+          "=\\s*new",
+          "return\\s+new",
+          "new\\s+\\w+\\s*\\([^)]*\\)\\.",
+          "\\(new\\s+\\w+",
+          "=>\\s*new",
+          "yield\\s+return\\s+new"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Test methods ([Test], [Fact])",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Comments (//, /*, ///)",
+      "Object assignments (var x = new Class())",
+      "Method chaining (new Class().Method())",
+      "Return statements (return new Class())",
+      "Constructor parameters (method(new Class()))",
+      "Expression bodied members (=> new Class())",
+      "Yield returns (yield return new Class())"
+    ],
+    "reasoning": "Detects object instantiation statements that create objects but don't assign them to variables or use them immediately. Uses MethodDeclaration nodes to find standalone 'new Class();' statements. Excludes assignments, method chaining, return statements, constructor parameters, and test contexts where unused object creation might be intentional.",
+    "validation_examples": {
+      "should_trigger": [
+        "new MyClass();",
+        "new StringBuilder();",
+        "new List<int>();"
+      ],
+      "should_not_trigger": [
+        "var obj = new MyClass();",
+        "new StringBuilder().Append(\"text\");",
+        "return new MyClass();",
+        "Method(new MyClass());",
+        "[Test] public void Test() { new MyClass(); }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+version: '1.0'
+provider: aws
+service: elbv2
+services:
+  client: elbv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.elbv2.describe_listeners
+  for_each: aws.elbv2.describe_load_balancers
+  calls:
+  - action: describe_listeners
+    params:
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.Listeners }}'
+    as: item
+    item:
+      ListenerArn: '{{ item.ListenerArn }}'
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+      Port: '{{ item.Port }}'
+      Protocol: '{{ item.Protocol }}'
+      Certificates: '{{ item.Certificates }}'
+      SslPolicy: '{{ item.SslPolicy }}'
+      DefaultActions: '{{ item.DefaultActions }}'
+      AlpnPolicy: '{{ item.AlpnPolicy }}'
+      MutualAuthentication: '{{ item.MutualAuthentication }}'
+- discovery_id: aws.elbv2.describe_load_balancer_attributes
+  for_each: aws.elbv2.describe_load_balancers
+  calls:
+  - action: describe_load_balancer_attributes
+    params:
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.Attributes }}'
+    as: item
+    item:
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+- discovery_id: aws.elbv2.describe_load_balancers
+  calls:
+  - action: describe_load_balancers
+    save_as: response
+  emit:
+    items_for: '{{ response.LoadBalancers }}'
+    as: item
+    item:
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+      DNSName: '{{ item.DNSName }}'
+      CanonicalHostedZoneId: '{{ item.CanonicalHostedZoneId }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+      Scheme: '{{ item.Scheme }}'
+      VpcId: '{{ item.VpcId }}'
+      State: '{{ item.State }}'
+      Type: '{{ item.Type }}'
+      AvailabilityZones: '{{ item.AvailabilityZones }}'
+      SecurityGroups: '{{ item.SecurityGroups }}'
+      IpAddressType: '{{ item.IpAddressType }}'
+      CustomerOwnedIpv4Pool: '{{ item.CustomerOwnedIpv4Pool }}'
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ item.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic
+        }}'
+      EnablePrefixForIpv6SourceNat: '{{ item.EnablePrefixForIpv6SourceNat }}'
+      IpamPools: '{{ item.IpamPools }}'
+- discovery_id: aws.elbv2.describe_target_groups
+  calls:
+  - action: describe_target_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.TargetGroups }}'
+    as: item
+    item:
+      TargetGroupArn: '{{ item.TargetGroupArn }}'
+      TargetGroupName: '{{ item.TargetGroupName }}'
+      Protocol: '{{ item.Protocol }}'
+      Port: '{{ item.Port }}'
+      VpcId: '{{ item.VpcId }}'
+      HealthCheckProtocol: '{{ item.HealthCheckProtocol }}'
+      HealthCheckPort: '{{ item.HealthCheckPort }}'
+      HealthCheckEnabled: '{{ item.HealthCheckEnabled }}'
+      HealthCheckIntervalSeconds: '{{ item.HealthCheckIntervalSeconds }}'
+      HealthCheckTimeoutSeconds: '{{ item.HealthCheckTimeoutSeconds }}'
+      HealthyThresholdCount: '{{ item.HealthyThresholdCount }}'
+      UnhealthyThresholdCount: '{{ item.UnhealthyThresholdCount }}'
+      HealthCheckPath: '{{ item.HealthCheckPath }}'
+      Matcher: '{{ item.Matcher }}'
+      LoadBalancerArns: '{{ item.LoadBalancerArns }}'
+      TargetType: '{{ item.TargetType }}'
+      ProtocolVersion: '{{ item.ProtocolVersion }}'
+      IpAddressType: '{{ item.IpAddressType }}'

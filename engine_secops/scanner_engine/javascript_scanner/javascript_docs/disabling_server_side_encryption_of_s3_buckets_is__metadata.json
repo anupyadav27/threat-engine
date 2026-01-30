@@ -1,0 +1,41 @@
+{
+  "filename": "disabling_server_side_encryption_of_s3_buckets_is__metadata.json",
+  "rule_id": "disabling_serverside_encryption_s3",
+  "title": "Disabling server-side encryption of S3 buckets is security-sensitive",
+  "description": "Server-side encryption (SSE) encrypts an object (not the metadata) as it is written to disk (where the S3 bucket resides) and decrypts it as it is read from disk. This doesn\u2019t change the way the objects are accessed, as long as the user has the necessary permissions, objects are retrieved as if they were unencrypted. Thus, SSE only helps in the event of disk thefts, improper disposals of disks and other attacks on the AWS infrastructure itself.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const s3 = require('aws-cdk-lib/aws-s3');\n\nnew s3.Bucket(this, 'id', {\n    bucketName: 'default'\n}); // Sensitive"
+    ],
+    "compliant": [
+      "const s3 = require('aws-cdk-lib/aws-s3');\n\nnew s3.Bucket(this, 'id', {\n    encryption: s3.BucketEncryption.KMS_MANAGED\n});\n\n# Alternatively with a KMS key managed by the user.\n\nnew s3.Bucket(this, 'id', {\n    encryption: s3.BucketEncryption.KMS_MANAGED,\n    encryptionKey: access_key\n});"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6245"
+  ],
+  "logic": {
+    "node_types": [
+      "NewExpression",
+      "VariableDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_s3_encryption_disabled",
+        "message": "S3 bucket created without encryption configuration - consider adding encryption settings"
+      }
+    ]
+  }
+}

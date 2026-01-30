@@ -1,0 +1,54 @@
+{
+  "filename": "method_overloads_with_default_parameter_values_sho_metadata.json",
+  "rule_id": "method_overloads_default_parameter",
+  "title": "Method overloads with default parameter values should not overlap",
+  "description": "Method overloads with default parameter values should not overlapAnalyze your codeintentionality-clearmaintainabilityCode SmellunusedpitfallWhy is this an issue?How can I fix it?More InfoThe rules for method resolution can be complex and may not be fully understood by all developers. The situation becomes even more challenging when dealing with method overloads that have optional parameter values.This rule raises an issue when an overload with default parameter values is hidden by another overload that does not have the optional parameters.What is the potential impact?See the following example:MyClass.Print(1); // which overload of Print will be called? public static class MyClass { public static void Print(int number) { } public static void Print(int number, string delimiter = \"\\n\") { } /",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "MyClass.Print(1);  // which overload of Print will be called?\n\npublic static class MyClass\n{\n    public static void Print(int number) { }\n    public static void Print(int number, string delimiter = \"\\n\") { } // Noncompliant: default parameter hidden by overload\n}"
+    ],
+    "compliant": [
+      "public static class MyClass\n{\n    public static void Print(int number)\n    {\n        Print(number, \"\\n\"); // Delegate to the more specific overload\n    }\n\n    public static void Print(int number, string delimiter)\n    {\n        Console.Write(number);\n        Console.Write(delimiter);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3427"
+  ],
+  "logic": {
+    "custom_function": "check_method_overloads_default_parameter",
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "never_trigger_on": [
+      "Logging: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"\", string.Format",
+      "Unit tests: [Test], [Fact], [TestFixture], [TestClass], Assert.*",
+      "Comments: //, /*, ///",
+      "Overloads with different parameter types that don't hide each other",
+      "Methods with different names (not overloads)"
+    ],
+    "reasoning": "This rule uses a custom function that performs semantic analysis to detect method overloads where a default parameter is hidden by a simpler overload. The function: 1) Parses all methods within each class and groups them by name (overloads). 2) For each method with default parameters, identifies the 'required' parameter signature (parameters before the first default). 3) Checks if there's another overload that exactly matches this required signature. 4) Only flags violations when a simpler overload would hide the default parameters. 5) Properly compares parameter types to avoid false positives when parameter types differ. 6) Excludes test classes and methods with [Test], [Fact], [TestFixture], etc.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class MyClass\n{\n    public void Print(int number) { }\n    public void Print(int number, string delimiter = \"\\n\") { }\n}",
+        "class Service\n{\n    void Process(int x) { }\n    void Process(int x, bool flag = true) { }\n}"
+      ],
+      "should_not_trigger": [
+        "public class MyClass\n{\n    public void Print(int number, string delimiter)\n    {\n        Console.Write(number);\n        Console.Write(delimiter);\n    }\n}",
+        "class Service\n{\n    void Process(int x, bool flag) { }\n    void Execute(int x, bool flag = true) { }\n}",
+        "class Different\n{\n    void Handle(int id) { }\n    void Handle(string name, int timeout = 30) { }\n}",
+        "[TestFixture]\npublic class TestClass\n{\n    void Method(int x) { }\n    void Method(int x, string y = \"test\") { }\n}"
+      ]
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "filename": "systemuri_arguments_should_be_preferred_instead_of_metadata.json",
+  "rule_id": "systemuri_arguments_preferred_instead",
+  "title": "System.Uri arguments should be preferred instead of strings",
+  "description": "\"System.Uri\" arguments should be used instead of stringsAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?String representations of URIs or URLs are prone to parsing and encoding errors which can lead to vulnerabilities. TheSystem.Uriclass is a safe alternative and should be preferred.This rule raises an issue when a called method has a string parameter with a name containing \"uri\", \"Uri\", \"urn\", \"Urn\", \"url\" or \"Url\" and the declaring type contains a corresponding overload that takes aSystem.Urias a parameter.When there is a choice between two overloads that differ only regarding the representation of a URI, the user should choose the overload that takes aSystem.Uriargument.Noncompliant code exampleusing System; namespace MyLibrary { public class Foo {",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo\n{\n    public void FetchResource(string uriString) { }\n    public void FetchResource(Uri uri) { }\n}\n\npublic class Bar\n{\n    public void DoSomething()\n    {\n        var foo = new Foo();\n        foo.FetchResource(\"http://example.com\"); // Noncompliant - string overload called when Uri overload exists\n    }\n}"
+    ],
+    "compliant": [
+      "public class Foo\n{\n    public void FetchResource(string uriString) { }\n    public void FetchResource(Uri uri) { }\n}\n\npublic class Bar\n{\n    public void DoSomething()\n    {\n        var foo = new Foo();\n        foo.FetchResource(new Uri(\"http://example.com\")); // Compliant - Uri overload is used\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4005"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b\\w+\\s*\\(\\s*\"https?://[^\"]+\"\\s*\\)",
+        "exclude_patterns": [
+          "new\\s+Uri\\s*\\(",
+          "Uri\\.Parse\\s*\\(",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "//.*http",
+          "/\\*.*http"
+        ],
+        "message": "Use System.Uri instead of string for URI arguments - prefer the Uri overload"
+      }
+    ],
+    "never_trigger_on": [
+      "When using new Uri() constructor",
+      "When using Uri.Parse()",
+      "Logging statements",
+      "Comments"
+    ],
+    "reasoning": "Detects method calls with string URI arguments where a Uri overload would be safer. Excludes Uri constructors and logging.",
+    "validation_examples": {
+      "should_trigger": [
+        "foo.FetchResource(\"http://example.com\");",
+        "client.Download(\"https://api.example.com/data\");"
+      ],
+      "should_not_trigger": [
+        "foo.FetchResource(new Uri(\"http://example.com\"));",
+        "Console.WriteLine(\"http://example.com\");"
+      ]
+    }
+  }
+}

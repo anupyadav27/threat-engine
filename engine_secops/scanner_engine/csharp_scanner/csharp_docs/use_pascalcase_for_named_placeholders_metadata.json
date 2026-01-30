@@ -1,0 +1,72 @@
+{
+  "filename": "use_pascalcase_for_named_placeholders_metadata.json",
+  "rule_id": "use_pascalcase_named_placeholders",
+  "title": "Use PascalCase for named placeholders",
+  "description": "Use PascalCase for named placeholdersAnalyze your codeconsistency-conventionalmaintainabilityCode SmellloggingWithin amessage templateeach named placeholder should be in PascalCase.Why is this an issue?How can I fix it?More InfoUsing consistent naming conventions is important for the readability and maintainability of code. In the case of message templates, using PascalCase for named placeholders ensures consistency with structured logging conventions, where each named placeholder is used as a property name in the structured data.The rule covers the following logging frameworks:Nuget package -Microsoft.Extensions.LoggingNuget package -SerilogNuget package -NlogAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab reposi",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": ["logger.LogInformation(\"User {userName} logged in from {ipAddress}\", user, ip);", "Log.Information(\"Processing order {orderId}\", id);", "_logger.LogWarning(\"Failed login for {user_name}\", name);"],
+    "compliant": ["logger.LogInformation(\"User {UserName} logged in from {IpAddress}\", user, ip);", "Log.Information(\"Processing order {OrderId}\", id);", "_logger.LogWarning(\"Failed login for {UserName}\", name);"]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6678"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(Log(Information|Warning|Error|Debug|Critical|Trace)|Information|Warning|Error|Debug|Fatal)\\s*\\([^)]*\\{[a-z][a-zA-Z0-9_]*\\}",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.Write",
+          "Trace\\.",
+          "\\$\"",
+          "string\\.Format",
+          "ToString\\(",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ],
+        "message": "Use PascalCase for named placeholders in structured logging message templates"
+      }
+    ],
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Logging method call with non-PascalCase message template placeholders",
+    "triggering_conditions": "AND: (1) Call to structured logging method (LogInformation, LogWarning, etc.) AND (2) Placeholder name starts with lowercase letter",
+    "exclusion_conditions": ["Console output", "Debug output", "String interpolation", "String.Format", "Test code", "Comments"],
+    "never_trigger_on": [
+      "Console.WriteLine - not structured logging",
+      "Debug.WriteLine - debug output",
+      "String interpolation ($\"\") - not message templates",
+      "string.Format - positional placeholders",
+      "Unit tests with [Test] or [Fact] attributes",
+      "Comments (// or /* */)",
+      "ToString() implementations"
+    ],
+    "reasoning": "Structured logging frameworks like Serilog, NLog, and Microsoft.Extensions.Logging use message templates where placeholders become property names. PascalCase convention ensures consistency with .NET naming standards and better readability in log aggregation systems. Non-PascalCase placeholders are detected by looking for lowercase first letter in placeholder names.",
+    "validation_examples": {
+      "should_trigger": [
+        "_logger.LogInformation(\"User {userName} logged in\", user);",
+        "Log.Warning(\"Failed for {user_name}\", name);",
+        "logger.LogError(\"Error {requestId}\", id);"
+      ],
+      "should_not_trigger": [
+        "_logger.LogInformation(\"User {UserName} logged in\", user);",
+        "Console.WriteLine(\"User {userName}\");",
+        "$\"User {userName} logged in\"",
+        "// Comment with {placeholder}"
+      ]
+    }
+  }
+}

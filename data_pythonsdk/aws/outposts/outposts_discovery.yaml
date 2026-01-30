@@ -1,0 +1,149 @@
+version: '1.0'
+provider: aws
+service: outposts
+services:
+  client: outposts
+  module: boto3.client
+discovery:
+- discovery_id: aws.outposts.list_outposts
+  calls:
+  - action: list_outposts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Outposts }}'
+- discovery_id: aws.outposts.list_sites
+  calls:
+  - action: list_sites
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Sites }}'
+- discovery_id: aws.outposts.list_capacity_tasks
+  calls:
+  - action: list_capacity_tasks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CapacityTasks }}'
+- discovery_id: aws.outposts.list_orders
+  calls:
+  - action: list_orders
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Orders }}'
+- discovery_id: aws.outposts.list_catalog_items
+  calls:
+  - action: list_catalog_items
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CatalogItems }}'
+- discovery_id: aws.outposts.get_site_address
+  for_each: aws.outposts.list_outposts
+  calls:
+  - action: get_site_address
+    save_as: response
+    on_error: continue
+    params:
+      SiteId: '{{ item.outpostSiteId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Address }}'
+- discovery_id: aws.outposts.get_outpost_billing_information
+  calls:
+  - action: get_outpost_billing_information
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Subscriptions }}'
+- discovery_id: aws.outposts.get_connection
+  calls:
+  - action: get_connection
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConnectionDetails }}'
+- discovery_id: aws.outposts.list_assets
+  calls:
+  - action: list_assets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Assets }}'
+- discovery_id: aws.outposts.get_order
+  for_each: aws.outposts.list_capacity_tasks
+  calls:
+  - action: get_order
+    save_as: response
+    on_error: continue
+    params:
+      OrderId: '{{ item.capacityTaskOrderId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Order }}'
+- discovery_id: aws.outposts.list_asset_instances
+  calls:
+  - action: list_asset_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AssetInstances }}'
+- discovery_id: aws.outposts.get_outpost_instance_types
+  for_each: aws.outposts.list_outposts
+  calls:
+  - action: get_outpost_instance_types
+    save_as: response
+    on_error: continue
+    params:
+      OutpostId: '{{ item.capacityTaskOutpostId }}'
+  emit:
+    as: item
+    items_for: '{{ response.InstanceTypes }}'
+- discovery_id: aws.outposts.get_site
+  for_each: aws.outposts.list_outposts
+  calls:
+  - action: get_site
+    save_as: response
+    on_error: continue
+    params:
+      SiteId: '{{ item.outpostSiteId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Site }}'
+- discovery_id: aws.outposts.get_capacity_task
+  for_each: aws.outposts.list_capacity_tasks
+  calls:
+  - action: get_capacity_task
+    save_as: response
+    on_error: continue
+    params:
+      CapacityTaskId: '{{ item.capacityTaskCapacityTaskId }}'
+  emit:
+    as: item
+    items_for: '{{ response.RequestedInstancePools }}'
+checks: []

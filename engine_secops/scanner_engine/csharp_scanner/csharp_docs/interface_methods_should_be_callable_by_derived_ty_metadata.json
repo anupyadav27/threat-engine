@@ -1,0 +1,79 @@
+{
+  "filename": "interface_methods_should_be_callable_by_derived_ty_metadata.json",
+  "rule_id": "interface_methods_callable_derived",
+  "title": "Interface methods should be callable by derived types",
+  "description": "Interface methods should be callable by derived typesAnalyze your codeintentionality-clearmaintainabilityCode SmellpitfallWhy is this an issue?How can I fix it?More InfoWhen a base type explicitly implements a public interface method, property or event, that member is only accessible in derived types through a reference to the current instance (namelythis). If the derived type explicitly overrides that interface member, the base implementation becomes inaccessible.This rule raises an issue when an unsealed, externally visible type provides an explicit member implementation of aninterfaceand does not provide an alternate, externally visible member with the same name.ExceptionsThis rule does not report a violation for an explicit implementation ofIDisposable.Disposewhen an externally visible",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: explicit implementation makes method uncallable from derived class\npublic class Foo : IMyInterface\n{\n    void IMyInterface.Method() // Explicit implementation\n    {\n        // ...\n    }\n}",
+      "// Noncompliant: private implementation\npublic interface IMyInterface\n{\n    void Method();\n}\n\npublic class Base : IMyInterface\n{\n    void IMyInterface.Method() { } // Explicit and private\n}"
+    ],
+    "compliant": [
+      "// Compliant: public implementation\npublic class Foo : IMyInterface\n{\n    public void Method() // Public implementation\n    {\n        // ...\n    }\n}",
+      "// Compliant: protected implementation allowing derived access\npublic class Base : IMyInterface\n{\n    protected virtual void Method() { }\n    void IMyInterface.Method() => Method();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4039"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration", "MethodDeclaration"],
+    "detection_conditions": "Detects explicit interface implementations in non-sealed classes that make methods uncallable from derived types",
+    "triggering_conditions": "(Class implements interface explicitly) AND (Class is not sealed) AND (No public/protected alternative method)",
+    "exclusion_conditions": [
+      "Sealed classes",
+      "Public implementations",
+      "Protected virtual implementations",
+      "IDisposable.Dispose",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Sealed classes",
+      "Public method implementations",
+      "Protected virtual implementations",
+      "IDisposable.Dispose explicit implementations",
+      "Logging statements (Console.*, Logger.*)",
+      "Comments (// /* ///)",
+      "Unit tests ([Test], [Fact])"
+    ],
+    "reasoning": "Explicit interface implementations (void IMyInterface.Method()) are only accessible through interface references, not through derived class instances. In non-sealed classes, this prevents derived types from calling or overriding the method. The solution is to provide a protected virtual alternative or make the class sealed.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Foo : IMyInterface { void IMyInterface.Method() { } }",
+        "public class Base : IInterface { void IInterface.DoWork() { } }"
+      ],
+      "should_not_trigger": [
+        "public class Foo : IMyInterface { public void Method() { } }",
+        "public sealed class Foo : IMyInterface { void IMyInterface.Method() { } }",
+        "public class Base : IMyInterface { protected virtual void Method() { } void IMyInterface.Method() => Method(); }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bclass\\s+\\w+[^{]*:\\s*I\\w+[^{]*\\{[^}]*void\\s+I\\w+\\.\\w+\\s*\\(",
+        "source_exclude_patterns": [
+          "sealed\\s+class",
+          "IDisposable\\.Dispose",
+          "protected\\s+virtual\\s+void"
+        ],
+        "exclude_patterns": [
+          "^\\s*//",
+          "\\[Test"
+        ]
+      }
+    ]
+  }
+}

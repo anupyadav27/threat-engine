@@ -1,0 +1,34 @@
+{
+  "filename": "running_containers_in_privileged_mode_is_security__metadata.json",
+  "rule_id": "running_containers_privileged_mode",
+  "title": "Running containers in privileged mode is security-sensitive",
+  "description": "Running containers in privileged mode is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweRunning containers in privileged mode can reduce the resilience of a cluster in the event of a security incident because it weakens the isolation between hosts and containers.Process permissions in privileged containers are essentially the same as root permissions on the host. If these processes are not protected by robust security measures, an attacker who compromises a root process on a Pod’s host is likely to gain the ability to pivot within the cluster.Depending on how resilient the cluster is, attackers can extend their attack to the cluster by compromising the nodes from which the cluster launched the process.Ask Yourself WhetherThe services of this Pod are ac",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "apiVersion: v1\nkind: Pod\nmetadata:\n  name: example\nspec:\n  containers:\n    - name: web\n      image: nginx\n      ports:\n        - name: web\n          containerPort: 80\n          protocol: TCP\n      securityContext:\n        privileged: true # Sensitive"
+    ],
+    "compliant": [
+      "apiVersion: v1\nkind: Pod\nmetadata:\n  name: example\nspec:\n  containers:\n    - name: web\n      image: nginx\n      ports:\n        - name: web\n          containerPort: 80\n          protocol: TCP\n      securityContext:\n        privileged: false"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/kubernetes/RSPEC-6428"
+  ],
+  "logic": {
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_privileged_mode_containers"
+      }
+    ]
+  }
+}

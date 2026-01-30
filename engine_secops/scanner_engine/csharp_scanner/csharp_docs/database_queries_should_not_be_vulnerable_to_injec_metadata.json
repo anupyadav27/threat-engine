@@ -1,0 +1,85 @@
+{
+  "filename": "database_queries_should_not_be_vulnerable_to_injec_metadata.json",
+  "rule_id": "database_queries_vulnerable_injection",
+  "title": "Database queries should not be vulnerable to injection attacks",
+  "description": "Database injections (such as SQL injections) occur in an application when the application retrieves data from a user or a third-party service and inserts it into a database query without sanitizing it first. If an application contains a database query that is vulnerable to injections, it is exposed to attacks that target any database where that query is used. A user with malicious intent is able to modify the existing query to change its logic to a malicious one.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void GetUser(string userId)\n{\n    string query = \"SELECT * FROM Users WHERE Id = '\" + userId + \"'\";\n    var result = context.Database.ExecuteSqlRaw(query); // Noncompliant\n}",
+      "public List<Product> SearchProducts(string searchTerm)\n{\n    var query = $\"SELECT * FROM Products WHERE Name LIKE '%{searchTerm}%'\";\n    return context.Products.FromSqlRaw(query).ToList(); // Noncompliant\n}",
+      "public void DeleteRecord(string tableName, string id)\n{\n    var sql = string.Format(\"DELETE FROM {0} WHERE Id = {1}\", tableName, id);\n    context.Database.ExecuteSqlCommand(sql); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public void GetUser(string userId)\n{\n    string query = \"SELECT * FROM Users WHERE Id = @userId\";\n    var result = context.Database.ExecuteSqlRaw(query, new SqlParameter(\"@userId\", userId));\n}",
+      "public List<Product> SearchProducts(string searchTerm)\n{\n    return context.Products\n        .Where(p => EF.Functions.Like(p.Name, $\"%{searchTerm}%\"))\n        .ToList();\n}",
+      "public void UpdateUser(int userId, string name)\n{\n    var user = context.Users.Find(userId);\n    if (user != null)\n    {\n        user.Name = name;\n        context.SaveChanges();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3649"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "detection_conditions": "Detect SQL execution methods with string concatenation or interpolation instead of parameterized queries",
+    "triggering_conditions": "(SQL execution method call AND (string concatenation with + OR string interpolation $\"\" OR string.Format)) AND NOT parameterized",
+    "exclusion_conditions": "Exclude logging, tests, comments, and already-parameterized queries",
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit test code ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "String formatting for display purposes",
+      "Parameterized queries (SqlParameter, @parameter syntax)",
+      "LINQ queries using Where/Select/Find"
+    ],
+    "reasoning": "SQL injection occurs when user input is concatenated directly into SQL queries. This rule detects dangerous patterns: ExecuteSqlRaw/FromSqlRaw/ExecuteSqlCommand with string concatenation (+), interpolation ($\"\"), or string.Format. Excludes parameterized queries (SqlParameter), LINQ queries, logging, and tests. High severity requires compound checks to minimize false positives.",
+    "validation_examples": {
+      "should_trigger": [
+        "string query = \"SELECT * FROM Users WHERE Id = '\" + userId + \"'\"; context.Database.ExecuteSqlRaw(query);",
+        "var query = $\"SELECT * FROM Products WHERE Name = '{searchTerm}'\"; context.Products.FromSqlRaw(query);",
+        "var sql = string.Format(\"DELETE FROM {0} WHERE Id = {1}\", tableName, id); context.Database.ExecuteSqlCommand(sql);",
+        "command.CommandText = \"SELECT * FROM \" + tableName + \" WHERE Id = \" + id; command.ExecuteReader();"
+      ],
+      "should_not_trigger": [
+        "string query = \"SELECT * FROM Users WHERE Id = @userId\"; context.Database.ExecuteSqlRaw(query, new SqlParameter(\"@userId\", userId));",
+        "return context.Products.Where(p => EF.Functions.Like(p.Name, $\"%{searchTerm}%\")).ToList();",
+        "var user = context.Users.Find(userId); user.Name = name; context.SaveChanges();",
+        "Console.WriteLine($\"Executing query: SELECT * FROM {tableName}\");",
+        "[Test] public void TestQuery() { var sql = \"SELECT * FROM \" + table; }"
+      ]
+    },
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(\"[^\"]*\\b(SELECT|INSERT|UPDATE|DELETE)\\b[^\"]*\"\\s*\\+|\\$\"[^\"]*\\b(SELECT|INSERT|UPDATE|DELETE)\\b[^\"]*\\{|string\\.Format\\s*\\([^)]*\\b(SELECT|INSERT|UPDATE|DELETE)\\b[^)]*|CommandText\\s*=\\s*\"[^\"]*\"\\s*\\+|CommandText\\s*=\\s*\\$\"[^\"]*\\{)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "WriteLine",
+          "LogInformation",
+          "LogDebug",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\.",
+          "SqlParameter",
+          "//\\s*VIOLATION",
+          "//\\s*COMPLIANT",
+          "//"
+        ],
+        "message": "SQL injection vulnerability: query uses string concatenation/interpolation instead of parameterized queries"
+      }
+    ]
+  }
+}

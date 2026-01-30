@@ -1,0 +1,77 @@
+{
+  "filename": "unassigned_members_should_be_removed_metadata.json",
+  "rule_id": "unassigned_members_removed",
+  "title": "Unassigned members should be removed",
+  "description": "Unassigned members should be removedAnalyze your codeintentionality-logicalmaintainabilityCode SmellsuspiciousWhy is this an issue?Fields and auto-properties that are never assigned to hold the default values for their types. They are either pointless code or, more likely, mistakes.Noncompliant code exampleclass MyClass { private int field; // Noncompliant, shouldn't it be initialized? This way the value is always default(int), 0. private int Property { get; set; } // Noncompliant public void Print() { Console.WriteLine(field); //Will always print 0 Console.WriteLine(Property); //Will always print 0 } }Compliant solutionclass MyClass { private int field = 1; private int Property { get; set; } = 42; public void Print() { field++; Console.WriteLine(field); Console.WriteLine(Property); } }Exc",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class MyClass\n{\n  private int field; // Noncompliant, shouldn't it be initialized? This way the value is always default(int), 0.\n  private int Property { get; set; }  // Noncompliant\n  public void Print()\n  {\n    Console.WriteLine(field); //Will always print 0\n    Console.WriteLine(Property); //Will always print 0\n  }\n}"
+    ],
+    "compliant": [
+      "class MyClass\n{\n  private int field = 1;\n  private int Property { get; set; } = 42;\n  public void Print()\n  {\n    field++;\n    Console.WriteLine(field);\n    Console.WriteLine(Property);\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3459"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration", "FieldDeclaration", "PropertyDeclaration"],
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unassigned_members"
+      }
+    ],
+    "detection_conditions": "Find private fields or auto-properties that are declared but never assigned a value (no initializer, not assigned in constructor or methods)",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Member is private field or auto-property",
+        "No initializer in declaration",
+        "No assignment in constructor",
+        "No assignment anywhere in the class"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\[Inject\\]",
+        "\\[SerializeField\\]",
+        "\\[AutoWired\\]",
+        "\\[FromServices\\]",
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Fields with dependency injection attributes",
+      "Unity SerializeField attributes",
+      "Public fields/properties (may be assigned externally)",
+      "Static fields assigned elsewhere",
+      "Fields in partial classes",
+      "Comments"
+    ],
+    "reasoning": "Unassigned private fields/auto-properties will hold default values (0, null, false) which is often unintentional. These are either pointless code or bugs where the developer forgot to initialize. Excludes DI-decorated fields which are assigned by the framework.",
+    "validation_examples": {
+      "should_trigger": [
+        "private int field; // Never assigned",
+        "private string Name { get; set; } // Never assigned"
+      ],
+      "should_not_trigger": [
+        "private int field = 1; // Has initializer",
+        "[Inject] private IService service; // DI will assign",
+        "private int field; public MyClass() { field = 5; } // Assigned in constructor"
+      ]
+    }
+  }
+}

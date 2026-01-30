@@ -1,0 +1,78 @@
+# STATUS: ✅ VALIDATED AND TESTED
+# - YAML validated against metadata intent (2026-01-08)
+# - Fixed: items_for structure for list_clusters (moved inside emit block)
+# - Fixed: describe_cluster emit structure (removed items_for, using response.Cluster directly)
+# - All 3 checks configured successfully
+# - 0 execution errors
+# - Field paths verified correct
+# - Discovery chains verified correct
+# - Note: Some rules have logical limitations - see metadata_review_report.json for details
+# - Tested: 2026-01-08
+
+version: '1.0'
+provider: aws
+service: emr
+services:
+  client: emr
+  module: boto3.client
+discovery:
+- discovery_id: aws.emr.get_block_public_access_configuration
+  calls:
+  - action: get_block_public_access_configuration
+    save_as: response
+  emit:
+    item:
+      BlockPublicSecurityGroupRules: '{{ response.BlockPublicAccessConfiguration.BlockPublicSecurityGroupRules
+        }}'
+- discovery_id: aws.emr.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+  emit:
+    items_for: '{{ response.Clusters }}'
+    as: item
+    item:
+      Id: '{{ item.Id }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+- discovery_id: aws.emr.describe_cluster
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterId: '{{ item.Id }}'
+    save_as: response
+  emit:
+    item:
+      Id: '{{ response.Cluster.Id }}'
+      Name: '{{ response.Cluster.Name }}'
+      Status: '{{ response.Cluster.Status }}'
+      Ec2InstanceAttributes: '{{ response.Cluster.Ec2InstanceAttributes }}'
+      MasterPublicDnsName: '{{ response.Cluster.MasterPublicDnsName }}'
+checks:
+- rule_id: aws.emr.cluster.account_public_block_enabled
+  for_each: aws.emr.get_block_public_access_configuration
+  conditions:
+    var: item.BlockPublicSecurityGroupRules
+    op: equals
+    value: 'true'
+- rule_id: aws.emr.cluster.master_nodes_no_public_ip_configured
+  for_each: aws.emr.describe_cluster
+  conditions:
+    all:
+    - var: item.MasterPublicDnsName
+      op: not_exists
+      value: null
+    - var: item.Ec2InstanceAttributes.EmrManagedMasterSecurityGroup
+      op: exists
+      value: null
+- rule_id: aws.emr.cluster.publicly_accesible_configured
+  for_each: aws.emr.describe_cluster
+  conditions:
+    all:
+    - var: item.Ec2InstanceAttributes.EmrManagedMasterSecurityGroup
+      op: exists
+      value: null
+    - var: item.Ec2InstanceAttributes.EmrManagedSlaveSecurityGroup
+      op: exists
+      value: null

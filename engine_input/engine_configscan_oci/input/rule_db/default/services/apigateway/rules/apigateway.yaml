@@ -1,0 +1,552 @@
+apigateway:
+  version: '1.0'
+  provider: oci
+  service: apigateway
+  scope: regional
+  discovery:
+  - discovery_id: list_gateways
+    resource_type: gateway
+    calls:
+    - action: list
+      client: ApiGatewayClient
+      method: list_gateways
+      fields:
+      - path: id
+        var: gateway_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_gateway_details
+    resource_type: gateway
+    for_each: list_gateways
+    calls:
+    - action: get
+      client: ApiGatewayClient
+      method: get_gateway
+      fields:
+      - path: endpoint_type
+        var: endpoint_type
+      - path: subnet_id
+        var: subnet_id
+      - path: network_security_group_ids
+        var: network_security_group_ids
+  checks:
+  - check_id: oci.apigateway.gateway.api_key_expiration_required
+    title: 'OCI APIGATEWAY Gateway: API Key Expiration Required'
+    severity: high
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_key_rotation_policy_defined_required
+    title: 'OCI APIGATEWAY Api: API Key Rotation Policy Defined Required'
+    severity: high
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_key_scopes_least_privilege_required
+    title: 'OCI APIGATEWAY Api: API Key Scopes Least Privilege Required'
+    severity: high
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.authorizer_cache_ttl_configured
+    title: 'OCI APIGATEWAY Gateway: Authorizer Cache Ttl Configured'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.authorizer_tls_min_1_2_enforced
+    title: 'OCI APIGATEWAY Gateway: Authorizer TLS Min 1 2 Enforced'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.authorizer_token_audience_restriction_enforced
+    title: 'OCI APIGATEWAY Gateway: Authorizer Token Audience Restriction Enforced'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.stage_logging_enabled
+    title: 'OCI APIGATEWAY Gateway: Stage Logging Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.stage_usage_plan_for_api_keys_required
+    title: 'OCI APIGATEWAY Api: Stage Usage Plan For API Keys Required'
+    severity: high
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.stage_throttling_enabled
+    title: 'OCI APIGATEWAY Gateway: Stage Throttling Enabled'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.usage_plan_quota_limits_configured
+    title: 'OCI APIGATEWAY Gateway: Usage Plan Quota Limits Configured'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.usage_plan_rate_limits_configured
+    title: 'OCI APIGATEWAY Gateway: Usage Plan Rate Limits Configured'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.dev_endpoint_encrypted
+    title: 'OCI APIGATEWAY Api: Dev Endpoint Encrypted'
+    severity: medium
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.dev_endpoint_no_public_access_blocked
+    title: 'OCI APIGATEWAY Gateway: Dev Endpoint No Public Access Blocked'
+    severity: critical
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.dev_endpoint_role_least_privilege_required
+    title: 'OCI APIGATEWAY Gateway: Dev Endpoint Role Least Privilege Required'
+    severity: high
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_endpoint_authn_required
+    title: 'OCI APIGATEWAY Gateway: API Endpoint Authn Required'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_endpoint_authz_policies_enforced
+    title: 'OCI APIGATEWAY Gateway: API Endpoint Authz Policies Enforced'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_endpoint_private_networking_enforced
+    title: 'OCI APIGATEWAY Gateway: API Endpoint Private Networking Enforced'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_endpoint_waf_attached
+    title: 'OCI APIGATEWAY Api: API Endpoint Waf Attached'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_validation_content_type_whitelist_enforced
+    title: 'OCI APIGATEWAY Gateway: API Security Validation Content Type Whitelist Enforced'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_validation_parameters_enabled
+    title: 'OCI APIGATEWAY Gateway: API Security Validation Parameters Enabled'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_security_validation_request_body_size_limit_configured
+    title: 'OCI APIGATEWAY Api: API Security Validation Request Body Size Limit Configured'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_validation_request_schema_enabled
+    title: 'OCI APIGATEWAY Gateway: API Security Validation Request Schema Enabled'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_validation_required_headers_enforced
+    title: 'OCI APIGATEWAY Gateway: API Security Validation Required Headers Enforced'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_validation_response_schema_enabled
+    title: 'OCI APIGATEWAY Gateway: API Security Validation Response Schema Enabled'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_security_rate_limiting_quota_limit_configured
+    title: 'OCI APIGATEWAY Api: API Security Rate Limiting Quota Limit Configured'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_security_rate_limiting_stage_burst_limit_configured
+    title: 'OCI APIGATEWAY Api: API Security Rate Limiting Stage Burst Limit Configured'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_security_rate_limiting_stage_limit_configured
+    title: 'OCI APIGATEWAY Api: API Security Rate Limiting Stage Limit Configured'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.api.api_security_rate_limiting_stage_throttle_unbounded
+    title: 'OCI APIGATEWAY Api: API Security Rate Limiting Stage Throttle Unbounded'
+    severity: low
+    for_each: list_apis
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_security_rate_limiting_usage_plan_keys
+    title: 'OCI APIGATEWAY Gateway: API Security Rate Limiting Usage Plan Keys'
+    severity: high
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.certificate.certificate_enabled
+    title: 'OCI APIGATEWAY Certificate: Certificate Enabled'
+    severity: medium
+    for_each: list_certificates
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_restapi_logging_enabled
+    title: 'OCI APIGATEWAY Gateway: Gateway Restapi Logging Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_restapi_tracing_enabled
+    title: 'OCI APIGATEWAY Gateway: Gateway Restapi Tracing Enabled'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_api_https_required
+    title: 'OCI APIGATEWAY Gateway: Gateway API HTTPS Required'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_restapi_waf_acl_attached
+    title: 'OCI APIGATEWAY Gateway: Gateway Restapi Waf ACL Attached'
+    severity: low
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.restapi_client_certificate_enabled
+    title: 'OCI APIGATEWAY Gateway: Restapi Client Certificate Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.restapi_logging_enabled
+    title: 'OCI APIGATEWAY Gateway: Restapi Logging Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.api_access_logging_enabled
+    title: 'OCI APIGATEWAY Gateway: API Access Logging Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.field_level_logging_enabled
+    title: 'OCI APIGATEWAY Gateway: Field Level Logging Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_authorization_enabled
+    title: 'OCI APIGATEWAY Gateway: Gateway Authorization Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_client_certificate_enabled
+    title: 'OCI APIGATEWAY Gateway: Gateway Client Certificate Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.gateway_restapi_client_certificate_enabled
+    title: 'OCI APIGATEWAY Gateway: Gateway Restapi Client Certificate Enabled'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.restapi_cache_encrypted
+    title: 'OCI APIGATEWAY Gateway: Restapi Cache Encrypted'
+    severity: medium
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.apigateway.gateway.restapi_public
+    title: 'OCI APIGATEWAY Gateway: Restapi Public'
+    severity: critical
+    for_each: list_gateways
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)

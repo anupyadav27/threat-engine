@@ -1,0 +1,41 @@
+{
+  "filename": "blocks_should_be_synchronized_on_read_only_fields_metadata.json",
+  "rule_id": "blocks_synchronized_readonly_fields",
+  "title": "Blocks should be synchronized on read-only fields",
+  "description": "Blocks should be synchronized on read-only fieldsAnalyze your codeintentionality-completereliabilityBugcwemulti-threadingWhy is this an issue?How can I fix it?More InfoLockingon a class field synchronizes not on the field itself, but on the object assigned to it. Thus, there are some good practices to follow to avoid problems related tothreadsynchronization.Locking on a non-readonlyfield makes it possible for the field’s value to change while a thread is in the code block, locked on the old value. This allows another thread to lock on the new value and access the same block concurrently.private Color color = new Color(\"red\"); private void DoSomething() { // Synchronizing access via \"color\" lock (color) // Noncompliant: lock is actually on object instance \"red\" referred to by the \"color\" fi",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "private Color color = new Color(\"red\");\nprivate void DoSomething()\n{\n    lock (color) // Noncompliant: lock is on non-readonly field\n    {\n        color = new Color(\"green\"); // Field can be changed, breaking synchronization\n        // other operations...\n    }\n}",
+      "private object lockObject = new object();\npublic void Method1()\n{\n    lock (lockObject) // Noncompliant: field is not readonly\n    {\n        lockObject = new object(); // Can be reassigned\n    }\n}"
+    ],
+    "compliant": [
+      "private readonly Color color = new Color(\"red\");\nprivate void DoSomething()\n{\n    lock (color) // Compliant: field is readonly\n    {\n        // Operations here are safely synchronized\n        // color cannot be reassigned\n    }\n}",
+      "private readonly object lockObject = new object();\npublic void Method1()\n{\n    lock (lockObject) // Compliant: readonly field ensures consistent lock object\n    {\n        // Safe operations\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2445"
+  ],
+  "logic": {
+    "node_types": [
+      "CompilationUnit"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_blocks_synchronized_readonly_fields",
+        "message": "Blocks should be synchronized on read-only fields. Use 'readonly' modifier for fields used in lock statements."
+      }
+    ]
+  }
+}

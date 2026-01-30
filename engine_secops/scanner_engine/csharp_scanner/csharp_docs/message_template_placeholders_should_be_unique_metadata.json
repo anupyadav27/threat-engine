@@ -1,0 +1,76 @@
+{
+  "filename": "message_template_placeholders_should_be_unique_metadata.json",
+  "rule_id": "message_template_placeholders_unique",
+  "title": "Message template placeholders should be unique",
+  "description": "Message template placeholders should be uniqueAnalyze your codeintentionality-logicalreliabilityBugloggingWhy is this an issue?How can I fix it?More InfoNamed placeholders inmessage templatesshould be unique. The meaning of the named placeholders is to store the value of the provided argument under that name, enabling easier log querying. Since the named placeholder is used multiple times, it cannot store the different values uniquely with each name hence not serving its original purpose.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "logger.LogInformation(\"User {UserId} performed action {UserId}\", userId, actionId); // Noncompliant: UserId placeholder used twice"
+    ],
+    "compliant": [
+      "logger.LogInformation(\"User {UserId} performed action {ActionId}\", userId, actionId); // Compliant: unique placeholders"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6677"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\{(\\w+)\\}.*\\{\\1\\}",
+        "exclude_patterns": [
+          "Console\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*///",
+          "Assert\\."
+        ],
+        "context_exclude_patterns": [
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[Theory\\]",
+          "\\[TestMethod\\]",
+          "\\[NUnit",
+          "\\[xUnit"
+        ],
+        "context_lines_to_check": 10
+      }
+    ],
+    "never_trigger_on": [
+      "Console logging: Console.WriteLine",
+      "Unit tests: [Test], [Fact], Assert.*",
+      "Comments: //, /*, ///"
+    ],
+    "reasoning": "This rule detects duplicate placeholders in structured logging message templates. The pattern uses regex backreference \\1 to match any placeholder name {Name} that appears at least twice in the same string. It targets CallExpression nodes (method calls) to find logger.Log* calls. The exclusion patterns prevent false positives in console logging, tests, and comments. Named placeholders should be unique so each can store its corresponding argument value for log querying.",
+    "validation_examples": {
+      "should_trigger": [
+        "logger.LogInformation(\"User {UserId} performed action {UserId}\", userId, actionId);",
+        "_logger.LogError(\"Processing {Item} failed for {Item}\", item, item);",
+        "Log.Debug(\"Value {X} compared to {X}\", x, y);"
+      ],
+      "should_not_trigger": [
+        "logger.LogInformation(\"User {UserId} performed action {ActionId}\", userId, actionId);",
+        "_logger.LogError(\"Processing {Item} failed for {Reason}\", item, reason);",
+        "Console.WriteLine(\"Test {X} and {X}\");",
+        "[Test]\npublic void TestLog()\n{\n    logger.LogInfo(\"{A} {A}\");\n}"
+      ]
+    }
+  }
+}

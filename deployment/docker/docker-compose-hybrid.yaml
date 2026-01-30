@@ -1,0 +1,222 @@
+version: '3.8'
+
+services:
+  # Centralized PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: threat-engine-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../scripts/init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - threat-engine-network
+
+  # API Gateway - Single Entry Point
+  api-gateway:
+    build:
+      context: ../../api_gateway
+      dockerfile: Dockerfile
+    container_name: threat-engine-api-gateway
+    environment:
+      - PORT=8000
+      - USE_CENTRALIZED_DB=true
+      
+      # Service URLs for routing
+      - CONFIGSCAN_AWS_URL=http://configscan-aws:8001
+      - CONFIGSCAN_AZURE_URL=http://configscan-azure:8002
+      - CONFIGSCAN_GCP_URL=http://configscan-gcp:8003
+      - ONBOARDING_ENGINE_URL=http://onboarding-engine:8010
+      - RULE_ENGINE_URL=http://rule-engine:8011
+      
+      # Single-DB configuration (postgres, engine_* schemas)
+      - CONFIGSCAN_DB_HOST=postgres
+      - CONFIGSCAN_DB_PORT=5432
+      - CONFIGSCAN_DB_NAME=postgres
+      - CONFIGSCAN_DB_USER=postgres
+      - CONFIGSCAN_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_configscan,engine_shared
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/gateway/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - threat-engine-network
+
+  # ConfigScan AWS Engine - Battle-tested
+  configscan-aws:
+    build:
+      context: ../../engine_configscan/engine_configscan_aws
+      dockerfile: Dockerfile
+    container_name: threat-engine-configscan-aws
+    environment:
+      - PORT=8001
+      - USE_CENTRALIZED_DB=true
+      
+      # Single-DB configuration
+      - CONFIGSCAN_DB_HOST=postgres
+      - CONFIGSCAN_DB_PORT=5432
+      - CONFIGSCAN_DB_NAME=postgres
+      - CONFIGSCAN_DB_USER=postgres
+      - CONFIGSCAN_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_configscan,engine_shared
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - configscan_reports:/app/reports
+      - aws_credentials:/root/.aws:ro  # For AWS CLI credentials
+    networks:
+      - threat-engine-network
+
+  # ConfigScan Azure Engine - Battle-tested
+  configscan-azure:
+    build:
+      context: ../../engine_configscan/engine_configscan_azure
+      dockerfile: Dockerfile
+    container_name: threat-engine-configscan-azure
+    environment:
+      - PORT=8002
+      - USE_CENTRALIZED_DB=true
+      
+      # Single-DB configuration
+      - CONFIGSCAN_DB_HOST=postgres
+      - CONFIGSCAN_DB_PORT=5432
+      - CONFIGSCAN_DB_NAME=postgres
+      - CONFIGSCAN_DB_USER=postgres
+      - CONFIGSCAN_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_configscan,engine_shared
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - configscan_reports:/app/reports
+    networks:
+      - threat-engine-network
+
+  # ConfigScan GCP Engine - Battle-tested
+  configscan-gcp:
+    build:
+      context: ../../engine_configscan/engine_configscan_gcp
+      dockerfile: Dockerfile
+    container_name: threat-engine-configscan-gcp
+    environment:
+      - PORT=8003
+      - USE_CENTRALIZED_DB=true
+      
+      # Single-DB configuration
+      - CONFIGSCAN_DB_HOST=postgres
+      - CONFIGSCAN_DB_PORT=5432
+      - CONFIGSCAN_DB_NAME=postgres
+      - CONFIGSCAN_DB_USER=postgres
+      - CONFIGSCAN_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_configscan,engine_shared
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - configscan_reports:/app/reports
+    networks:
+      - threat-engine-network
+
+  # Onboarding Engine - Battle-tested
+  onboarding-engine:
+    build:
+      context: ../../engine_onboarding
+      dockerfile: Dockerfile
+    container_name: threat-engine-onboarding
+    environment:
+      - API_PORT=8010
+      - USE_CENTRALIZED_DB=true
+      
+      # Single-DB configuration (engine_onboarding schema)
+      - ONBOARDING_DB_HOST=postgres
+      - ONBOARDING_DB_PORT=5432
+      - ONBOARDING_DB_NAME=postgres
+      - ONBOARDING_DB_USER=postgres
+      - ONBOARDING_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_onboarding,engine_shared
+    ports:
+      - "8010:8010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - threat-engine-network
+
+  # Rule Engine - Battle-tested
+  rule-engine:
+    build:
+      context: ../../engine_rule
+      dockerfile: Dockerfile
+    container_name: threat-engine-rule
+    environment:
+      - PORT=8011
+      - USE_CENTRALIZED_DB=true
+      
+      # Single-DB configuration
+      - RULE_DB_HOST=postgres
+      - RULE_DB_PORT=5432
+      - RULE_DB_NAME=postgres
+      - RULE_DB_USER=postgres
+      - RULE_DB_PASSWORD=postgres
+      - DB_SCHEMA=engine_shared
+    ports:
+      - "8011:8011"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - threat-engine-network
+
+  # Optional: Database Admin (PGAdmin)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: threat-engine-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@threatengine.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - threat-engine-network
+    profiles:
+      - admin
+
+volumes:
+  postgres_data:
+    driver: local
+  configscan_reports:
+    driver: local
+  aws_credentials:
+    driver: local
+
+networks:
+  threat-engine-network:
+    driver: bridge
+    name: threat-engine-hybrid

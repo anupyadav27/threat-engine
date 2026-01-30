@@ -1,0 +1,38 @@
+version: '1.0'
+provider: aws
+service: stepfunctions
+services:
+  client: stepfunctions
+  module: boto3.client
+discovery:
+- discovery_id: aws.stepfunctions.list_state_machines
+  calls:
+  - action: list_state_machines
+    save_as: response
+  emit:
+    items_for: '{{ response.stateMachines }}'
+    as: item
+    item:
+      stateMachineArn: '{{ item.stateMachineArn }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      creationDate: '{{ item.creationDate }}'
+- discovery_id: aws.stepfunctions.describe_state_machine
+  calls:
+  - action: describe_state_machine
+    save_as: response
+    params:
+      stateMachineArn: '{{ item.stateMachineArn }}'
+    on_error: continue
+  for_each: aws.stepfunctions.list_state_machines
+  emit:
+    item:
+      stateMachineArn: '{{ item.stateMachineArn }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      roleArn: '{{ response.roleArn }}'
+      loggingConfiguration: '{{ response.loggingConfiguration }}'
+      level: '{{ response.loggingConfiguration.level }}'
+      includeExecutionData: '{{ response.loggingConfiguration.includeExecutionData
+        }}'
+      destinations: '{{ response.loggingConfiguration.destinations }}'

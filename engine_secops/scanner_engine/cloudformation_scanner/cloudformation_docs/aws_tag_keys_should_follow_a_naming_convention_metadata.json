@@ -1,0 +1,60 @@
+{
+  "filename": "aws_tag_keys_should_follow_a_naming_convention_metadata.json",
+  "rule_id": "aws_tag_keys_follow",
+  "title": "AWS tag keys should follow a naming convention",
+  "description": "AWS tag keys should comply with AWS format requirements. Tag keys must be between 1 and 128 characters long and can only contain Unicode letters, digits, whitespace, and these special characters: _ . : / = + - @. Other special characters like <, >, {, }, \\, |, `, ^, quotes are not allowed.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  MyInstance:\n    Type: AWS::EC2::Instance\n    Properties:\n      Tags:\n        - Key: \"invalid<key\"  # Non-compliant: contains < character\n          Value: prod\n        - Key: \"another|key\"  # Non-compliant: contains | character\n          Value: john\n        - Key: \"\"  # Non-compliant: empty key\n          Value: test"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  MyInstance:\n    Type: AWS::EC2::Instance\n    Properties:\n      Tags:\n        - Key: \"environment\"  # Compliant: valid characters\n          Value: prod\n        - Key: \"owner-name\"  # Compliant: hyphen allowed\n          Value: john\n        - Key: \"team@company\"  # Compliant: @ symbol allowed\n          Value: devops\n        - Key: \"cost:center\"  # Compliant: colon allowed\n          Value: finance"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6273"
+  ],
+  "logic": {
+    "node_types": ["Resource"],
+    "checks": [
+      {
+        "check_type": "tag_naming_convention_check",
+        "resource_types": [
+          "AWS::S3::Bucket",
+          "AWS::EC2::Instance", 
+          "AWS::RDS::DBInstance",
+          "AWS::Lambda::Function",
+          "AWS::ECS::Service",
+          "AWS::ELB::LoadBalancer",
+          "AWS::ElasticLoadBalancingV2::LoadBalancer",
+          "AWS::AutoScaling::AutoScalingGroup",
+          "AWS::CloudFormation::Stack",
+          "AWS::SNS::Topic",
+          "AWS::SQS::Queue",
+          "AWS::KMS::Key",
+          "AWS::IAM::Role",
+          "AWS::IAM::User",
+          "AWS::IAM::Group"
+        ],
+        "naming_convention": {
+          "type": "aws-compliant",
+          "pattern": "^[\\p{L}\\p{N}\\s_.:/=+\\-@]{1,128}$",
+          "allowed_patterns": [
+            "^[\\p{L}\\p{N}\\s_.:/=+\\-@]{1,128}$"
+          ],
+          "forbidden_characters": ["<", ">", "{", "}", "\\", "|", "`", "^", "\"", "'"],
+          "description": "Tag keys should be 1-128 characters and only contain Unicode letters, digits, whitespace, and these characters: _ . : / = + - @"
+        }
+      }
+    ]
+  }
+}

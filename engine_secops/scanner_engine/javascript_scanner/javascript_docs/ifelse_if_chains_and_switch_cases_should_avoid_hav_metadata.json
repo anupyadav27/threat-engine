@@ -1,0 +1,63 @@
+{
+  "filename": "ifelse_if_chains_and_switch_cases_should_avoid_hav_metadata.json",
+  "rule_id": "ifelse_if_chains_switch",
+  "title": "if/else if chains and switch cases should avoid having the same condition",
+  "description": "Duplicate conditions in if/else if chains and switch statements can lead to unreachable code, logic errors, and maintenance issues. When the same condition appears multiple times in a conditional construct, only the first occurrence will be evaluated, making subsequent identical conditions unreachable.\n\nThis creates several problems:\n- Dead code that never executes\n- Confusion about intended logic\n- Maintenance difficulties when updating conditions\n- Potential logic bugs where different actions are intended for the same condition\n\nThis rule detects:\n- Duplicate conditions in if/else if chains\n- Duplicate case values in switch statements\n- Complex expressions that evaluate to the same logical condition\n- Both exact matches and semantically equivalent conditions",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Code Quality",
+  "recommendation": "Remove or consolidate duplicate conditions:\n- Merge duplicate if/else if conditions into a single condition with combined logic\n- Remove duplicate switch cases and combine their logic\n- Use logical operators (&&, ||) to combine related conditions\n- Consider refactoring complex conditional logic into separate functions\n- Ensure each condition serves a distinct purpose",
+  "impact": "Unreachable code, logic errors, and increased maintenance complexity",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "if (status === 'active') { return 'Active'; } else if (status === 'inactive') { return 'Inactive'; } else if (status === 'active') { return 'Really active'; }",
+        "description": "Duplicate condition in if/else if chain - third condition never executes"
+      },
+      {
+        "code": "switch (code) { case 404: return 'Not Found'; case 500: return 'Server Error'; case 404: return 'Page Missing'; }",
+        "description": "Duplicate case in switch statement - second case 404 never executes"
+      },
+      {
+        "code": "if (user.role === 'admin' && action === 'delete') { return true; } else if (user.role === 'moderator') { return false; } else if (user.role === 'admin' && action === 'delete') { return false; }",
+        "description": "Duplicate complex condition with different intended behavior"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "if (status === 'active') { return handleActive(); } else if (status === 'inactive') { return handleInactive(); } else { return handleUnknown(); }",
+        "description": "No duplicate conditions, each branch is reachable"
+      },
+      {
+        "code": "switch (code) { case 404: case 410: return 'Not Found'; case 500: return 'Server Error'; default: return 'Unknown'; }",
+        "description": "Using fall-through cases instead of duplicates for similar handling"
+      },
+      {
+        "code": "if (user.role === 'admin' && (action === 'delete' || action === 'modify')) { return true; } else { return false; }",
+        "description": "Combined conditions using logical operators instead of duplicates"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-1862"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement",
+      "SwitchStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function_name": "check_duplicate_conditions",
+        "message": "Duplicate condition detected. Remove or consolidate duplicate conditions in if/else chains and switch cases."
+      }
+    ]
+  }
+}

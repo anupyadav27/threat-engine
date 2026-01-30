@@ -1,0 +1,137 @@
+{
+  "filename": "rest_api_actions_should_be_annotated_with_an_http__metadata.json",
+  "rule_id": "rest_api_actions_annotated",
+  "title": "REST API actions should be annotated with an HTTP verb attribute",
+  "description": "Ambiguity: Without HttpAttributes, it’s unclear which HTTP methods an action method should respond to. This can lead to confusion and make the code harder to understand and maintain. Unsupported HTTP Methods: If an action is not annotated at all or is annotated only with the Route attribute, it accepts all HTTP methods even if they are not supported by that action, which leads to further confusion.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Route(\"api/users\")]\npublic IActionResult GetUsers() {\n    return Ok(users); // Missing HTTP verb attribute\n}",
+      "public IActionResult CreateUser(User user) {\n    // No attributes - accepts all HTTP methods\n    return Created();\n}",
+      "[Route(\"api/users/{id}\")]\npublic IActionResult UpdateUser(int id, User user) {\n    // Unclear which HTTP method this supports\n    return Ok();\n}"
+    ],
+    "compliant": [
+      "[HttpGet(\"api/users\")]\npublic IActionResult GetUsers() {\n    return Ok(users);\n}",
+      "[HttpPost(\"api/users\")]\npublic IActionResult CreateUser(User user) {\n    return Created();\n}",
+      "[HttpPut(\"api/users/{id}\")]\npublic IActionResult UpdateUser(int id, User user) {\n    return Ok();\n}",
+      "[HttpDelete(\"api/users/{id}\")]\npublic IActionResult DeleteUser(int id) {\n    return NoContent();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6965"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "public\\s+(?:I?ActionResult|Task<I?ActionResult>)(?:<[^>]+>)?\\s+\\w+\\s*\\([^)]*\\)(?![^{]*\\[Http(?:Get|Post|Put|Delete|Patch|Head|Options))",
+        "exclude_patterns": [
+          "private\\s+",
+          "protected\\s+", 
+          "internal\\s+",
+          "\\[HttpGet",
+          "\\[HttpPost",
+          "\\[HttpPut", 
+          "\\[HttpDelete",
+          "\\[HttpPatch",
+          "\\[HttpHead",
+          "\\[HttpOptions",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "ControllerBase",
+          ": Controller"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "public\\s+(?:I?ActionResult|Task<I?ActionResult>)(?:<[^>]+>)?\\s+\\w+\\s*\\([^)]*\\)(?![^{]*\\[Http(?:Get|Post|Put|Delete|Patch|Head|Options))",
+        "exclude_patterns": [
+          "private\\s+",
+          "protected\\s+", 
+          "internal\\s+",
+          "\\[HttpGet",
+          "\\[HttpPost",
+          "\\[HttpPut", 
+          "\\[HttpDelete",
+          "\\[HttpPatch",
+          "\\[HttpHead",
+          "\\[HttpOptions",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "ControllerBase",
+          ": Controller"
+        ]
+      }
+    ],
+    "triggering_conditions": {
+      "logic": "AND", 
+      "conditions": [
+        "Method returns IActionResult or ActionResult",
+        "Method is public",
+        "Method is in a Controller class",
+        "Method lacks HTTP verb attribute ([HttpGet], [HttpPost], etc.)"
+      ]
+    },
+    "exclusion_conditions": [
+      "Method has HTTP verb attribute",
+      "Method is private/protected/internal",
+      "Method is not in Controller class",
+      "Method is a helper/utility method",
+      "In test context"
+    ],
+    "never_trigger_on": [
+      "Private/protected/internal methods",
+      "Methods with HTTP verb attributes ([HttpGet], [HttpPost], etc.)",
+      "Non-controller classes",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "Helper methods that don't represent API endpoints"
+    ],
+    "reasoning": "Detects public methods that return ActionResult or IActionResult (indicating they are API endpoints) but lack proper HTTP verb attributes. This creates ambiguity about which HTTP methods the endpoint supports and can lead to security issues where endpoints accept unintended HTTP verbs. Only targets public methods in controller classes to avoid false positives on helper methods.",
+    "validation_examples": {
+      "should_trigger": [
+        "[Route(\"api/users\")] public IActionResult GetUsers() { return Ok(users); }",
+        "public IActionResult CreateUser(User user) { return Created(); }",
+        "[Route(\"api/users/{id}\")] public IActionResult UpdateUser(int id, User user) { return Ok(); }",
+        "public ActionResult<string> GetData() { return \"data\"; }"
+      ],
+      "should_not_trigger": [
+        "[HttpGet(\"api/users\")] public IActionResult GetUsers() { return Ok(users); }",
+        "[HttpPost(\"api/users\")] public IActionResult CreateUser(User user) { return Created(); }",
+        "private IActionResult HelperMethod() { return Ok(); }",
+        "public IActionResult SomeMethod() { ... } // in non-controller class"
+      ]
+    }
+  }
+}

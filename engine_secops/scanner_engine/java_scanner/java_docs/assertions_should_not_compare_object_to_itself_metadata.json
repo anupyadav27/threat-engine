@@ -1,0 +1,67 @@
+{
+  "filename": "assertions_should_not_compare_object_to_itself_metadata.json",
+  "rule_id": "VULNERABILITY_COMPARE_SELF_OBJECT_S5863",
+  "title": "Avoid comparing an object to itself",
+  "description": "Assertions comparing an object to itself are more likely to be bugs due to developer's carelessness.\n\nThis rule raises an issue when the actual expression matches the expected expression.\n\nIn a unit test validating the equals(...) and hashCode() methods, it's legitimate to compare an object to itself. This rule does not raise an issue for isEqualTo, assertEquals or hasSameHashCodeAs when the unit test name contains (case insensitive): equal, hash_?code, object_?method. For example, in tests with the following names: test_equals, testEqual, test_hashCode, test_hash_code, test_object_methods.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Refactor the assertion to compare the object with another instance or a constant.",
+  "impact": "Potential for security vulnerabilities and incorrect behavior due to developer's carelessness.",
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [],
+  "logic": {
+    "node_types": [
+      "Method",
+      "Expression"
+    ],
+    "checks": [
+      {
+        "type": "property_comparison",
+        "property_path": [
+          "left",
+          "id"
+        ],
+        "operator": "equals",
+        "comparator_property_path": [
+          "right",
+          "id"
+        ],
+        "message": "Avoid comparing an object to itself as it is likely a bug due to developer's carelessness."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "parent",
+          "name"
+        ],
+        "regex_patterns": [
+          "(?i).*equal.*",
+          "(?i).*hash_?code.*",
+          "(?i).*object_?method.*"
+        ],
+        "forbidden_values": [
+          "true"
+        ],
+        "message": "Comparing an object to itself in a method that is likely testing equals or hashCode is allowed."
+      },
+      {
+        "type": "required_value",
+        "property_path": [
+          "parent",
+          "annotations",
+          "name"
+        ],
+        "required_values": [
+          "isEqualTo",
+          "assertEquals",
+          "hasSameHashCodeAs"
+        ],
+        "message": "Comparing an object to itself using isEqualTo, assertEquals, or hasSameHashCodeAs in a test method is allowed."
+      }
+    ]
+  }
+}

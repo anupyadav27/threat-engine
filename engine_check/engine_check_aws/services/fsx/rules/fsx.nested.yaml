@@ -1,0 +1,86 @@
+version: '1.0'
+provider: aws
+service: fsx
+services:
+  client: fsx
+  module: boto3.client
+discovery:
+- discovery_id: aws.fsx.describe_file_systems
+  calls:
+  - action: describe_file_systems
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.FileSystems }}'
+    as: item
+- discovery_id: aws.fsx.describe_backups
+  calls:
+  - action: describe_backups
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Backups }}'
+    as: item
+- discovery_id: aws.fsx.describe_snapshots
+  calls:
+  - action: describe_snapshots
+    params:
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.Snapshots }}'
+    as: item
+checks:
+- rule_id: aws.fsx.filesystem.encryption_at_rest_enabled
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.fsx.filesystem.kms_key_policy_least_privilege
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.fsx.filesystem.private_network_only_configured
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.NetworkType
+    op: equals
+    value: PRIVATE
+- rule_id: aws.fsx.filesystem.snapshots_enabled
+  for_each: aws.fsx.describe_snapshots
+  conditions:
+    var: item.Lifecycle
+    op: equals
+    value: AVAILABLE
+- rule_id: aws.fsx.resource.backup_enabled
+  for_each: aws.fsx.describe_backups
+  conditions:
+    var: item.Lifecycle
+    op: equals
+    value: AVAILABLE
+- rule_id: aws.fsx.resource.file_system_copy_tags_to_backups_enabled
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.WindowsConfiguration.CopyTagsToBackups
+    op: equals
+    value: true
+- rule_id: aws.fsx.resource.file_system_copy_tags_to_volumes_enabled
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.WindowsConfiguration.CopyTagsToVolumes
+    op: equals
+    value: true
+- rule_id: aws.fsx.resource.fsx_windows_file_system_multi_az_enabled
+  for_each: aws.fsx.describe_file_systems
+  conditions:
+    var: item.WindowsConfiguration.DeploymentType
+    op: in
+    value:
+    - MULTI_AZ_1
+    - MULTI_AZ_2

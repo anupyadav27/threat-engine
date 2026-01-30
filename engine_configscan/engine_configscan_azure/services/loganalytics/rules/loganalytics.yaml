@@ -1,0 +1,21 @@
+version: '1.0'
+provider: azure
+service: loganalytics
+discovery:
+- discovery_id: azure.loganalytics.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+checks:
+- rule_id: azure.loganalytics.basic.compliance.check
+  for_each: azure.loganalytics.list
+  conditions:
+    var: item.id
+    op: exists

@@ -1,0 +1,45 @@
+version: '1.0'
+provider: aws
+service: kinesisfirehose
+services:
+  client: kinesisfirehose
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesisfirehose.list_delivery_streams
+  calls:
+  - action: list_delivery_streams
+    save_as: response
+  emit:
+    items_for: '{{ response.DeliveryStreamNames }}'
+    as: item
+    item:
+      DeliveryStreamName: '{{ item }}'
+- discovery_id: aws.kinesisfirehose.describe_delivery_stream
+  for_each: aws.kinesisfirehose.list_delivery_streams
+  calls:
+  - action: describe_delivery_stream
+    params:
+      DeliveryStreamName: '{{ item.DeliveryStreamName }}'
+    save_as: response
+  emit:
+    item:
+      DeliveryStreamName: '{{ response.DeliveryStreamDescription.DeliveryStreamName
+        }}'
+      DeliveryStreamARN: '{{ response.DeliveryStreamDescription.DeliveryStreamARN
+        }}'
+      DeliveryStreamStatus: '{{ response.DeliveryStreamDescription.DeliveryStreamStatus
+        }}'
+      FailureDescription: '{{ response.DeliveryStreamDescription.FailureDescription
+        }}'
+      DeliveryStreamEncryptionConfiguration: '{{ response.DeliveryStreamDescription.DeliveryStreamEncryptionConfiguration
+        }}'
+      DeliveryStreamType: '{{ response.DeliveryStreamDescription.DeliveryStreamType
+        }}'
+      VersionId: '{{ response.DeliveryStreamDescription.VersionId }}'
+      CreateTimestamp: '{{ response.DeliveryStreamDescription.CreateTimestamp }}'
+      LastUpdateTimestamp: '{{ response.DeliveryStreamDescription.LastUpdateTimestamp
+        }}'
+      Source: '{{ response.DeliveryStreamDescription.Source }}'
+      Destinations: '{{ response.DeliveryStreamDescription.Destinations }}'
+      HasMoreDestinations: '{{ response.DeliveryStreamDescription.HasMoreDestinations
+        }}'

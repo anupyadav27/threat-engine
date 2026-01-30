@@ -1,0 +1,53 @@
+{
+  "filename": "deserializing_objects_without_performing_data_vali_metadata.json",
+  "rule_id": "deserializing_objects_without_performing",
+  "title": "Deserializing objects without performing data validation is security-sensitive",
+  "description": "Creating Serializable objects without data validation checks is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweWhen an object is created via deserialization, its constructor is often not executed: the object is instead built directly from its serialized data.This means an attacker can create a malicious object and completely bypass security checks.Ask Yourself WhetherConstructors of thisSerializableclass lack relevant security checks.Security checks performed during deserialization differ from those in the constructor.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesEnsure validation is applied to all entry points of an application.Ensure that validation is identical regardless of how an object gets creat",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Serializable]\npublic class BankAccount\n{\n    public decimal Balance { get; set; }\n    public string AccountNumber { get; set; }\n    \n    public BankAccount(decimal balance, string accountNumber)\n    {\n        if (balance < 0)\n            throw new ArgumentException(\"Balance cannot be negative\");\n        Balance = balance;\n        AccountNumber = accountNumber;\n    }\n    // Noncompliant: No validation during deserialization\n}",
+      "[Serializable]\npublic class User\n{\n    public string Email { get; set; }\n    public int Age { get; set; }\n    \n    public User(string email, int age)\n    {\n        if (age < 0 || age > 150)\n            throw new ArgumentException(\"Invalid age\");\n        Email = email;\n        Age = age;\n    }\n    // Noncompliant: Security checks bypassed during deserialization\n}",
+      "[Serializable]\npublic class Configuration\n{\n    public string DatabaseConnection { get; set; }\n    \n    public Configuration(string dbConnection)\n    {\n        if (string.IsNullOrEmpty(dbConnection))\n            throw new ArgumentException(\"Connection string required\");\n        DatabaseConnection = dbConnection;\n    }\n    // Noncompliant: Missing validation in deserialization\n}"
+    ],
+    "compliant": [
+      "[Serializable]\npublic class BankAccount : IDeserializationCallback\n{\n    public decimal Balance { get; set; }\n    public string AccountNumber { get; set; }\n    \n    public BankAccount(decimal balance, string accountNumber)\n    {\n        ValidateBalance(balance);\n        Balance = balance;\n        AccountNumber = accountNumber;\n    }\n    \n    public void OnDeserialization(object sender)\n    {\n        ValidateBalance(Balance); // Compliant: Validation applied\n    }\n    \n    private void ValidateBalance(decimal balance)\n    {\n        if (balance < 0)\n            throw new ArgumentException(\"Balance cannot be negative\");\n    }\n}",
+      "[Serializable]\npublic class User : IDeserializationCallback\n{\n    public string Email { get; set; }\n    public int Age { get; set; }\n    \n    public User(string email, int age)\n    {\n        Validate(age);\n        Email = email;\n        Age = age;\n    }\n    \n    public void OnDeserialization(object sender)\n    {\n        Validate(Age); // Compliant: Validation during deserialization\n    }\n    \n    private void Validate(int age)\n    {\n        if (age < 0 || age > 150)\n            throw new ArgumentException(\"Invalid age\");\n    }\n}",
+      "[Serializable]\npublic class Configuration\n{\n    private string databaseConnection;\n    \n    public string DatabaseConnection\n    {\n        get => databaseConnection;\n        set\n        {\n            ValidateConnection(value);\n            databaseConnection = value;\n        }\n    }\n    \n    private void ValidateConnection(string connection)\n    {\n        if (string.IsNullOrEmpty(connection))\n            throw new ArgumentException(\"Connection string required\");\n    }\n    // Compliant: Validation in property setter applies during deserialization\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5766"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Serializable classes with constructor validation but no deserialization validation",
+    "triggering_conditions": "Has [Serializable] AND has constructor validation (if/throw) AND missing IDeserializationCallback/OnDeserialization/property validation",
+    "exclusion_conditions": "Exclude test classes, classes without constructor validation, and classes with property setters that validate",
+    "never_trigger_on": [
+      "Test classes",
+      "Classes without constructor validation",
+      "Classes implementing IDeserializationCallback",
+      "Classes with validation in property setters"
+    ],
+    "reasoning": "When objects are deserialized, constructors are bypassed. Classes that validate input in constructors must also validate during deserialization to prevent attackers from bypassing security checks. We detect Serializable classes with if/throw validation patterns in constructors, then check for IDeserializationCallback implementation, OnDeserialization method, or property setter validation.",
+    "validation_examples": {
+      "should_trigger": [
+        "[Serializable]\\npublic class BankAccount {\\n  public BankAccount(decimal balance) {\\n    if (balance < 0) throw new ArgumentException();\\n  }\\n}"
+      ],
+      "should_not_trigger": [
+        "[Serializable]\\npublic class BankAccount : IDeserializationCallback {\\n  public void OnDeserialization(object sender) { Validate(); }\\n}"
+      ]
+    },
+    "custom_function": "check_deserializing_without_validation"
+  }
+}

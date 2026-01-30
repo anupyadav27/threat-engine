@@ -1,0 +1,59 @@
+{
+  "filename": "actions_that_return_a_value_should_be_annotated_wi_metadata.json",
+  "rule_id": "actions_that_return_value",
+  "title": "Actions that return a value should be annotated with ProducesResponseTypeAttribute containing the return type",
+  "description": "If an ASP.NET Core Web API uses Swagger, the API documentation will be generated based on the input/output types of the controller actions, as well as the attributes annotating the actions. If an action returns IActionResult or IResult, Swagger cannot infer the type of the response. From the consumer’s perspective, this can be confusing and lead to unexpected results and bugs in the long run without the API provider’s awareness.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public IActionResult GetUser() { return Ok(); }",
+      "public async Task<IResult> CreateUser() { return Results.Ok(); }"
+    ],
+    "compliant": [
+      "[ProducesResponseType(200)] public IActionResult GetUser() { return Ok(); }",
+      "[ProducesResponseType(201)] public async Task<IResult> CreateUser() { return Results.Ok(); }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6968"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "context_aware_action_result_check",
+        "property_path": [
+          "source"
+        ],
+        "controller_patterns": [
+          "class\\s+\\w+\\s*:\\s*ControllerBase",
+          "class\\s+\\w+\\s*:\\s*Controller"
+        ],
+        "action_result_method_patterns": [
+          "\\[Http(Get|Post|Put|Delete|Patch).*?\\]\\s*(?:\\[.*?\\]\\s*)*\\s*(?:public\\s+)?(?:async\\s+)?(?:Task<)?IActionResult(?:>)?\\s+\\w+\\s*\\(",
+          "\\[Http(Get|Post|Put|Delete|Patch).*?\\]\\s*(?:\\[.*?\\]\\s*)*\\s*(?:public\\s+)?(?:async\\s+)?(?:Task<)?IResult(?:>)?\\s+\\w+\\s*\\("
+        ],
+        "produces_response_type_patterns": [
+          "\\[ProducesResponseType"
+        ],
+        "exclusion_patterns": [
+          "abstract\\s+class",
+          "interface\\s+\\w+",
+          "abstract\\s+(?:public\\s+)?(?:async\\s+)?(?:Task<)?I(?:Action)?Result(?:>)?\\s+\\w+\\s*\\("
+        ],
+        "message": "Method returns IActionResult/IResult but lacks ProducesResponseType attribute"
+      }
+    ]
+  }
+}

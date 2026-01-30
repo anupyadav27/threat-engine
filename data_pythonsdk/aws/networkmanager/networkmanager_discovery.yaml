@@ -1,0 +1,359 @@
+version: '1.0'
+provider: aws
+service: networkmanager
+services:
+  client: networkmanager
+  module: boto3.client
+discovery:
+- discovery_id: aws.networkmanager.list_attachments
+  calls:
+  - action: list_attachments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Attachments }}'
+- discovery_id: aws.networkmanager.list_peerings
+  calls:
+  - action: list_peerings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Peerings }}'
+- discovery_id: aws.networkmanager.list_connect_peers
+  calls:
+  - action: list_connect_peers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ConnectPeers }}'
+- discovery_id: aws.networkmanager.describe_global_networks
+  calls:
+  - action: describe_global_networks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.GlobalNetworks }}'
+- discovery_id: aws.networkmanager.list_organization_service_access_status
+  calls:
+  - action: list_organization_service_access_status
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.OrganizationStatus }}'
+- discovery_id: aws.networkmanager.get_devices
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_devices
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Devices }}'
+- discovery_id: aws.networkmanager.get_network_resources
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_network_resources
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.NetworkResources }}'
+- discovery_id: aws.networkmanager.get_connections
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_connections
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Connections }}'
+- discovery_id: aws.networkmanager.list_core_network_routing_information
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: list_core_network_routing_information
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.attachmentSegmentName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CoreNetworkRoutingInformation }}'
+- discovery_id: aws.networkmanager.get_core_network_policy
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_core_network_policy
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.attachmentCoreNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CoreNetworkPolicy }}'
+- discovery_id: aws.networkmanager.get_core_network_change_set
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_core_network_change_set
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.coreNetworkPolicyPolicyVersionId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CoreNetworkChanges }}'
+- discovery_id: aws.networkmanager.get_links
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_links
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Links }}'
+- discovery_id: aws.networkmanager.get_core_network
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_core_network
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.attachmentCoreNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CoreNetwork }}'
+- discovery_id: aws.networkmanager.get_core_network_change_events
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_core_network_change_events
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.coreNetworkPolicyPolicyVersionId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CoreNetworkChangeEvents }}'
+- discovery_id: aws.networkmanager.list_attachment_routing_policy_associations
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: list_attachment_routing_policy_associations
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.attachmentCoreNetworkId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AttachmentRoutingPolicyAssociations }}'
+- discovery_id: aws.networkmanager.get_network_routes
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_network_routes
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.NetworkRoutes }}'
+- discovery_id: aws.networkmanager.get_network_resource_relationships
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_network_resource_relationships
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Relationships }}'
+- discovery_id: aws.networkmanager.get_vpc_attachment
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_vpc_attachment
+    save_as: response
+    on_error: continue
+    params:
+      AttachmentId: '{{ item.attachmentAttachmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.VpcAttachment }}'
+- discovery_id: aws.networkmanager.get_transit_gateway_peering
+  for_each: aws.networkmanager.list_peerings
+  calls:
+  - action: get_transit_gateway_peering
+    save_as: response
+    on_error: continue
+    params:
+      PeeringId: '{{ item.peeringPeeringId }}'
+  emit:
+    as: item
+    items_for: '{{ response.TransitGatewayPeering }}'
+- discovery_id: aws.networkmanager.get_network_telemetry
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_network_telemetry
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.NetworkTelemetry }}'
+- discovery_id: aws.networkmanager.list_core_network_prefix_list_associations
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: list_core_network_prefix_list_associations
+    save_as: response
+    on_error: continue
+    params:
+      CoreNetworkId: '{{ item.attachmentCoreNetworkId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PrefixListAssociations }}'
+- discovery_id: aws.networkmanager.list_tags_for_resource
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      ResourceArn: '{{ item.attachmentResourceArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+- discovery_id: aws.networkmanager.get_connect_peer
+  for_each: aws.networkmanager.list_connect_peers
+  calls:
+  - action: get_connect_peer
+    save_as: response
+    on_error: continue
+    params:
+      ConnectPeerId: '{{ item.connectPeerConnectPeerId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ConnectPeer }}'
+- discovery_id: aws.networkmanager.get_sites
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_sites
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Sites }}'
+- discovery_id: aws.networkmanager.get_transit_gateway_connect_peer_associations
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_transit_gateway_connect_peer_associations
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.TransitGatewayConnectPeerAssociations }}'
+- discovery_id: aws.networkmanager.get_customer_gateway_associations
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_customer_gateway_associations
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.CustomerGatewayAssociations }}'
+- discovery_id: aws.networkmanager.get_link_associations
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_link_associations
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.LinkAssociations }}'
+- discovery_id: aws.networkmanager.get_connect_attachment
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_connect_attachment
+    save_as: response
+    on_error: continue
+    params:
+      AttachmentId: '{{ item.attachmentAttachmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ConnectAttachment }}'
+- discovery_id: aws.networkmanager.get_transit_gateway_route_table_attachment
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_transit_gateway_route_table_attachment
+    save_as: response
+    on_error: continue
+    params:
+      AttachmentId: '{{ item.attachmentAttachmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.TransitGatewayRouteTableAttachment }}'
+- discovery_id: aws.networkmanager.get_network_resource_counts
+  for_each: aws.networkmanager.describe_global_networks
+  calls:
+  - action: get_network_resource_counts
+    save_as: response
+    on_error: continue
+    params:
+      GlobalNetworkId: '{{ item.globalNetworkGlobalNetworkId }}'
+  emit:
+    as: item
+    items_for: '{{ response.NetworkResourceCounts }}'
+- discovery_id: aws.networkmanager.get_site_to_site_vpn_attachment
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_site_to_site_vpn_attachment
+    save_as: response
+    on_error: continue
+    params:
+      AttachmentId: '{{ item.attachmentAttachmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.SiteToSiteVpnAttachment }}'
+- discovery_id: aws.networkmanager.get_direct_connect_gateway_attachment
+  for_each: aws.networkmanager.list_attachments
+  calls:
+  - action: get_direct_connect_gateway_attachment
+    save_as: response
+    on_error: continue
+    params:
+      AttachmentId: '{{ item.attachmentAttachmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.DirectConnectGatewayAttachment }}'
+checks: []

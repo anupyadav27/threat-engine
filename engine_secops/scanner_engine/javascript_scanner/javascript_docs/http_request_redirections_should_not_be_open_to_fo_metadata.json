@@ -1,0 +1,83 @@
+{
+  "filename": "http_request_redirections_should_not_be_open_to_fo_metadata.json",
+  "rule_id": "http_request_redirections_open",
+  "title": "HTTP request redirections should not be open to forging attacks",
+  "description": "Open redirection occurs when an application uses user-controllable data to redirect users to a URL. An attacker with malicious intent could manipulate a user to browse into a specially crafted URL, such as https://trusted.example.com?url=evil.example.com, to redirect the victim to his evil domain. Tricking users into sending the malicious HTTP request is usually the main task of exploiting an open redirection.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "https://trusted.example.com?url=evil.example.com"
+    ],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5146"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "AssignmentExpression",
+      "MemberExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(res\\.redirect|response\\.redirect)\\s*\\(\\s*[^)]*\\$\\{[^}]*\\}[^)]*\\)",
+        "message": "User-controlled redirect detected. Validate and whitelist redirect URLs to prevent open redirect attacks."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(res\\.redirect|response\\.redirect)\\s*\\(\\s*[^)]*\\+[^)]*\\)",
+        "message": "Dynamic redirect URL construction detected. Ensure redirect targets are validated against a whitelist."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(location\\.href|window\\.location|document\\.location)\\s*=\\s*[^;]*\\$\\{[^}]*\\}",
+        "message": "Client-side redirect with user input detected. Validate redirect URLs to prevent malicious redirects."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(location\\.href|window\\.location|document\\.location)\\s*=\\s*[^;]*\\+[^;]*",
+        "message": "Dynamic client-side redirect detected. Ensure the redirect URL is validated and safe."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(req\\.query|req\\.params|req\\.body)\\.[^\\s]*\\)\\s*\\)",
+        "message": "Request parameter directly used in redirect. Implement URL validation and whitelist checking."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "window\\.open\\s*\\([^)]*\\$\\{[^}]*\\}[^)]*\\)",
+        "message": "User-controlled window.open() detected. Validate URLs to prevent malicious popup redirects."
+      }
+    ]
+  }
+}

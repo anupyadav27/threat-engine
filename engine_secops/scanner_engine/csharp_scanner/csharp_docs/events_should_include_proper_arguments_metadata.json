@@ -1,0 +1,124 @@
+{
+  "filename": "events_should_include_proper_arguments_metadata.json",
+  "rule_id": "events_include_proper_arguments",
+  "title": "Events should include proper arguments",
+  "description": "Events should have proper argumentsAnalyze your codeintentionality-logicalmaintainabilityCode SmelleventpitfallWhy is this an issue?When raising an event, two arguments are expected by theEventHandlerdelegate: Sender and event-data. There are three guidelines regarding these parameters:Do not passnullas the sender when raising a non-static event.Do passnullas the sender when raising a static event.Do not passnullas the event-data. If no data should be passed, thenEventArgs.Emptyshould be used.This rule raises an issue when any of these guidelines is not met.Noncompliant code exampleusing System; namespace MyLibrary { class Foo { public event EventHandler ThresholdReached; protected virtual void OnThresholdReached(EventArgs e) { ThresholdReached?.Invoke(null, e); // Noncompliant } } }Compli",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    class Foo\n    {\n        public event EventHandler ThresholdReached;\n\n        protected virtual void OnThresholdReached(EventArgs e)\n        {\n            ThresholdReached?.Invoke(null, e); // Noncompliant - passing null as sender\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    class Foo\n    {\n        public event EventHandler ThresholdReached;\n\n        protected virtual void OnThresholdReached(EventArgs e)\n        {\n            ThresholdReached?.Invoke(this, e); // Compliant - passing this as sender\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4220"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Event invocation with improper arguments (null sender for non-static, or null event data)",
+    "triggering_conditions": "Event Invoke() or direct call with null as first argument (non-static context) OR null as second argument",
+    "exclusion_conditions": "Exclude static events with null sender, events with 'this' sender, test code, constructor calls, method calls",
+    "never_trigger_on": [
+      "Test code ([Test], [Fact], Assert.*)",
+      "Static event invocations with null sender (compliant)",
+      "Events with 'this' as sender (compliant)",
+      "Logging statements",
+      "Constructor calls (new Class())",
+      "Regular method calls (object.Method())"
+    ],
+    "reasoning": "Enforces proper event argument guidelines: (1) Non-static events must pass 'this' as sender, not null. (2) Event data should be EventArgs.Empty, not null. (3) Static events CAN pass null as sender. Detects event invocations (.Invoke or direct call) with 'null' as first or second argument. Excludes static event context and compliant patterns. Fixed to properly detect null sender even when EventArgs.Empty is used as second argument.",
+    "validation_examples": {
+      "should_trigger": [
+        "ThresholdReached?.Invoke(null, e);",
+        "ThresholdReached?.Invoke(null, EventArgs.Empty);",
+        "DataReceived?.Invoke(this, null);",
+        "StatusChanged?.Invoke(null, null);",
+        "if (Updated != null) { Updated(null, EventArgs.Empty); }",
+        "EdgeEvent(null, null);"
+      ],
+      "should_not_trigger": [
+        "ThresholdReached?.Invoke(this, e);",
+        "DataReceived?.Invoke(this, EventArgs.Empty);",
+        "StaticEvent?.Invoke(null, EventArgs.Empty); // static context",
+        "CustomEvent?.Invoke(this, args);"
+      ]
+    },
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\??\\.(Invoke|\\()\\s*\\(\\s*null\\s*,",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "static\\s+.*Invoke",
+          "static\\s+event"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\??\\.(Invoke|\\()\\s*\\([^,]+,\\s*null\\s*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\s*\\(\\s*null\\s*,",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "static\\s+.*\\(",
+          "new\\s+\\w+\\s*\\(",
+          "\\w+\\.\\w+\\s*\\("
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\s*\\([^,]+,\\s*null\\s*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "new\\s+\\w+\\s*\\(",
+          "\\w+\\.\\w+\\s*\\("
+        ]
+      }
+    ]
+  }
+}

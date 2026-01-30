@@ -1,0 +1,74 @@
+{
+  "filename": "parameters_with_supplyparameterfromquery_attribute_metadata.json",
+  "rule_id": "parameters_supplyparameterfromquery_attribute_preferred",
+  "title": "Parameters with SupplyParameterFromQuery attribute should be preferred only in routable components",
+  "description": "Parameters with SupplyParameterFromQuery attribute should be used only in routable componentsAnalyze your codeintentionality-logicalreliabilityCode SmellblazorComponent parameters can only receive query parameter values in routable components with an @page directive.Why is this an issue?How can I fix it?More InfoSupplyParameterFromQueryattribute is used to specify that a component parameter of a routable component comes from thequery string.In the case of non-routable components, theSupplyParameterFromQuerydoes not contribute to the functionality, and removing it will not affect the behavior.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Non-routable component\nusing Microsoft.AspNetCore.Components;\n\npublic partial class MyComponent : ComponentBase\n{\n  [Parameter, SupplyParameterFromQuery] // Noncompliant: no @page directive\n  public string SearchTerm { get; set; }\n}"
+    ],
+    "compliant": [
+      "// Option 1: Make component routable\n@page \"/search\"\n\nusing Microsoft.AspNetCore.Components;\n\npublic partial class MyComponent : ComponentBase\n{\n  [Parameter, SupplyParameterFromQuery] // Compliant: component is routable\n  public string SearchTerm { get; set; }\n}\n\n// Option 2: Remove SupplyParameterFromQuery from non-routable component\nusing Microsoft.AspNetCore.Components;\n\npublic partial class MyComponent : ComponentBase\n{\n  [Parameter] // Compliant: removed SupplyParameterFromQuery\n  public string SearchTerm { get; set; }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6803"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\[.*SupplyParameterFromQuery.*\\]",
+        "exclude_patterns": [
+          "@page\\s+",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "Generated",
+          "abstract\\s+class",
+          "partial\\s+class.*\\.g\\."
+        ]
+      }
+    ],
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Detects classes with SupplyParameterFromQuery attributes on parameters that do not have @page directive",
+    "triggering_conditions": "ClassDeclaration nodes containing SupplyParameterFromQuery attributes but no @page directive in the source",
+    "exclusion_conditions": "Excludes classes with @page directive, unit tests, logging statements, generated code, abstract classes, and generated partial classes",
+    "never_trigger_on": [
+      "Routable components (classes with @page directive)",
+      "Unit test classes ([Test], [Fact], Assert.*)",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Generated code (*.g.cs files)",
+      "Abstract classes (might be base classes for routable components)",
+      "Generated partial classes",
+      "Interface declarations"
+    ],
+    "reasoning": "Detects Blazor components that use SupplyParameterFromQuery attribute without being routable. The pattern matches any SupplyParameterFromQuery attribute usage. Excludes routable components (with @page), generated code, abstract classes, and other safe contexts where this rule should not apply.",
+    "validation_examples": {
+      "should_trigger": [
+        "public partial class MyComponent : ComponentBase { [Parameter, SupplyParameterFromQuery] public string SearchTerm { get; set; } }",
+        "public class SearchComponent { [SupplyParameterFromQuery] public int PageSize { get; set; } }"
+      ],
+      "should_not_trigger": [
+        "@page \"/search\" public partial class MyComponent : ComponentBase { [Parameter, SupplyParameterFromQuery] public string SearchTerm { get; set; } }",
+        "public partial class MyComponent : ComponentBase { [Parameter] public string SearchTerm { get; set; } }",
+        "[Test] public class MyComponent { [Parameter, SupplyParameterFromQuery] public string SearchTerm { get; set; } }",
+        "abstract class BaseComponent { [SupplyParameterFromQuery] public string SearchTerm { get; set; } }"
+      ]
+    }
+  }
+}

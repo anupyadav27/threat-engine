@@ -1,0 +1,55 @@
+{
+  "rule_id": "enabling_project_wide_ssh_keys_to_access_vm_instances_is_security_sensitive",
+  "title": "Enabling project-wide SSH keys to access VM instances is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "Major",
+  "description": "Enabling project-wide SSH keys allows any user with a key in the project metadata to access all VM instances, increasing the risk of unauthorized access. Instance-level SSH keys provide better control and auditability. Project-wide keys should be avoided unless absolutely necessary.",
+  "message": "Project-wide SSH keys are enabled. Use instance-level keys for better security.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "30min"
+  },
+  "tags": [
+    "gcp"
+  ],
+  "impact": "Project-wide keys can be abused to access all VMs, leading to potential compromise of the entire environment.",
+  "recommendation": "Disable project-wide SSH keys. Use instance-level keys and manage access through IAM and OS Login.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6405/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"google_compute_project_metadata_item\" \"bad_example\" {\n  key   = \"ssh-keys\"\n  value = \"user:ssh-rsa AAA...\"\n}",
+        "description": "Project-wide SSH keys are set, granting access to all VMs."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "# No project-wide SSH keys set\nresource \"google_compute_instance\" \"good_example\" {\n  metadata = {\n    ssh-keys = \"\"\n  }\n}",
+        "description": "No project-wide SSH keys are set; access is managed per instance."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Access Control & Endpoint Security"
+  },
+  "logic": {
+    "resource_type": "<TO_BE_FILLED>",
+    "property_path": [
+      "<TO_BE_FILLED>"
+    ],
+    "check_type": "<TO_BE_FILLED>",
+    "forbidden_values": [],
+    "required_values": [],
+    "custom_function": ""
+  },
+  "why_is_this_an_issue": "Project-wide SSH keys make it difficult to control and audit access, increasing the risk of compromise.",
+  "how_to_fix": "Remove project-wide SSH keys from project metadata. Use instance-level keys and enable OS Login for centralized access management.",
+  "security_mappings": {
+    "CWE": "CWE-732: Incorrect Permission Assignment for Critical Resource",
+    "CERT": "IDS00-J: Prevent privilege escalation",
+    "OWASP": "A5: Broken Access Control"
+  }
+}

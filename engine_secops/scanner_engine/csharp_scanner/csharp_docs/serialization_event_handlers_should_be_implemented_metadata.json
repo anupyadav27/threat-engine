@@ -1,0 +1,72 @@
+{
+  "filename": "serialization_event_handlers_should_be_implemented_metadata.json",
+  "rule_id": "serialization_event_handlers_implemented",
+  "title": "Serialization event handlers should be implemented correctly",
+  "description": "Serialization event handlers should be implemented correctlyAnalyze your codeintentionality-logicalreliabilityBugWhy is this an issue?How can I fix it?More InfoSerialization event handlers that don’t have the correct signature will not be called, bypassing augmentations to automated serialization and deserialization events.A method is designated a serialization event handler by applying one of the following serialization event attributes:OnSerializingAttributeOnSerializedAttributeOnDeserializingAttributeOnDeserializedAttributeSerialization event handlers take a single parameter of typeStreamingContext, returnvoid, and haveprivatevisibility.This rule raises an issue when any of these constraints are not respected.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub,",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Serializable]\npublic class Document\n{\n    // Wrong signature - public instead of private\n    [OnSerializing]\n    public void OnSerializingMethod(StreamingContext context) { }\n    \n    // Wrong parameter type\n    [OnDeserialized]\n    private void OnDeserializedMethod(object context) { }\n}",
+      "[Serializable]\npublic class User\n{\n    // Wrong return type - should be void\n    [OnSerializing]\n    private bool PrepareForSerialization(StreamingContext context) => true;\n    \n    // Missing parameter\n    [OnDeserialized]\n    private void PostDeserialize() { }\n}"
+    ],
+    "compliant": [
+      "[Serializable]\npublic class Document\n{\n    [OnSerializing]\n    private void OnSerializingMethod(StreamingContext context) \n    { \n        // Prepare for serialization\n    }\n    \n    [OnDeserialized]\n    private void OnDeserializedMethod(StreamingContext context) \n    { \n        // Post-deserialization setup\n    }\n}",
+      "[Serializable]\npublic class User\n{\n    [OnSerializing]\n    private void PrepareForSerialization(StreamingContext context) \n    { \n        // Cleanup sensitive data\n    }\n    \n    [OnDeserialized]\n    private void PostDeserialize(StreamingContext context) \n    { \n        // Restore transient state\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3927"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "Attribute"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_serialization_event_handler_signature"
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration", "Attribute"],
+    "detection_conditions": "Serialization event handler with incorrect signature",
+    "triggering_conditions": {
+      "logic": "AND",
+      "conditions": [
+        "Method has serialization event attribute ([OnSerializing], [OnSerialized], [OnDeserializing], [OnDeserialized])",
+        "Method signature violates requirements: not private, not void return, or wrong parameters"
+      ]
+    },
+    "exclusion_conditions": [
+      "Methods with correct signature (private void Method(StreamingContext))",
+      "Comments and test code",
+      "Methods without serialization attributes"
+    ],
+    "never_trigger_on": [
+      "Methods with correct signature: private void MethodName(StreamingContext context)",
+      "Comments (//*, /*/, ///)",
+      "Unit tests ([Test], [Fact])",
+      "Methods without serialization event attributes",
+      "Logging statements"
+    ],
+    "reasoning": "Serialization event handlers must follow specific signature requirements to be invoked by the runtime. Wrong visibility (not private), wrong return type (not void), or wrong parameters (not StreamingContext) will cause handlers to be silently ignored. Uses custom function to validate all signature requirements.",
+    "validation_examples": {
+      "should_trigger": [
+        "[OnSerializing]\npublic void OnSerializingMethod(StreamingContext context) { }",
+        "[OnDeserialized]\nprivate bool OnDeserializedMethod(StreamingContext context) => true;",
+        "[OnSerializing]\nprivate void PrepareForSerialization() { }"
+      ],
+      "should_not_trigger": [
+        "[OnSerializing]\nprivate void OnSerializingMethod(StreamingContext context) { }",
+        "[OnDeserialized]\nprivate void OnDeserializedMethod(StreamingContext context) { }",
+        "public void RegularMethod() { }"
+      ]
+    }
+  }
+}

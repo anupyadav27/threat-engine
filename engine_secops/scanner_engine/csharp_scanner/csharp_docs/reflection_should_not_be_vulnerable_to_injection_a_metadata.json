@@ -1,0 +1,122 @@
+{
+  "filename": "reflection_should_not_be_vulnerable_to_injection_a_metadata.json",
+  "rule_id": "reflection_vulnerable_injection_attacks",
+  "title": "Reflection should not be vulnerable to injection attacks",
+  "description": "Reflection injections occur in a web application when it retrieves data from a user or a third-party service and fully or partially uses it to inspect, load or invoke a component by name. If an application uses a reflection method in a way that is vulnerable to injections, it is exposed to attacks that aim to achieve remote code execution on the server’s website. A user with malicious intent exploits this by carefully crafting a string involving symbols such as class methods, that will help them change the initial reflection logic to an impactful malicious one.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "Type type = Type.GetType(userInput); // Vulnerable to injection\nMethodInfo method = type.GetMethod(userInput);\nmethod.Invoke(obj, args);",
+      "Assembly assembly = Assembly.LoadFrom(userInput); // User-controlled assembly loading\nType type = assembly.GetType(userControlledTypeName);",
+      "Type type = Assembly.GetAssembly(typeof(Program)).GetType(userInput); // Injection via type name"
+    ],
+    "compliant": [
+      "// Use whitelist validation\nif (allowedTypes.Contains(userInput)) {\n    Type type = Type.GetType(userInput);\n}",
+      "// Use predefined types\nType type = typeof(MyClass);\nMethodInfo method = type.GetMethod(\"AllowedMethod\");",
+      "// Validate assembly origin\nif (Path.GetDirectoryName(assemblyPath) == trustedDirectory) {\n    Assembly assembly = Assembly.LoadFrom(assemblyPath);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6173"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:Type\\.GetType|Assembly\\.LoadFrom|Assembly\\.Load|type\\.GetMethod|assembly\\.GetType)\\s*\\([^)]*(?:userInput|input|request|param|arg|\\w*Input\\w*|\\w*Request\\w*)(?!\\s*==\\s*[\"']|\\.Contains\\(|allowedTypes|trustedDirectory)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "\"[^\"]+\"",
+          "typeof\\(",
+          "allowedTypes\\.Contains",
+          "trustedDirectory"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration"],
+    "detection_conditions": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:Type\\.GetType|Assembly\\.LoadFrom|Assembly\\.Load|type\\.GetMethod|assembly\\.GetType)\\s*\\([^)]*(?:userInput|input|request|param|arg|\\w*Input\\w*|\\w*Request\\w*)(?!\\s*==\\s*[\"']|\\.Contains\\(|allowedTypes|trustedDirectory)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "\"[^\"]+\"",
+          "typeof\\(",
+          "allowedTypes\\.Contains",
+          "trustedDirectory"
+        ]
+      }
+    ],
+    "triggering_conditions": {
+      "logic": "AND", 
+      "conditions": [
+        "Contains reflection API call (Type.GetType, Assembly.LoadFrom, GetMethod, etc.)",
+        "Uses variable that appears to be user input (input, userInput, request, etc.)",
+        "No validation check present before reflection call"
+      ]
+    },
+    "exclusion_conditions": [
+      "Input validation present (allowedTypes.Contains, whitelist check)",
+      "Hardcoded string literals used",
+      "typeof() expressions",
+      "In logging context", 
+      "In test context",
+      "Trusted path validation present"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "Hardcoded string literals",
+      "typeof() expressions",
+      "Input validation patterns (allowedTypes.Contains, trustedDirectory checks)"
+    ],
+    "reasoning": "Detects reflection API calls that use potentially user-controlled input without validation. Identifies patterns where variables with names suggesting external input (userInput, request, param) are passed to reflection methods like Type.GetType, Assembly.LoadFrom, etc. Excludes cases with hardcoded strings, validation checks, and safe contexts like logging or testing.",
+    "validation_examples": {
+      "should_trigger": [
+        "Type type = Type.GetType(userInput);",
+        "Assembly assembly = Assembly.LoadFrom(userInput);",
+        "MethodInfo method = type.GetMethod(userInput);",
+        "Type type = Assembly.GetAssembly(typeof(Program)).GetType(userInput);"
+      ],
+      "should_not_trigger": [
+        "Type type = Type.GetType(\"System.String\");",
+        "Type type = typeof(MyClass);",
+        "if (allowedTypes.Contains(userInput)) { Type type = Type.GetType(userInput); }",
+        "if (Path.GetDirectoryName(assemblyPath) == trustedDirectory) { Assembly.LoadFrom(assemblyPath); }",
+        "Console.WriteLine($\"Type: {Type.GetType(input)}\");"
+      ]
+    }
+  }
+}

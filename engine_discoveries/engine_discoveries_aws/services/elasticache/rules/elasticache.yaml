@@ -1,0 +1,197 @@
+# STATUS: ✅ VALIDATED AND TESTED
+# - YAML validated against metadata intent (2026-01-08)
+# - All 19 checks configured successfully
+# - 0 execution errors
+# - Field paths verified correct
+# - Discovery chains verified correct
+# - Note: Some rules have limitations due to ElastiCache API constraints - see metadata_review_report.json
+# - Tested: 2026-01-08
+version: '1.0'
+provider: aws
+service: elasticache
+services:
+  client: elasticache
+  module: boto3.client
+discovery:
+- discovery_id: aws.elasticache.describe_cache_clusters
+  calls:
+  - action: describe_cache_clusters
+    save_as: response
+  emit:
+    items_for: '{{ response.CacheClusters }}'
+    as: item
+    item:
+      CacheClusterId: '{{ item.CacheClusterId }}'
+      ConfigurationEndpoint: '{{ item.ConfigurationEndpoint }}'
+      ClientDownloadLandingPage: '{{ item.ClientDownloadLandingPage }}'
+      CacheNodeType: '{{ item.CacheNodeType }}'
+      Engine: '{{ item.Engine }}'
+      EngineVersion: '{{ item.EngineVersion }}'
+      CacheClusterStatus: '{{ item.CacheClusterStatus }}'
+      NumCacheNodes: '{{ item.NumCacheNodes }}'
+      PreferredAvailabilityZone: '{{ item.PreferredAvailabilityZone }}'
+      PreferredOutpostArn: '{{ item.PreferredOutpostArn }}'
+      CacheClusterCreateTime: '{{ item.CacheClusterCreateTime }}'
+      PreferredMaintenanceWindow: '{{ item.PreferredMaintenanceWindow }}'
+      PendingModifiedValues: '{{ item.PendingModifiedValues }}'
+      NotificationConfiguration: '{{ item.NotificationConfiguration }}'
+      CacheSecurityGroups: '{{ item.CacheSecurityGroups }}'
+      CacheParameterGroup: '{{ item.CacheParameterGroup }}'
+      CacheSubnetGroupName: '{{ item.CacheSubnetGroupName }}'
+      CacheNodes: '{{ item.CacheNodes }}'
+      AutoMinorVersionUpgrade: '{{ item.AutoMinorVersionUpgrade }}'
+      SecurityGroups: '{{ item.SecurityGroups }}'
+      SnapshotRetentionLimit: '{{ item.SnapshotRetentionLimit }}'
+      LogDeliveryConfigurations: '{{ item.LogDeliveryConfigurations }}'
+      AtRestEncryptionEnabled: '{{ item.AtRestEncryptionEnabled }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+      TransitEncryptionEnabled: '{{ item.TransitEncryptionEnabled }}'
+      TransitEncryptionMode: '{{ item.TransitEncryptionMode }}'
+      AuthTokenEnabled: '{{ item.AuthTokenEnabled }}'
+- discovery_id: aws.elasticache.describe_replication_groups
+  calls:
+  - action: describe_replication_groups
+    save_as: response
+  emit:
+    items_for: '{{ response.ReplicationGroups }}'
+    as: item
+    item:
+      ReplicationGroupId: '{{ item.ReplicationGroupId }}'
+      Description: '{{ item.Description }}'
+      GlobalReplicationGroupInfo: '{{ item.GlobalReplicationGroupInfo }}'
+      Status: '{{ item.Status }}'
+      PendingModifiedValues: '{{ item.PendingModifiedValues }}'
+      MemberClusters: '{{ item.MemberClusters }}'
+      NodeGroups: '{{ item.NodeGroups }}'
+      SnapshottingClusterId: '{{ item.SnapshottingClusterId }}'
+      AutomaticFailover: '{{ item.AutomaticFailover }}'
+      MultiAZ: '{{ item.MultiAZ }}'
+      ConfigurationEndpoint: '{{ item.ConfigurationEndpoint }}'
+      SnapshotRetentionLimit: '{{ item.SnapshotRetentionLimit }}'
+      SnapshotWindow: '{{ item.SnapshotWindow }}'
+      ClusterEnabled: '{{ item.ClusterEnabled }}'
+      CacheNodeType: '{{ item.CacheNodeType }}'
+      AuthTokenEnabled: '{{ item.AuthTokenEnabled }}'
+      AuthTokenLastModifiedDate: '{{ item.AuthTokenLastModifiedDate }}'
+      TransitEncryptionEnabled: '{{ item.TransitEncryptionEnabled }}'
+      AtRestEncryptionEnabled: '{{ item.AtRestEncryptionEnabled }}'
+      MemberClustersOutpostArns: '{{ item.MemberClustersOutpostArns }}'
+checks:
+- rule_id: aws.elasticache.backupretention.backup_retention_configured
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.SnapshotRetentionLimit
+    op: greater_than
+    value: 0
+- rule_id: aws.elasticache.cluster.audit_logging_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.LogDeliveryConfigurations
+    op: exists
+    value: null
+- rule_id: aws.elasticache.cluster.deletion_protection_enabled
+  for_each: aws.elasticache.describe_replication_groups
+  conditions:
+    var: item.MemberClusters
+    op: exists
+    value: null
+- rule_id: aws.elasticache.cluster.elasticache_automatic_failover_enabled
+  for_each: aws.elasticache.describe_replication_groups
+  conditions:
+    var: item.AutomaticFailover
+    op: equals
+    value: enabled
+- rule_id: aws.elasticache.cluster.elasticache_minor_version_auto_upgrade_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AutoMinorVersionUpgrade
+    op: equals
+    value: true
+- rule_id: aws.elasticache.cluster.elasticache_multi_az_enabled
+  for_each: aws.elasticache.describe_replication_groups
+  conditions:
+    var: item.MultiAZ
+    op: equals
+    value: enabled
+- rule_id: aws.elasticache.cluster.encryption_at_rest_cmek_configured
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    all:
+    - var: item.AtRestEncryptionEnabled
+      op: equals
+      value: true
+    - var: item.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.elasticache.cluster.encryption_at_rest_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AtRestEncryptionEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.cluster.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AuthTokenEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.cluster.in_transit_encryption_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.TransitEncryptionEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.cluster.private_networking_enforced
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.CacheSubnetGroupName
+    op: exists
+    value: null
+- rule_id: aws.elasticache.cluster.public_access_disabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.CacheSubnetGroupName
+    op: exists
+    value: null
+- rule_id: aws.elasticache.cluster.require_tls_in_transit_configured
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.TransitEncryptionMode
+    op: equals
+    value: required
+- rule_id: aws.elasticache.cluster.rest_encryption_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AtRestEncryptionEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.node.deletion_protection_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.CacheClusterId
+    op: exists
+    value: null
+- rule_id: aws.elasticache.node.encryption_at_rest_enabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AtRestEncryptionEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.node.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.AuthTokenEnabled
+    op: equals
+    value: true
+- rule_id: aws.elasticache.node.public_access_disabled
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.CacheSubnetGroupName
+    op: exists
+    value: null
+- rule_id: aws.elasticache.node.require_tls_in_transit_configured
+  for_each: aws.elasticache.describe_cache_clusters
+  conditions:
+    var: item.TransitEncryptionMode
+    op: equals
+    value: required

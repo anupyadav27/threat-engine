@@ -1,0 +1,25 @@
+version: '1.0'
+provider: aws
+service: accessanalyzer
+checks:
+- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled
+  for_each: aws.accessanalyzer.list_analyzers
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.accessanalyzer.resource.access_analyzer_enabled_without_findings
+  for_each: aws.accessanalyzer.list_analyzers
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.statusReason
+      op: not_exists
+      value: null
+  # Note: This check verifies analyzer is ACTIVE with no statusReason (errors).
+  # To fully verify "no findings", the engine would need to check that
+  # list_access_preview_findings returns empty for each analyzer.
+  # Current implementation uses statusReason as a proxy indicator.
+

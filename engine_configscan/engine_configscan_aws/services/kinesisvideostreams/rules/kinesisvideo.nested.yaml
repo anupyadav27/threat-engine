@@ -1,0 +1,40 @@
+version: '1.0'
+provider: aws
+service: kinesisvideo
+discovery:
+- discovery_id: aws.kinesisvideostreams.streams
+  calls:
+  - action: list_streams
+    fields:
+    - Kinesisvideostreamss
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: list_streams_response[]
+- discovery_id: aws.kinesisvideostreams.stream_encryption
+  for_each: aws.kinesisvideostreams.streams
+  calls:
+  - action: list_streams
+    params:
+      StreamId: '{{ item.id }}'
+      MaxResults: 1000
+  emit: {}
+checks:
+- rule_id: aws.kinesisvideostreams.stream.encryption_in_transit_required
+  for_each: aws.kinesisvideostreams.stream_encryption
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true
+- rule_id: aws.kinesisvideostreams.stream.retention_days_minimum_configured
+  for_each: aws.kinesisvideostreams.streams
+  conditions:
+    var: item.compliant
+    op: equals
+    value: true
+- rule_id: aws.kinesisvideostreams.stream.encryption_at_rest_enabled
+  for_each: aws.kinesisvideostreams.stream_encryption
+  conditions:
+    var: encryption.encryption_enabled
+    op: equals
+    value: true

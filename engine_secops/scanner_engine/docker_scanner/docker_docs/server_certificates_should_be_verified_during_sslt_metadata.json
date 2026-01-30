@@ -1,0 +1,57 @@
+{
+  "filename": "server_certificates_should_be_verified_during_sslt_metadata.json",
+  "rule_id": "server_certificates_verified_during",
+  "title": "Server certificates should be verified during SSL/TLS connections",
+  "description": "Transport Layer Security (TLS) provides secure communication between systems over the internet by encrypting the data sent between them. Certificate validation adds an extra layer of trust and security to this process to ensure that a system is indeed the one it claims to be. When certificate validation is disabled, the client skips a critical security check.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-4830"
+  ],
+  "logic": {
+    "instruction_types": [
+      "RUN"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "curl.*(-k|--insecure)",
+          "wget.*--no-check-certificate",
+          "pip.*install.*--trusted-host",
+          "easy_install.*--allow-hosts",
+          "npm.*--insecure",
+          "gem.*install.*--insecure",
+          "apt-get.*-o\\s*Acquire::https::Verify-Peer=false",
+          "apt.*-o\\s*Acquire::https::Verify-Peer=false",
+          "git.*-c\\s*http\\.sslVerify=false",
+          "git.*config.*http\\.sslVerify\\s+false",
+          "openssl.*-verify\\s+0",
+          "requests\\.get.*verify=False",
+          "requests\\.post.*verify=False",
+          "urllib.*context.*CERT_NONE",
+          "ssl\\._create_unverified_context",
+          "PYTHONHTTPSVERIFY\\s*=\\s*0",
+          "NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*0",
+          "GIT_SSL_NO_VERIFY\\s*=\\s*(true|1)",
+          "CURL_CA_BUNDLE\\s*=\\s*['\"]?['\"]?\\s*$"
+        ],
+        "message": "Server certificates should be verified during SSL/TLS connections. Disabling certificate verification (e.g., curl -k, wget --no-check-certificate, pip --trusted-host) bypasses critical security checks and makes the connection vulnerable to man-in-the-middle attacks. Always verify server certificates or use proper certificate authorities."
+      }
+    ]
+  }
+}

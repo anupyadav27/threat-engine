@@ -1,0 +1,47 @@
+{
+  "filename": "authorizing_an_opened_window_to_access_back_to_the_metadata.json",
+  "rule_id": "authorizing_opened_window_access",
+  "title": "Authorizing an opened window to access back to the originating window is security-sensitive",
+  "description": "Authorizing an opened window to access back to the originating window is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcwephishingA newly opened window having access back to the originating window could allow basic phishing attacks (thewindow.openerobject is notnulland thuswindow.opener.locationcan be set to a malicious website by the opened page).For instance, an attacker can put a link (say: \"http://example.com/mylink\") on a popular website that changes, when opened, the original page to \"http://example.com/fake_login\". On \"http://example.com/fake_login\" there is a fake login page which could trick real users to enter their credentials.Ask Yourself WhetherThe application opens untrusted external URL.There is a risk if you answered yes to this question.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "window.open('http://example.com'); // Allows opened window to access opener",
+      "const popup = window.open(url); // Security risk",
+      "window.opener.location = 'http://malicious.com'; // Dangerous access"
+    ],
+    "compliant": [
+      "window.open('http://example.com', '_blank', 'noopener'); // Safe",
+      "const popup = window.open(url, '_blank', 'noopener,noreferrer'); // Safe",
+      "window.opener = null; // Explicitly remove reference"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5148"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "AssignmentExpression",
+      "ExpressionStatement",
+      "VariableDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_window_opener_security",
+        "message": "Use 'noopener' parameter with window.open() to prevent security risks."
+      }
+    ]
+  }
+}

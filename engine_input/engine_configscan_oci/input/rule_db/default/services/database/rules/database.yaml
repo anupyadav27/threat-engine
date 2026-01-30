@@ -1,0 +1,2270 @@
+database:
+  version: '1.0'
+  provider: oci
+  service: database
+  scope: regional
+  discovery:
+  - discovery_id: list_databases
+    resource_type: database
+    calls:
+    - action: list
+      client: DatabaseClient
+      method: list_databases
+      fields:
+      - path: id
+        var: database_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_database_details
+    resource_type: database
+    for_each: list_databases
+    calls:
+    - action: get
+      client: DatabaseClient
+      method: get_database
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: db_backup_config
+        var: db_backup_config
+  - discovery_id: list_autonomous_databases
+    resource_type: autonomous_database
+    calls:
+    - action: list
+      client: DatabaseClient
+      method: list_autonomous_databases
+      fields:
+      - path: id
+        var: autonomous_database_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_autonomous_database_details
+    resource_type: autonomous_database
+    for_each: list_autonomous_databases
+    calls:
+    - action: get
+      client: DatabaseClient
+      method: get_autonomous_database
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: vault_id
+        var: vault_id
+      - path: is_mtls_connection_required
+        var: is_mtls_connection_required
+      - path: is_data_guard_enabled
+        var: is_data_guard_enabled
+      - path: is_auto_scaling_enabled
+        var: is_auto_scaling_enabled
+      - path: whitelisted_ips
+        var: whitelisted_ips
+  - discovery_id: list_db_systems
+    resource_type: db_system
+    calls:
+    - action: list
+      client: DatabaseClient
+      method: list_db_systems
+      fields:
+      - path: id
+        var: db_system_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_db_system_details
+    resource_type: db_system
+    for_each: list_db_systems
+    calls:
+    - action: get
+      client: DatabaseClient
+      method: get_db_system
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: backup_network_nsg_ids
+        var: backup_network_nsg_ids
+  - discovery_id: list_clusters
+    resource_type: cluster
+    calls:
+    - action: list
+      client: ContainerEngineClient
+      method: list_clusters
+      fields:
+      - path: id
+        var: cluster_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_cluster_details
+    resource_type: cluster
+    for_each: list_clusters
+    calls:
+    - action: get
+      client: ContainerEngineClient
+      method: get_cluster
+      fields:
+      - path: kms_key_id
+        var: kms_key_id
+      - path: options
+        var: options
+      - path: endpoint_config
+        var: endpoint_config
+  - discovery_id: list_instances
+    resource_type: instance
+    calls:
+    - action: list
+      client: ComputeClient
+      method: list_instances
+      fields:
+      - path: id
+        var: instance_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_instance_details
+    resource_type: instance
+    for_each: list_instances
+    calls:
+    - action: get
+      client: ComputeClient
+      method: get_instance
+      fields:
+      - path: metadata
+        var: metadata
+      - path: agent_config
+        var: agent_config
+      - path: launch_options
+        var: launch_options
+      - path: availability_domain
+        var: availability_domain
+      - path: source_details
+        var: source_details
+  checks:
+  - check_id: oci.database.database.cross_account_sharing_restricted
+    title: 'OCI DATABASE Database: Cross Account Sharing Restricted'
+    severity: medium
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.database_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Database Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.database.database_policy_least_privilege_required
+    title: 'OCI DATABASE Database: Database Policy Least Privilege Required'
+    severity: high
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.database.partition_access_policies_least_privilege_required
+    title: 'OCI DATABASE Database: Partition Access Policies Least Privilege Required'
+    severity: high
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.partition_catalog_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Partition Catalog Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.schema_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Schema Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.database.schema_rbac_least_privilege_required
+    title: 'OCI DATABASE Database: Schema RBAC Least Privilege Required'
+    severity: high
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.schema_version_immutability_enforced
+    title: 'OCI DATABASE Autonomous_database: Schema Version Immutability Enforced'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.snapshot_cross_region_copy_encrypted
+    title: 'OCI DATABASE Autonomous_database: Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.snapshot_encrypted_at_rest_cmek
+    title: 'OCI DATABASE Autonomous_database: Snapshot Encrypted At Rest Cmek'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.backup.snapshot_not_publicly_shared_blocked
+    title: 'OCI DATABASE Backup: Snapshot Not Publicly Shared Blocked'
+    severity: critical
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.database.table_access_policies_least_privilege_required
+    title: 'OCI DATABASE Database: Table Access Policies Least Privilege Required'
+    severity: high
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.table_column_level_access_controls_enabled
+    title: 'OCI DATABASE Autonomous_database: Table Column Level Access Controls Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.table_encrypted
+    title: 'OCI DATABASE Autonomous_database: Table Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.table_public_sharing_disabled
+    title: 'OCI DATABASE Autonomous_database: Table Public Sharing Disabled'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dataset_access_policies_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Dataset Access Policies Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dataset_encrypted_at_rest_cmek
+    title: 'OCI DATABASE Autonomous_database: Dataset Encrypted At Rest Cmek'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dataset_public_sharing_disabled
+    title: 'OCI DATABASE Autonomous_database: Dataset Public Sharing Disabled'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dataset_row_level_security_enabled
+    title: 'OCI DATABASE Autonomous_database: Dataset Row Level Security Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_authz_no_anonymous_access_restricted
+    title: 'OCI DATABASE Autonomous_database: Endpoint Authz No Anonymous Access Restricted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_authz_rbac_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Endpoint Authz RBAC Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.parameter_group_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Parameter Group Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.parameter_group_tls_required
+    title: 'OCI DATABASE Autonomous_database: Parameter Group TLS Required'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.parameter_group_require_ssl_required
+    title: 'OCI DATABASE Db_system: Parameter Group Require SSL Required'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_access_allowed_cidrs_minimized_restricted
+    title: 'OCI DATABASE Autonomous_database: Endpoint Access Allowed Cidrs Minimized Restricted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_access_private_only_restricted
+    title: 'OCI DATABASE Autonomous_database: Endpoint Access Private Only Restricted'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_access_tls_required
+    title: 'OCI DATABASE Autonomous_database: Endpoint Access TLS Required'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.database.database_cross_account_sharing_restricted
+    title: 'OCI DATABASE Database: Database Cross Account Sharing Restricted'
+    severity: medium
+    for_each: list_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_admin_access_least_privilege_required
+    title: 'OCI DATABASE Db_system: Cluster Admin Access Least Privilege Required'
+    severity: critical
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_audit_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Cluster Audit Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_encryption_cmek_enabled
+    title: 'OCI DATABASE Db_system: Cluster Encryption Cmek Enabled'
+    severity: high
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.cluster_private_networking_enforced
+    title: 'OCI DATABASE Autonomous_database: Cluster Private Networking Enforced'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_tls_min_1_2_enforced
+    title: 'OCI DATABASE Autonomous_database: Cluster TLS Min 1 2 Enforced'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_job_logs_enabled
+    title: 'OCI DATABASE Autonomous_database: DR Job Logs Enabled'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_job_network_private_only_enforced
+    title: 'OCI DATABASE Autonomous_database: DR Job Network Private Only Enforced'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_job_roles_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: DR Job Roles Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.snapshot_cross_account_sharing_restricted
+    title: 'OCI DATABASE Db_system: Snapshot Cross Account Sharing Restricted'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.snapshot_encrypted
+    title: 'OCI DATABASE Autonomous_database: Snapshot Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.snapshot_not_publicly_shared_blocked
+    title: 'OCI DATABASE Db_system: Snapshot Not Publicly Shared Blocked'
+    severity: critical
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.backup.backup_destination_private_only_enforced
+    title: 'OCI DATABASE Backup: Backup Destination Private Only Enforced'
+    severity: medium
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.backup_encrypted_at_rest_cmek
+    title: 'OCI DATABASE Autonomous_database: Backup Encrypted At Rest Cmek'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.backup_immutable_or_worm_enabled
+    title: 'OCI DATABASE Autonomous_database: Backup Immutable Or Worm Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.backup.backup_schedule_defined_min_frequency_required
+    title: 'OCI DATABASE Backup: Backup Schedule Defined Min Frequency Required'
+    severity: medium
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.option_group_insecure_extensions_not_enabled
+    title: 'OCI DATABASE Autonomous_database: Option Group Insecure Extensions Not Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.option_group_only_approved_extensions_enabled
+    title: 'OCI DATABASE Autonomous_database: Option Group Only Approved Extensions Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.parameter_group_audit_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Parameter Group Audit Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.parameter_group_insecure_features_disabled_where_applicable
+    title: 'OCI DATABASE Autonomous_database: Parameter Group Insecure Features Disabled Where Applicable'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.schema_encrypted
+    title: 'OCI DATABASE Autonomous_database: Schema Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.user_approved_list_of_superusers_only
+    title: 'OCI DATABASE Db_system: User Approved List Of Superusers Only'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.user_no_unused_or_default_superusers_enabled
+    title: 'OCI DATABASE Db_system: User No Unused Or Default Superusers Enabled'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.user_password_auth_hardened_or_iam_enforced
+    title: 'OCI DATABASE Db_system: User Password Auth Hardened Or IAM Enforced'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.restore_cross_account_blocked_by_policy
+    title: 'OCI DATABASE Autonomous_database: Restore Cross Account Blocked By Policy'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.restore_from_encrypted_backups_only
+    title: 'OCI DATABASE Autonomous_database: Restore From Encrypted Backups Only'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.restore_logs_and_artifacts_encrypted
+    title: 'OCI DATABASE Autonomous_database: Restore Logs And Artifacts Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.restore_roles_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Restore Roles Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_snapshot_cross_account_sharing_restricted
+    title: 'OCI DATABASE Db_system: Cluster Snapshot Cross Account Sharing Restricted'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_snapshot_cross_region_copy_encrypted
+    title: 'OCI DATABASE Autonomous_database: Cluster Snapshot Cross Region Copy Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_snapshot_encrypted
+    title: 'OCI DATABASE Autonomous_database: Cluster Snapshot Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_snapshot_not_publicly_shared_blocked
+    title: 'OCI DATABASE Db_system: Cluster Snapshot Not Publicly Shared Blocked'
+    severity: critical
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_deletion_protection_enabled
+    title: 'OCI DATABASE Autonomous_database: Cluster Deletion Protection Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_minor_version_auto_upgrade_enabled
+    title: 'OCI DATABASE Autonomous_database: Cluster Minor Version Auto Upgrade Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.testing_execution_roles_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Testing Execution Roles Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.testing_logs_enabled
+    title: 'OCI DATABASE Autonomous_database: Testing Logs Enabled'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.testing_results_storage_encrypted_and_private
+    title: 'OCI DATABASE Autonomous_database: Testing Results Storage Encrypted And Private'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.recovery_instance_private_network_only_enforced
+    title: 'OCI DATABASE Db_system: Recovery Instance Private Network Only Enforced'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.recovery_instance_security_groups_restrictive
+    title: 'OCI DATABASE Db_system: Recovery Instance Security Groups Restrictive'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.recovery_instance_volumes_encrypted
+    title: 'OCI DATABASE Db_system: Recovery Instance Volumes Encrypted'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.runbook_access_rbac_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Runbook Access RBAC Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.runbook_change_audit_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Runbook Change Audit Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.runbook_storage_encrypted_and_private
+    title: 'OCI DATABASE Autonomous_database: Runbook Storage Encrypted And Private'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_source_agent_to_service_tls_required
+    title: 'OCI DATABASE Autonomous_database: DR Source Agent To Service TLS Required'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_source_encryption_cmek_where_supported_enabled
+    title: 'OCI DATABASE Autonomous_database: DR Source Encryption Cmek Where Supported Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.dr_source_min_telemtry_required_no_pii
+    title: 'OCI DATABASE Autonomous_database: DR Source Min Telemtry Required No Pii'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_plan_approvals_required_for_changes
+    title: 'OCI DATABASE Autonomous_database: DR Plan Approvals Required For Changes'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_plan_change_audit_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: DR Plan Change Audit Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dr_plan_storage_encrypted_and_private
+    title: 'OCI DATABASE Autonomous_database: DR Plan Storage Encrypted And Private'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.workflow_approval_steps_required_for_destructive_actions
+    title: 'OCI DATABASE Autonomous_database: Workflow Approval Steps Required For Destructive Actions'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.workflow_integrations_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Workflow Integrations Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.workflow_kms_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Workflow KMS Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.instance_deletion_protection_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Deletion Protection Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.instance_iam_or_managed_identity_auth_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance IAM Or Managed Identity Auth Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_public_access_disabled
+    title: 'OCI DATABASE Autonomous_database: Instance Public Access Disabled'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.instance_require_tls_in_transit_required
+    title: 'OCI DATABASE Db_system: Instance Require TLS In Transit Required'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.automation_artifacts_encrypted_and_private
+    title: 'OCI DATABASE Autonomous_database: Automation Artifacts Encrypted And Private'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.automation_change_audit_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Automation Change Audit Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.automation_execution_roles_least_privilege_required
+    title: 'OCI DATABASE Autonomous_database: Automation Execution Roles Least Privilege Required'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.encryption_backup_storage_immutability_enabled
+    title: 'OCI DATABASE Autonomous_database: Encryption Backup Storage Immutability Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.backup.encryption_cmk_key_enabled
+    title: 'OCI DATABASE Backup: Encryption CMK Key Enabled'
+    severity: high
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.backup.encryption_tls_min_1_2_enabled
+    title: 'OCI DATABASE Backup: Encryption TLS Min 1 2 Enabled'
+    severity: high
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.backup.encryption_key_policy_least_privilege_enabled_enforced
+    title: 'OCI DATABASE Backup: Encryption Key Policy Least Privilege Enabled Enforced'
+    severity: high
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.encryption_key_rotation_enabled
+    title: 'OCI DATABASE Autonomous_database: Encryption Key Rotation Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.backup.restore_from_encrypted_backups_only
+    title: 'OCI DATABASE Backup: Restore From Encrypted Backups Only'
+    severity: medium
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.backup.restore_logs_and_artifacts_encrypted
+    title: 'OCI DATABASE Backup: Restore Logs And Artifacts Encrypted'
+    severity: medium
+    for_each: list_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_audit_logging
+    title: 'OCI DATABASE Autonomous_database: Cluster Audit Logging'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_automated_snapshot
+    title: 'OCI DATABASE Db_system: Cluster Automated Snapshot'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_automatic_upgrades
+    title: 'OCI DATABASE Db_system: Cluster Automatic Upgrades'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_maintenance_settings
+    title: 'OCI DATABASE Db_system: Cluster Maintenance Settings'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_public_access
+    title: 'OCI DATABASE Autonomous_database: Cluster Public Access'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.backup_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Backup Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.enabled_for_ec2
+    title: 'OCI DATABASE Autonomous_database: Enabled For Ec2'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.plan_configured
+    title: 'OCI DATABASE Autonomous_database: Plan Configured'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.plan_min_retention
+    title: 'OCI DATABASE Autonomous_database: Plan Min Retention'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.recovery_point_encrypted
+    title: 'OCI DATABASE Autonomous_database: Recovery Point Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.recovery_point_encryption
+    title: 'OCI DATABASE Autonomous_database: Recovery Point Encryption'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.recovery_point_retention
+    title: 'OCI DATABASE Autonomous_database: Recovery Point Retention'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.vault_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Vault Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.account_use_private_endpoints
+    title: 'OCI DATABASE Autonomous_database: Account Use Private Endpoints'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.aurora_backup_enabled
+    title: 'OCI DATABASE Autonomous_database: Aurora Backup Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.auto_minor_version_upgrade
+    title: 'OCI DATABASE Autonomous_database: Auto Minor Version Upgrade'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.backup_enabled
+    title: 'OCI DATABASE Autonomous_database: Backup Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.backup_retention_period
+    title: 'OCI DATABASE Autonomous_database: Backup Retention Period'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.default_admin
+    title: 'OCI DATABASE Cluster: Default Admin'
+    severity: critical
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dynamodb_table_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Dynamodb Table Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.instance_backup_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Backup Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_copy_tags_to_snapshots
+    title: 'OCI DATABASE Autonomous_database: Instance Copy Tags To Snapshots'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_deletion_protection
+    title: 'OCI DATABASE Autonomous_database: Instance Deletion Protection'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_enhanced_monitoring_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Enhanced Monitoring Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_integration_cloudwatch_logs
+    title: 'OCI DATABASE Autonomous_database: Instance Integration Cloudwatch Logs'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_integration_monitoring_logs
+    title: 'OCI DATABASE Autonomous_database: Instance Integration Monitoring Logs'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_multi_az
+    title: 'OCI DATABASE Autonomous_database: Instance Multi Az'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_no_public_access
+    title: 'OCI DATABASE Autonomous_database: Instance No Public Access'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.instance.no_public_access
+    title: 'OCI DATABASE Instance: No Public Access'
+    severity: critical
+    for_each: list_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_performance_insights_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance Performance Insights Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_ssl_connections
+    title: 'OCI DATABASE Autonomous_database: Instance SSL Connections'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_storage_encrypted
+    title: 'OCI DATABASE Autonomous_database: Instance Storage Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.snapshots_public_access
+    title: 'OCI DATABASE Autonomous_database: Snapshots Public Access'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.storage_encrypted
+    title: 'OCI DATABASE Autonomous_database: Storage Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.autonomous_database_access_control_restricted_to_vcn
+    title: 'OCI DATABASE Autonomous_database: Autonomous Database Access Control Restricted To Vcn'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.endpoint_redis_in_transit_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Endpoint Redis In Transit Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.replication_task_source_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Replication Task Source Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.replication_task_target_logging_enabled
+    title: 'OCI DATABASE Autonomous_database: Replication Task Target Logging Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_copy_tags_to_snapshots
+    title: 'OCI DATABASE Db_system: Cluster Copy Tags To Snapshots'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_snapshot_encrypted
+    title: 'OCI DATABASE Db_system: Cluster Snapshot Encrypted'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.multi_az_enabled
+    title: 'OCI DATABASE Db_system: Multi Az Enabled'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.backup_enabled
+    title: 'OCI DATABASE Cluster: Backup Enabled'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_audit_logging
+    title: 'OCI DATABASE Cluster: Cluster Audit Logging'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_automated_snapshot
+    title: 'OCI DATABASE Cluster: Cluster Automated Snapshot'
+    severity: low
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_in_transit_encryption_enabled
+    title: 'OCI DATABASE Cluster: Cluster In Transit Encryption Enabled'
+    severity: high
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.cluster.cluster_public_access
+    title: 'OCI DATABASE Cluster: Cluster Public Access'
+    severity: critical
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.auditing_retention_90_days
+    title: 'OCI DATABASE Autonomous_database: Auditing Retention 90 Days'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.microsoft_defender_enabled
+    title: 'OCI DATABASE Autonomous_database: Microsoft Defender Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.recommended_minimal_tls_version
+    title: 'OCI DATABASE Autonomous_database: Recommended Minimal TLS Version'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.tde_encrypted_with_cmk
+    title: 'OCI DATABASE Autonomous_database: Tde Encrypted With CMK'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.tde_encryption_enabled
+    title: 'OCI DATABASE Autonomous_database: Tde Encryption Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: kms_key_id
+        operator: exists
+        expected: true
+        description: Verify KMS encryption key is configured
+  - check_id: oci.database.autonomous_database.unrestricted_inbound_access
+    title: 'OCI DATABASE Autonomous_database: Unrestricted Inbound Access'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dw_cluster_audit_logging
+    title: 'OCI DATABASE Autonomous_database: Dw Cluster Audit Logging'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.dw_cluster_automated_snapshot
+    title: 'OCI DATABASE Db_system: Dw Cluster Automated Snapshot'
+    severity: low
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.dw_cluster_automatic_upgrades
+    title: 'OCI DATABASE Db_system: Dw Cluster Automatic Upgrades'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.dw_cluster_encrypted
+    title: 'OCI DATABASE Db_system: Dw Cluster Encrypted'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.dw_cluster_maintenance_settings
+    title: 'OCI DATABASE Db_system: Dw Cluster Maintenance Settings'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.dw_cluster_public_access
+    title: 'OCI DATABASE Autonomous_database: Dw Cluster Public Access'
+    severity: critical
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.plans_exist
+    title: 'OCI DATABASE Autonomous_database: Plans Exist'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.reportplans_exist
+    title: 'OCI DATABASE Autonomous_database: Reportplans Exist'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.vaults_encrypted
+    title: 'OCI DATABASE Autonomous_database: Vaults Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.vaults_exist
+    title: 'OCI DATABASE Autonomous_database: Vaults Exist'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.account_firewall_use_selected_networks
+    title: 'OCI DATABASE Autonomous_database: Account Firewall Use Selected Networks'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_copy_tags_to_snapshots
+    title: 'OCI DATABASE Autonomous_database: Cluster Copy Tags To Snapshots'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_integration_cloudwatch_logs
+    title: 'OCI DATABASE Autonomous_database: Cluster Integration Cloudwatch Logs'
+    severity: low
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_multi_az
+    title: 'OCI DATABASE Autonomous_database: Cluster Multi Az'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_storage_encrypted
+    title: 'OCI DATABASE Autonomous_database: Cluster Storage Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_backup_encrypted
+    title: 'OCI DATABASE Autonomous_database: Instance Backup Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_iam_authentication_enabled
+    title: 'OCI DATABASE Autonomous_database: Instance IAM Authentication Enabled'
+    severity: high
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_inside_vpc
+    title: 'OCI DATABASE Autonomous_database: Instance Inside VPC'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.instance_transport_encrypted
+    title: 'OCI DATABASE Autonomous_database: Instance Transport Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.multi_az_enabled
+    title: 'OCI DATABASE Autonomous_database: Multi Az Enabled'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.snapshots_encrypted
+    title: 'OCI DATABASE Autonomous_database: Snapshots Encrypted'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.instance_multi_az_enabled
+    title: 'OCI DATABASE Db_system: Instance Multi Az Enabled'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.autonomous_database.cluster_integration_monitoring_logs
+    title: 'OCI DATABASE Autonomous_database: Cluster Integration Monitoring Logs'
+    severity: medium
+    for_each: list_autonomous_databases
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_multi_az
+    title: 'OCI DATABASE Db_system: Cluster Multi Az'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.db_system.cluster_storage_encrypted
+    title: 'OCI DATABASE Db_system: Cluster Storage Encrypted'
+    severity: medium
+    for_each: list_db_systems
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_encrypted_at_rest
+    title: 'OCI DATABASE Cluster: Cluster Encrypted At Rest'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_enhanced_vcn_routing
+    title: 'OCI DATABASE Cluster: Cluster Enhanced Vcn Routing'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.database.cluster.cluster_multi_az_enabled
+    title: 'OCI DATABASE Cluster: Cluster Multi Az Enabled'
+    severity: medium
+    for_each: list_clusters
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)

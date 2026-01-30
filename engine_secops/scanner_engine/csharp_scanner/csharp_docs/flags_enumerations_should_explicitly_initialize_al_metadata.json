@@ -1,0 +1,77 @@
+{
+  "filename": "flags_enumerations_should_explicitly_initialize_al_metadata.json",
+  "rule_id": "flags_enumerations_explicitly_initialize",
+  "title": "Flags enumerations should explicitly initialize all their members",
+  "description": "Flags enumerations should explicitly initialize all their membersAnalyze your codeintentionality-logicalreliabilityBugWhy is this an issue?How can I fix it?More InfoWhen you annotate anEnumwith theFlags attribute, you must not rely on the values that are automatically set by the language to theEnummembers, but you should define the enumeration constants in powers of two (1, 2, 4, 8, and so on). Automatic value initialization will set the first member to zero and increment the value by one for each subsequent member. As a result, you won’t be able to use the enum members with bitwise operators.ExceptionsThe default initialization of0, 1, 2, 3, 4, …​matches0, 1, 2, 4, 8 …​in the first three values, so no issue is reported if the first three members of the enumeration are not initialized.Avai",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Flags]\nenum Permissions\n{\n    None,     // 0\n    Read,     // 1\n    Write,    // 2 - Noncompliant: not a power of 2\n    Execute   // 3 - Noncompliant: not a power of 2\n}"
+    ],
+    "compliant": [
+      "[Flags]\nenum Permissions\n{\n    None = 0,     // 0\n    Read = 1,     // 1\n    Write = 2,    // 2\n    Execute = 4   // 4 - Compliant: all are powers of 2\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2345"
+  ],
+  "logic": {
+    "target_ast_nodes": [],
+    "detection_conditions": "Detects Flags enums where members after the first three are not explicitly initialized to powers of two. The first three members (0, 1, 2) match powers of two, so they're allowed without explicit initialization.",
+    "triggering_conditions": {
+      "type": "custom_function",
+      "function": "check_flags_enum_explicitly_initialize"
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "Console\\.",
+        "Logger\\.",
+        "Debug\\.",
+        "\\$\"",
+        "string.Format",
+        "ToString\\(\\)",
+        "//",
+        "/\\*",
+        "///",
+        "\\[Test",
+        "Assert\\."
+      ]
+    },
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_flags_enum_explicitly_initialize"
+      }
+    ],
+    "never_trigger_on": [
+      "Enums not decorated with [Flags]",
+      "Flags enums where all members are explicitly initialized",
+      "Flags enums with only 3 or fewer members",
+      "Logging statements",
+      "String formatting",
+      "Unit tests",
+      "Comments"
+    ],
+    "reasoning": "Detects Flags enums where members after the first three are not explicitly initialized. Flags enums need powers of two values for bitwise operations. The first three members (0, 1, 2) naturally match powers of two, so they don't need explicit initialization. We check for [Flags] attribute and enum definitions with 4+ members where later members lack explicit values.",
+    "validation_examples": {
+      "should_trigger": [
+        "[Flags] enum Permissions { None, Read, Write, Execute }",
+        "[Flags] enum Status { None, Active, Inactive, Pending, Completed }"
+      ],
+      "should_not_trigger": [
+        "[Flags] enum Permissions { None = 0, Read = 1, Write = 2, Execute = 4 }",
+        "[Flags] enum Status { None, Read, Write }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "filename": "allowing_browsers_to_perform_dns_prefetching_is_se_metadata.json",
+  "rule_id": "allowing_browsers_perform_dns",
+  "title": "Allowing browsers to perform DNS prefetching is security-sensitive",
+  "description": "By default, web browsers perform DNS prefetching to reduce latency due to DNS resolutions required when an user clicks links from a website page. For instance on example.com the hyperlink below contains a cross-origin domain name that must be resolved to an IP address by the web browser: <a href=\"https://otherexample.com\">go on our partner website</a> It can add significant latency during requests, especially if the page contains many links to cross-origin domains. DNS prefetch allows web browsers to perform DNS resolving in the background before the user clicks a link.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "<a href=\"https://otherexample.com\">go on our partner website</a>"
+    ],
+    "compliant": [
+      "const express = require('express');\nconst helmet = require('helmet');\n\nlet app = express();\n\napp.use(\n  helmet.dnsPrefetchControl({\n    allow: true // Sensitive: allowing DNS prefetching is security-sensitive\n  })\n);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5743"
+  ],
+  "logic": {
+    "node_types": [
+      "Statement",
+      "CallExpression",
+      "Literal",
+      "TemplateLiteral"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "dnsPrefetchControl.*allow\\s*:\\s*true",
+          "X-DNS-Prefetch-Control.*['\"]on['\"]",
+          "x-dns-prefetch-control.*content=['\"]on['\"]",
+          "dns-prefetch.*enabled",
+          "enableDnsPrefetch"
+        ],
+        "message": "DNS prefetching is enabled which may pose security risks. Consider disabling or reviewing the configuration."
+      }
+    ]
+  }
+}

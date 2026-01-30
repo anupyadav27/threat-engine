@@ -1,0 +1,61 @@
+{
+  "filename": "administration_services_access_should_be_restricte_metadata.json",
+  "rule_id": "administration_services_access_restricted",
+  "title": "Administration services access should be restricted to specific IP addresses",
+  "description": "Administration services access should be restricted to specific IP addressesAnalyze your codeconsistency-conventionalsecurityVulnerabilitycweawsWhy is this an issue?How can I fix it?More InfoCloud platforms such as AWS, Azure, or GCP support virtual firewalls that can be used to restrict access to services by controlling inbound and outbound traffic.Any firewall rule allowing traffic from all IP addresses to standard network ports on which administration services traditionally listen, such as 22 for SSH, can expose these services to exploits and unauthorized access.What is the potential impact?Like any other service, administration services can contain vulnerabilities. Administration services run with elevated privileges and thus a vulnerability could have a high impact on the system.Addit",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/ansible/RSPEC-6321"
+  ],
+  "logic": {
+    "node_types": ["task"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "port:\\s*22\\b",
+          "port:\\s*3389\\b",
+          "port:\\s*5985\\b",
+          "port:\\s*5986\\b",
+          "from_port:\\s*22\\b",
+          "from_port:\\s*3389\\b",
+          "to_port:\\s*22\\b",
+          "to_port:\\s*3389\\b"
+        ],
+        "message": "Administration service port (SSH/RDP) should have restricted IP access"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "cidr_ip:\\s*['\"]?0\\.0\\.0\\.0/0['\"]?",
+          "cidr_ip:\\s*['\"]?::/0['\"]?",
+          "source_address_prefix:\\s*['\"]?\\*['\"]?",
+          "source_address_prefix:\\s*['\"]?Internet['\"]?"
+        ],
+        "message": "Access from all IP addresses (0.0.0.0/0) detected on administration port"
+      },
+      {
+        "type": "property_comparison",
+        "property_path": ["module"],
+        "operator": "in_list",
+        "value": ["ec2_group", "azure_rm_securitygroup", "gcp_compute_firewall", "community.aws.ec2_group"],
+        "message": "Security group configuration detected - verify administration port restrictions"
+      }
+    ]
+  }
+}

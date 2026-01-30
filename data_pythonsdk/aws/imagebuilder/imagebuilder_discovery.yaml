@@ -1,0 +1,283 @@
+version: '1.0'
+provider: aws
+service: imagebuilder
+services:
+  client: imagebuilder
+  module: boto3.client
+discovery:
+- discovery_id: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: list_image_pipelines
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.imagePipelineList }}'
+- discovery_id: aws.imagebuilder.list_image_build_versions
+  calls:
+  - action: list_image_build_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.imageSummaryList }}'
+- discovery_id: aws.imagebuilder.list_component_build_versions
+  calls:
+  - action: list_component_build_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.componentSummaryList }}'
+- discovery_id: aws.imagebuilder.list_image_scan_findings
+  calls:
+  - action: list_image_scan_findings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+- discovery_id: aws.imagebuilder.list_components
+  calls:
+  - action: list_components
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.componentVersionList }}'
+- discovery_id: aws.imagebuilder.list_infrastructure_configurations
+  calls:
+  - action: list_infrastructure_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.infrastructureConfigurationSummaryList }}'
+- discovery_id: aws.imagebuilder.list_container_recipes
+  calls:
+  - action: list_container_recipes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.containerRecipeSummaryList }}'
+- discovery_id: aws.imagebuilder.list_lifecycle_policies
+  calls:
+  - action: list_lifecycle_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.lifecyclePolicySummaryList }}'
+- discovery_id: aws.imagebuilder.list_distribution_configurations
+  calls:
+  - action: list_distribution_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.distributionConfigurationSummaryList }}'
+- discovery_id: aws.imagebuilder.list_waiting_workflow_steps
+  calls:
+  - action: list_waiting_workflow_steps
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.steps }}'
+- discovery_id: aws.imagebuilder.list_image_scan_finding_aggregations
+  calls:
+  - action: list_image_scan_finding_aggregations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.responses }}'
+- discovery_id: aws.imagebuilder.get_image
+  for_each: aws.imagebuilder.list_image_scan_findings
+  calls:
+  - action: get_image
+    save_as: response
+    on_error: continue
+    params:
+      imageBuildVersionArn: '{{ item.findingImageBuildVersionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.image }}'
+- discovery_id: aws.imagebuilder.list_workflow_executions
+  for_each: aws.imagebuilder.list_image_scan_findings
+  calls:
+  - action: list_workflow_executions
+    save_as: response
+    on_error: continue
+    params:
+      imageBuildVersionArn: '{{ item.findingImageBuildVersionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.workflowExecutions }}'
+- discovery_id: aws.imagebuilder.get_container_recipe
+  for_each: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: get_container_recipe
+    save_as: response
+    on_error: continue
+    params:
+      containerRecipeArn: '{{ item.imagePipelineListContainerRecipeArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.containerRecipe }}'
+- discovery_id: aws.imagebuilder.get_infrastructure_configuration
+  for_each: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: get_infrastructure_configuration
+    save_as: response
+    on_error: continue
+    params:
+      infrastructureConfigurationArn: '{{ item.imagePipelineListInfrastructureConfigurationArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.infrastructureConfiguration }}'
+- discovery_id: aws.imagebuilder.list_lifecycle_execution_resources
+  for_each: aws.imagebuilder.list_image_build_versions
+  calls:
+  - action: list_lifecycle_execution_resources
+    save_as: response
+    on_error: continue
+    params:
+      lifecycleExecutionId: '{{ item.imageSummaryListLifecycleExecutionId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resources }}'
+- discovery_id: aws.imagebuilder.get_component
+  calls:
+  - action: get_component
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.component }}'
+- discovery_id: aws.imagebuilder.get_image_recipe
+  for_each: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: get_image_recipe
+    save_as: response
+    on_error: continue
+    params:
+      imageRecipeArn: '{{ item.imagePipelineListImageRecipeArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.imageRecipe }}'
+- discovery_id: aws.imagebuilder.get_workflow_step_execution
+  for_each: aws.imagebuilder.list_waiting_workflow_steps
+  calls:
+  - action: get_workflow_step_execution
+    save_as: response
+    on_error: continue
+    params:
+      stepExecutionId: '{{ item.stepStepExecutionId }}'
+  emit:
+    as: item
+    items_for: '{{ response.requestId }}'
+- discovery_id: aws.imagebuilder.get_distribution_configuration
+  for_each: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: get_distribution_configuration
+    save_as: response
+    on_error: continue
+    params:
+      distributionConfigurationArn: '{{ item.imagePipelineListDistributionConfigurationArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.distributionConfiguration }}'
+- discovery_id: aws.imagebuilder.get_lifecycle_execution
+  for_each: aws.imagebuilder.list_image_build_versions
+  calls:
+  - action: get_lifecycle_execution
+    save_as: response
+    on_error: continue
+    params:
+      lifecycleExecutionId: '{{ item.imageSummaryListLifecycleExecutionId }}'
+  emit:
+    as: item
+    items_for: '{{ response.lifecycleExecution }}'
+- discovery_id: aws.imagebuilder.get_lifecycle_policy
+  for_each: aws.imagebuilder.get_lifecycle_execution
+  calls:
+  - action: get_lifecycle_policy
+    save_as: response
+    on_error: continue
+    params:
+      lifecyclePolicyArn: '{{ item.lifecycleExecutionLifecyclePolicyArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.lifecyclePolicy }}'
+- discovery_id: aws.imagebuilder.list_image_packages
+  for_each: aws.imagebuilder.list_image_scan_findings
+  calls:
+  - action: list_image_packages
+    save_as: response
+    on_error: continue
+    params:
+      imageBuildVersionArn: '{{ item.findingImageBuildVersionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.imagePackageList }}'
+- discovery_id: aws.imagebuilder.get_image_pipeline
+  for_each: aws.imagebuilder.list_image_scan_findings
+  calls:
+  - action: get_image_pipeline
+    save_as: response
+    on_error: continue
+    params:
+      imagePipelineArn: '{{ item.findingImagePipelineArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.imagePipeline }}'
+- discovery_id: aws.imagebuilder.get_workflow
+  for_each: aws.imagebuilder.list_waiting_workflow_steps
+  calls:
+  - action: get_workflow
+    save_as: response
+    on_error: continue
+    params:
+      workflowBuildVersionArn: '{{ item.stepWorkflowBuildVersionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.workflow }}'
+- discovery_id: aws.imagebuilder.get_image_recipe_policy
+  for_each: aws.imagebuilder.list_image_pipelines
+  calls:
+  - action: get_image_recipe_policy
+    save_as: response
+    on_error: continue
+    params:
+      imageRecipeArn: '{{ item.imagePipelineListImageRecipeArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.requestId }}'
+checks: []

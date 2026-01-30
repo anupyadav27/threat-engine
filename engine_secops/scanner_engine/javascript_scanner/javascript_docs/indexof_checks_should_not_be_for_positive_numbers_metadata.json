@@ -1,0 +1,57 @@
+{
+  "filename": "indexof_checks_should_not_be_for_positive_numbers_metadata.json",
+  "rule_id": "indexof_checks_positive_numbers",
+  "title": "indexOf checks should not be for positive numbers",
+  "description": "Most checks against an indexOf value should compare it with -1 or use >= 0, because 0 is a valid index representing the first element. Checking against > 0 ignores the first element, which is likely a bug unless you're specifically looking for later occurrences. If your intent is merely to check the presence of an element, consider using includes() instead for better readability.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "arr.indexOf('item') > 0",
+      "str.indexOf('pattern') === 1",
+      "list.indexOf(element) == 2"
+    ],
+    "compliant": [
+      "arr.indexOf('item') >= 0",
+      "str.indexOf('pattern') !== -1",
+      "arr.includes('item')",
+      "arr.indexOf('item') > 2  // Looking for third+ occurrence"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-2692"
+  ],
+  "logic": {
+    "node_types": [
+      "BinaryExpression",
+      "IfStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?:^|[\\s\\(\\{\\[;])(?:[a-zA-Z_$][a-zA-Z0-9_$]*\\.)?indexOf\\s*\\([^)]*\\)\\s*>\\s*0(?=[\\s\\)\\}\\];]|$)",
+        "message": "Use >= 0 or !== -1 instead of > 0 when checking indexOf results to avoid missing the first element."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?:^|[\\s\\(\\{\\[;])(?:[a-zA-Z_$][a-zA-Z0-9_$]*\\.)?indexOf\\s*\\([^)]*\\)\\s*===?\\s*(?:[1-9]\\d*|0[1-9]\\d*)(?=[\\s\\)\\}\\];]|$)",
+        "message": "Comparing indexOf result to positive numbers may miss earlier occurrences. Use >= 0 or !== -1 for existence checks."
+      }
+    ]
+  }
+}

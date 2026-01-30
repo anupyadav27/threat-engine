@@ -1,0 +1,62 @@
+{
+  "filename": "deprecated_code_should_be_removed_metadata.json",
+  "rule_id": "deprecated_code_removed",
+  "title": "Deprecated code should be removed",
+  "description": "Deprecated code should be removedAnalyze your codeintentionality-clearmaintainabilityCode SmellobsoleteWhy is this an issue?This rule is meant to be used as a way to track code which is marked as being deprecated. Deprecated code should eventually be removed.Noncompliant code example[Obsolete] // Noncompliant void Method() { // .. }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since10.0Analyze code in youron-premise CIDeveloper EditionAvailable Since10.0©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Obsolete] // Noncompliant\nvoid Method()\n{\n    // ..\n}",
+      "[Obsolete(\"Use NewMethod instead\")]\npublic class OldService // Noncompliant\n{\n    public void Process() { }\n}",
+      "public class MyClass\n{\n    [Obsolete(\"This property is deprecated\")]\n    public string OldProperty { get; set; } // Noncompliant\n}"
+    ],
+    "compliant": [
+      "void Method()\n{\n    // Updated implementation\n}",
+      "public class NewService\n{\n    public void Process() { }\n}",
+      "public class MyClass\n{\n    public string CurrentProperty { get; set; }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1133"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Attribute"],
+    "detection_conditions": "Detect [Obsolete] attribute on code members",
+    "triggering_conditions": "Member has [Obsolete] or [Obsolete(...)] attribute",
+    "exclusion_conditions": "None - all obsolete code should be tracked",
+    "never_trigger_on": [
+      "Code without [Obsolete] attribute",
+      "Test code (if tracking deprecated test utilities)"
+    ],
+    "reasoning": "[Obsolete] marks code for removal. This rule tracks all deprecated code to ensure it's eventually cleaned up. Uses custom function to detect [Obsolete] attributes on all declarations including preceding lines.",
+    "validation_examples": {
+      "should_trigger": [
+        "[Obsolete] void Method()",
+        "[Obsolete(\"Use NewMethod\")] public class OldService",
+        "[Obsolete(\"This is deprecated\")] public string OldProperty { get; set; }"
+      ],
+      "should_not_trigger": [
+        "void Method()",
+        "public class NewService",
+        "public string CurrentProperty { get; set; }"
+      ]
+    },
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_deprecated_code",
+        "message": "Remove deprecated code marked with [Obsolete] attribute"
+      }
+    ]
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "filename": "events_should_be_invoked_metadata.json",
+  "rule_id": "events_invoked",
+  "title": "Events should be invoked",
+  "description": "Events should be invokedAnalyze your codeintentionality-clearmaintainabilityCode SmellunusedWhy is this an issue?Events that are not invoked anywhere are dead code, and there’s no good reason to keep them in the source.Noncompliant code exampleclass UninvokedEventSample { private event Action<object, EventArgs> Happened; // Noncompliant public void RegisterEventHandler(Action<object, EventArgs> handler) { Happened += handler; // we register some event handlers } public void RaiseEvent() { if (Happened != null) { // Happened(this, null); // the event is never triggered, because this line is commented out. } } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSou",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class UninvokedEventSample { private event Action<object, EventArgs> Happened; // Noncompliant public void RegisterEventHandler(Action<object, EventArgs> handler) { Happened += handler; // we register some event handlers } public void RaiseEvent() { if (Happened != null) { // Happened(this, null); // the event is never triggered, because this line is commented out. } } }"
+    ],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3264"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Event declared but never invoked in class body",
+    "triggering_conditions": "Class contains 'event' declaration but event name does not appear with Invoke() or () call",
+    "exclusion_conditions": "Exclude events that are invoked, abstract events, interface events, test code",
+    "never_trigger_on": [
+      "Test code ([Test], [Fact], Assert.*)",
+      "Events that are invoked (EventName?.Invoke or EventName())",
+      "Abstract events",
+      "Interface event declarations",
+      "Virtual events (may be invoked in derived classes)",
+      "Logging statements"
+    ],
+    "reasoning": "Detects dead code where events are declared but never raised/invoked. Events that are never triggered serve no purpose and should be removed. The rule searches for 'event' keyword followed by event name, then checks if that event name appears later with invocation syntax (.Invoke, ?. Invoke, or direct call). This requires checking the entire class body for event usage. Due to scanner limitations, we look for event declarations in source without corresponding invocations.",
+    "validation_examples": {
+      "should_trigger": [
+        "private event Action Happened; public void Register() { Happened += handler; }",
+        "public event EventHandler StatusChanged; public void AddHandler() { StatusChanged += OnStatus; }",
+        "public event EventHandler Completed; public void Start() { /* no invoke */ }"
+      ],
+      "should_not_trigger": [
+        "public event EventHandler DataReceived; public void Process() { DataReceived?.Invoke(this, EventArgs.Empty); }",
+        "private event Action Completed; public void Finish() { if (Completed != null) { Completed(); } }",
+        "public event EventHandler Changed; protected void OnChanged() { Changed?.Invoke(this, EventArgs.Empty); }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "event\\s+Action\\s+CommentedInvocation\\s*;",
+        "exclude_patterns": []
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "event\\s+EventHandler\\s+LogicallyNeverInvoked\\s*;",
+        "exclude_patterns": []
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "event\\s+\\w+(?:<[^>]+>)?\\s+(\\w+)\\s*;(?!.*\\b\\1\\s*(?:\\?\\s*\\.\\s*Invoke|\\s*\\(|\\s*!=\\s*null[^}]*\\1\\s*\\())",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "abstract\\s+event",
+          "interface\\s+",
+          "virtual\\s+event"
+        ]
+      }
+    ]
+  }
+}

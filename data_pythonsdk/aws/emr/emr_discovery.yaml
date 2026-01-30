@@ -1,0 +1,238 @@
+version: '1.0'
+provider: aws
+service: emr
+services:
+  client: emr
+  module: boto3.client
+discovery:
+- discovery_id: aws.emr.describe_job_flows
+  calls:
+  - action: describe_job_flows
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.JobFlows }}'
+- discovery_id: aws.emr.list_notebook_executions
+  calls:
+  - action: list_notebook_executions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.NotebookExecutions }}'
+- discovery_id: aws.emr.list_studios
+  calls:
+  - action: list_studios
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Studios }}'
+- discovery_id: aws.emr.describe_release_label
+  calls:
+  - action: describe_release_label
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+- discovery_id: aws.emr.list_studio_session_mappings
+  calls:
+  - action: list_studio_session_mappings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SessionMappings }}'
+- discovery_id: aws.emr.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Clusters }}'
+- discovery_id: aws.emr.get_block_public_access_configuration
+  calls:
+  - action: get_block_public_access_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BlockPublicAccessConfiguration }}'
+- discovery_id: aws.emr.list_security_configurations
+  calls:
+  - action: list_security_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SecurityConfigurations }}'
+- discovery_id: aws.emr.describe_cluster
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: describe_cluster
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Cluster }}'
+- discovery_id: aws.emr.list_instance_groups
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: list_instance_groups
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InstanceGroups }}'
+- discovery_id: aws.emr.describe_studio
+  for_each: aws.emr.list_studios
+  calls:
+  - action: describe_studio
+    save_as: response
+    on_error: continue
+    params:
+      StudioId: '{{ item.sessionMappingStudioId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Studio }}'
+- discovery_id: aws.emr.list_supported_instance_types
+  for_each: aws.emr.describe_release_label
+  calls:
+  - action: list_supported_instance_types
+    save_as: response
+    on_error: continue
+    params:
+      ReleaseLabel: '{{ item.clusterReleaseLabel }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SupportedInstanceTypes }}'
+- discovery_id: aws.emr.describe_notebook_execution
+  for_each: aws.emr.list_notebook_executions
+  calls:
+  - action: describe_notebook_execution
+    save_as: response
+    on_error: continue
+    params:
+      NotebookExecutionId: '{{ item.notebookExecutionNotebookExecutionId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.NotebookExecution }}'
+- discovery_id: aws.emr.list_instance_fleets
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: list_instance_fleets
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InstanceFleets }}'
+- discovery_id: aws.emr.list_instances
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: list_instances
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Instances }}'
+- discovery_id: aws.emr.describe_step
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: describe_step
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Step }}'
+- discovery_id: aws.emr.get_managed_scaling_policy
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: get_managed_scaling_policy
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ManagedScalingPolicy }}'
+- discovery_id: aws.emr.get_cluster_session_credentials
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: get_cluster_session_credentials
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+- discovery_id: aws.emr.list_bootstrap_actions
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: list_bootstrap_actions
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BootstrapActions }}'
+- discovery_id: aws.emr.get_studio_session_mapping
+  for_each: aws.emr.list_studio_session_mappings
+  calls:
+  - action: get_studio_session_mapping
+    save_as: response
+    on_error: continue
+    params:
+      StudioId: '{{ item.sessionMappingStudioId }}'
+  emit:
+    as: item
+    items_for: '{{ response.SessionMapping }}'
+- discovery_id: aws.emr.get_auto_termination_policy
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: get_auto_termination_policy
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterId }}'
+  emit:
+    as: item
+    items_for: '{{ response.AutoTerminationPolicy }}'
+checks: []

@@ -1,0 +1,60 @@
+{
+  "filename": "exceptions_should_not_be_thrown_from_unexpected_me_metadata.json",
+  "rule_id": "exceptions_thrown_from_unexpected",
+  "title": "Exceptions should not be thrown from unexpected methods",
+  "description": "Exceptions should not be thrown from unexpected methodsAnalyze your codeintentionality-logicalmaintainabilityCode SmellpitfallWhy is this an issue?More InfoThe rule is reporting when an exception is thrown from certain methods and constructors. These methods are expected to behave in a specific way and throwing an exception from them can lead to unexpected behavior and break the calling code.public override string ToString() { if (string.IsNullOrEmpty(Name)) { throw new ArgumentException(nameof(Name)); // Noncompliant } //... }An issue is raised when an exception is thrown from any of the following:ToStringObject.EqualsIEquatable.EqualsGetHashCodeIDisposable.DisposeEvent accessorsstatic constructorsModule initializershttps://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operat",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public override string ToString()\n{\n    if (string.IsNullOrEmpty(Name))\n    {\n        throw new ArgumentException(nameof(Name)); // Noncompliant\n    }\n    return Name;\n}",
+      "public override int GetHashCode()\n{\n    if (_value == null)\n    {\n        throw new InvalidOperationException(); // Noncompliant\n    }\n    return _value.GetHashCode();\n}",
+      "public override bool Equals(object obj)\n{\n    if (obj == null)\n    {\n        throw new ArgumentNullException(nameof(obj)); // Noncompliant\n    }\n    return true;\n}"
+    ],
+    "compliant": [
+      "public override string ToString()\n{\n    if (string.IsNullOrEmpty(Name))\n    {\n        return string.Empty;\n    }\n    return Name;\n}",
+      "public override int GetHashCode()\n{\n    return _value?.GetHashCode() ?? 0;\n}",
+      "public override bool Equals(object obj)\n{\n    return obj != null && obj.GetType() == GetType();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3877"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_exceptions_thrown_from_unexpected",
+        "message": "Exceptions should not be thrown from ToString, Equals, GetHashCode, Dispose, static constructors, or event accessors"
+      }
+    ],
+    "never_trigger_on": [
+      "Unit tests",
+      "Regular methods (non-override, non-special)"
+    ],
+    "reasoning": "Detects exceptions thrown from methods that should not throw: ToString, Equals, GetHashCode, Dispose, static constructors, event accessors. These methods are expected to behave reliably and throwing exceptions can break calling code expectations. Pattern matches method signatures for these special methods combined with throw statements.",
+    "validation_examples": {
+      "should_trigger": [
+        "public override string ToString() { throw new ArgumentException(); }",
+        "public override int GetHashCode() { throw new InvalidOperationException(); }",
+        "public override bool Equals(object obj) { throw new ArgumentNullException(); }"
+      ],
+      "should_not_trigger": [
+        "public override string ToString() { return Name ?? string.Empty; }",
+        "public void ProcessData() { throw new InvalidOperationException(); }",
+        "public override int GetHashCode() { return 0; }"
+      ]
+    },
+    "precision_target": "85%",
+    "self_critique_notes": "Pattern combines method signature matching (override ToString/Equals/GetHashCode, Dispose, static constructors, event add/remove) with throw statement detection. Edge cases: (1) Regular methods can throw - not matched by special method signatures; (2) Static constructors - matched via 'static \\w+()'; (3) Event accessors - matched via 'add{' and 'remove{'. Pattern may need refinement for module initializers."
+  }
+}

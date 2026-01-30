@@ -1,0 +1,45 @@
+{
+  "filename": "recursively_copying_context_directories_is_securit_metadata.json",
+  "rule_id": "recursively_copying_context_directories",
+  "title": "Recursively copying context directories is security-sensitive",
+  "description": "Recursively copying context directories is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotdockerfilecweWhen building a Docker image from a Dockerfile, a context directory is used and sent to the Docker daemon before the actual build starts. This context directory usually contains the Dockerfile itself, along with all the files that will be necessary for the build to succeed. This generally includes:the source code of applications to set up in the container.configuration files for other software components.other necessary packages or components.TheCOPYandADDdirectives in the Dockerfiles are then used to actually copy content from the context directory to the image file system.WhenCOPYorADDare used to recursively copy entire top-level directories or multipl",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "COPY"
+    ],
+    "compliant": [
+      "ADD"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-6470"
+  ],
+  "logic": {
+    "instruction_types": [
+      "COPY",
+      "ADD"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "^\\.\\s+",
+          "^\\.\\s*$",
+          "^\\.{2}\\s+",
+          "^[^/.\\s*-][^\\s/]*\\s+/"
+        ],
+        "message": "Recursively copying entire context directories is security-sensitive. Copying '.' or '..' or top-level directories may include sensitive files (.git, .env, secrets, build artifacts). Instead, copy only specific files or directories needed. Use .dockerignore to exclude sensitive files, or copy specific subdirectories explicitly."
+      }
+    ]
+  }
+}

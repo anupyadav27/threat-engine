@@ -1,0 +1,82 @@
+{
+  "filename": "configureawaitfalse_should_be_preferred_metadata.json",
+  "rule_id": "configureawaitfalse_preferred",
+  "title": "ConfigureAwait(false) should be preferred",
+  "description": "\"ConfigureAwait(false)\" should be usedAnalyze your codeintentionality-completemaintainabilityCode Smellmulti-threadingasync-awaitsuspiciousperformanceWhy is this an issue?After anawaitedTaskhas executed, you can continue execution in the original, calling thread or any arbitrary thread. Unless the rest of the code needs the context from which theTaskwas spawned,Task.ConfigureAwait(false)should be used to keep execution in theTaskthread to avoid the need for context switching and the possibility of deadlocks.This rule raises an issue when code in a class library targeting .Net Frameworkawaits aTaskand continues execution in the original calling thread.The rule does not raise for .Net Core libraries as there is noSynchronizationContextin .Net Core.Noncompliant code examplevar response = awai",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public async Task MyMethod()\n{\n    await SomeAsyncOperation(); // Noncompliant: missing ConfigureAwait(false) in library code\n    DoWork();\n}"
+    ],
+    "compliant": [
+      "public async Task MyMethod()\n{\n    await SomeAsyncOperation().ConfigureAwait(false); // Compliant: using ConfigureAwait(false)\n    DoWork();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3216"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_missing_configure_await",
+        "target_ast_nodes": ["AwaitExpression"],
+        "detection_conditions": [
+          "Await expression in asynchronous method",
+          "Await call does not have .ConfigureAwait() appended",
+          "Code is in a library context (not UI code)"
+        ],
+        "triggering_conditions": [
+          "await SomeAsyncOperation() without .ConfigureAwait(false)",
+          "await Task.Delay() without ConfigureAwait",
+          "await HttpClient.GetAsync() without ConfigureAwait",
+          "Any await expression lacking ConfigureAwait in library code"
+        ],
+        "exclusion_conditions": [
+          "Already has .ConfigureAwait(false) or .ConfigureAwait(true)",
+          "UI code where synchronization context is needed",
+          "Explicitly documented reason for not using ConfigureAwait"
+        ],
+        "never_trigger_on": [
+          "await operation.ConfigureAwait(false)",
+          "await operation.ConfigureAwait(true)",
+          "UI event handlers requiring context",
+          ".NET Core code without SynchronizationContext"
+        ],
+        "reasoning": "In library code targeting .NET Framework, awaiting without ConfigureAwait(false) can cause deadlocks by capturing the synchronization context. The check_missing_configure_await function identifies await expressions lacking ConfigureAwait calls and reports them as violations. This prevents context switching overhead and potential deadlocks in library code while allowing explicit ConfigureAwait(true) when context is genuinely needed.",
+        "validation_examples": [
+          {
+            "code": "await SomeAsyncOperation();",
+            "should_trigger": true,
+            "reason": "Missing ConfigureAwait(false) in library code"
+          },
+          {
+            "code": "await Task.Delay(100);",
+            "should_trigger": true,
+            "reason": "Should use ConfigureAwait(false) to avoid capturing context"
+          },
+          {
+            "code": "await SomeAsyncOperation().ConfigureAwait(false);",
+            "should_trigger": false,
+            "reason": "Properly using ConfigureAwait(false)"
+          },
+          {
+            "code": "await SomeAsyncOperation().ConfigureAwait(true);",
+            "should_trigger": false,
+            "reason": "Explicit ConfigureAwait(true) indicates intentional context capture"
+          }
+        ]
+      }
+    ]
+  }
+}

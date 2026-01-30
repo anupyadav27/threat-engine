@@ -1,0 +1,940 @@
+{
+  "service": "cloudwatch",
+  "review_date": "2026-01-08",
+  "review_summary": {
+    "total_rules": 86,
+    "rules_reviewed": 86,
+    "consolidation_opportunities": 15,
+    "cross_service_suggestions": 8
+  },
+  "validation_summary": {
+    "rules_validated": 86,
+    "rules_passing": 86,
+    "rules_fixed": 45,
+    "validation_date": "2026-01-08",
+    "test_results": {
+      "total_checks": 295,
+      "pass": 30,
+      "fail": 265,
+      "execution_errors": 0,
+      "field_path_errors": 0,
+      "warnings": 1
+    },
+    "fixes_applied": [
+      {
+        "issue": "Emit structures didn't iterate over API response arrays",
+        "fix": "Changed emit to use items_for for MetricAlarms, CompositeAlarms, AlarmHistoryItems, AnomalyDetectors arrays",
+        "rules_affected": ["all"]
+      },
+      {
+        "issue": "Wrong field paths in checks - used item.MetricAlarms.field instead of item.field",
+        "fix": "Fixed all field paths to match emit structure (removed MetricAlarms, CompositeAlarms, AlarmHistoryItems, AnomalyDetectors prefixes)",
+        "rules_affected": ["all"]
+      },
+      {
+        "issue": "Wrong discovery used - list_metric_streams used describe_insight_rules action",
+        "fix": "Created separate describe_insight_rules discovery and fixed list_metric_streams to use list_metric_streams action",
+        "rules_affected": ["all rules using insight rules"]
+      },
+      {
+        "issue": "Wrong discovery for composite alarms - used describe_alarms",
+        "fix": "Created separate describe_composite_alarms discovery for composite alarm checks",
+        "rules_affected": [
+          "aws.cloudwatch.alarm.destinations_authenticated_configured"
+        ]
+      },
+      {
+        "issue": "Wrong discovery for anomaly detectors - used describe_alarms",
+        "fix": "Changed to use describe_anomaly_detectors discovery",
+        "rules_affected": [
+          "aws.cloudwatch.anomalydetector.cloudwatch_detectors_enabled",
+          "aws.cloudwatch.metric.alerts_for_anomalies_configured"
+        ]
+      },
+      {
+        "issue": "Wrong discovery for insight rules - used list_metric_streams",
+        "fix": "Changed to use describe_insight_rules discovery for rules checking InsightRules names and states",
+        "rules_affected": [
+          "aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured",
+          "aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured",
+          "aws.cloudwatch.group.retention_policy_configured",
+          "aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted",
+          "aws.cloudwatch.insightsquery.rbac_least_privilege",
+          "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+          "aws.cloudwatch.log.metric_filter_authentication_failures_configured",
+          "aws.cloudwatch.log.metric_filter_for_s3_bucket_policy_changes_configured",
+          "aws.cloudwatch.log.metric_filter_policy_changes_configured",
+          "aws.cloudwatch.log.metric_filter_security_group_changes_configured",
+          "aws.cloudwatch.log.metric_filter_sign_in_without_mfa_configured",
+          "aws.cloudwatch.log.metric_filter_unauthorized_api_calls_configured",
+          "aws.cloudwatch.log.metric_log_metric_filter_root_usage_configured",
+          "aws.cloudwatch.loggroup.retention_days_minimum",
+          "aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported",
+          "aws.cloudwatch.log_metric_filter_authentication_failures.log_metric_filter_authentication_failures_configured",
+          "aws.cloudwatch.log_metric_filter_aws_organizations_changes.log_metric_log_metric_filter_aws_organizations_changes_configured",
+          "aws.cloudwatch.log_metric_filter_root_usage.log_metric_log_metric_filter_root_usage_configured",
+          "aws.cloudwatch.log_metric_filter_sign_in_without_mfa.log_metric_filter_sign_in_without_mfa_configured",
+          "aws.cloudwatch.log_metric_filter_unauthorized_api_calls.log_metric_filter_unauthorized_api_calls_configured",
+          "aws.cloudwatch.metric.api_access_log_fields_identity_configured",
+          "aws.cloudwatch.metric.api_execution_logging_level_minimum_error_configured",
+          "aws.cloudwatch.metric.flow_logging_enabled",
+          "aws.cloudwatch.metricfilter.iam_policy_change_detected_filter_present",
+          "aws.cloudwatch.metricfilter.kms_key_deletion_disable_detected_filter_present",
+          "aws.cloudwatch.metricfilter.metric_log_console_root_login_detected_filter_present",
+          "aws.cloudwatch.metricfilter.network_acl_or_sg_change_detected_filter_present",
+          "aws.cloudwatch.resource.log_cloudwatch_log_analysis_enabled"
+        ]
+      }
+    ],
+    "known_issues": [
+      {
+        "issue": "list_tags_for_resource discovery requires ResourceARN parameter",
+        "description": "The list_tags_for_resource discovery is independent but requires ResourceARN parameter. Rules using it will show warnings but checks still execute.",
+        "affected_rules": [
+          "aws.cloudwatch.group.not_publicly_accessible_configured",
+          "aws.cloudwatch.log.group_kms_encryption_enabled",
+          "aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured",
+          "aws.cloudwatch.loggroup.log_destination_least_privilege",
+          "aws.cloudwatch.loggroup.rbac_least_privilege"
+        ],
+        "status": "Known limitation - would require dependent discovery setup"
+      }
+    ]
+  },
+  "consolidation_suggestions": {
+    "duplicates": [
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured",
+          "metadata_file": "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured",
+            "metadata_file": "aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured.yaml",
+            "replaced_by": "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured",
+            "metadata_file": "aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured.yaml",
+            "replaced_by": "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.network.route_tables_alarm_configured",
+            "metadata_file": "aws.cloudwatch.network.route_tables_alarm_configured.yaml",
+            "replaced_by": "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.anomalydetector.alerts_configured",
+          "metadata_file": "aws.cloudwatch.anomalydetector.alerts_configured.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured",
+            "metadata_file": "aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured.yaml",
+            "replaced_by": "aws.cloudwatch.anomalydetector.alerts_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.anomalydetector.alerts_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.network.gateways_alarm_configured",
+            "metadata_file": "aws.cloudwatch.network.gateways_alarm_configured.yaml",
+            "replaced_by": "aws.cloudwatch.anomalydetector.alerts_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.anomalydetector.alerts_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+          "metadata_file": "aws.cloudwatch.destination.endpoint_private_networking_configured.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.logstream.ingestion_auth_required",
+            "metadata_file": "aws.cloudwatch.logstream.ingestion_auth_required.yaml",
+            "replaced_by": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.destination.endpoint_private_networking_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.logstream.log_cross_account_destinations_restricted",
+            "metadata_file": "aws.cloudwatch.logstream.log_cross_account_destinations_restricted.yaml",
+            "replaced_by": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.destination.endpoint_private_networking_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.logstream.log_destination_least_privilege",
+            "metadata_file": "aws.cloudwatch.logstream.log_destination_least_privilege.yaml",
+            "replaced_by": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.destination.endpoint_private_networking_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.metric.api_access_logging_enabled",
+            "metadata_file": "aws.cloudwatch.metric.api_access_logging_enabled.yaml",
+            "replaced_by": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.destination.endpoint_private_networking_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.metric.query_access_logging_enabled",
+            "metadata_file": "aws.cloudwatch.metric.query_access_logging_enabled.yaml",
+            "replaced_by": "aws.cloudwatch.destination.endpoint_private_networking_configured",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.destination.endpoint_private_networking_configured has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.group.cloudwatch_configuration_changes_monitored",
+          "metadata_file": "aws.cloudwatch.group.cloudwatch_configuration_changes_monitored.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored",
+            "metadata_file": "aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored.yaml",
+            "replaced_by": "aws.cloudwatch.group.cloudwatch_configuration_changes_monitored",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.group.cloudwatch_configuration_changes_monitored has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+          "metadata_file": "aws.cloudwatch.log.group_retention_policy_specific_days_enabled.yaml",
+          "reason": "Most compliance standards attached",
+          "compliance_count": 1,
+          "compliance": [
+            "hipaa_multi_cloud_164_312_b_0026"
+          ]
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.group.retention_policy_configured",
+            "metadata_file": "aws.cloudwatch.group.retention_policy_configured.yaml",
+            "replaced_by": "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.log.group_retention_policy_specific_days_enabled has more compliance attachments (1 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.insightsquery.rbac_least_privilege",
+            "metadata_file": "aws.cloudwatch.insightsquery.rbac_least_privilege.yaml",
+            "replaced_by": "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.log.group_retention_policy_specific_days_enabled has more compliance attachments (1 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.metric.api_access_log_fields_identity_configured",
+            "metadata_file": "aws.cloudwatch.metric.api_access_log_fields_identity_configured.yaml",
+            "replaced_by": "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.log.group_retention_policy_specific_days_enabled has more compliance attachments (1 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.loggroup.log_destination_encrypted",
+          "metadata_file": "aws.cloudwatch.loggroup.log_destination_encrypted.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.logstream.log_destination_encrypted",
+            "metadata_file": "aws.cloudwatch.logstream.log_destination_encrypted.yaml",
+            "replaced_by": "aws.cloudwatch.loggroup.log_destination_encrypted",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.loggroup.log_destination_encrypted has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          },
+          {
+            "rule_id": "aws.cloudwatch.metric.api_access_log_sink_configured",
+            "metadata_file": "aws.cloudwatch.metric.api_access_log_sink_configured.yaml",
+            "replaced_by": "aws.cloudwatch.loggroup.log_destination_encrypted",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.loggroup.log_destination_encrypted has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.metric.api_logs_retention_days_minimum",
+          "metadata_file": "aws.cloudwatch.metric.api_logs_retention_days_minimum.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.metric.logs_retention_days_minimum",
+            "metadata_file": "aws.cloudwatch.metric.logs_retention_days_minimum.yaml",
+            "replaced_by": "aws.cloudwatch.metric.api_logs_retention_days_minimum",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.cloudwatch.metric.api_logs_retention_days_minimum has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured",
+          "metadata_file": "aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured.yaml",
+          "reason": "More comprehensive - checks 4 fields (includes all 3 fields from aws.cloudwatch.alarm.alert_destinations_configured). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 51,
+          "compliance": [
+            "canada_pbmm_moderate_multi_cloud_CCCS_CA-7_0039",
+            "canada_pbmm_moderate_multi_cloud_CCCS_SI-2_0147",
+            "cisa_ce_v1_multi_cloud_Your_Data-1_0017",
+            "fedramp_moderate_multi_cloud_CA-7_0093",
+            "fedramp_moderate_multi_cloud_CA-7_1_0094",
+            "fedramp_moderate_multi_cloud_CA-7_4_0095",
+            "fedramp_moderate_multi_cloud_SI-2_0363",
+            "fedramp_moderate_multi_cloud_SI-2_2_0364",
+            "fedramp_moderate_multi_cloud_SI-2_3_0365",
+            "iso27001_2022_multi_cloud_A.12.4_0002",
+            "iso27001_2022_multi_cloud_A.8.15_0070",
+            "iso27001_2022_multi_cloud_A.8.16_0071",
+            "iso27001_2022_multi_cloud_A.8.20_0076",
+            "iso27001_2022_multi_cloud_A.8.21_0077",
+            "iso27001_2022_multi_cloud_A.8.22_0078",
+            "nist_800_171_r2_multi_cloud_3_12_4_3.12.4_Develop_document_and_periodically_0003",
+            "nist_800_171_r2_multi_cloud_3_6_1_3.6.1_Establish_an_operational_incident-han_0049",
+            "nist_800_171_r2_multi_cloud_3_6_2_3.6.2_Track_document_and_report_incidents_0050",
+            "nist_800_53_rev5_multi_cloud_AU-12_3_0276",
+            "nist_800_53_rev5_multi_cloud_AU-14-a_0289",
+            "nist_800_53_rev5_multi_cloud_AU-14-b_0290",
+            "nist_800_53_rev5_multi_cloud_CA-2_2_0298",
+            "nist_800_53_rev5_multi_cloud_CA-7-a_0337",
+            "nist_800_53_rev5_multi_cloud_CA-7-b_0338",
+            "nist_800_53_rev5_multi_cloud_CA-7-c_0339",
+            "nist_800_53_rev5_multi_cloud_CA-7-d_0340",
+            "nist_800_53_rev5_multi_cloud_CA-7-e_0341",
+            "nist_800_53_rev5_multi_cloud_CA-7-f_0342",
+            "nist_800_53_rev5_multi_cloud_CA-7-g_0343",
+            "nist_800_53_rev5_multi_cloud_CA-7_1_0331",
+            "nist_800_53_rev5_multi_cloud_CA-7_2_0332",
+            "nist_800_53_rev5_multi_cloud_CA-7_3_0333",
+            "nist_800_53_rev5_multi_cloud_CA-7_4_0334",
+            "nist_800_53_rev5_multi_cloud_CA-7_5_0335",
+            "nist_800_53_rev5_multi_cloud_CA-7_6_0336",
+            "nist_800_53_rev5_multi_cloud_PM-31-a_0911",
+            "nist_800_53_rev5_multi_cloud_PM-31-b_0912",
+            "nist_800_53_rev5_multi_cloud_PM-31-c_0913",
+            "nist_800_53_rev5_multi_cloud_PM-31-d_0914",
+            "nist_800_53_rev5_multi_cloud_PM-31-e_0915",
+            "nist_800_53_rev5_multi_cloud_PM-31-f_0916",
+            "nist_800_53_rev5_multi_cloud_SI-2-a_1342",
+            "nist_800_53_rev5_multi_cloud_SI-4_12_1366",
+            "nist_800_53_rev5_multi_cloud_SI-4_12_1367",
+            "rbi_bank_multi_cloud_5.2_0020",
+            "rbi_nbfc_multi_cloud_3.2_0018",
+            "soc2_multi_cloud_a1_1_0024",
+            "soc2_multi_cloud_cc_5_2_0008",
+            "soc2_multi_cloud_cc_7_2_0016",
+            "soc2_multi_cloud_cc_7_3_0017",
+            "soc2_multi_cloud_cc_7_4_0018"
+          ]
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.alarm.alert_destinations_configured",
+            "metadata_file": "aws.cloudwatch.alarm.alert_destinations_configured.yaml",
+            "replaced_by": "aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured",
+            "reason": "Field subset - checks only 3 of 4 fields. aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 4,
+            "compliance": [
+              "cisa_ce_v1_multi_cloud_Your_Data-1_0017",
+              "rbi_bank_multi_cloud_5.2_0020",
+              "rbi_nbfc_multi_cloud_3.2_0018",
+              "soc2_multi_cloud_a1_1_0024"
+            ],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.metric.alerts_for_anomalies_configured",
+          "metadata_file": "aws.cloudwatch.metric.alerts_for_anomalies_configured.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured",
+            "metadata_file": "aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured.yaml",
+            "replaced_by": "aws.cloudwatch.metric.alerts_for_anomalies_configured",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.metric.alerts_for_anomalies_configured is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.dashboard.cloudwatch_sso_required",
+          "metadata_file": "aws.cloudwatch.dashboard.cloudwatch_sso_required.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured",
+            "metadata_file": "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured.yaml",
+            "replaced_by": "aws.cloudwatch.dashboard.cloudwatch_sso_required",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.dashboard.cloudwatch_sso_required is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.destination.iam_policy_least_privilege",
+          "metadata_file": "aws.cloudwatch.destination.iam_policy_least_privilege.yaml",
+          "reason": "More comprehensive - checks 3 fields (includes all 1 fields from aws.cloudwatch.group.kms_encryption_enabled). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.group.kms_encryption_enabled",
+            "metadata_file": "aws.cloudwatch.group.kms_encryption_enabled.yaml",
+            "replaced_by": "aws.cloudwatch.destination.iam_policy_least_privilege",
+            "reason": "Field subset - checks only 1 of 3 fields. aws.cloudwatch.destination.iam_policy_least_privilege is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 5,
+            "compliance": [
+              "gdpr_multi_cloud_Article_32_Security_of_processing_0003",
+              "hipaa_multi_cloud_164_308_a_1_ii_b_0002",
+              "hipaa_multi_cloud_164_308_a_4_ii_a_0009",
+              "hipaa_multi_cloud_164_312_a_2_iv_0025",
+              "hipaa_multi_cloud_164_312_e_2_ii_0032"
+            ],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.destination.tls_min_1_2_enforced",
+          "metadata_file": "aws.cloudwatch.destination.tls_min_1_2_enforced.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.logstream.retention_days_minimum). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.logstream.retention_days_minimum",
+            "metadata_file": "aws.cloudwatch.logstream.retention_days_minimum.yaml",
+            "replaced_by": "aws.cloudwatch.destination.tls_min_1_2_enforced",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.destination.tls_min_1_2_enforced is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured",
+          "metadata_file": "aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 1,
+          "compliance": [
+            "cis_aws_aws_6.12_0130"
+          ]
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted",
+            "metadata_file": "aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted.yaml",
+            "replaced_by": "aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured",
+          "metadata_file": "aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported",
+            "metadata_file": "aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported.yaml",
+            "replaced_by": "aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.cloudwatch.log.metric_filter_authentication_failures_configured",
+          "metadata_file": "aws.cloudwatch.log.metric_filter_authentication_failures_configured.yaml",
+          "reason": "More comprehensive - checks 2 fields (includes all 1 fields from aws.cloudwatch.loggroup.retention_days_minimum). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 7,
+          "compliance": [
+            "gdpr_multi_cloud_Article_25_Data_protection_by_design_and_by_defaul_0001",
+            "hipaa_multi_cloud_164_308_a_5_ii_c_0013",
+            "hipaa_multi_cloud_164_308_a_6_i_0015",
+            "hipaa_multi_cloud_164_308_a_6_ii_0016",
+            "iso27001_2022_multi_cloud_A.8.15_0070",
+            "iso27001_2022_multi_cloud_A.8.16_0071",
+            "soc2_multi_cloud_cc_5_2_0008"
+          ]
+        },
+        "remove": [
+          {
+            "rule_id": "aws.cloudwatch.loggroup.retention_days_minimum",
+            "metadata_file": "aws.cloudwatch.loggroup.retention_days_minimum.yaml",
+            "replaced_by": "aws.cloudwatch.log.metric_filter_authentication_failures_configured",
+            "reason": "Field subset - checks only 1 of 2 fields. aws.cloudwatch.log.metric_filter_authentication_failures_configured is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 37,
+            "compliance": [
+              "canada_pbmm_moderate_multi_cloud_CCCS_CA-7_0039",
+              "fedramp_moderate_multi_cloud_CA-7_0093",
+              "fedramp_moderate_multi_cloud_CA-7_1_0094",
+              "fedramp_moderate_multi_cloud_CA-7_4_0095",
+              "iso27001_2022_multi_cloud_A.8.15_0070",
+              "iso27001_2022_multi_cloud_A.8.16_0071",
+              "nist_800_171_r2_multi_cloud_3_3_1_3.3.1_Create_and_retain_system_audit_logs_a_0031",
+              "nist_800_171_r2_multi_cloud_3_6_1_3.6.1_Establish_an_operational_incident-han_0049",
+              "nist_800_171_r2_multi_cloud_3_6_2_3.6.2_Track_document_and_report_incidents_0050",
+              "nist_800_53_rev5_multi_cloud_AC-16-b_0135",
+              "nist_800_53_rev5_multi_cloud_AU-10_1_0268",
+              "nist_800_53_rev5_multi_cloud_AU-10_2_0269",
+              "nist_800_53_rev5_multi_cloud_AU-10_3_0270",
+              "nist_800_53_rev5_multi_cloud_AU-10_4_0271",
+              "nist_800_53_rev5_multi_cloud_AU-10_5_0272",
+              "nist_800_53_rev5_multi_cloud_AU-11_1_0273",
+              "nist_800_53_rev5_multi_cloud_AU-12_1_0274",
+              "nist_800_53_rev5_multi_cloud_AU-12_2_0275",
+              "nist_800_53_rev5_multi_cloud_AU-12_3_0276",
+              "nist_800_53_rev5_multi_cloud_AU-14-a_0289",
+              "nist_800_53_rev5_multi_cloud_AU-14-b_0290",
+              "nist_800_53_rev5_multi_cloud_CA-7-b_0338",
+              "nist_800_53_rev5_multi_cloud_PM-21-b_0885",
+              "nist_800_53_rev5_multi_cloud_PM-31-a_0911",
+              "nist_800_53_rev5_multi_cloud_PM-31-b_0912",
+              "nist_800_53_rev5_multi_cloud_PM-31-c_0913",
+              "nist_800_53_rev5_multi_cloud_PM-31-d_0914",
+              "nist_800_53_rev5_multi_cloud_PM-31-e_0915",
+              "nist_800_53_rev5_multi_cloud_PM-31-f_0916",
+              "nist_800_53_rev5_multi_cloud_SC-28_2_1281",
+              "nist_800_53_rev5_multi_cloud_SI-4_17_1373",
+              "rbi_bank_multi_cloud_5.1_0019",
+              "rbi_nbfc_multi_cloud_3.1_0017",
+              "rbi_nbfc_multi_cloud_7.5_0037",
+              "soc2_multi_cloud_cc_7_2_0016",
+              "soc2_multi_cloud_cc_7_3_0017",
+              "soc2_multi_cloud_cc_c_1_2_0023"
+            ],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      }
+    ]
+  },
+  "cross_service_suggestions": [
+    {
+      "rule_id": "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured",
+      "metadata_file": "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "cloudtrail",
+      "reason": "Uses cloudtrail API methods (list_dashboards is cloudtrail method)",
+      "python_method": "list_dashboards",
+      "confidence_percentage": 95.0,
+      "review_needed": "none",
+      "has_compliance": false,
+      "compliance_count": 0,
+      "compliance": [],
+      "is_common_dependency": true,
+      "method_ambiguous": true,
+      "service_count_for_method": 5
+    },
+    {
+      "rule_id": "aws.cloudwatch.dashboard.cloudwatch_sso_required",
+      "metadata_file": "aws.cloudwatch.dashboard.cloudwatch_sso_required.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "cloudtrail",
+      "reason": "Uses cloudtrail API methods (list_dashboards is cloudtrail method)",
+      "python_method": "list_dashboards",
+      "confidence_percentage": 95.0,
+      "review_needed": "none",
+      "has_compliance": false,
+      "compliance_count": 0,
+      "compliance": [],
+      "is_common_dependency": true,
+      "method_ambiguous": true,
+      "service_count_for_method": 5
+    },
+    {
+      "rule_id": "aws.cloudwatch.dashboard.public_embeds_disabled",
+      "metadata_file": "aws.cloudwatch.dashboard.public_embeds_disabled.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "cloudtrail",
+      "reason": "Uses cloudtrail API methods (list_dashboards is cloudtrail method)",
+      "python_method": "list_dashboards",
+      "confidence_percentage": 95.0,
+      "review_needed": "none",
+      "has_compliance": false,
+      "compliance_count": 0,
+      "compliance": [],
+      "is_common_dependency": true,
+      "method_ambiguous": true,
+      "service_count_for_method": 5
+    },
+    {
+      "rule_id": "aws.cloudwatch.group.not_publicly_accessible_configured",
+      "metadata_file": "aws.cloudwatch.group.not_publicly_accessible_configured.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "ce",
+      "reason": "Uses ce API methods (list_tags_for_resource is ce method)",
+      "python_method": "list_tags_for_resource",
+      "confidence_percentage": 77.0,
+      "review_needed": "optional",
+      "has_compliance": true,
+      "compliance_count": 2,
+      "compliance": [
+        "iso27001_2022_multi_cloud_A.8.15_0070",
+        "iso27001_2022_multi_cloud_A.8.16_0071"
+      ],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 283
+    },
+    {
+      "rule_id": "aws.cloudwatch.log.group_kms_encryption_enabled",
+      "metadata_file": "aws.cloudwatch.log.group_kms_encryption_enabled.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "ce",
+      "reason": "Uses ce API methods (list_tags_for_resource is ce method)",
+      "python_method": "list_tags_for_resource",
+      "confidence_percentage": 77.0,
+      "review_needed": "optional",
+      "has_compliance": true,
+      "compliance_count": 7,
+      "compliance": [
+        "gdpr_multi_cloud_Article_32_Security_of_processing_0003",
+        "hipaa_multi_cloud_164_308_a_1_ii_b_0002",
+        "hipaa_multi_cloud_164_308_a_4_ii_a_0009",
+        "hipaa_multi_cloud_164_312_a_2_iv_0025",
+        "hipaa_multi_cloud_164_312_e_2_ii_0032",
+        "iso27001_2022_multi_cloud_A.8.15_0070",
+        "iso27001_2022_multi_cloud_A.8.16_0071"
+      ],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 283
+    },
+    {
+      "rule_id": "aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured",
+      "metadata_file": "aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "ce",
+      "reason": "Uses ce API methods (list_tags_for_resource is ce method)",
+      "python_method": "list_tags_for_resource",
+      "confidence_percentage": 77.0,
+      "review_needed": "optional",
+      "has_compliance": true,
+      "compliance_count": 34,
+      "compliance": [
+        "canada_pbmm_moderate_multi_cloud_CCCS_CP-9_0059",
+        "canada_pbmm_moderate_multi_cloud_CCCS_SC-13_0136",
+        "cis_aws_aws_6.12_0130",
+        "fedramp_moderate_multi_cloud_CP-9_0160",
+        "fedramp_moderate_multi_cloud_CP-9_1_0161",
+        "fedramp_moderate_multi_cloud_CP-9_2_0162",
+        "fedramp_moderate_multi_cloud_CP-9_3_0163",
+        "fedramp_moderate_multi_cloud_CP-9_5_0164",
+        "fedramp_moderate_multi_cloud_CP-9_8_0165",
+        "fedramp_moderate_multi_cloud_SC-13_0348",
+        "gdpr_multi_cloud_Article_25_Data_protection_by_design_and_by_defaul_0001",
+        "gdpr_multi_cloud_Article_32_Security_of_processing_0003",
+        "hipaa_multi_cloud_164_308_a_1_ii_b_0002",
+        "hipaa_multi_cloud_164_308_a_4_ii_a_0009",
+        "hipaa_multi_cloud_164_312_a_2_iv_0025",
+        "hipaa_multi_cloud_164_312_b_0026",
+        "hipaa_multi_cloud_164_312_e_2_ii_0032",
+        "iso27001_2022_multi_cloud_A.12.4_0002",
+        "iso27001_2022_multi_cloud_A.8.11_0066",
+        "iso27001_2022_multi_cloud_A.8.15_0070",
+        "iso27001_2022_multi_cloud_A.8.16_0071",
+        "iso27001_2022_multi_cloud_A.8.24_0080",
+        "nist_800_171_r2_multi_cloud_3_13_11_3.13.11_Employ_FIPS-validated_cryptograph_0005",
+        "nist_800_171_r2_multi_cloud_3_13_16_3.13.16_Protect_the_confidentiality_of_CU_0007",
+        "nist_800_171_r2_multi_cloud_3_3_8_3.3.8_Protect_audit_information_and_audit_l_0036",
+        "nist_800_53_rev5_multi_cloud_AU-9_3_0261",
+        "nist_800_53_rev5_multi_cloud_CP-9-d_0512",
+        "nist_800_53_rev5_multi_cloud_SC-13-a_1248",
+        "nist_800_53_rev5_multi_cloud_SC-28_1_1280",
+        "nist_800_53_rev5_multi_cloud_SC-8_3_1229",
+        "nist_800_53_rev5_multi_cloud_SC-8_4_1230",
+        "nist_800_53_rev5_multi_cloud_SI-19_4_1445",
+        "soc2_multi_cloud_cc_5_2_0008",
+        "soc2_multi_cloud_cc_7_3_0017"
+      ],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 283
+    },
+    {
+      "rule_id": "aws.cloudwatch.loggroup.log_destination_least_privilege",
+      "metadata_file": "aws.cloudwatch.loggroup.log_destination_least_privilege.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "ce",
+      "reason": "Uses ce API methods (list_tags_for_resource is ce method)",
+      "python_method": "list_tags_for_resource",
+      "confidence_percentage": 77.0,
+      "review_needed": "optional",
+      "has_compliance": true,
+      "compliance_count": 7,
+      "compliance": [
+        "canada_pbmm_moderate_multi_cloud_CCCS_AU-6_0028",
+        "fedramp_moderate_multi_cloud_AU-6_0065",
+        "gdpr_multi_cloud_Article_25_Data_protection_by_design_and_by_defaul_0001",
+        "iso27001_2022_multi_cloud_A.12.4_0002",
+        "iso27001_2022_multi_cloud_A.8.15_0070",
+        "iso27001_2022_multi_cloud_A.8.16_0071",
+        "soc2_multi_cloud_cc_5_2_0008"
+      ],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 283
+    },
+    {
+      "rule_id": "aws.cloudwatch.loggroup.rbac_least_privilege",
+      "metadata_file": "aws.cloudwatch.loggroup.rbac_least_privilege.yaml",
+      "current_service": "cloudwatch",
+      "suggested_service": "ce",
+      "reason": "Uses ce API methods (list_tags_for_resource is ce method)",
+      "python_method": "list_tags_for_resource",
+      "confidence_percentage": 75.0,
+      "review_needed": "optional",
+      "has_compliance": false,
+      "compliance_count": 0,
+      "compliance": [],
+      "is_common_dependency": false,
+      "method_ambiguous": true,
+      "service_count_for_method": 283
+    }
+  ],
+  "confidence_scores": {
+    "consolidation_opportunities": 91.3,
+    "cross_service_placement": 83.5
+  },
+  "recommendations": [
+    {
+      "priority": "high",
+      "action": "consolidate",
+      "rule_ids": [
+        "aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured",
+        "aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured",
+        "aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured",
+        "aws.cloudwatch.network.route_tables_alarm_configured",
+        "aws.cloudwatch.anomalydetector.alerts_configured",
+        "aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured",
+        "aws.cloudwatch.network.gateways_alarm_configured",
+        "aws.cloudwatch.destination.endpoint_private_networking_configured",
+        "aws.cloudwatch.logstream.ingestion_auth_required",
+        "aws.cloudwatch.logstream.log_cross_account_destinations_restricted",
+        "aws.cloudwatch.logstream.log_destination_least_privilege",
+        "aws.cloudwatch.metric.api_access_logging_enabled",
+        "aws.cloudwatch.metric.query_access_logging_enabled",
+        "aws.cloudwatch.group.cloudwatch_configuration_changes_monitored",
+        "aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored",
+        "aws.cloudwatch.log.group_retention_policy_specific_days_enabled",
+        "aws.cloudwatch.group.retention_policy_configured",
+        "aws.cloudwatch.insightsquery.rbac_least_privilege",
+        "aws.cloudwatch.metric.api_access_log_fields_identity_configured",
+        "aws.cloudwatch.loggroup.log_destination_encrypted",
+        "aws.cloudwatch.logstream.log_destination_encrypted",
+        "aws.cloudwatch.metric.api_access_log_sink_configured",
+        "aws.cloudwatch.metric.api_logs_retention_days_minimum",
+        "aws.cloudwatch.metric.logs_retention_days_minimum",
+        "aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured",
+        "aws.cloudwatch.alarm.alert_destinations_configured",
+        "aws.cloudwatch.metric.alerts_for_anomalies_configured",
+        "aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured",
+        "aws.cloudwatch.dashboard.cloudwatch_sso_required",
+        "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured",
+        "aws.cloudwatch.destination.iam_policy_least_privilege",
+        "aws.cloudwatch.group.kms_encryption_enabled",
+        "aws.cloudwatch.destination.tls_min_1_2_enforced",
+        "aws.cloudwatch.logstream.retention_days_minimum",
+        "aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured",
+        "aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted",
+        "aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured",
+        "aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported",
+        "aws.cloudwatch.log.metric_filter_authentication_failures_configured",
+        "aws.cloudwatch.loggroup.retention_days_minimum"
+      ],
+      "description": "Merge 15 duplicate/subset rule groups",
+      "impact": "Reduces duplicate rules, improves maintainability"
+    },
+    {
+      "priority": "medium",
+      "action": "move",
+      "rule_ids": [
+        "aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured",
+        "aws.cloudwatch.dashboard.cloudwatch_sso_required",
+        "aws.cloudwatch.dashboard.public_embeds_disabled",
+        "aws.cloudwatch.group.not_publicly_accessible_configured",
+        "aws.cloudwatch.log.group_kms_encryption_enabled",
+        "aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured",
+        "aws.cloudwatch.loggroup.log_destination_least_privilege",
+        "aws.cloudwatch.loggroup.rbac_least_privilege"
+      ],
+      "description": "Move 8 rules to appropriate services",
+      "impact": "Better service organization, clearer ownership"
+    }
+  ]
+}

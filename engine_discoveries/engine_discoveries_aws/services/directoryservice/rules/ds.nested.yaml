@@ -1,0 +1,34 @@
+version: '1.0'
+provider: aws
+service: ds
+discovery:
+- discovery_id: aws.directoryservice.resources
+  calls:
+  - action: describe_directories
+    fields:
+    - Directoryservices
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: describe_directories_response[]
+- discovery_id: aws.directoryservice.resource_logging
+  for_each: aws.directoryservice.resources
+  calls:
+  - action: describe_directories
+    params:
+      ResourceId: '{{ item.id }}'
+      MaxResults: 1000
+  emit: {}
+checks:
+- rule_id: aws.directoryservice.resource.supported_mfa_radius_enabled
+  for_each: aws.directoryservice.resources
+  conditions:
+    var: item.compliant
+    op: equals
+    value: true
+- rule_id: aws.directoryservice.resource.directoryservice_directory_log_forwarding_enabled
+  for_each: aws.directoryservice.resource_logging
+  conditions:
+    var: logging.logging_enabled
+    op: equals
+    value: true

@@ -1,0 +1,62 @@
+{
+  "filename": "interactive_dom_elements_should_avoid_having_non_i_metadata.json",
+  "rule_id": "interactive_dom_elements_avoid",
+  "title": "Interactive DOM elements should avoid having non-interactive ARIA roles",
+  "description": "Interactive DOM elements (buttons, links, form inputs, etc.) should not have non-interactive ARIA roles assigned to them. Non-interactive ARIA roles like 'article', 'banner', 'complementary', 'contentinfo', 'img', 'list', 'listitem', 'main', 'navigation', 'region', etc. are meant for static content containers, not interactive elements. Assigning these roles to interactive elements confuses screen readers and other assistive technologies, creating accessibility barriers.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Accessibility",
+  "recommendation": "Remove non-interactive ARIA roles from interactive elements or use appropriate interactive roles instead.",
+  "impact": "Accessibility barrier for screen reader users",
+  "tags": [
+    "accessibility",
+    "a11y",
+    "aria",
+    "usability"
+  ],
+  "examples": {
+    "noncompliant": [
+      "<button role='article'>Click me</button>",
+      "<a href='#' role='banner'>Link</a>",
+      "<input type='text' role='img' />",
+      "<button role='navigation'>Menu</button>",
+      "<select role='listitem'><option>Item</option></select>"
+    ],
+    "compliant": [
+      "<button>Click me</button>",
+      "<a href='#'>Link</a>",
+      "<input type='text' />",
+      "<button role='button'>Menu</button>",
+      "<div role='article'>Static content</div>"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6843"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "VariableDeclaration",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_interactive_elements_with_non_interactive_roles",
+        "message": "Interactive DOM element has non-interactive ARIA role"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "<(?:button|input|select|textarea|a)\\b[^>]*\\brole\\s*=\\s*['\"](?:article|banner|complementary|contentinfo|definition|directory|document|feed|figure|group|heading|img|list|listitem|log|main|marquee|math|navigation|note|presentation|region|separator|status|table|tabpanel|term|timer|tooltip)['\"]",
+          "(?:button|input|select|textarea|a)\\s*\\([^)]*role\\s*:\\s*['\"](?:article|banner|complementary|contentinfo|definition|directory|document|feed|figure|group|heading|img|list|listitem|log|main|marquee|math|navigation|note|presentation|region|separator|status|table|tabpanel|term|timer|tooltip)['\"]",
+          "createElement\\s*\\(\\s*['\"](?:button|input|select|textarea|a)['\"]\\s*\\)[^;]*\\.setAttribute\\s*\\(\\s*['\"]role['\"]\\s*,\\s*['\"](?:article|banner|complementary|contentinfo|definition|directory|document|feed|figure|group|heading|img|list|listitem|log|main|marquee|math|navigation|note|presentation|region|separator|status|table|tabpanel|term|timer|tooltip)['\"]"
+        ],
+        "message": "Interactive element has non-interactive ARIA role assigned"
+      }
+    ]
+  }
+}

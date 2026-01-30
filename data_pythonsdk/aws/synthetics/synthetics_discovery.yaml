@@ -1,0 +1,78 @@
+version: '1.0'
+provider: aws
+service: synthetics
+services:
+  client: synthetics
+  module: boto3.client
+discovery:
+- discovery_id: aws.synthetics.describe_canaries
+  calls:
+  - action: describe_canaries
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Canaries }}'
+- discovery_id: aws.synthetics.describe_runtime_versions
+  calls:
+  - action: describe_runtime_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RuntimeVersions }}'
+- discovery_id: aws.synthetics.list_groups
+  calls:
+  - action: list_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Groups }}'
+- discovery_id: aws.synthetics.describe_canaries_last_run
+  calls:
+  - action: describe_canaries_last_run
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CanariesLastRun }}'
+- discovery_id: aws.synthetics.get_canary_runs
+  for_each: aws.synthetics.describe_canaries
+  calls:
+  - action: get_canary_runs
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.canaryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.CanaryRuns }}'
+- discovery_id: aws.synthetics.get_group
+  calls:
+  - action: get_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Group }}'
+- discovery_id: aws.synthetics.get_canary
+  for_each: aws.synthetics.describe_canaries
+  calls:
+  - action: get_canary
+    save_as: response
+    on_error: continue
+    params:
+      Name: '{{ item.canaryName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Canary }}'
+checks: []

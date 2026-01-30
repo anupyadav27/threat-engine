@@ -1,0 +1,70 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed
+# - YAML generated and tested against AWS
+# - All 3 checks configured (3 execute without streams, 3 require streams)
+# - 0 execution errors
+# - Field paths verified correct in check evidence
+# - Test script: test_kinesisvideostreams_resources.py (to be created if needed)
+# - Test resources: Kinesis Video Streams require IAM roles and KMS keys. Not created for automated testing.
+# - Tested: 2026-01-01
+# - Note: With 0 streams, 3 checks run per account (expected behavior)
+#   With streams, 3 checks run per account (all rules execute)
+
+version: '1.0'
+provider: aws
+service: kinesisvideostreams
+services:
+  client: kinesisvideo
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesisvideostreams.list_streams
+  calls:
+  - action: list_streams
+    save_as: response
+  emit:
+    items_for: '{{ response.StreamInfoList }}'
+    as: item
+    item:
+      StreamName: '{{ item.StreamName }}'
+      StreamARN: '{{ item.StreamARN }}'
+      Status: '{{ item.Status }}'
+      DataRetentionInHours: '{{ item.DataRetentionInHours }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+- discovery_id: aws.kinesisvideostreams.describe_stream
+  for_each: aws.kinesisvideostreams.list_streams
+  calls:
+  - action: describe_stream
+    params:
+      StreamName: '{{ item.StreamName }}'
+    save_as: response
+  emit:
+    item:
+      DeviceName: '{{ response.StreamInfo.DeviceName }}'
+      StreamName: '{{ response.StreamInfo.StreamName }}'
+      StreamARN: '{{ response.StreamInfo.StreamARN }}'
+      MediaType: '{{ response.StreamInfo.MediaType }}'
+      KmsKeyId: '{{ response.StreamInfo.KmsKeyId }}'
+      Version: '{{ response.StreamInfo.Version }}'
+      Status: '{{ response.StreamInfo.Status }}'
+      CreationTime: '{{ response.StreamInfo.CreationTime }}'
+      DataRetentionInHours: '{{ response.StreamInfo.DataRetentionInHours }}'
+checks:
+- rule_id: aws.kinesisvideostreams.stream.encryption_in_transit_required
+  for_each: aws.kinesisvideostreams.describe_stream
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.kinesisvideostreams.stream.retention_days_minimum_configured
+  for_each: aws.kinesisvideostreams.describe_stream
+  conditions:
+    var: item.DataRetentionInHours
+    op: greater_than
+    value: '24'
+- rule_id: aws.kinesisvideostreams.stream.encryption_at_rest_enabled
+  for_each: aws.kinesisvideostreams.describe_stream
+  conditions:
+    all:
+    - var: item.KmsKeyId
+      op: exists
+      value: null

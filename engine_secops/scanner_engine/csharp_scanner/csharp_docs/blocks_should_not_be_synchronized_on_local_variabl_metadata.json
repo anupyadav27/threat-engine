@@ -1,0 +1,41 @@
+{
+  "filename": "blocks_should_not_be_synchronized_on_local_variabl_metadata.json",
+  "rule_id": "blocks_synchronized_local_variables",
+  "title": "Blocks should not be synchronized on local variables",
+  "description": "Blocks should not be synchronized on local variablesAnalyze your codeintentionality-logicalreliabilityBugcwemulti-threadingWhy is this an issue?More InfoLocking on a local variable can undermine synchronization because two different threads running the same method in parallel will potentially lock on different instances of the same object, allowing them to access the synchronized block at the same time.Noncompliant code exampleprivate void DoSomething() { object local = new object(); // Code potentially modifying the local variable ... lock (local) // Noncompliant { // ... } }Compliant solutionprivate readonly object lockObj = new object(); private void DoSomething() { lock (lockObj) { //..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "private void DoSomething()\n{\n  object local = new object();\n  // Code potentially modifying the local variable ...\n\n  lock (local) // Noncompliant\n  {\n    // ...\n  }\n}"
+    ],
+    "compliant": [
+      "private readonly object lockObj = new object();\n\nprivate void DoSomething()\n{\n  lock (lockObj)\n  {\n    //...\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6507"
+  ],
+  "logic": {
+    "node_types": [
+      "LockStatement",
+      "MethodDeclaration",
+      "VariableDeclarator"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_blocks_synchronized_local_variables",
+        "message": "Blocks should not be synchronized on local variables. Use a field or static object for synchronization."
+      }
+    ]
+  }
+}

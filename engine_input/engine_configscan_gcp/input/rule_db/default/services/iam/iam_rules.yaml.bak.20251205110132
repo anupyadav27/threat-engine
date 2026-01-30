@@ -1,0 +1,123 @@
+iam:
+  version: '1.0'
+  provider: gcp
+  service: iam
+  scope: global
+  sdk_package: google.cloud.iam_admin_v1
+  client_class: IAMClient
+  discovery:
+  - discovery_id: list_service_accounts
+    calls:
+    - action: list_service_accounts
+      client_params:
+        name: projects/{{project_id}}
+  - discovery_id: service_account_metadata
+    for_each: list_service_accounts
+    calls:
+    - action: get_service_account
+      params:
+        name: '{{name}}'
+  - discovery_id: service_account_keys
+    for_each: list_service_accounts
+    calls:
+    - action: list_service_account_keys
+      params:
+        name: '{{name}}'
+  - discovery_id: list_roles
+    calls:
+    - action: list_roles
+      client_params:
+        parent: projects/{{project_id}}
+  - discovery_id: role_metadata
+    for_each: list_roles
+    calls:
+    - action: get_role
+      params:
+        name: '{{name}}'
+  - discovery_id: project_iam_policy
+    calls:
+    - action: get_iam_policy
+      client_params:
+        resource: projects/{{project_id}}
+  - discovery_id: group_metadata
+    for_each: project_iam_policy
+    calls:
+    - action: eval
+      fields:
+      - path: bindings
+        operator: exists
+  checks:
+  - check_id: gcp.iam.group.has_users
+    title: Ensure IAM Groups Contain Active Users
+    severity: medium
+    for_each: group_metadata
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings
+        operator: exists
+      - path: bindings[*].members
+        operator: not_empty
+  - check_id: gcp.iam.group.identity_access_rbac_attached_policies_not_admin_star
+    title: Restrict Admin Role in Group IAM Policies
+    severity: high
+    for_each: group_metadata
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[*].role
+        operator: not_contains
+        expected: roles/owner
+      - path: bindings[*].role
+        operator: not_contains
+        expected: roles/editor
+  - check_id: gcp.iam.group.identity_access_rbac_external_sharing_restricted_w_supported
+    title: Restrict External Sharing of IAM Group Access
+    severity: high
+    for_each: group_metadata
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: bindings[*].members[*]
+        operator: not_contains
+        expected: allUsers
+      - path: bindings[*].members[*]
+        operator: not_contains
+        expected: allAuthenticatedUsers
+  - check_id: gcp.iam.group.identity_access_rbac_no_inline_policies
+    title: Avoid Inline Policies for IAM Group Access Control
+    severity: medium
+    for_each: group_metadata
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: inlinePolicies
+        operator: not_exists
+  - check_id: gcp.iam.key.90_days
+    title: Ensure IAM Keys Are Rotated Every 90 Days
+    severity: high
+    for_each: service_account_keys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys
+        operator: exists
+      - path: keys[*].validAfterTime
+        operator: less_than_days
+        expected: 90
+  - check_id: gcp.iam.key.user_managed_restriction
+    title: Restrict User-Managed Service Account Keys
+    severity: medium
+    for_each: service_account_keys
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: keys[*].keyType
+        operator: not_equals
+        expected: USER_MANAGED

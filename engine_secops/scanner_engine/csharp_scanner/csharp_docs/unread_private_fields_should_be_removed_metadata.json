@@ -1,0 +1,66 @@
+{
+  "filename": "unread_private_fields_should_be_removed_metadata.json",
+  "rule_id": "unread_private_fields_removed",
+  "title": "Unread private fields should be removed",
+  "description": "Unread \"private\" fields should be removedAnalyze your codeintentionality-clearmaintainabilityCode SmellcweunusedWhy is this an issue?More InfoPrivate fields which are written but never read are a case of \"dead store\". Changing the value of such a field is useless and most probably indicates an error in the code.public class Rectangle { private readonly int length; private readonly int width; // Noncompliant: width is written but never read public Rectangle(int length, int width) { this.length = length; this.width = width; } public int Surface { get { return length * length; } } }Remove this field if it doesn’t need to be read, or fix the code to read it.public class Rectangle { private readonly int length; private readonly int width; public Rectangle(int length, int width) { this.length =",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Rectangle\n{\n  private readonly int length;\n  private readonly int width;  // Noncompliant: width is written but never read\n\n  public Rectangle(int length, int width)\n  {\n    this.length = length;\n    this.width = width;\n  }\n\n  public int Surface\n  {\n    get\n    {\n      return length * length;\n    }\n  }\n}"
+    ],
+    "compliant": [
+      "public class Rectangle\n{\n  private readonly int length;\n  private readonly int width;\n\n  public Rectangle(int length, int width)\n  {\n    this.length = length;\n    this.width = width;\n  }\n\n  public int Surface\n  {\n    get\n    {\n      return length * width;\n    }\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4487"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration", "FieldDeclaration"],
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unread_private_fields"
+      }
+    ],
+    "detection_conditions": "Find private fields that are written but never read",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Field is private",
+        "Field is assigned/written somewhere",
+        "Field is never read/accessed"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Fields that are read",
+      "Public/protected fields",
+      "Comments"
+    ],
+    "reasoning": "Private fields that are written but never read are dead stores - useless code that probably indicates a bug.",
+    "validation_examples": {
+      "should_trigger": [
+        "private int width; public Rectangle(int w) { width = w; } public int Area => length * length;"
+      ],
+      "should_not_trigger": [
+        "private int width; public Rectangle(int w) { width = w; } public int Area => length * width;"
+      ]
+    }
+  }
+}

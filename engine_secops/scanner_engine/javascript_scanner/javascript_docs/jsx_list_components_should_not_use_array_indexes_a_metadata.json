@@ -1,0 +1,59 @@
+{
+  "filename": "jsx_list_components_should_not_use_array_indexes_a_metadata.json",
+  "rule_id": "jsx_list_components_use",
+  "title": "JSX list components should not use array indexes as key",
+  "description": "JSX list components should not use array indexes as keyAnalyze your codeintentionality-logicalmaintainabilityCode SmellreactjsxperformanceWhy is this an issue?More InfoTo optimize the rendering of React list components, a unique identifier (UID) is required for each list item. This UID lets React identify the item throughout its lifetime. Avoid array indexes since the order of the items may change, which will cause keys to not match up between renders, recreating the DOM.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "items.map((item, index) => <div key={index}>{item.name}</div>)",
+      "posts.map((post, i) => <li key={i}>{post.title}</li>)",
+      "data.map((item, idx) => <span key={`item-${idx}`}>{item.value}</span>)",
+      "users.map((user, pos) => <tr key={pos + 1000}>{user.email}</tr>)"
+    ],
+    "compliant": [
+      "items.map((item) => <div key={item.id}>{item.name}</div>)",
+      "posts.map((post) => <li key={post.slug}>{post.title}</li>)",
+      "data.map((item) => <span key={`item-${item.id}`}>{item.value}</span>)",
+      "users.map((user) => <tr key={user.email}>{user.name}</tr>)"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6479"
+  ],
+  "logic": {
+    "node_types": [
+      "JSXAttribute",
+      "CallExpression",
+      "MemberExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\.map\\s*\\([^,)]*,\\s*(index|i|idx|pos|position|num|n|counter)\\s*\\)[^}]*key\\s*=\\s*\\{\\s*(index|i|idx|pos|position|num|n|counter)\\s*\\}",
+        "message": "Avoid using array index as JSX key - use unique, stable identifiers instead"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\.map\\s*\\([^,)]*,\\s*(index|i|idx)\\s*\\)[^}]*key\\s*=\\s*\\{[^}]*(index|i|idx)[^}]*\\}",
+        "message": "Avoid using array index in JSX key expressions - can cause React reconciliation issues"
+      }
+    ]
+  }
+}

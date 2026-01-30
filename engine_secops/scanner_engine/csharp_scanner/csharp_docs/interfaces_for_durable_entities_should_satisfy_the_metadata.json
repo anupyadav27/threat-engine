@@ -1,0 +1,83 @@
+{
+  "filename": "interfaces_for_durable_entities_should_satisfy_the_metadata.json",
+  "rule_id": "interfaces_durable_entities_satisfy",
+  "title": "Interfaces for durable entities should satisfy the restrictions",
+  "description": "The recommended way to access Azure Durable Entities is through generated proxy objects with the help of interfaces. The following restrictions, during interface design, are enforced: Entity interfaces must be defined in the same assembly as the entity class. This is not detected by the rule.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: method returns a value\npublic interface ICounterEntity\n{\n    int Get(); // Not allowed - returns value\n    void Set(int value);\n}",
+      "// Noncompliant: method with out parameter\npublic interface ICounterEntity\n{\n    void GetValue(out int value); // Not allowed - out parameter\n}"
+    ],
+    "compliant": [
+      "// Compliant: all methods return void or Task\npublic interface ICounterEntity\n{\n    void Add(int amount);\n    void Reset();\n    Task DeleteAsync();\n}",
+      "// Compliant: proper durable entity interface\npublic interface IMyEntity\n{\n    void Set(int value);\n    Task DoWorkAsync();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6424"
+  ],
+  "logic": {
+    "target_ast_nodes": ["InterfaceDeclaration", "MethodDeclaration"],
+    "detection_conditions": "Detects Azure Durable Entity interfaces with methods that violate restrictions (return values, out parameters)",
+    "triggering_conditions": "(Interface method returns non-void/non-Task) OR (Method has out/ref parameters)",
+    "exclusion_conditions": [
+      "Methods returning void",
+      "Methods returning Task",
+      "Methods with normal parameters",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "void return type",
+      "Task return type",
+      "Task<T> return type",
+      "Normal parameters (no out/ref)",
+      "Logging statements (Console.*, Logger.*)",
+      "Comments (// /* ///)",
+      "Unit tests ([Test], [Fact])"
+    ],
+    "reasoning": "Azure Durable Entities use proxy objects generated from interfaces. These interfaces have strict requirements: methods must return void or Task (not values), and cannot use out/ref parameters. Violating these restrictions causes runtime errors when the entity proxy is generated or invoked.",
+    "validation_examples": {
+      "should_trigger": [
+        "interface ICounterEntity { int Get(); }",
+        "interface ICounterEntity { void GetValue(out int value); }",
+        "interface IMyEntity { string GetName(); }"
+      ],
+      "should_not_trigger": [
+        "interface ICounterEntity { void Add(int amount); }",
+        "interface ICounterEntity { Task DeleteAsync(); }",
+        "interface IMyEntity { void Set(int value); }"
+      ]
+    },
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "interface\\s+I\\w*Entity\\w*[^{]*\\{[^}]*(int|string|bool|double|float|long|object|byte|decimal|short)\\s+\\w+\\s*\\(",
+        "exclude_patterns": [
+          "^\\s*//",
+          "\\[Test"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "interface\\s+I\\w*Entity\\w*[^{]*\\{[^}]*\\([^)]*\\b(out|ref)\\b",
+        "exclude_patterns": [
+          "^\\s*//",
+          "\\[Test"
+        ]
+      }
+    ]
+  }
+}

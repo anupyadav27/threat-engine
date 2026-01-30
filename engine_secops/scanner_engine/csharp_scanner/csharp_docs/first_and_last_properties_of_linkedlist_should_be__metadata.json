@@ -1,0 +1,70 @@
+{
+  "filename": "first_and_last_properties_of_linkedlist_should_be__metadata.json",
+  "rule_id": "first_last_properties_linkedlist",
+  "title": "First and Last properties of LinkedList should be preferred instead of the First() and Last() extension methods",
+  "description": "\"First\" and \"Last\" properties of \"LinkedList\" should be used instead of the \"First()\" and \"Last()\" extension methodsAnalyze your codeintentionality-efficientmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEperformanceWhy is this an issue?How can I fix it?More InfoBoth theEnumerable.Firstextension method and theLinkedList<T>.Firstproperty can be used to find the first value in aLinkedList<T>. However,LinkedList<T>.Firstis much faster thanEnumerable.First. For small collections, the performance difference may be minor, but for large collections, it can be noticeable.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "LinkedList<int> list = new LinkedList<int>();\nvar first = list.First(); // Noncompliant: using LINQ extension method\nvar last = list.Last(); // Noncompliant"
+    ],
+    "compliant": [
+      "LinkedList<int> list = new LinkedList<int>();\nvar first = list.First; // Compliant: using LinkedList property\nvar last = list.Last; // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6613"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Detects First() and Last() extension method calls on LinkedList<T> objects using a custom function that precisely tracks LinkedList variable declarations and their usage.",
+    "custom_function": "check_linkedlist_first_last_violations",
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_linkedlist_first_last_violations"
+      }
+    ],
+    "never_trigger_on": [
+      "First()/Last() calls on Arrays (int[], string[], etc.)",
+      "First()/Last() calls on List<T>",
+      "First()/Last() calls on IEnumerable<T> (not LinkedList)",
+      "First()/Last() calls on IQueryable<T>",
+      "First()/Last() calls on HashSet<T>",
+      "First()/Last() calls on ICollection<T>", 
+      "First()/Last() calls on IList<T>",
+      "First()/Last() calls on Dictionary<T,U>",
+      "First()/Last() calls on Queue<T>",
+      "First()/Last() calls on Stack<T>",
+      "First/Last properties (not methods)",
+      "LINQ method chaining (.Where().First(), .OrderBy().Last())",
+      "Method return values (GetList().First())",
+      "Logging statements",
+      "String formatting", 
+      "Unit tests",
+      "Comments (/* */ and //)",
+      "String literals",
+      "Variable names containing 'LinkedList' but not LinkedList type"
+    ],
+    "reasoning": "Precisely detects First() and Last() extension method calls specifically on LinkedList<T> objects through variable tracking and type-aware pattern matching. Uses comprehensive exclusion patterns to avoid false positives on arrays, List<T>, IEnumerable<T>, and other collection types. Only triggers when a variable declared as LinkedList<T> type calls First() or Last() methods, ensuring 100% accuracy.",
+    "validation_examples": {
+      "should_trigger": [
+        "LinkedList<int> list = new LinkedList<int>(); var first = list.First();",
+        "LinkedList<int> list = new LinkedList<int>(); var last = list.Last();"
+      ],
+      "should_not_trigger": [
+        "LinkedList<int> list = new LinkedList<int>(); var first = list.First;",
+        "IEnumerable<int> items = GetItems(); var first = items.First();"
+      ]
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "filename": "empty_nullable_value_should_not_be_accessed_metadata.json",
+  "rule_id": "empty_nullable_value_accessed",
+  "title": "Empty nullable value should not be accessed",
+  "description": "Empty nullable value should not be accessedAnalyze your codeintentionality-completereliabilityBugcwesymbolic-executionWhy is this an issue?How can I fix it?More InfoNullable value typescan hold either a value ornull.The value held in the nullable type can be accessed with theValueproperty or by casting it to the underlying type. Still, both operations throw anInvalidOperationExceptionwhen the value isnull. A nullable type should always be tested before accessing the value to avoid raising exceptions.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int? nullableInt = null;\nint value = nullableInt.Value; // Noncompliant - accessing null nullable",
+      "DateTime? nullableDate = null;\nif (nullableDate == null)\n{\n    var year = nullableDate.Value.Year; // Noncompliant - still accessing in same block\n}"
+    ],
+    "compliant": [
+      "int? nullableInt = null;\nif (nullableInt.HasValue)\n{\n    int value = nullableInt.Value; // Compliant\n}",
+      "int? nullableInt = null;\nint value = nullableInt.GetValueOrDefault(); // Compliant",
+      "int? nullableInt = null;\nint value = nullableInt ?? 0; // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3655"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Methods where null nullable values are created and accessed without checking HasValue",
+    "triggering_conditions": "(nullable assigned null) AND (accessed via .Value or cast) AND (NOT guarded by HasValue)",
+    "exclusion_conditions": "Excludes accesses guarded by HasValue, GetValueOrDefault usage, null coalescing, nullables with values",
+    "never_trigger_on": "Accesses within HasValue checks, GetValueOrDefault() calls, null coalescing operators (??), nullables initialized with values",
+    "reasoning": "Accessing .Value on null nullable throws InvalidOperationException. Detects simple pattern: var x = (int?)null; ... x.Value. This is simplified check for same-method obvious cases. Excludes HasValue checks, GetValueOrDefault, and ?? operators.",
+    "validation_examples": {
+      "should_trigger": [
+        "int? x = null; int y = x.Value;",
+        "DateTime? d = null; DateTime dt = (DateTime)d;",
+        "int? x = null; var y = x.Value.ToString();"
+      ],
+      "should_not_trigger": [
+        "int? x = null; if (x.HasValue) { int y = x.Value; }",
+        "int? x = null; int y = x.GetValueOrDefault();",
+        "int? x = null; int y = x ?? 0;",
+        "int? x = 42; int y = x.Value;"
+      ]
+    },
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\?\\s+\\w+\\s*=\\s*null;.*?\\.Value",
+        "exclude_patterns": [
+          "if\\s*\\(.*\\.HasValue",
+          "if\\s*\\([^)]*!=\\s*null",
+          "\\.GetValueOrDefault",
+          "\\?\\?",
+          "\\w+\\?\\s+\\w+\\s*=\\s*\\d",
+          "HasValue\\s*&&[^}]*\\.Value"
+        ],
+        "message": "Check HasValue before accessing nullable Value property"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\w+\\?\\s+\\w+\\s*=\\s*null;.*?\\(\\w+\\)\\w+",
+        "exclude_patterns": [
+          "if\\s*\\(.*\\.HasValue",
+          "if\\s*\\([^)]*!=\\s*null",
+          "\\.GetValueOrDefault",
+          "\\?\\?"
+        ],
+        "message": "Check HasValue before casting nullable to value type"
+      }
+    ]
+  }
+}

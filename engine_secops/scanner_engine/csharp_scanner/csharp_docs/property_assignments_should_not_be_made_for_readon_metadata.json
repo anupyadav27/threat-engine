@@ -1,0 +1,110 @@
+{
+  "filename": "property_assignments_should_not_be_made_for_readon_metadata.json",
+  "rule_id": "property_assignments_made_readonly",
+  "title": "Property assignments should not be made for readonly fields not constrained to reference types",
+  "description": "Property assignments should not be made for \"readonly\" fields not constrained to reference typesAnalyze your codeintentionality-logicalreliabilityBugQuick FixIDE quick fixes available with SonarQube for IDEWhy is this an issue?How can I fix it?More InfoWhile the properties of areadonlyreference typefield can still be changed after initialization, those of areadonlyvalue typefield, such as astruct, cannot.If the member could be either aclassor astructthen assignment to its properties could be unreliable, working sometimes but not others.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - assigning property of readonly value type\nreadonly Point readonlyPoint = new Point(1, 2);\nvoid SomeMethod() {\n    readonlyPoint.X = 10; // Issue if Point is a value type (struct)\n}",
+      "// Noncompliant - readonly field of unconstrained generic type\nreadonly T readonlyField = default(T);\nvoid Method() {\n    readonlyField.SomeProperty = value; // Could fail if T is a value type\n}"
+    ],
+    "compliant": [
+      "// Compliant - readonly reference type\nreadonly StringBuilder sb = new StringBuilder();\nvoid SomeMethod() {\n    sb.Append(\"text\"); // OK - StringBuilder is a reference type\n}",
+      "// Compliant - generic constrained to reference type\nreadonly T readonlyField = default(T) where T : class;\nvoid Method() {\n    readonlyField.SomeProperty = value; // OK - T is constrained to reference type\n}",
+      "// Compliant - make field non-readonly if mutation needed\nPoint point = new Point(1, 2);\nvoid SomeMethod() {\n    point.X = 10; // OK - field is not readonly\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2934"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\breadonly\\w+\\.[A-Za-z_]\\w*\\s*=\\s*[^=]",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "^\\s*//",
+          "/\\*",
+          "\\*/",
+          "\\.[A-Za-z_]\\w*\\s*\\(",
+          "\\s*==\\s*",
+          "\\s*!=\\s*",
+          "\\s*<=\\s*",
+          "\\s*>=\\s*",
+          "var\\s+\\w+\\s*=.*\\breadonly\\w+\\.",
+          "return\\s+.*\\breadonly\\w+\\.",
+          "StringBuilder|String|Object|List|Array|Dictionary|Stream|TextWriter|TextReader",
+          "where\\s+\\w+\\s*:\\s*class",
+          "ToString\\(\\)"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["Assignment"],
+    "detection_conditions": "Identifies property assignments on readonly fields that could be value types, where the assignment would have no effect",
+    "triggering_conditions": "Pattern matches 'readonly[Field].[Property] = [value]' where the field could be a value type (struct)",
+    "exclusion_conditions": [
+      "Method calls on readonly fields (readonlyField.Method())",
+      "Equality comparisons (==, !=, <=, >=)",
+      "Variable declarations containing readonly field references",
+      "Return statements containing readonly field references", 
+      "Known reference types (StringBuilder, String, Object, List, Array, Dictionary, etc.)",
+      "Generic types constrained to reference types (where T : class)",
+      "Logging statements",
+      "String formatting",
+      "Unit test code",
+      "Comments",
+      "ToString() method calls"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)", 
+      "Comments (//*, /**/)",
+      "Method calls on readonly fields",
+      "Equality and comparison operators",
+      "Variable declarations",
+      "Return statements",
+      "Known reference types (StringBuilder, String, Object, List, etc.)",
+      "Generic types with reference type constraints",
+      "ToString() implementations"
+    ],
+    "reasoning": "Detects property assignments on readonly fields that could be value types (structs). When a readonly field contains a value type, property assignments have no effect because you're modifying a copy, not the original. The regex pattern looks for 'readonly[Field].[Property] = [value]' but excludes method calls, comparisons, and known reference types where such assignments are valid.",
+    "validation_examples": {
+      "should_trigger": [
+        "readonlyPoint.X = 10;",
+        "readonlyStruct.Property = value;",
+        "readonly T field; field.SomeProperty = newValue;"
+      ],
+      "should_not_trigger": [
+        "readonlyBuilder.Append(\"text\");",
+        "if (readonlyField.Property == value)",
+        "readonlyList.Add(item);",
+        "Console.WriteLine(readonlyField.Property);",
+        "// readonlyField.Property = value;",
+        "var x = readonlyField.Property;",
+        "readonly T field where T : class; field.Property = value;"
+      ]
+    }
+  }
+}

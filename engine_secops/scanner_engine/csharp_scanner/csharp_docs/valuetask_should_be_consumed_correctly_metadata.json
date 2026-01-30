@@ -1,0 +1,93 @@
+{
+  "filename": "valuetask_should_be_consumed_correctly_metadata.json",
+  "rule_id": "valuetask_consumed_correctly",
+  "title": "ValueTask should be consumed correctly",
+  "description": "ValueTask<TResult> provides a value type that wraps a Task<TResult> and the corresponding TResult. It was introduced in .NET Core 2.0 to optimize memory allocation when functions return their results synchronously. Using ValueTask and ValueTask<TResult> in the following ways is discouraged as it could result in a race condition: Calling await multiple times on a ValueTask/ValueTask<TResult>.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public async Task ProcessAsync()\n{\n    ValueTask<int> vt = GetValueAsync();\n    int result1 = await vt; // First await\n    int result2 = await vt; // Noncompliant - awaiting ValueTask multiple times\n}",
+      "public async Task ProcessAsync()\n{\n    ValueTask<int> vt = GetValueAsync();\n    await vt;\n    var result = vt.Result; // Noncompliant - accessing Result after await\n}",
+      "public void ProcessAsync()\n{\n    ValueTask<int> vt = GetValueAsync();\n    var awaiter = vt.GetAwaiter();\n    var result = vt.Result; // Noncompliant - using both GetAwaiter and Result\n}"
+    ],
+    "compliant": [
+      "public async Task ProcessAsync()\n{\n    ValueTask<int> vt = GetValueAsync();\n    int result = await vt; // Compliant - single await\n}",
+      "public async Task ProcessAsync()\n{\n    int result1 = await GetValueAsync(); // Compliant\n    int result2 = await GetValueAsync(); // Compliant - new ValueTask\n}",
+      "public async Task ProcessAsync()\n{\n    ValueTask<int> vt = GetValueAsync();\n    Task<int> task = vt.AsTask(); // Compliant - convert to Task for multiple awaits\n    int result1 = await task;\n    int result2 = await task;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5034"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "Assignment"],
+    "node_types": ["MethodDeclaration", "Assignment"],
+    "detection_conditions": "Detects multiple awaits on same ValueTask or accessing .Result after await",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "ValueTask[^;]*\\b(\\w+)\\s*=[^;]+;[\\s\\S]*?await\\s+\\1[\\s\\S]*?await\\s+\\1",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\.",
+          "Logger\\."
+        ],
+        "message": "ValueTask awaited multiple times - this can cause race conditions"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "ValueTask[^;]*\\b(\\w+)\\s*=[^;]+;[\\s\\S]*?await\\s+\\1[\\s\\S]*?\\1\\.Result",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\."
+        ],
+        "message": "ValueTask Result accessed after await - consume only once"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "ValueTask[^;]*\\b(\\w+)\\s*=[^;]+;[\\s\\S]*?\\1\\.GetAwaiter\\(\\)[\\s\\S]*?\\1\\.Result",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\."
+        ],
+        "message": "ValueTask consumed multiple ways (GetAwaiter and Result) - use only one"
+      }
+    ],
+    "triggering_conditions": "Multiple awaits on same ValueTask OR .Result after await OR mixed consumption",
+    "exclusion_conditions": "Comments, logging statements, .AsTask() conversions",
+    "never_trigger_on": [
+      "Comments (// and /* */)",
+      "Logging statements (Console.*, Logger.*)",
+      "ValueTask converted to Task via .AsTask()",
+      "Each call to async method returning new ValueTask"
+    ],
+    "reasoning": "ValueTask is designed for single consumption to avoid allocation. Awaiting multiple times or mixing consumption methods can cause race conditions and undefined behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "ValueTask<int> vt = GetAsync(); await vt; await vt;",
+        "ValueTask<int> vt = GetAsync(); await vt; var r = vt.Result;",
+        "ValueTask<int> vt = GetAsync(); vt.GetAwaiter(); var r = vt.Result;"
+      ],
+      "should_not_trigger": [
+        "int r = await GetAsync();",
+        "ValueTask<int> vt = GetAsync(); Task<int> t = vt.AsTask(); await t; await t;",
+        "// await vt; await vt;"
+      ]
+    }
+  }
+}

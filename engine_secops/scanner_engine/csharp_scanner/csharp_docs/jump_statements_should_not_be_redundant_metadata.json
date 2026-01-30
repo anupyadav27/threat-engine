@@ -1,0 +1,93 @@
+{
+  "filename": "jump_statements_should_not_be_redundant_metadata.json",
+  "rule_id": "jump_statements_redundant",
+  "title": "Jump statements should not be redundant",
+  "description": "Jump statements should not be redundantAnalyze your codeintentionality-clearmaintainabilityCode SmellredundantclumsyWhy is this an issue?Jump statements, such asreturn,yield break,goto, andcontinueare used to change the normal flow of execution in a program. However, redundant jump statements can make code difficult to read and maintain.Noncompliant code examplevoid Foo() { goto A; // Noncompliant A: while (condition1) { if (condition2) { continue; // Noncompliant } else { DoTheThing(); } } return; // Noncompliant; this is a void method }Compliant solutionvoid Foo() { while (condition1) { if (!condition2) { DoTheThing(); } } }Exceptionsreturnstatements followed by a local function declaration are not considered redundant, as they help with readability.Available In:Catch issues on the fly,i",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: redundant return\nvoid MyMethod()\n{\n    DoSomething();\n    return; // Redundant - method would return anyway\n}",
+      "// Noncompliant: redundant continue\nfor (int i = 0; i < 10; i++)\n{\n    DoSomething(i);\n    continue; // Redundant - loop would continue anyway\n}",
+      "// Noncompliant: unreachable code after return\nint GetValue()\n{\n    return 42;\n    Console.WriteLine(\"Never executed\"); // Unreachable\n}"
+    ],
+    "compliant": [
+      "// Compliant: return with value\nint GetValue()\n{\n    return 42;\n}",
+      "// Compliant: conditional return\nvoid MyMethod(bool condition)\n{\n    if (condition)\n    {\n        return; // Early exit - not redundant\n    }\n    DoSomething();\n}",
+      "// Compliant: conditional continue\nfor (int i = 0; i < 10; i++)\n{\n    if (ShouldSkip(i))\n    {\n        continue; // Skip to next iteration - not redundant\n    }\n    DoSomething(i);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3626"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "ForStatement"],
+    "detection_conditions": "Detects redundant jump statements like return, continue, break that don't affect control flow",
+    "triggering_conditions": "(Return at end of void method) OR (Continue as last statement in loop) OR (Unreachable code after return)",
+    "exclusion_conditions": [
+      "Return with value",
+      "Conditional returns (early exit)",
+      "Conditional continue/break",
+      "Return before local function",
+      "Comments and logging"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Conditional jump statements (if/else with return/continue)",
+      "Methods returning values",
+      "Yield statements"
+    ],
+    "reasoning": "Redundant jump statements add noise without changing control flow. This rule detects: (1) return at end of void methods, (2) continue as last statement in loop body, (3) unreachable code after unconditional return. Excludes legitimate early returns, conditional jumps, and return statements before local functions which improve readability.",
+    "validation_examples": {
+      "should_trigger": [
+        "void Method() { DoSomething(); return; }",
+        "for(int i=0; i<10; i++) { Process(i); continue; }",
+        "int Get() { return 42; Console.WriteLine(); }"
+      ],
+      "should_not_trigger": [
+        "int Get() { return 42; }",
+        "void Method(bool c) { if(c) return; DoSomething(); }",
+        "for(int i=0; i<10; i++) { if(Skip(i)) continue; Process(i); }"
+      ]
+    },
+    "node_types": ["MethodDeclaration", "ForStatement", "WhileStatement", "ForEachStatement"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "return;\\s*\\}\\s*\\Z",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "return\\s+\\w+",
+          "yield\\s+",
+          "=>"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "continue;\\s*\\}\\s*\\Z",
+        "exclude_patterns": [
+          "Console\\.",
+          "^\\s*//",
+          "\\[Test"
+        ]
+      }
+    ]
+  }
+}

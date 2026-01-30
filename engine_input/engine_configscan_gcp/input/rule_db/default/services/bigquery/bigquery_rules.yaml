@@ -1,0 +1,1100 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+bigquery:
+  version: '1.0'
+  provider: gcp
+  service: bigquery
+  scope: regional
+  api_name: bigquery
+  api_version: v2
+  discovery:
+  - discovery_id: list_bigquery_connections
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: connection_name
+      - path: location
+        var: connection_location
+  - discovery_id: list_bigquery_datasets
+    calls:
+    - action: list
+      fields:
+      - path: datasetReference.datasetId
+        var: dataset_id
+      - path: datasetReference.projectId
+        var: project_id
+      - path: location
+        var: dataset_location
+  - discovery_id: list_bigquery_tables
+    calls:
+    - action: list
+      fields:
+      - path: tableReference.tableId
+        var: table_id
+      - path: tableReference.datasetId
+        var: table_dataset_id
+      - path: tableReference.projectId
+        var: table_project_id
+  - discovery_id: list_bigquery_jobs
+    calls:
+    - action: list
+      fields:
+      - path: jobReference.jobId
+        var: job_id
+      - path: jobReference.projectId
+        var: job_project_id
+      - path: jobReference.location
+        var: job_location
+  - discovery_id: list_bigquery_routines
+    calls:
+    - action: list
+      fields:
+      - path: routineReference.routineId
+        var: routine_id
+      - path: routineReference.datasetId
+        var: routine_dataset_id
+      - path: routineReference.projectId
+        var: routine_project_id
+  checks:
+  - check_id: gcp.bigquery.connection.data_warehouse_endpoint_access_allowed_cidrs_minimized
+    title: Limit Allowed CIDRs for BigQuery Connection Endpoints
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.allowedCidrs
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.allowedCidrs
+        operator: contains
+        expected: 0.0.0.0/0
+        negate: true
+  - check_id: gcp.bigquery.connection.data_warehouse_endpoint_access_private_only
+    title: Restrict BigQuery Connections to Private Networks Only
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.privateNetwork
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.publicIpAddress
+        operator: not_exists
+        expected: true
+  - check_id: gcp.bigquery.connection.data_warehouse_endpoint_access_tls_required
+    title: Ensure TLS for BigQuery Data Warehouse Endpoint Access
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.requireSsl
+        operator: equals
+        expected: true
+  - check_id: gcp.bigquery.connection.data_warehouse_endpoint_authz_no_anonymous_access
+    title: Prevent Anonymous Access to BigQuery Connection Endpoints
+    severity: critical
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.credential.username
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.credential.username
+        operator: equals
+        expected: anonymous
+        negate: true
+  - check_id: gcp.bigquery.connection.data_warehouse_endpoint_authz_rbac_least_privilege
+    title: Ensure BigQuery Endpoint Uses RBAC with Least Privilege
+    severity: medium
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.serviceAccountId
+        operator: exists
+        expected: true
+    - action: get_iam_policy
+      fields:
+      - path: bindings[].role
+        operator: contains
+        expected: roles/bigquery.admin
+        negate: true
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_client_cert_key_length_minimum
+    title: Ensure HSM Client Cert Key Length Meets Minimum Requirements
+    severity: medium
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.keyLength
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.keyLength
+        operator: equals
+        expected: 2048
+        comparison: gte
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_client_cert_not_expired
+    title: Ensure BigQuery HSM Client Certificates Are Valid
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.expirationTime
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.expirationTime
+        operator: equals
+        expected: now
+        comparison: gt
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_client_cert_trusted_issuer
+    title: Ensure BigQuery HSM Client Cert Has Trusted Issuer
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.issuer
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.credential.clientCertificate.issuer
+        operator: contains
+        expected: trusted-ca
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_configuration_present
+    title: Ensure BigQuery HSM Configuration for Data Warehouse Connections
+    severity: medium
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.hsmConfig
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_keys_in_hsm_only
+    title: Ensure HSM-Only Storage for BigQuery HSM Keys
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.hsmConfig.keyStorageType
+        operator: equals
+        expected: HSM_ONLY
+  - check_id: gcp.bigquery.connection.data_warehouse_hsm_only_approved_hsm_endpoints
+    title: Restrict BigQuery HSM Connections to Approved Endpoints
+    severity: medium
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudSql.hsmConfig.endpoint
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.hsmConfig.endpoint
+        operator: contains
+        expected: approved-hsm
+  - check_id: gcp.bigquery.connection.datalake_credentials_in_secrets_manager
+    title: Store Datalake Credentials Using GCP Secrets Manager
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudResource.serviceAccountId
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: cloudSql.credential.password
+        operator: not_exists
+        expected: true
+  - check_id: gcp.bigquery.connection.datalake_private_networking_enforced
+    title: Enforce Datalake Private Networking for BigQuery Connections
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudResource.privateNetworkOnly
+        operator: equals
+        expected: true
+  - check_id: gcp.bigquery.connection.datalake_role_least_privilege
+    title: Ensure BigQuery Connections Use Least Privilege Roles
+    severity: medium
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudResource.serviceAccountId
+        operator: exists
+        expected: true
+    - action: get_service_account_roles
+      fields:
+      - path: roles[]
+        operator: contains
+        expected: roles/owner
+        negate: true
+  - check_id: gcp.bigquery.connection.datalake_tls_required
+    title: Ensure TLS is Enabled for BigQuery Datalake Connections
+    severity: high
+    for_each: list_bigquery_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: cloudResource.tlsRequired
+        operator: equals
+        expected: true
+  - check_id: gcp.bigquery.dataset.backup_enabled
+    title: Ensure BigQuery Datasets Have Backup and Recovery Configured
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultTableExpirationMs
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: labels.backup_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.classification_configured
+    title: Ensure BigQuery Dataset Classification is Configured
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.data_classification
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_access_policies_least_privilege
+    title: Ensure BigQuery Datasets Use Least Privilege Access
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].role
+        operator: contains
+        expected: OWNER
+        count_max: 2
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allUsers
+        negate: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_cross_account_sharing_restricted
+    title: Restrict BigQuery Dataset Cross-Account Sharing
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].userByEmail
+        operator: contains
+        expected: '@'
+    - action: eval
+      fields:
+      - path: access[].userByEmail
+        operator: contains
+        expected: external
+        negate: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_encryption_enabled
+    title: Ensure BigQuery Dataset Metadata Encryption is Enabled
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_encryption_kms_cmk
+    title: Ensure BigQuery Dataset Uses Customer-Managed Keys
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration.kmsKeyName
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration.kmsKeyName
+        operator: contains
+        expected: projects/
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_encryption_kms_cmk_rotation_enabled
+    title: Ensure BigQuery Dataset CMK Rotation is Enabled
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: get_kms_key_details
+      fields:
+      - path: rotationPeriod
+        operator: exists
+        expected: true
+    - action: get_kms_key_details
+      fields:
+      - path: rotationPeriod
+        operator: equals
+        expected: 7776000s
+        comparison: lte
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_encryption_kms_cmk_rotation_period_90_days_max
+    title: Ensure BigQuery Dataset CMK Rotation Period is 90 Days Maximum
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: get_kms_key_details
+      fields:
+      - path: rotationPeriod
+        operator: equals
+        expected: 7776000s
+        comparison: lte
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_pii_data_classification_enabled
+    title: Ensure PII Data Classification for BigQuery Datasets
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.contains_pii
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_retention_policy_configured
+    title: Ensure BigQuery Dataset Retention Policy is Configured
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultTableExpirationMs
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_metadata_versioning_enabled
+    title: Ensure BigQuery Dataset Versioning is Enabled
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.versioning_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_public_access_blocked
+    title: Block Public Access to BigQuery Datasets
+    severity: critical
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allUsers
+        negate: true
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allAuthenticatedUsers
+        negate: true
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_sensitive_data_dlp_enabled
+    title: Ensure DLP is Enabled for Sensitive BigQuery Datasets
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.sensitive_data
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: labels.dlp_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_sensitive_data_masking_enabled
+    title: Ensure Data Masking for Sensitive BigQuery Datasets
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.sensitive_data
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: labels.data_masking_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_sensitive_data_row_level_security_enabled
+    title: Ensure Row-Level Security for Sensitive BigQuery Datasets
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.sensitive_data
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: labels.row_level_security
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_catalog_tags_configured
+    title: Ensure BigQuery Dataset Tags are Configured
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: labels.environment
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_cross_region_replication_disabled
+    title: Disable Cross-Region Replication for BigQuery Datasets
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: contains
+        expected: US
+        negate: true
+  - check_id: gcp.bigquery.dataset.data_analytics_cross_region_replication_encryption_in_transit
+    title: Ensure Encryption in Transit for BigQuery Cross-Region Replication
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_cross_region_replication_encryption_kms_cmk
+    title: Use CMK for BigQuery Cross-Region Replication Encryption
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_cross_region_replication_restricted_regions
+    title: Restrict BigQuery Cross-Region Replication to Approved Regions
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: contains
+        expected: us-central1
+  - check_id: gcp.bigquery.dataset.data_analytics_data_residency_compliance
+    title: Ensure BigQuery Dataset Data Residency Compliance
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: location
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: labels.data_residency_compliant
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_external_data_source_encryption_enabled
+    title: Ensure Encryption for BigQuery External Data Sources
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.external_data_encrypted
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_external_data_source_private_access_only
+    title: Restrict BigQuery External Data Sources to Private Access
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.external_data_private_only
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_external_data_source_tls_required
+    title: Require TLS for BigQuery External Data Sources
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.external_data_tls_required
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_query_audit_logging_enabled
+    title: Enable Query Audit Logging for BigQuery Datasets
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.audit_logging_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_query_cost_controls_enabled
+    title: Enable Query Cost Controls for BigQuery Datasets
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.cost_controls_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_query_performance_monitoring_enabled
+    title: Enable Query Performance Monitoring for BigQuery
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.performance_monitoring
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_query_result_caching_disabled_for_sensitive_data
+    title: Disable Query Result Caching for Sensitive BigQuery Data
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.sensitive_data
+        operator: equals
+        expected: 'true'
+    - action: eval
+      fields:
+      - path: labels.query_cache_disabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_query_result_encryption_enabled
+    title: Enable Query Result Encryption for BigQuery
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_query_result_retention_policy_configured
+    title: Configure Query Result Retention Policy for BigQuery
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultTableExpirationMs
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_authentication_secure
+    title: Ensure Secure Authentication for BigQuery Scheduled Queries
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.scheduled_query_secure_auth
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_encryption_enabled
+    title: Enable Encryption for BigQuery Scheduled Queries
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_least_privilege_access
+    title: Ensure Least Privilege Access for BigQuery Scheduled Queries
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].role
+        operator: equals
+        expected: READER
+        count_min: 1
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_monitoring_enabled
+    title: Enable Monitoring for BigQuery Scheduled Queries
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.scheduled_query_monitoring
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_notification_configured
+    title: Configure Notifications for BigQuery Scheduled Queries
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.scheduled_query_notifications
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_private_network_only
+    title: Restrict BigQuery Scheduled Queries to Private Networks
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.private_network_only
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_resource_limits_configured
+    title: Configure Resource Limits for BigQuery Scheduled Queries
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.resource_limits_configured
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_retry_policy_configured
+    title: Configure Retry Policy for BigQuery Scheduled Queries
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.retry_policy_configured
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_scheduled_query_timeout_configured
+    title: Configure Timeout for BigQuery Scheduled Queries
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.query_timeout_configured
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_streaming_data_encryption_enabled
+    title: Enable Encryption for BigQuery Streaming Data
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_streaming_data_private_network_only
+    title: Restrict BigQuery Streaming Data to Private Networks
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.streaming_private_only
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_streaming_data_rate_limiting_enabled
+    title: Enable Rate Limiting for BigQuery Streaming Data
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.streaming_rate_limiting
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_streaming_data_schema_validation_enabled
+    title: Enable Schema Validation for BigQuery Streaming Data
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.schema_validation_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_streaming_data_tls_required
+    title: Require TLS for BigQuery Streaming Data
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.streaming_tls_required
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_table_clustering_enabled_for_performance
+    title: Enable Table Clustering for BigQuery Performance
+    severity: low
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: clustering.fields
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_table_partitioning_enabled_for_performance
+    title: Enable Table Partitioning for BigQuery Performance
+    severity: low
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: timePartitioning
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_table_schema_evolution_controlled
+    title: Control BigQuery Table Schema Evolution
+    severity: medium
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.schema_evolution_controlled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_udf_execution_restricted
+    title: Restrict BigQuery UDF Execution
+    severity: medium
+    for_each: list_bigquery_routines
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: routineType
+        operator: equals
+        expected: SCALAR_FUNCTION
+    - action: eval
+      fields:
+      - path: language
+        operator: equals
+        expected: SQL
+  - check_id: gcp.bigquery.dataset.data_analytics_udf_security_review_required
+    title: Require Security Review for BigQuery UDFs
+    severity: high
+    for_each: list_bigquery_routines
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: routineType
+        operator: equals
+        expected: SCALAR_FUNCTION
+    - action: eval
+      fields:
+      - path: labels.security_reviewed
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_view_access_controlled
+    title: Control Access to BigQuery Views
+    severity: medium
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: VIEW
+    - action: eval
+      fields:
+      - path: labels.access_controlled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_view_authorized_views_only
+    title: Use Only Authorized Views in BigQuery
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].view
+        operator: exists
+        expected: true
+    - action: eval
+      fields:
+      - path: access[].view.projectId
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_view_materialized_view_encryption_enabled
+    title: Enable Encryption for BigQuery Materialized Views
+    severity: high
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: MATERIALIZED_VIEW
+    - action: eval
+      fields:
+      - path: encryptionConfiguration.kmsKeyName
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_view_materialized_view_refresh_policy_configured
+    title: Configure Refresh Policy for BigQuery Materialized Views
+    severity: low
+    for_each: list_bigquery_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: type
+        operator: equals
+        expected: MATERIALIZED_VIEW
+    - action: eval
+      fields:
+      - path: materializedView.refreshIntervalMs
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.data_analytics_workspace_access_controlled
+    title: Control Access to BigQuery Workspaces
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].role
+        operator: equals
+        expected: READER
+        count_min: 1
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allUsers
+        negate: true
+  - check_id: gcp.bigquery.dataset.data_analytics_workspace_data_lineage_tracking_enabled
+    title: Enable Data Lineage Tracking for BigQuery Workspaces
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.data_lineage_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_workspace_resource_monitoring_enabled
+    title: Enable Resource Monitoring for BigQuery Workspaces
+    severity: low
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.resource_monitoring_enabled
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_workspace_session_timeout_configured
+    title: Configure Session Timeout for BigQuery Workspaces
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.session_timeout_configured
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.data_analytics_workspace_user_activity_logging_enabled
+    title: Enable User Activity Logging for BigQuery Workspaces
+    severity: medium
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: labels.user_activity_logging
+        operator: equals
+        expected: 'true'
+  - check_id: gcp.bigquery.dataset.encryption_enabled
+    title: Ensure BigQuery Dataset Encryption is Enabled
+    severity: high
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: defaultEncryptionConfiguration
+        operator: exists
+        expected: true
+  - check_id: gcp.bigquery.dataset.public_access_blocked
+    title: Block Public Access to BigQuery Datasets
+    severity: critical
+    for_each: list_bigquery_datasets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allUsers
+        negate: true
+    - action: eval
+      fields:
+      - path: access[].specialGroup
+        operator: equals
+        expected: allAuthenticatedUsers
+        negate: true

@@ -1,0 +1,35 @@
+{
+  "filename": "use_fused_location_to_optimize_battery_power_metadata.json",
+  "rule_id": "maintainability_use_fused_location_battery_power",
+  "title": "Use Fused Location to optimize battery power",
+  "description": "Using the Fused Location Provider API helps reduce battery consumption by combining location sources efficiently. Avoid using multiple location providers separately, as this can drain battery and degrade user experience. Adopting the fused approach ensures more accurate and power-efficient location tracking.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Refactor code to use the Fused Location Provider API for all location needs, and remove redundant or separate location provider calls.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      "LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);\nlocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);\nlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);"
+    ],
+    "compliant": [
+      "FusedLocationProviderClient fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);\nfusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {\n    // Use location\n});"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6914/"
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "requestLocationUpdates\\(LocationManager\\.(GPS_PROVIDER|NETWORK_PROVIDER)"
+        ],
+        "message": "Use Fused Location Provider API instead of multiple separate location providers for better battery optimization."
+      }
+    ]
+  }
+}

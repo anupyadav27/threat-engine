@@ -1,0 +1,93 @@
+{
+  "filename": "using_weak_hashing_algorithms_is_security_sensitiv_metadata.json",
+  "rule_id": "using_weak_hashing_algorithms",
+  "title": "Using weak hashing algorithms is security-sensitive",
+  "description": "Using weak hashing algorithms is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotcweCryptographic hash algorithms such asMD2,MD4,MD5,MD6,HAVAL-128,DSA(which usesSHA-1),RIPEMD,RIPEMD-128,RIPEMD-160andSHA-1are no longer considered secure, because it is possible to havecollisions(little computational effort is enough to find two or more different inputs that produce the same hash).Message authentication code (MAC) algorithms such asHMAC-MD5orHMAC-SHA1use weak hash functions as building blocks. Although they are not all proven to be weak, they are considered legacy algorithms and should be avoided.Ask Yourself WhetherThe hashed value is used in a security context like:User-password storage.Security token generation (used to confirm e-mail when registering o",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System.Security.Cryptography;\n\npublic byte[] ComputeHash(byte[] data)\n{\n    using (var md5 = MD5.Create()) // Noncompliant - MD5 is weak\n    {\n        return md5.ComputeHash(data);\n    }\n}",
+      "using System.Security.Cryptography;\n\npublic byte[] ComputeHash(byte[] data)\n{\n    using (var sha1 = SHA1.Create()) // Noncompliant - SHA1 is weak\n    {\n        return sha1.ComputeHash(data);\n    }\n}"
+    ],
+    "compliant": [
+      "using System.Security.Cryptography;\n\npublic byte[] ComputeHash(byte[] data)\n{\n    using (var sha256 = SHA256.Create()) // Compliant - SHA256 is secure\n    {\n        return sha256.ComputeHash(data);\n    }\n}",
+      "using System.Security.Cryptography;\n\npublic byte[] ComputeHash(byte[] data)\n{\n    using (var sha512 = SHA512.Create()) // Compliant - SHA512 is secure\n    {\n        return sha512.ComputeHash(data);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4790"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "node_types": ["CallExpression", "Assignment"],
+    "detection_conditions": "Detects calls to weak hashing algorithms like MD5.Create(), SHA1.Create(), HMACMD5, HMACSHA1",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(MD5|SHA1)\\.(Create|ComputeHash)",
+        "exclude_patterns": [
+          "^\\s*//",
+          "Console\\.",
+          "Logger\\.",
+          "Log\\.",
+          "Debug\\.",
+          "Trace\\."
+        ],
+        "message": "Weak hashing algorithm detected: Use SHA256 or SHA512 instead"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "new\\s+(HMACMD5|HMACSHA1|MD5CryptoServiceProvider|SHA1CryptoServiceProvider)",
+        "exclude_patterns": [
+          "^\\s*//",
+          "Console\\.",
+          "Logger\\.",
+          "Log\\."
+        ],
+        "message": "Weak HMAC or crypto provider detected: Use HMACSHA256 or HMACSHA512 instead"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "HashAlgorithm\\.Create\\s*\\(\\s*[\"'](MD5|SHA1)[\"']\\s*\\)",
+        "exclude_patterns": [
+          "^\\s*//"
+        ],
+        "message": "Weak hashing algorithm specified by name"
+      }
+    ],
+    "triggering_conditions": "Any call to weak hash creation methods (MD5, SHA1, etc.)",
+    "exclusion_conditions": "Comments, logging statements",
+    "never_trigger_on": [
+      "Comments (// and /* */)",
+      "Logging statements (Console.*, Logger.*, Debug.*, Trace.*)",
+      "String formatting for display purposes"
+    ],
+    "reasoning": "Weak hashing algorithms like MD5 and SHA1 are vulnerable to collision attacks. While they may be acceptable for non-security uses, any security-sensitive use should use SHA256 or stronger.",
+    "validation_examples": {
+      "should_trigger": [
+        "var hash = MD5.Create();",
+        "using (var sha1 = SHA1.Create()) { }",
+        "var hmac = new HMACMD5(key);",
+        "HashAlgorithm.Create(\"MD5\")"
+      ],
+      "should_not_trigger": [
+        "var hash = SHA256.Create();",
+        "var hmac = new HMACSHA256(key);",
+        "// MD5.Create() is commented out",
+        "Logger.Log(\"Using MD5.Create\");"
+      ]
+    }
+  }
+}

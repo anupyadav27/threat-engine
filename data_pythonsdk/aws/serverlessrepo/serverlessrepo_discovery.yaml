@@ -1,0 +1,63 @@
+version: '1.0'
+provider: aws
+service: serverlessrepo
+services:
+  client: serverlessrepo
+  module: boto3.client
+discovery:
+- discovery_id: aws.serverlessrepo.list_applications
+  calls:
+  - action: list_applications
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+- discovery_id: aws.serverlessrepo.get_application_policy
+  for_each: aws.serverlessrepo.list_applications
+  calls:
+  - action: get_application_policy
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationId: '{{ item.applicationApplicationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Statements }}'
+- discovery_id: aws.serverlessrepo.get_application
+  for_each: aws.serverlessrepo.list_applications
+  calls:
+  - action: get_application
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationId: '{{ item.applicationApplicationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Labels }}'
+- discovery_id: aws.serverlessrepo.list_application_versions
+  for_each: aws.serverlessrepo.list_applications
+  calls:
+  - action: list_application_versions
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationId: '{{ item.applicationApplicationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Versions }}'
+- discovery_id: aws.serverlessrepo.get_cloud_formation_template
+  for_each: aws.serverlessrepo.list_applications
+  calls:
+  - action: get_cloud_formation_template
+    save_as: response
+    on_error: continue
+    params:
+      ApplicationId: '{{ item.applicationApplicationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationId }}'
+checks: []

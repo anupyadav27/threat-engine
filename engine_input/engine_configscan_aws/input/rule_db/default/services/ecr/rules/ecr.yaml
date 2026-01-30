@@ -1,0 +1,64 @@
+version: '1.0'
+provider: aws
+service: ecr
+services:
+  client: ecr
+  module: boto3.client
+discovery:
+- discovery_id: aws.ecr.describe_registry
+  calls:
+  - action: describe_registry
+    save_as: response
+  emit:
+    item:
+      replicationConfiguration: '{{ response.replicationConfiguration }}'
+      registryId: '{{ response.registryId }}'
+- discovery_id: aws.ecr.describe_repositories
+  calls:
+  - action: describe_repositories
+    save_as: response
+  emit:
+    items_for: '{{ response.repositories }}'
+    as: item
+    item:
+      repositoryArn: '{{ item.repositoryArn }}'
+      registryId: '{{ item.registryId }}'
+      repositoryName: '{{ item.repositoryName }}'
+      repositoryUri: '{{ item.repositoryUri }}'
+      createdAt: '{{ item.createdAt }}'
+      imageTagMutability: '{{ item.imageTagMutability }}'
+      imageScanningConfiguration: '{{ item.imageScanningConfiguration }}'
+      encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+- discovery_id: aws.ecr.get_lifecycle_policy
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: get_lifecycle_policy
+    params:
+      repositoryName: '{{ item.repositoryName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    item:
+      repositoryName: '{{ item.repositoryName }}'
+      registryId: '{{ item.registryId }}'
+      lifecyclePolicyText: '{{ response.lifecyclePolicyText }}'
+- discovery_id: aws.ecr.get_repository_policy
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: get_repository_policy
+    params:
+      repositoryName: '{{ item.repositoryName }}'
+    save_as: response
+  emit:
+    item:
+      repositoryName: '{{ item.repositoryName }}'
+      registryId: '{{ item.registryId }}'
+      policyText: '{{ response.policyText }}'
+- discovery_id: aws.ecr.get_registry_scanning_configuration
+  calls:
+  - action: get_registry_scanning_configuration
+    save_as: response
+  emit:
+    item:
+      scanningConfiguration: '{{ response.scanningConfiguration }}'
+      registryId: '{{ response.registryId }}'

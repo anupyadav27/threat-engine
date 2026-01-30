@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secops-scanner
+  namespace: secops-engine
+  labels:
+    app: secops-scanner
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: secops-scanner
+  template:
+    metadata:
+      labels:
+        app: secops-scanner
+        version: v1
+    spec:
+      serviceAccountName: secops-scanner-sa
+      containers:
+      # Main scanner API container
+      - name: scanner-api
+        image: yadavanup84/secops-scanner:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: SCAN_INPUT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: SCAN_INPUT_PATH
+        - name: SCAN_OUTPUT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: SCAN_OUTPUT_PATH
+        - name: PYTHONUNBUFFERED
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: PYTHONUNBUFFERED
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: AWS_REGION
+        volumeMounts:
+        - name: scan-input
+          mountPath: /app/scan_input
+        - name: scan-output
+          mountPath: /app/scan_output
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      
+      # S3 sync sidecar container
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          BUCKET=$(echo $S3_BUCKET)
+          PREFIX=$(echo $S3_PREFIX)
+          SYNC_INTERVAL=$(echo $SYNC_INTERVAL)
+          
+          echo "Starting S3 sync for s3://${BUCKET}/${PREFIX}/"
+          echo "Input sync: s3://${BUCKET}/${PREFIX}/input -> /app/scan_input"
+          echo "Output sync: /app/scan_output -> s3://${BUCKET}/${PREFIX}/output"
+          echo "Sync interval: ${SYNC_INTERVAL} seconds"
+          
+          # Initial sync - download input from S3
+          echo "Performing initial sync..."
+          aws s3 sync s3://${BUCKET}/${PREFIX}/input/ /app/scan_input/ --region ${AWS_REGION} --delete || true
+          
+          # Continuous sync loop
+          while true; do
+            echo "$(date): Syncing input from S3..."
+            aws s3 sync s3://${BUCKET}/${PREFIX}/input/ /app/scan_input/ --region ${AWS_REGION} --delete || echo "Input sync failed"
+            
+            echo "$(date): Syncing output to S3..."
+            aws s3 sync /app/scan_output/ s3://${BUCKET}/${PREFIX}/output/ --region ${AWS_REGION} --delete || echo "Output sync failed"
+            
+            echo "$(date): Sync completed, sleeping for ${SYNC_INTERVAL} seconds..."
+            sleep ${SYNC_INTERVAL}
+          done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: S3_BUCKET
+        - name: S3_PREFIX
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: S3_PREFIX
+        - name: SYNC_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: SYNC_INTERVAL
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: AWS_REGION
+        - name: AWS_DEFAULT_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: secops-scanner-config
+              key: AWS_REGION
+        volumeMounts:
+        - name: scan-input
+          mountPath: /app/scan_input
+        - name: scan-output
+          mountPath: /app/scan_output
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      
+      volumes:
+      - name: scan-input
+        emptyDir: {}
+      - name: scan-output
+        emptyDir: {}
+      restartPolicy: Always
+

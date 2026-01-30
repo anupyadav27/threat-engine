@@ -1,0 +1,251 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-engine
+  namespace: threat-engine-engines
+  labels:
+    app: unified-engine
+    tier: engine
+    environment: dev
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: unified-engine
+  template:
+    metadata:
+      labels:
+        app: unified-engine
+        tier: engine
+        environment: dev
+    spec:
+      serviceAccountName: aws-compliance-engine-sa
+      containers:
+      - name: unified-engine
+        image: yadavanup84/threat-engine-unified:latest
+        ports:
+        - containerPort: 8000
+          name: aws-engine
+        - containerPort: 8001
+          name: compliance-engine
+        - containerPort: 8002
+          name: yaml-builder
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: USER_RULES_DIR
+          value: "/user-rules"
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        volumeMounts:
+        - name: output-volume
+          mountPath: /output
+        - name: user-rules-volume
+          mountPath: /user-rules
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            while true; do
+              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+                echo "$(date): Syncing /output to s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/"
+                aws s3 sync /output "s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/" \
+                  --delete \
+                  --exclude "*.tmp" \
+                  --exclude "*.lock" \
+                  --region "${AWS_REGION:-ap-south-1}" || true
+              fi
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: S3_OUTPUT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: aws-output-path
+        - name: AWS_REGION
+          value: "ap-south-1"
+        volumeMounts:
+        - name: output-volume
+          mountPath: /output
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+      - name: user-rules-sync
+        image: amazon/aws-cli:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            while true; do
+              echo "$(date): Syncing s3://${S3_BUCKET}/${S3_USER_RULES_PATH}/ to /user-rules/"
+              aws s3 sync "s3://${S3_BUCKET}/${S3_USER_RULES_PATH}/" /user-rules/ \
+                --delete \
+                --exclude "*.tmp" \
+                --exclude "*.lock" \
+                --region "${AWS_REGION:-ap-south-1}" || true
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: S3_USER_RULES_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: yaml-builder-output-path
+        - name: AWS_REGION
+          value: "ap-south-1"
+        volumeMounts:
+        - name: user-rules-volume
+          mountPath: /user-rules
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+      volumes:
+      - name: output-volume
+        emptyDir: {}
+      - name: user-rules-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unified-engine-aws
+  namespace: threat-engine-engines
+  labels:
+    app: unified-engine
+    service: aws-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: unified-engine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unified-engine-compliance
+  namespace: threat-engine-engines
+  labels:
+    app: unified-engine
+    service: compliance-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: unified-engine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unified-engine-yaml
+  namespace: threat-engine-engines
+  labels:
+    app: unified-engine
+    service: yaml-builder
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  selector:
+    app: unified-engine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unified-engine-lb
+  namespace: threat-engine-engines
+  labels:
+    app: unified-engine
+    service-type: loadbalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: aws-engine
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: compliance-engine
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: yaml-builder
+  selector:
+    app: unified-engine
+  sessionAffinity: None
+

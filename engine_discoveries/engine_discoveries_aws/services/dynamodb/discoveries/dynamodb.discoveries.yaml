@@ -1,0 +1,80 @@
+version: '1.0'
+provider: aws
+service: dynamodb
+services:
+  client: dynamodb
+  module: boto3.client
+discovery:
+- discovery_id: aws.dynamodb.list_tables
+  calls:
+  - action: list_tables
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.TableNames }}'
+    as: table_name
+- discovery_id: aws.dynamodb.describe_table
+  for_each: aws.dynamodb.list_tables
+  calls:
+  - action: describe_table
+    params:
+      TableName: '{{ item.TableName }}'
+      MaxResults: 1000
+    save_as: response
+  emit:
+    item:
+      TableName: '{{ response.Table.TableName }}'
+      TableArn: '{{ response.Table.TableArn }}'
+      TableId: '{{ response.Table.TableId }}'
+      SSEDescription: '{{ response.Table.SSEDescription }}'
+      SSESpecification: '{{ response.Table.SSESpecification }}'
+      LatestStreamArn: '{{ response.Table.LatestStreamArn }}'
+      TableStatus: '{{ response.Table.TableStatus }}'
+      resource_arn: '{{ response.Table.TableArn }}'
+- discovery_id: aws.dynamodb.list_global_tables
+  calls:
+  - action: list_global_tables
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.GlobalTables }}'
+    as: item
+- discovery_id: aws.dynamodb.describe_global_table
+  for_each: aws.dynamodb.list_global_tables
+  on_error: continue
+  calls:
+  - action: describe_global_table
+    params:
+      GlobalTableName: '{{ item.GlobalTableName }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.dynamodb.describe_continuous_backups
+  for_each: aws.dynamodb.list_tables
+  calls:
+  - action: describe_continuous_backups
+    params:
+      TableName: '{{ item.TableName }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}
+- discovery_id: aws.dynamodb.list_backups
+  calls:
+  - action: list_backups
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.BackupSummaries }}'
+    as: item
+- discovery_id: aws.dynamodb.describe_table_replica_auto_scaling
+  for_each: aws.dynamodb.list_tables
+  calls:
+  - action: describe_table_replica_auto_scaling
+    params:
+      TableName: '{{ item.TableName }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}

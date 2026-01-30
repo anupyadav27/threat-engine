@@ -1,0 +1,86 @@
+{
+  "filename": "endpoints_should_not_be_vulnerable_to_reflected_cr_metadata.json",
+  "rule_id": "endpoints_vulnerable_reflected_crosssite",
+  "title": "Endpoints should not be vulnerable to reflected cross-site scripting (XSS) attacks",
+  "description": "Reflected cross-site scripting (XSS) occurs in a web application when the application retrieves data like parameters or headers from an incoming HTTP request and inserts it into its HTTP response without first sanitizing it. The most common cause is the insertion of GET parameters. When well-intentioned users open a link to a page that is vulnerable to reflected XSS, they are exposed to attacks that target their own browser.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[HttpGet]\npublic IActionResult Search(string query)\n{\n    return Content($\"<html><body>Results for: {query}</body></html>\", \"text/html\"); // Noncompliant - XSS\n}",
+      "public ActionResult Display(string userInput)\n{\n    ViewBag.Message = userInput; // Noncompliant - no encoding\n    return View();\n}"
+    ],
+    "compliant": [
+      "[HttpGet]\npublic IActionResult Search(string query)\n{\n    var encoded = HtmlEncoder.Default.Encode(query);\n    return Content($\"<html><body>Results for: {encoded}</body></html>\", \"text/html\");\n}",
+      "public ActionResult Display(string userInput)\n{\n    ViewBag.Message = HttpUtility.HtmlEncode(userInput); // Compliant\n    return View();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5131"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Controller methods that return HTML content with unencoded user input parameters",
+    "triggering_conditions": "(method returns HTML/Content) AND (uses request parameter in output) AND (no HTML encoding)",
+    "exclusion_conditions": "Excludes JSON responses, encoded parameters, non-HTML content types",
+    "never_trigger_on": "JSON responses, HtmlEncoder usage, HttpUtility.HtmlEncode, Razor views with automatic encoding",
+    "reasoning": "Reflected XSS occurs when user input is inserted into HTML without encoding. Detects patterns: Return Content with HTML content type + parameter interpolation without HtmlEncode/HtmlEncoder. Also detects ViewBag assignments without encoding. This is simplified check focusing on obvious cases.",
+    "validation_examples": {
+      "should_trigger": [
+        "return Content($\"<html>{query}</html>\", \"text/html\");",
+        "ViewBag.Message = userInput;",
+        "var html = \"<div>\" + name + \"</div>\";"
+      ],
+      "should_not_trigger": [
+        "var encoded = HtmlEncoder.Default.Encode(query); return Content(html);",
+        "ViewBag.Message = HttpUtility.HtmlEncode(input);",
+        "return Json(new { query = query });"
+      ]
+    },
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "Content\\s*\\([^)]*\\{[^}]*\\}[^)]*,\\s*\"text/html\"",
+        "exclude_patterns": [
+          "HtmlEncode",
+          "HtmlEncoder",
+          "Encode\\s*\\("
+        ],
+        "message": "Encode user input before inserting into HTML to prevent XSS"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "Content\\s*\\(\\w+,\\s*\"text/html\"",
+        "exclude_patterns": [
+          "HtmlEncode",
+          "HtmlEncoder",
+          "Encode\\s*\\("
+        ],
+        "message": "Encode user input before inserting into HTML to prevent XSS"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "ViewBag\\.[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*;",
+        "exclude_patterns": [
+          "HtmlEncode",
+          "HtmlEncoder",
+          "Encode\\s*\\(",
+          "ViewBag\\.[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*\"[^\"]*\""
+        ],
+        "message": "Encode user input before assigning to ViewBag"
+      }
+    ]
+  }
+}

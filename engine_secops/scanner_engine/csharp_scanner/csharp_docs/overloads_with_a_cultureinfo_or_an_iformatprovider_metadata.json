@@ -1,0 +1,94 @@
+{
+  "filename": "overloads_with_a_cultureinfo_or_an_iformatprovider_metadata.json",
+  "rule_id": "overloads_cultureinfo_iformatprovider_parameter",
+  "title": "Overloads with a CultureInfo or an IFormatProvider parameter should be preferred",
+  "description": "When a System.Globalization.CultureInfo or IFormatProvider object is not supplied, the default value that is supplied by the overloaded member might not have the effect that you want in all locales. You should supply culture-specific information according to the following guidelines: If the value will be displayed to the user, use the current culture. See CultureInfo.CurrentCulture.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessDate(DateTime date)\n{\n    string result = date.ToString(\"yyyy-MM-dd\"); // Noncompliant: no culture specified\n}",
+      "public void ParseNumber(string input)\n{\n    decimal value = decimal.Parse(input); // Noncompliant: no IFormatProvider\n}"
+    ],
+    "compliant": [
+      "public void ProcessDate(DateTime date)\n{\n    string result = date.ToString(\"yyyy-MM-dd\", CultureInfo.CurrentCulture); // Compliant\n}",
+      "public void ParseNumber(string input)\n{\n    decimal value = decimal.Parse(input, CultureInfo.InvariantCulture); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4056"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.ToString\\s*\\(\\s*\"[^\"]+\"\\s*\\)",
+        "message": "ToString with format string should specify CultureInfo or IFormatProvider for consistent formatting",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "CultureInfo",
+          "IFormatProvider"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(Parse|TryParse)\\s*\\([^,)]+\\)",
+        "message": "Parse operations should specify CultureInfo or IFormatProvider for consistent parsing",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "CultureInfo",
+          "IFormatProvider"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["Assignment"],
+    "detection_conditions": "Uses regex to detect ToString/Parse calls without culture-specific parameters in assignment statements",
+    "triggering_conditions": "Assignment nodes with ToString(format) or Parse operations without CultureInfo/IFormatProvider",
+    "exclusion_conditions": "Excludes test methods, logging, calls that already include culture parameters",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "String interpolation contexts ($\"\")",
+      "Calls already including CultureInfo or IFormatProvider",
+      "Simple ToString() without format strings",
+      "Generated code",
+      "Debug output"
+    ],
+    "reasoning": "Detects ToString() calls with format strings and Parse operations that don't specify culture information in assignment statements. This can lead to inconsistent behavior across different locales and cultures.",
+    "validation_examples": {
+      "should_trigger": [
+        "string result = date.ToString(\"yyyy-MM-dd\");",
+        "decimal value = decimal.Parse(input);",
+        "string formatted = number.ToString(\"F2\");",
+        "string display = value.ToString(\"N0\");"
+      ],
+      "should_not_trigger": [
+        "string result = date.ToString(\"yyyy-MM-dd\", CultureInfo.CurrentCulture);",
+        "decimal value = decimal.Parse(input, CultureInfo.InvariantCulture);",
+        "string result = date.ToString();",
+        "Console.WriteLine(date.ToString(\"yyyy-MM-dd\"));",
+        "[Test] public void TestMethod() { string result = date.ToString(\"yyyy-MM-dd\"); }"
+      ]
+    }
+  }
+}

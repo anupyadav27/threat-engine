@@ -1,0 +1,71 @@
+{
+  "filename": "unused_method_parameters_should_be_removed_metadata.json",
+  "rule_id": "unused_method_parameters_removed",
+  "title": "Unused method parameters should be removed",
+  "description": "A typical code smell known as unused function parameters refers to parameters declared in a function but not used anywhere within the function’s body. While this might seem harmless at first glance, it can lead to confusion and potential errors in your code. Disregarding the values passed to such parameters, the function’s behavior will be the same, but the programmer’s intention won’t be clearly expressed anymore.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "private void DoSomething(int a, int b) // Noncompliant - 'b' is not used\n{\n    Console.WriteLine(a);\n}"
+    ],
+    "compliant": [
+      "private void DoSomething(int a) // Compliant - all parameters are used\n{\n    Console.WriteLine(a);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1172"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unused_method_parameters"
+      }
+    ],
+    "detection_conditions": "Find method parameters that are never used in the method body",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Method has parameters",
+        "Parameter is never referenced in method body"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*",
+        "\\[Obsolete\\]",
+        "override",
+        "virtual"
+      ]
+    },
+    "never_trigger_on": [
+      "Parameters that are used",
+      "Override methods (must match signature)",
+      "Virtual methods",
+      "Interface implementations",
+      "Event handlers",
+      "Comments"
+    ],
+    "reasoning": "Unused parameters make code confusing and indicate possible bugs.",
+    "validation_examples": {
+      "should_trigger": [
+        "private void DoSomething(int a, int b) { Console.WriteLine(a); }"
+      ],
+      "should_not_trigger": [
+        "private void DoSomething(int a) { Console.WriteLine(a); }"
+      ]
+    }
+  }
+}

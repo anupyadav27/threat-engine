@@ -1,0 +1,74 @@
+{
+  "filename": "expressions_should_not_be_too_complex_metadata.json",
+  "rule_id": "expressions_too_complex",
+  "title": "Expressions should not be too complex",
+  "description": "The complexity of an expression is defined by the number of &&, ||, and condition ? ifTrue : ifFalse operators it contains. A single expression's complexity should not become too high to keep the code readable. With the default threshold value of 3, expressions containing more than 3 logical operators should be simplified.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (((condition1 && condition2) || (condition3 && condition4)) && condition5) // Noncompliant\n{\n    DoSomething();\n}"
+    ],
+    "compliant": [
+      "bool firstCheck = condition1 && condition2;\nbool secondCheck = condition3 && condition4;\n\nif ((firstCheck || secondCheck) && condition5) // Compliant\n{\n    DoSomething();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1067"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration", "CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "pattern": "\\(\\s*\\(\\s*\\(.*?&&.*?\\)\\s*\\|\\|\\s*\\(.*?&&.*?\\)\\s*\\)\\s*&&.*?\\)|\\(\\s*\\(.*?&&.*?\\)\\s*\\|\\|\\s*\\(.*?&&.*?\\)\\s*\\|\\|\\s*\\(.*?&&.*?\\)\\s*\\)|\\(\\s*\\(.*?&&.*?\\)\\s*\\|\\|\\s*\\(.*?&&.*?\\)\\s*\\|\\|\\s*\\(.*?\\)|\\(.*?(?:&&|\\|\\|).*?(?:&&|\\|\\|).*?(?:&&|\\|\\|).*?\\)|(?:&&|\\|\\|).*?(?:&&|\\|\\|).*?(?:&&|\\|\\|).*?(?:&&|\\|\\|)",
+        "exclude_patterns": [
+          "Assert\\.",
+          "Should\\.",
+          "Expect\\(",
+          "\\[Test",
+          "\\[Fact", 
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "System\\.Diagnostics\\.Debug\\.",
+          "//\\s*Compliant",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*///",
+          "\\*\\s*Complex\\s*expression\\s*in\\s*comment",
+          "/\\*[\\s\\S]*?\\*/",
+          "//.*?\\(.*?&&.*?\\)"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Test assertions (Assert., Should., Expect)",
+      "Unit test methods ([Test], [Fact])",
+      "Logging statements (Console., Logger., Debug.)",
+      "Comments",
+      "Code marked as compliant"
+    ],
+    "reasoning": "Detects expressions with more than 3 logical operators (&&, ||) which reduce code readability. The pattern matches expressions with 4 or more operators. Exclusions prevent false positives in test assertions and logging where complex expressions are acceptable for verification purposes.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (((c1 && c2) || (c3 && c4)) && c5) { }",
+        "return (x > 0 && y > 0) || (flag1 && flag2) || (flag3 && x < 100);"
+      ],
+      "should_not_trigger": [
+        "if (a && b && c) { }",
+        "Assert.That(a && b || c && d && e);",
+        "return x > 0 && flag1 && flag2; // Compliant"
+      ]
+    }
+  }
+}

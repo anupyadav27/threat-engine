@@ -1,0 +1,32 @@
+version: '1.0'
+provider: aws
+service: xray
+services:
+  client: xray
+  module: boto3.client
+discovery:
+- discovery_id: aws.xray.get_encryption_config
+  calls:
+  - action: get_encryption_config
+    save_as: response
+  emit:
+    item:
+      KeyId: '{{ response.EncryptionConfig.KeyId }}'
+      Status: '{{ response.EncryptionConfig.Status }}'
+      Type: '{{ response.EncryptionConfig.Type }}'
+- discovery_id: aws.xray.get_sampling_rules
+  calls:
+  - action: get_sampling_rules
+    save_as: response
+  emit:
+    items_for: '{{ response.SamplingRuleRecords }}'
+    as: item
+    item:
+      RuleName: '{{ item.SamplingRule.RuleName }}'
+      RuleARN: '{{ item.SamplingRule.RuleARN }}'
+      ResourceARN: '{{ item.SamplingRule.ResourceARN }}'
+      Priority: '{{ item.SamplingRule.Priority }}'
+      FixedRate: '{{ item.SamplingRule.FixedRate }}'
+      ServiceName: '{{ item.SamplingRule.ServiceName }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      ModifiedAt: '{{ item.ModifiedAt }}'

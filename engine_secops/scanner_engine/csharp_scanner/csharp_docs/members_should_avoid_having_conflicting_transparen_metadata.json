@@ -1,0 +1,58 @@
+{
+  "filename": "members_should_avoid_having_conflicting_transparen_metadata.json",
+  "rule_id": "members_avoid_having_conflicting",
+  "title": "Members should avoid having conflicting transparency annotations",
+  "description": "Transparency attributes can be declared at several levels. If two different attributes are declared at two different levels, the attribute that prevails is the one in the highest level. For example, you can declare that a class is SecuritySafeCritical and that a method of this class is SecurityCritical.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[SecuritySafeCritical]\npublic class MyClass\n{\n    [SecurityCritical] // Noncompliant: conflicting with class-level annotation\n    public void MyMethod()\n    {\n        // method implementation\n    }\n}"
+    ],
+    "compliant": [
+      "[SecuritySafeCritical]\npublic class MyClass\n{\n    public void MyMethod() // Compliant: inherits class-level annotation\n    {\n        // method implementation\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4211"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\[SecuritySafeCritical\\][^{]*\\{[^}]*\\[SecurityCritical\\]",
+        "exclude_patterns": [
+          "\\[Test",
+          "Assert\\."
+        ]
+      }
+    ],
+    "triggering_conditions": "Class with [SecuritySafeCritical] contains member with [SecurityCritical]",
+    "exclusion_conditions": [
+      "Test methods"
+    ],
+    "never_trigger_on": [
+      "Consistent security attributes at same level",
+      "Unit tests with [Test] or Assert"
+    ],
+    "reasoning": "Detects conflicting transparency attributes where a class is marked SecuritySafeCritical but contains a member marked SecurityCritical, which creates ambiguity.",
+    "validation_examples": {
+      "should_trigger": [
+        "[SecuritySafeCritical] class MyClass { [SecurityCritical] void M() {} }"
+      ],
+      "should_not_trigger": [
+        "[SecuritySafeCritical] class MyClass { void M() {} }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "filename": "type_names_should_not_match_namespaces_metadata.json",
+  "rule_id": "type_names_match_namespaces",
+  "title": "Type names should not match namespaces",
+  "description": "Type names should not match namespacesAnalyze your codeconsistency-identifiablemaintainabilityCode SmellconventionWhy is this an issue?When a type name matches the name of a publicly defined namespace, for instance one in the .NET framework class library, it leads to confusion and makes the library that much harder to use.This rule raises an issue when a name of a public type matches the name of a .NET Framework namespace, or a namespace of the project assembly, in a case-insensitive comparison.Noncompliant code exampleusing System; namespace MyLibrary { public class Text // Noncompliant: Collides with System.Text { } }Compliant solutionusing System; namespace MyLibrary { public class MyText { } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Ser",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    // Noncompliant: 'Text' collides with System.Text\n    public class Text\n    {\n        public string Content { get; set; }\n    }\n\n    // Noncompliant: 'Collections' collides with System.Collections\n    public class Collections\n    {\n        public void Process() { }\n    }\n\n    // Noncompliant: 'IO' collides with System.IO\n    public class IO\n    {\n        public void ReadFile() { }\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    // Compliant: Unique name that doesn't collide with namespaces\n    public class TextContent\n    {\n        public string Content { get; set; }\n    }\n\n    // Compliant: More specific name\n    public class CollectionManager\n    {\n        public void Process() { }\n    }\n\n    // Compliant: Descriptive unique name\n    public class FileOperations\n    {\n        public void ReadFile() { }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4041"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "InterfaceDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_type_names_match_namespaces"
+      }
+    ],
+    "target_ast_nodes": ["ClassDeclaration", "InterfaceDeclaration"],
+    "detection_conditions": "Detect public type names that match well-known .NET Framework namespace names, causing confusion and potential name collisions",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Public type declaration (class, struct, interface)",
+        "Type name matches a well-known .NET namespace name",
+        "Case-insensitive comparison"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments describing namespace conflicts",
+      "Test classes with [Test] or [Fact] attributes",
+      "Type names that don't match .NET namespaces",
+      "Private or internal types (less likely to cause confusion)"
+    ],
+    "reasoning": "When a type name matches the name of a publicly defined namespace (like System.Text, System.IO), it leads to confusion and makes the library harder to use. Developers may accidentally use the wrong type or have to use fully qualified names.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Text { }",
+        "public class Collections { }",
+        "public class IO { }"
+      ],
+      "should_not_trigger": [
+        "public class TextContent { }",
+        "public class CollectionManager { }",
+        "// Text class comment"
+      ]
+    }
+  }
+}

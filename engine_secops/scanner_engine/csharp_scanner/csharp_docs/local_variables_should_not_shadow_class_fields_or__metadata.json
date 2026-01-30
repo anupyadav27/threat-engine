@@ -1,0 +1,53 @@
+{
+  "filename": "local_variables_should_not_shadow_class_fields_or__metadata.json",
+  "rule_id": "local_variables_shadow_class",
+  "title": "Local variables should not shadow class fields or properties",
+  "description": "Shadowing occurs when a local variable has the same name as a variable, field, or property in an outer scope. This can lead to three main problems: Confusion: The same name can refer to different variables in different parts of the scope, making the code hard to read and understand. Unintended Behavior: You might accidentally use the wrong variable, leading to hard-to-detect bugs.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Local variables shadow class members\nclass Foo\n{\n  public int myField;\n  public int MyProperty { get; set; }\n\n  public void DoSomething()\n  {\n    int myField = 0;    // Noncompliant\n    int MyProperty = 0; // Noncompliant\n  }\n}"
+    ],
+    "compliant": [
+      "// Compliant: Local variables have different names\nclass Foo\n{\n  public int myField;\n  public int MyProperty { get; set; }\n\n  public void DoSomething()\n  {\n    int localField = 0;    // Compliant\n    int localProperty = 0; // Compliant\n  }\n}",
+      "// Compliant: Using 'this' to access class members\nclass Foo\n{\n  public int myField;\n\n  public void DoSomething(int myField)\n  {\n    this.myField = myField; // Compliant\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1117"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_variable_shadowing"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments",
+      "Test methods",
+      "Using 'this.' to access class members"
+    ],
+    "reasoning": "Detects local variables that shadow class fields or properties. This requires custom function to compare local variable names with class-level field/property names.",
+    "validation_examples": {
+      "should_detect": [
+        "int myField = 0; // when class has field 'myField'",
+        "int MyProperty = 0; // when class has property 'MyProperty'"
+      ],
+      "should_not_detect": [
+        "int localField = 0;",
+        "this.myField = myField; // parameter shadowing is ok with this."
+      ]
+    }
+  }
+}

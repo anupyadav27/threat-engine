@@ -1,0 +1,470 @@
+version: '1.0'
+provider: alicloud
+service: hbr
+discovery:
+- discovery_id: alicloud.hbr.backup_plan
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeBackupPlans
+    params: {}
+    save_as: backup_plan_response
+  emit:
+    items_for: '{ backup_plan_response.BackupPlans.BackupPlan }'
+    as: r
+    item:
+      id: '{{ r.BackupPlanId }}'
+      name: '{{ r.BackupPlanId }}'
+      resource_type: backup_plan
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.backup_recovery_job
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeBackupRecoveryJobs
+    params: {}
+    save_as: backup_recovery_job_response
+  emit:
+    items_for: '{ backup_recovery_job_response.BackupRecoveryJobs.BackupRecoveryJob }'
+    as: r
+    item:
+      id: '{{ r.BackupRecoveryJobId }}'
+      name: '{{ r.BackupRecoveryJobId }}'
+      resource_type: backup_recovery_job
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.dr
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDrs
+    params: {}
+    save_as: dr_response
+  emit:
+    items_for: '{ dr_response.Drs.Dr }'
+    as: r
+    item:
+      id: '{{ r.DrId }}'
+      name: '{{ r.DrId }}'
+      resource_type: dr
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.job
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeJobs
+    params: {}
+    save_as: job_response
+  emit:
+    items_for: '{ job_response.Jobs.Job }'
+    as: r
+    item:
+      id: '{{ r.JobId }}'
+      name: '{{ r.JobId }}'
+      resource_type: job
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.replication
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeReplications
+    params: {}
+    save_as: replication_response
+  emit:
+    items_for: '{ replication_response.Replications.Replication }'
+    as: r
+    item:
+      id: '{{ r.ReplicationId }}'
+      name: '{{ r.ReplicationId }}'
+      resource_type: replication
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.restore_job
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeRestoreJobs
+    params: {}
+    save_as: restore_job_response
+  emit:
+    items_for: '{ restore_job_response.RestoreJobs.RestoreJob }'
+    as: r
+    item:
+      id: '{{ r.RestoreJobId }}'
+      name: '{{ r.RestoreJobId }}'
+      resource_type: restore_job
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.hbr.vault
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeVaults
+    params: {}
+    save_as: vault_response
+  emit:
+    items_for: '{ vault_response.Vaults.Vault }'
+    as: r
+    item:
+      id: '{{ r.VaultId }}'
+      name: '{{ r.VaultId }}'
+      resource_type: vault
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.hbr.backup_plan.access_backup_admins_mfa_required
+  title: Hybrid Backup Recovery backup plan administrators must have multi-factor authentication enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.mfa_enabled
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.backup_plan.access_backup_keys_access_least_privilege
+  title: Hybrid Backup Recovery backup plan access keys should follow least privilege principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.backup_enabled
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.hbr.backup_plan.access_backup_vault_rbac_least_privilege
+  title: Hybrid Backup Recovery backup plans should implement least privilege RBAC for backup vault access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_plan
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.backup_plan.access_no_public_access_to_backup_vault
+  title: Hybrid Backup Recovery backup vaults should not allow public access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.hbr.backup_plan.unprotected_assets_alerting_enabled
+  title: Hybrid Backup Recovery Backup Plan Should Have Unprotected Assets Alerting Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_plan
+  params: {}
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.backup_recovery_job.monitoring_alert_rules_for_job_failures_configured
+  title: Hybrid Backup Recovery Job Failure Monitoring Alert Rules Must Be Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_recovery_job
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.backup_recovery_job.monitoring_alert_rules_for_sla_breach_configured
+  title: Hybrid Backup Recovery Jobs Must Have Monitoring Alert Rules Configured for SLA Breach Detection
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.backup_recovery_job
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.dr.backup_destination_private_only
+  title: Hybrid Backup Recovery disaster recovery backup destinations should use private endpoints only
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.dr
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.dr.backup_encrypted_at_rest_cmek
+  title: Hybrid Backup Recovery disaster recovery backups should be encrypted at rest using customer-managed encryption keys
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.dr
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hbr.dr.backup_immutable_or_worm_enabled_where_supported
+  title: Hybrid Backup Recovery disaster recovery backup immutable or WORM protection should be enabled where supported
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.dr
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.job.dr_job_logs_enabled
+  title: Hybrid Backup Recovery disaster recovery job logs should be enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.hbr.job
+  params: {}
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.job.dr_job_network_private_only
+  title: Hybrid Backup Recovery disaster recovery jobs should use private network connectivity only
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.job
+  params: {}
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.job.dr_job_roles_least_privilege
+  title: Hybrid Backup Recovery disaster recovery job roles should follow least privilege principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.job
+  params: {}
+  conditions:
+    all:
+    - var: item.backup_enabled
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.hbr.replication.auth_roles_least_privilege
+  title: Hybrid Backup Recovery replication should use roles with least privilege access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.replication
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.replication.cross_region_replication_encrypted
+  title: Hybrid Backup Recovery Cross-Region Replication Should Use Encryption
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.hbr.replication
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.replication.encryption_in_transit_tls_required
+  title: Hybrid Backup Recovery replication must enforce TLS encryption for data in transit
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.replication
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.restore_job.cross_account_restore_blocked_by_policy
+  title: Hybrid Backup Recovery Cross-Account Restore Operations Should Be Blocked by Policy
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.restore_job
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.restore_job.from_encrypted_backups_only
+  title: Hybrid Backup Recovery restore jobs should only restore from encrypted backups
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.hbr.restore_job
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.restore_job.logs_and_artifacts_encrypted
+  title: Hybrid Backup Recovery restore job logs and artifacts should be encrypted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.hbr.restore_job
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.hbr.restore_job.roles_least_privilege
+  title: Hybrid Backup Recovery restore jobs should use roles with least privilege access
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.restore_job
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.vault.encryption_backup_storage_immutability_enabled
+  title: Hybrid Backup Recovery Vault Should Have Encryption and Backup Storage Immutability Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.vault
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.vault.encryption_cmk_cmek_key_configured
+  title: Hybrid Backup Recovery Vault Should Use Customer-Managed Encryption Keys (CMEK)
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.vault
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.kms_key_id
+      op: exists
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.vault.encryption_encryption_at_rest_enabled
+  title: Hybrid Backup Recovery vault should have encryption at rest enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.vault
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.vault.encryption_encryption_in_transit_tls_min_1_2
+  title: Hybrid Backup Recovery vault should enforce TLS 1.2 or higher for encryption in transit
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.vault
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+    - var: item.backup_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.hbr.vault.encryption_key_policy_least_privilege
+  title: Hybrid Backup Recovery vault encryption key policy should follow least privilege principle
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.hbr.vault
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'

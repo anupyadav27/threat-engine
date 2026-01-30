@@ -1,0 +1,57 @@
+version: '1.0'
+provider: aws
+service: timestream
+services:
+  client: timestream-query
+  module: boto3.client
+discovery:
+- discovery_id: aws.timestream-query.describe_endpoints
+  calls:
+  - action: describe_endpoints
+    on_error: continue
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Endpoints }}'
+    as: item
+- discovery_id: aws.timestream-query.describe_account_settings
+  calls:
+  - action: describe_account_settings
+    on_error: continue
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.timestream-query.list_scheduled_queries
+  calls:
+  - action: list_scheduled_queries
+    params:
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.ScheduledQueries }}'
+    as: item
+- discovery_id: aws.timestream-query.describe_scheduled_query
+  calls:
+  - action: describe_scheduled_query
+    save_as: response
+    params:
+      ScheduledQueryArn: '{{ item.Arn }}'
+      MaxResults: 1000
+    for_each: aws.timestream-query.list_scheduled_queries
+    on_error: continue
+  emit: {}
+- discovery_id: aws.timestream-query.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    params:
+      ResourceARN: '{{ item.Arn }}'
+      MaxResults: 1000
+    for_each: aws.timestream-query.list_scheduled_queries
+    on_error: continue
+  emit:
+    items_for: '{{ response.Tags }}'
+    as: tag

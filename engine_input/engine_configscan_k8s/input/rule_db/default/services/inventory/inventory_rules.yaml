@@ -1,0 +1,28 @@
+component: inventory
+component_type: workload
+discovery:
+- discovery_id: list_inventory_resources
+  calls:
+  - action: list_pods
+    fields:
+    - path: name
+      var: name
+    - path: namespace
+      var: namespace
+    - path: labels
+      var: labels
+checks:
+- check_id: k8s.inventory.review.scheduled
+  name: Scheduled
+  severity: LOW
+  for_each: list_inventory_resources
+  param: item
+  calls:
+  - action: identity
+    params: {}
+    fields:
+    - path: item.name
+      operator: exists
+      expected: null
+  logic: AND
+  errors_as_fail: []

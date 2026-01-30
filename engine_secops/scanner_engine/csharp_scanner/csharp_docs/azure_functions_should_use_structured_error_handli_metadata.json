@@ -1,0 +1,35 @@
+{
+  "filename": "azure_functions_should_use_structured_error_handli_metadata.json",
+  "rule_id": "azure_functions_use_structured",
+  "title": "Azure Functions should use Structured Error Handling",
+  "description": "Azure Functions should use Structured Error HandlingAnalyze your codeintentionality-completemaintainabilityCode Smellazureerror-handlingWhy is this an issue?More InfoThe top-most level of an Azure Function code should include a try/catch block to capture and log all errors so you can monitor the health of the application effectively. In case a retry policy has been defined for your Azure Function, you should rethrow any errors that should result in a retry.Noncompliant code example[FunctionName(\"HttpExample\")] public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Function, \"get\", \"post\", Route = null)] HttpRequest req) { // Noncompliant string requestBody = await new StreamReader(req.Body).ReadToEndAsync(); dynamic data = JsonConvert.DeserializeObject(requestBody); /",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[FunctionName(\"HttpExample\")]\npublic static async Task<IActionResult> Run(\n    [HttpTrigger(AuthorizationLevel.Function, \"get\", \"post\", Route = null)] HttpRequest req)\n{\n    // Noncompliant\n    string requestBody = await new StreamReader(req.Body).ReadToEndAsync();\n    dynamic data = JsonConvert.DeserializeObject(requestBody);\n    // do stuff\n}"
+    ],
+    "compliant": [
+      "[FunctionName(\"HttpExample\")]\\npublic static async Task<IActionResult> Run(\\n    [HttpTrigger(AuthorizationLevel.Function, \\\"get\\\", \\\"post\\\", Route = null)] HttpRequest req,\\n    ILogger log)\\n{\\n    try\\n    {\\n        string requestBody = await new StreamReader(req.Body).ReadToEndAsync();\\n        dynamic data = JsonConvert.DeserializeObject(requestBody);\\n        // do processing\\n        return new OkObjectResult(\\\"Success\\\");\\n    }\\n    catch (JsonException ex)\\n    {\\n        log.LogWarning(ex, \\\"Invalid JSON in request body\\\");\\n        return new BadRequestObjectResult(\\\"Invalid JSON format\\\");\\n    }\\n    catch (Exception ex)\\n    {\\n        log.LogError(ex, \\\"Unexpected error processing request\\\");\\n        return new StatusCodeResult(StatusCodes.Status500InternalServerError);\\n    }\\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6421"
+  ],
+  "logic": {
+    "custom_function": "check_azure_function_structured_error_handling",
+    "node_types": [
+      "ClassDeclaration",
+      "MethodDeclaration", 
+      "CompilationUnit"
+    ]
+  }
+}

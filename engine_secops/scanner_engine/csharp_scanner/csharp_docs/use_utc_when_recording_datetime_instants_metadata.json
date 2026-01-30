@@ -1,0 +1,85 @@
+{
+  "filename": "use_utc_when_recording_datetime_instants_metadata.json",
+  "rule_id": "use_utc_when_recording",
+  "title": "Use UTC when recording DateTime instants",
+  "description": "You should avoid recording time instants with the use of property DateTime.Now. The property DateTime.Now returns the current date and time expressed in the machine’s local time without containing any timezone-related information (for example, the offset from Coordinated Universal Time). Not having this information means that if you need to display this DateTime object or use it for computations in another machine placed in a different time zone, you won’t be able to reconstruct it in the second machine’s local time without knowing the origin’s offset.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "var timestamp = DateTime.Now;",
+      "DateTime createdAt = DateTime.Now;",
+      "record.ModifiedDate = DateTime.Now;"
+    ],
+    "compliant": [
+      "var timestamp = DateTime.UtcNow;",
+      "DateTime createdAt = DateTime.UtcNow;",
+      "record.ModifiedDate = DateTime.UtcNow;",
+      "var timestamp = DateTimeOffset.UtcNow;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6563"
+  ],
+  "logic": {
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "=\\s*DateTime\\.Now\\s*;",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "Trace\\.",
+          "\\$\".*DateTime\\.Now",
+          "ToString\\(",
+          "//.*DateTime\\.Now",
+          "/\\*.*DateTime\\.Now",
+          "Assert\\.",
+          "\\[Test",
+          "\\[Fact",
+          "\\+\\s*DateTime\\.Now"
+        ],
+        "message": "Use DateTime.UtcNow or DateTimeOffset.UtcNow instead of DateTime.Now when recording timestamps for cross-timezone compatibility"
+      }
+    ],
+    "target_ast_nodes": ["Assignment"],
+    "detection_conditions": "Assignment where DateTime.Now is used to record a timestamp",
+    "triggering_conditions": "Variable or property assignment with DateTime.Now as the value",
+    "exclusion_conditions": ["Console/logging output", "String concatenation for display", "ToString() calls", "Comments", "Unit tests"],
+    "never_trigger_on": [
+      "Console.WriteLine displaying current time",
+      "Logger calls with DateTime.Now in message",
+      "String concatenation (+ DateTime.Now.ToString())",
+      "String interpolation ($\"...{DateTime.Now}...\")",
+      "ToString() method calls",
+      "Comments containing DateTime.Now",
+      "Unit test assertions",
+      "Display-only contexts"
+    ],
+    "reasoning": "DateTime.Now returns the current time in the machine's local timezone without timezone information. When recording timestamps that may be used across different timezones or persisted to storage, DateTime.UtcNow should be used as it provides a consistent reference point. The rule specifically targets assignment statements where DateTime.Now is being stored, not display contexts.",
+    "validation_examples": {
+      "should_trigger": [
+        "var timestamp = DateTime.Now;",
+        "DateTime createdAt = DateTime.Now;",
+        "record.ModifiedDate = DateTime.Now;"
+      ],
+      "should_not_trigger": [
+        "var timestamp = DateTime.UtcNow;",
+        "Console.WriteLine($\"Time: {DateTime.Now}\");",
+        "Logger.Info(\"Request at \" + DateTime.Now);",
+        "// var timestamp = DateTime.Now;"
+      ]
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "filename": "track_use_of_notimplementedexception_metadata.json",
+  "rule_id": "track_use_notimplementedexception",
+  "title": "Track use of NotImplementedException",
+  "description": "Track use of \"NotImplementedException\"Analyze your codeintentionality-completemaintainabilityCode SmellWhy is this an issue?NotImplementedExceptionis often used to mark methods which must be implemented for the overall functionality to be complete, but which the developer wants to implement later. That’s as opposed to theNotSupportedExceptionwhich is thrown by methods which are required by base classes or interfaces, but which are not appropriate to the current class.This rule raises an exception whenNotImplementedExceptionis thrown.Noncompliant code examplevoid doTheThing() { throw new NotImplementedException(); }ExceptionsExceptions derived fromNotImplementedExceptionare ignored.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void DoTheThing()\n{\n    throw new NotImplementedException(); // Noncompliant - track usage\n}",
+      "public int Calculate(int x)\n{\n    throw new NotImplementedException(); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "void DoTheThing()\n{\n    // Actual implementation\n    Console.WriteLine(\"Doing the thing\");\n}",
+      "public int Calculate(int x)\n{\n    return x * 2; // Proper implementation\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3717"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "throw\\s+new\\s+NotImplementedException\\s*\\(",
+        "exclude_patterns": [],
+        "message": "NotImplementedException found - this indicates incomplete implementation that should be completed."
+      }
+    ],
+    "never_trigger_on": [
+      "Comments mentioning NotImplementedException (pattern is specific enough)",
+      "NotSupportedException (different exception type)",
+      "Completed implementations"
+    ],
+    "reasoning": "NotImplementedException is used to mark methods that need implementation but are deferred. Unlike NotSupportedException (which indicates an operation that will never be supported), NotImplementedException indicates work that should be completed. This rule tracks these exceptions to prevent incomplete code from reaching production.",
+    "validation_examples": {
+      "should_trigger": [
+        "throw new NotImplementedException();",
+        "throw new NotImplementedException(\"Not done yet\");",
+        "get { throw new NotImplementedException(); }"
+      ],
+      "should_not_trigger": [
+        "// throw new NotImplementedException();",
+        "Console.WriteLine(\"NotImplementedException\");",
+        "throw new NotSupportedException();"
+      ]
+    }
+  }
+}

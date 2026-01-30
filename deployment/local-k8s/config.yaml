@@ -1,0 +1,93 @@
+# Configuration for Local Kubernetes Deployment
+# This file can be adapted for AWS EKS by changing values
+
+environment: local  # local | aws-eks
+
+# Namespace
+namespace: threat-engine-local
+
+# Image Configuration
+images:
+  registry: ""  # Empty for local, or "your-registry/" for remote
+  tag: local    # local | latest | <version>
+  pullPolicy: IfNotPresent
+
+# Database Configuration (for local - uses host.docker.internal)
+# For AWS EKS, use service names like: postgres-service.database.svc.cluster.local
+database:
+  host: host.docker.internal  # For EKS: postgres-service.database.svc.cluster.local
+  port: 5432
+  databases:
+    discoveries:
+      name: threat_engine_discoveries
+      user: discoveries_user
+      password: discoveries_password
+    check:
+      name: threat_engine_check
+      user: check_user
+      password: check_password
+    threat:
+      name: threat_engine_threat
+      user: threat_user
+      password: threat_password
+    inventory:
+      name: threat_engine_inventory
+      user: inventory_user
+      password: inventory_password
+
+# Service URLs (for service discovery within cluster)
+services:
+  api_gateway:
+    name: api-gateway
+    port: 8000
+    type: NodePort  # NodePort for local, LoadBalancer for EKS
+  discovery:
+    name: discovery-service
+    port: 8001
+    type: ClusterIP
+  check:
+    name: check-service
+    port: 8002
+    type: ClusterIP
+  threat:
+    name: threat-service
+    port: 8020
+    type: ClusterIP
+  compliance:
+    name: compliance-service
+    port: 8010
+    type: ClusterIP
+  iam:
+    name: iam-service
+    port: 8003
+    type: ClusterIP
+  datasec:
+    name: datasec-service
+    port: 8004
+    type: ClusterIP
+  inventory:
+    name: inventory-service
+    port: 8022
+    type: ClusterIP
+
+# Resource Limits
+resources:
+  api_gateway:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  engines:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Replicas
+replicas:
+  api_gateway: 1
+  engines: 1

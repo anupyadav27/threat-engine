@@ -1,0 +1,38 @@
+{
+  "filename": "blazor_query_parameter_type_should_be_supported_metadata.json",
+  "rule_id": "blazor_query_parameter_type",
+  "title": "Blazor query parameter type should be supported",
+  "description": "Blazor query parameter type should be supportedAnalyze your codeintentionality-logicalreliabilityBugblazorWhy is this an issue?How can I fix it?More InfoTheSupplyParameterFromQueryattribute can be used to specify that a component parameter, of a routable component, comes from the query string.Component parameters supplied from the query string support the following types:bool, DateTime, decimal, double, float, Guid, int, long, string.Nullable variants of the preceding types.Arrays of the preceding types, whether they’re nullable or not nullable.Query parameters should have one of the supported types. Otherwise, an unhandled exception will be raised at runtime.Unhandled exception rendering component: Querystring values cannot be parsed as type '<type>'. System.NotSupportedException: Queryst",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "@page \"/user\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public TimeSpan Duration { get; set; } // Noncompliant - TimeSpan not supported\n}",
+      "@page \"/search\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public Dictionary<string, string> Filters { get; set; } // Noncompliant - Dictionary not supported\n}",
+      "@page \"/product\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public Product ProductInfo { get; set; } // Noncompliant - custom object not supported\n}"
+    ],
+    "compliant": [
+      "@page \"/user\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public string UserId { get; set; } // Compliant - string is supported\n}",
+      "@page \"/search\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public int PageSize { get; set; } // Compliant - int is supported\n}",
+      "@page \"/product\"\n@code {\n    [Parameter]\n    [SupplyParameterFromQuery]\n    public int[]? Categories { get; set; } // Compliant - array of supported type\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6797"
+  ],
+  "logic": {
+    "custom_function": "check_blazor_query_parameter_type",
+    "node_types": [
+      "PropertyDeclaration",
+      "CompilationUnit"
+    ]
+  }
+}

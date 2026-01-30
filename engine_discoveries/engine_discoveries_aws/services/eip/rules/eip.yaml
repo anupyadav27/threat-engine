@@ -1,0 +1,43 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed
+# - YAML generated and tested against AWS
+# - All 1 checks executed successfully (5 accounts, 5 total checks)
+# - 0 execution errors
+# - Tested: 2026-01-01
+version: '1.0'
+provider: aws
+service: eip
+services:
+  client: ec2
+  module: boto3.client
+discovery:
+- discovery_id: aws.eip.describe_addresses
+  calls:
+  - action: describe_addresses
+    save_as: response
+  emit:
+    items_for: '{{ response.Addresses }}'
+    as: item
+    item:
+      AllocationId: '{{ item.AllocationId }}'
+      PublicIp: '{{ item.PublicIp }}'
+      Domain: '{{ item.Domain }}'
+      AssociationId: '{{ item.AssociationId }}'
+      NetworkInterfaceId: '{{ item.NetworkInterfaceId }}'
+      NetworkInterfaceOwnerId: '{{ item.NetworkInterfaceOwnerId }}'
+      PrivateIpAddress: '{{ item.PrivateIpAddress }}'
+      Tags: '{{ item.Tags }}'
+      PublicIpv4Pool: '{{ item.PublicIpv4Pool }}'
+      NetworkBorderGroup: '{{ item.NetworkBorderGroup }}'
+      CustomerOwnedIp: '{{ item.CustomerOwnedIp }}'
+      CustomerOwnedIpv4Pool: '{{ item.CustomerOwnedIpv4Pool }}'
+      CarrierIp: '{{ item.CarrierIp }}'
+      InstanceId: '{{ item.InstanceId }}'
+      ServiceManaged: '{{ item.ServiceManaged }}'
+checks:
+- rule_id: aws.eip.address.address_enabled
+  for_each: aws.eip.describe_addresses
+  conditions:
+    var: item.AllocationId
+    op: exists
+    value: null

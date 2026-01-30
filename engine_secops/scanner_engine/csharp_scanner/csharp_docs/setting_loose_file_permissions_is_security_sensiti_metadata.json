@@ -1,0 +1,63 @@
+{
+  "filename": "setting_loose_file_permissions_is_security_sensiti_metadata.json",
+  "rule_id": "setting_loose_file_permissions",
+  "title": "Setting loose file permissions is security-sensitive",
+  "description": "Setting loose file permissions is security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotcweIn Unix, \"others\" class refers to all users except the owner of the file and the members of the group assigned to this file.In Windows, \"Everyone\" group is similar and includes all members of the Authenticated Users group as well as the built-in Guest account, and several other built-in security accounts.Granting permissions to these groups can lead to unintended access to files.Ask Yourself WhetherThe application is designed to be run on a multi-user environment.Corresponding files and directories may contain confidential information.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesThe most restrictive possible permissions",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "var accessRule = new FileSystemAccessRule(\n    \"Everyone\",\n    FileSystemRights.FullControl,\n    AccessControlType.Allow); // Noncompliant - granting full control to Everyone\n\nvar fileSecurity = File.GetAccessControl(\"path\");\nfileSecurity.AddAccessRule(accessRule);\nFile.SetAccessControl(\"fileName\", fileSecurity);"
+    ],
+    "compliant": [
+      "var accessRule = new FileSystemAccessRule(\n    \"Administrators\",\n    FileSystemRights.Read,\n    AccessControlType.Allow); // Compliant - restricted permissions to specific group\n\nvar fileInfo = new FileInfo(\"path\");\nvar fileSecurity = fileInfo.GetAccessControl();\nfileSecurity.SetAccessRule(accessRule);\nfileInfo.SetAccessControl(fileSecurity);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2612"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "FileSystemAccessRule\\s*\\([^)]*[\"']Everyone[\"']",
+        "exclude_patterns": [
+          "^\\s*//",
+          "Console\\.Write",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\."
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "String formatting ($\"...\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// , /* */)",
+      "Configuration constants or documentation"
+    ],
+    "reasoning": "Detects granting file permissions to 'Everyone' group which is a security risk. Excludes logging, comments, and test assertions where such patterns may appear safely.",
+    "validation_examples": {
+      "should_trigger": [
+        "var rule = new FileSystemAccessRule(\"Everyone\", FileSystemRights.FullControl, AccessControlType.Allow);",
+        "fileSecurity.AddAccessRule(new FileSystemAccessRule(\"Everyone\", FileSystemRights.Write, AccessControlType.Allow));"
+      ],
+      "should_not_trigger": [
+        "// FileSystemAccessRule(\"Everyone\", ...) - in comment",
+        "var rule = new FileSystemAccessRule(\"Administrators\", FileSystemRights.Read, AccessControlType.Allow);",
+        "_logger.LogWarning(\"Everyone group detected\");"
+      ]
+    }
+  }
+}

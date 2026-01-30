@@ -1,0 +1,68 @@
+{
+  "filename": "statements_should_be_on_separate_lines_metadata.json",
+  "rule_id": "statements_separate_lines",
+  "title": "Statements should be on separate lines",
+  "description": "Statements should be on separate linesAnalyze your codeconsistency-formattedmaintainabilityCode SmellconventionWhy is this an issue?More InfoPutting multiple statements on a single line lowers the code readability and makes debugging the code more complex.if (someCondition) DoSomething(); // NoncompliantWrite one statement per line to improve readability.if (someCondition) { DoSomething(); }ExceptionsThe rule ignores:block statementsanonymous functions containing a single statementFunc<object, bool> item1 = o => { return true; }; // Compliant by exception Func<object, bool> item1 = o => { var r = false; return r; }; // NoncompliantAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-p",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (someCondition) DoSomething(); // Noncompliant"
+    ],
+    "compliant": [
+      "if (someCondition)\n{\n  DoSomething();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-122"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(if|while|for|foreach)\\s*\\([^)]+\\)\\s+[^{\\s][^\\n]*[;]",
+        "exclude_patterns": [
+          "//.*$",
+          "/\\*.*\\*/",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\."
+        ],
+        "message": "Statements should be on separate lines - control flow statement with inline statement"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments (// or /* */)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Single-line lambda expressions inside blocks",
+      "Property accessors ({ get; set; })"
+    ],
+    "reasoning": "Multiple statements on one line reduce readability and make debugging harder. This rule targets control flow statements (if, while, for, foreach) that have their body on the same line instead of a separate line with braces.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (someCondition) DoSomething();",
+        "while (x > 0) x--;",
+        "for (int i = 0; i < 10; i++) DoWork();"
+      ],
+      "should_not_trigger": [
+        "if (someCondition)\n{\n    DoSomething();\n}",
+        "Func<object, bool> item1 = o => { return true; };",
+        "// if (disabled) Skip();"
+      ]
+    }
+  }
+}

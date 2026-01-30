@@ -1,0 +1,62 @@
+{
+  "rule_id": "using_unencrypted_efs_file_systems_is_securitysensitive",
+  "title": "Using unencrypted Amazon EFS file systems is sensitive",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "Checks if the AWS boto3 client or resource is used with an unencrypted Amazon EFS file system.",
+  "message": "Using unencrypted Amazon EFS file systems is sensitive.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "boto3",
+    "encryption",
+    "efs"
+  ],
+  "impact": "Medium",
+  "recommendation": "Encrypt Amazon EFS file systems.",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import boto3\nefs = boto3.resource('efs')\nfs = efs.create_filesystem(...)\nfs.create_mount_target(...)",
+        "description": "Creates an unencrypted EFS file system."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import boto3\nencrypted_efs = boto3.client('efs', region_name='us-west-2', aws_access_key_id='YOUR_ACCESS_KEY', aws_secret_access_key='YOUR_SECRET_KEY')\nencrypted_fs = encrypted_efs.create_filesystem(...)\nencrypted_fs.create_mount_target(..., encryption_by_default={True})",
+        "description": "Creates an EFS file system with encryption enabled."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Unencrypted Amazon EFS file systems can be vulnerable to data breaches and unauthorized access.",
+  "how_to_fix": "Encrypt Amazon EFS file systems.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "check_type": "custom",
+    "custom_function": "is_unencrypted_efs_usage",
+    "new_check_type_doc": "Checks if the AWS boto3 client or resource is used with an unencrypted Amazon EFS file system."
+  },
+  "function_code": "def is_unencrypted_efs_usage(node):\n    if not any(isinstance(n, ast.Call) and n.func.id == 'create_filesystem' and 'encryption_by_default' not in n.keywords\n           for n in ast.walk(node) if isinstance(n, (ast.Call, ast.Attribute))):\n        return False\n    return True",
+  "metadata": {
+    "filename": "using_unencrypted_efs_file_systems_is_securitysensitive.json",
+    "rule_id": "using_unencrypted_efs_file_systems_is_securitysensitive",
+    "title": "Using unencrypted Amazon EFS file systems is sensitive",
+    "status": "ready",
+    "defaultSeverity": "Major"
+  }
+}

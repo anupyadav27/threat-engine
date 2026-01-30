@@ -1,0 +1,101 @@
+version: '1.0'
+provider: aws
+service: mpa
+services:
+  client: mpa
+  module: boto3.client
+discovery:
+- discovery_id: aws.mpa.list_approval_teams
+  calls:
+  - action: list_approval_teams
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ApprovalTeams }}'
+- discovery_id: aws.mpa.list_identity_sources
+  calls:
+  - action: list_identity_sources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IdentitySources }}'
+- discovery_id: aws.mpa.list_policies
+  calls:
+  - action: list_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+- discovery_id: aws.mpa.list_sessions
+  for_each: aws.mpa.list_approval_teams
+  calls:
+  - action: list_sessions
+    save_as: response
+    on_error: continue
+    params:
+      ApprovalTeamArn: '{{ item.approvalTeamArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Sessions }}'
+- discovery_id: aws.mpa.get_approval_team
+  for_each: aws.mpa.list_approval_teams
+  calls:
+  - action: get_approval_team
+    save_as: response
+    on_error: continue
+    params:
+      Arn: '{{ item.approvalTeamArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.Approvers }}'
+- discovery_id: aws.mpa.get_policy_version
+  calls:
+  - action: get_policy_version
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyVersion }}'
+- discovery_id: aws.mpa.get_session
+  for_each: aws.mpa.list_sessions
+  calls:
+  - action: get_session
+    save_as: response
+    on_error: continue
+    params:
+      SessionArn: '{{ item.sessionSessionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.ApproverResponses }}'
+- discovery_id: aws.mpa.get_identity_source
+  for_each: aws.mpa.list_identity_sources
+  calls:
+  - action: get_identity_source
+    save_as: response
+    on_error: continue
+    params:
+      IdentitySourceArn: '{{ item.identitySourcIdentitySourceArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.IdentitySourceParameters }}'
+- discovery_id: aws.mpa.list_resource_policies
+  calls:
+  - action: list_resource_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourcePolicies }}'
+checks: []

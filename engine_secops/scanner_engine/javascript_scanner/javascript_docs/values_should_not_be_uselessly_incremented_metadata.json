@@ -1,0 +1,85 @@
+{
+  "filename": "values_should_not_be_uselessly_incremented_metadata.json",
+  "rule_id": "values_uselessly_incremented",
+  "title": "Values should not be uselessly incremented",
+  "description": "Values should not be uselessly incrementedAnalyze your codeintentionality-logicalreliabilityBugunusedWhy is this an issue?A value that is incremented or decremented and then not stored is at best wasted code and at worst a bug.Noncompliant code examplefunction pickNumber() { let i = 0; i = i++; // Noncompliant; i is still zero return i++; // Noncompliant; 0 returned }Compliant solutionfunction pickNumber() { let i = 0; i++; return ++i; }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premise CIDeveloper EditionAvailable Since9.1\u00a92025SonarSource S\u00e0rl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "function pickNumber() {\n  let i = 0;\n  i = i++; // Noncompliant; i is still zero\n\n  return i++; // Noncompliant; 0 returned\n}"
+    ],
+    "compliant": [
+      "function pickNumber() {\n  let i = 0;\n  i++;\n\n  return ++i;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-2123"
+  ],
+  "logic": {
+    "node_types": [
+      "AssignmentExpression",
+      "ReturnStatement",
+      "ForStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(\\w+)\\s*=\\s*\\1\\s*\\+\\+",
+        "message": "Useless post-increment: the variable is assigned its value before incrementing (e.g., i = i++). This has no effect."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(\\w+)\\s*=\\s*\\1\\s*--",
+        "message": "Useless post-decrement: the variable is assigned its value before decrementing (e.g., i = i--). This has no effect."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "return\\s+(\\w+)\\s*\\+\\+\\s*;",
+        "message": "Useless post-increment in return: the old value is returned, then the variable is incremented. Consider using pre-increment (++i) instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "return\\s+(\\w+)\\s*--\\s*;",
+        "message": "Useless post-decrement in return: the old value is returned, then the variable is decremented. Consider using pre-decrement (--i) instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\(\\s*(\\w+)\\s*=\\s*\\1\\s*\\+\\+\\s*\\)",
+        "message": "Useless post-increment in expression: the variable is assigned its value before incrementing. This has no effect."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\(\\s*(\\w+)\\s*=\\s*\\1\\s*--\\s*\\)",
+        "message": "Useless post-decrement in expression: the variable is assigned its value before decrementing. This has no effect."
+      }
+    ]
+  }
+}

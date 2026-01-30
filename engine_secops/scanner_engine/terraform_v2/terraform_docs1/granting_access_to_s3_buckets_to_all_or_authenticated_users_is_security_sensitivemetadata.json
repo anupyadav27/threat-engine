@@ -1,0 +1,57 @@
+{
+  "rule_id": "granting_access_to_s3_buckets_to_all_or_authenticated_users_is_security_sensitive",
+  "title": "Granting access to S3 buckets to all or authenticated users is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "BLOCKER",
+  "description": "Granting public or overly broad access to S3 buckets exposes sensitive data to unauthorized users. S3 buckets should be restricted to only those users and services that require access, following the principle of least privilege.",
+  "message": "S3 bucket policy allows access to all or authenticated users. Restrict access to only necessary principals.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "cwe",
+    "access-control",
+    "privacy"
+  ],
+  "impact": "Publicly accessible S3 buckets can lead to data breaches, loss of intellectual property, and regulatory violations.",
+  "recommendation": "Review and update S3 bucket policies to restrict access to only trusted users and services. Avoid using 'Principal': '*' or 'AuthenticatedUsers' in policies.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6265/",
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"aws_s3_bucket_policy\" \"bad_example\" {\n  bucket = aws_s3_bucket.example.id\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Allow\",\n      \"Principal\": \"*\",\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\"\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy allows public (anonymous) access to all objects in the bucket."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"aws_s3_bucket_policy\" \"good_example\" {\n  bucket = aws_s3_bucket.example.id\n  policy = <<POLICY\n  {\n    \"Version\": \"2012-10-17\",\n    \"Statement\": [{\n      \"Effect\": \"Allow\",\n      \"Principal\": {\"AWS\": \"arn:aws:iam::123456789012:user/TrustedUser\"},\n      \"Action\": \"s3:GetObject\",\n      \"Resource\": \"arn:aws:s3:::example/*\"\n    }]\n  }\n  POLICY\n}",
+        "description": "Policy restricts access to a specific trusted user."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Access Control & Data Protection"
+  },
+  "logic": {
+    "resource_type": "aws_s3_bucket_policy",
+    "property_path": ["policy", "Statement", "Principal"],
+    "check_type": "in",
+    "forbidden_values": ["*", "AuthenticatedUsers"],
+    "required_values": [],
+    "custom_function": ""
+  },
+  "why_is_this_an_issue": "Public or overly broad S3 bucket access is a leading cause of cloud data breaches and can result in significant financial and reputational damage.",
+  "how_to_fix": "Audit all S3 bucket policies. Remove any statements that allow public or overly broad access. Use IAM roles and policies to enforce least privilege.",
+  "security_mappings": {
+    "CWE": "CWE-284: Improper Access Control",
+    "CERT": "IDS03-J: Do not log sensitive information",
+    "OWASP": "A5: Broken Access Control"
+  }
+}

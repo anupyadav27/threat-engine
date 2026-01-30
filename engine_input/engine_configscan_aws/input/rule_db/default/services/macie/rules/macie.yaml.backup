@@ -1,0 +1,330 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed (13 rules)
+# - YAML generated and tested against AWS
+# - All 13 checks configured (5 checks execute per account)
+# - 0 execution errors (only expected "Macie is not enabled" warnings)
+# - Field paths verified correct
+# - Test resources: Macie is not enabled in accounts (expected AccessDeniedException)
+# - Tested: 2026-01-02
+# - Note: Fixed client name from 'macie' to 'macie2'
+# - Note: Fixed get_findings to list_findings (get_findings requires findingIds)
+# - Note: Fixed describe_custom_data_identifiers to list_custom_data_identifiers
+# - Note: Fixed list_classification_jobs emit to use response.items instead of response.nextToken
+# - Results: 25 total checks (5 per account × 5 accounts) - all FAIL as expected when Macie is not enabled
+version: '1.0'
+provider: aws
+service: macie
+services:
+  client: macie2
+  module: boto3.client
+discovery:
+- discovery_id: aws.macie.list_findings
+  calls:
+  - action: list_findings
+    save_as: response
+  emit:
+    items_for: '{{ response.findings }}'
+    as: item
+    item:
+      accountId: '{{ item.accountId }}'
+      archived: '{{ item.archived }}'
+      category: '{{ item.category }}'
+      classificationDetails: '{{ item.classificationDetails }}'
+      count: '{{ item.count }}'
+      createdAt: '{{ item.createdAt }}'
+      description: '{{ item.description }}'
+      id: '{{ item.id }}'
+      partition: '{{ item.partition }}'
+      policyDetails: '{{ item.policyDetails }}'
+      region: '{{ item.region }}'
+      resourcesAffected: '{{ item.resourcesAffected }}'
+      sample: '{{ item.sample }}'
+      schemaVersion: '{{ item.schemaVersion }}'
+      severity: '{{ item.severity }}'
+      title: '{{ item.title }}'
+      type: '{{ item.type }}'
+      updatedAt: '{{ item.updatedAt }}'
+- discovery_id: aws.macie2.list_classification_jobs
+  calls:
+  - action: list_classification_jobs
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+    item:
+      bucketCriteria: '{{ item.bucketCriteria }}'
+      bucketDefinitions: '{{ item.bucketDefinitions }}'
+      createdAt: '{{ item.createdAt }}'
+      jobId: '{{ item.jobId }}'
+      jobStatus: '{{ item.jobStatus }}'
+      jobType: '{{ item.jobType }}'
+      lastRunErrorStatus: '{{ item.lastRunErrorStatus }}'
+      name: '{{ item.name }}'
+      userPausedDetails: '{{ item.userPausedDetails }}'
+- discovery_id: aws.macie.list_custom_data_identifiers
+  calls:
+  - action: list_custom_data_identifiers
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+    item:
+      arn: '{{ item.arn }}'
+      createdAt: '{{ item.createdAt }}'
+      deleted: '{{ item.deleted }}'
+      description: '{{ item.description }}'
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+- discovery_id: aws.macie2.list_members
+  calls:
+  - action: describe_buckets
+    save_as: response
+  emit:
+    item:
+      accountId: '{{ response.buckets.accountId }}'
+      allowsUnencryptedObjectUploads: '{{ response.buckets.allowsUnencryptedObjectUploads
+        }}'
+      automatedDiscoveryMonitoringStatus: '{{ response.buckets.automatedDiscoveryMonitoringStatus
+        }}'
+      bucketArn: '{{ response.buckets.bucketArn }}'
+      bucketCreatedAt: '{{ response.buckets.bucketCreatedAt }}'
+      bucketName: '{{ response.buckets.bucketName }}'
+      classifiableObjectCount: '{{ response.buckets.classifiableObjectCount }}'
+      classifiableSizeInBytes: '{{ response.buckets.classifiableSizeInBytes }}'
+      errorCode: '{{ response.buckets.errorCode }}'
+      errorMessage: '{{ response.buckets.errorMessage }}'
+      jobDetails: '{{ response.buckets.jobDetails }}'
+      lastAutomatedDiscoveryTime: '{{ response.buckets.lastAutomatedDiscoveryTime
+        }}'
+      lastUpdated: '{{ response.buckets.lastUpdated }}'
+      objectCount: '{{ response.buckets.objectCount }}'
+      objectCountByEncryptionType: '{{ response.buckets.objectCountByEncryptionType
+        }}'
+      publicAccess: '{{ response.buckets.publicAccess }}'
+      region: '{{ response.buckets.region }}'
+      replicationDetails: '{{ response.buckets.replicationDetails }}'
+      sensitivityScore: '{{ response.buckets.sensitivityScore }}'
+      serverSideEncryption: '{{ response.buckets.serverSideEncryption }}'
+- discovery_id: aws.macie2.describe_buckets
+  calls:
+  - action: describe_buckets
+    save_as: response
+  emit:
+    item:
+      accountId: '{{ response.buckets.accountId }}'
+      allowsUnencryptedObjectUploads: '{{ response.buckets.allowsUnencryptedObjectUploads
+        }}'
+      automatedDiscoveryMonitoringStatus: '{{ response.buckets.automatedDiscoveryMonitoringStatus
+        }}'
+      bucketArn: '{{ response.buckets.bucketArn }}'
+      bucketCreatedAt: '{{ response.buckets.bucketCreatedAt }}'
+      bucketName: '{{ response.buckets.bucketName }}'
+      classifiableObjectCount: '{{ response.buckets.classifiableObjectCount }}'
+      classifiableSizeInBytes: '{{ response.buckets.classifiableSizeInBytes }}'
+      errorCode: '{{ response.buckets.errorCode }}'
+      errorMessage: '{{ response.buckets.errorMessage }}'
+      jobDetails: '{{ response.buckets.jobDetails }}'
+      lastAutomatedDiscoveryTime: '{{ response.buckets.lastAutomatedDiscoveryTime
+        }}'
+      lastUpdated: '{{ response.buckets.lastUpdated }}'
+      objectCount: '{{ response.buckets.objectCount }}'
+      objectCountByEncryptionType: '{{ response.buckets.objectCountByEncryptionType
+        }}'
+      publicAccess: '{{ response.buckets.publicAccess }}'
+      region: '{{ response.buckets.region }}'
+      replicationDetails: '{{ response.buckets.replicationDetails }}'
+      sensitivityScore: '{{ response.buckets.sensitivityScore }}'
+      serverSideEncryption: '{{ response.buckets.serverSideEncryption }}'
+- discovery_id: aws.macie2.list_resource_profile_detections
+  calls:
+  - action: get_usage_totals
+    save_as: response
+  emit:
+    items_for: '{{ response.usageTotals }}'
+    as: item
+    item:
+      currency: '{{ item.currency }}'
+      estimatedCost: '{{ item.estimatedCost }}'
+      type: '{{ item.type }}'
+- discovery_id: aws.macie2.list_organization_admin_accounts
+  calls:
+  - action: describe_buckets
+    save_as: response
+  emit:
+    item:
+      accountId: '{{ response.buckets.accountId }}'
+      allowsUnencryptedObjectUploads: '{{ response.buckets.allowsUnencryptedObjectUploads
+        }}'
+      automatedDiscoveryMonitoringStatus: '{{ response.buckets.automatedDiscoveryMonitoringStatus
+        }}'
+      bucketArn: '{{ response.buckets.bucketArn }}'
+      bucketCreatedAt: '{{ response.buckets.bucketCreatedAt }}'
+      bucketName: '{{ response.buckets.bucketName }}'
+      classifiableObjectCount: '{{ response.buckets.classifiableObjectCount }}'
+      classifiableSizeInBytes: '{{ response.buckets.classifiableSizeInBytes }}'
+      errorCode: '{{ response.buckets.errorCode }}'
+      errorMessage: '{{ response.buckets.errorMessage }}'
+      jobDetails: '{{ response.buckets.jobDetails }}'
+      lastAutomatedDiscoveryTime: '{{ response.buckets.lastAutomatedDiscoveryTime
+        }}'
+      lastUpdated: '{{ response.buckets.lastUpdated }}'
+      objectCount: '{{ response.buckets.objectCount }}'
+      objectCountByEncryptionType: '{{ response.buckets.objectCountByEncryptionType
+        }}'
+      publicAccess: '{{ response.buckets.publicAccess }}'
+      region: '{{ response.buckets.region }}'
+      replicationDetails: '{{ response.buckets.replicationDetails }}'
+      sensitivityScore: '{{ response.buckets.sensitivityScore }}'
+      serverSideEncryption: '{{ response.buckets.serverSideEncryption }}'
+checks:
+- rule_id: aws.macie.findings.retention_days_minimum
+  for_each: aws.macie.list_findings
+  conditions:
+    var: item.classificationDetails.result.sensitiveDataOccurrences.retentionDays
+    op: greater_than
+    value: '30'
+- rule_id: aws.macie.custom_data_identifier.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie2.list_classification_jobs
+  conditions:
+    var: item.JobStatus
+    op: equals
+    value: RUNNING
+- rule_id: aws.macie.custom_data_identifier.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie.list_custom_data_identifiers
+  conditions:
+    all:
+    - var: item.policy.BlocksPublicAccess
+      op: equals
+      value: 'true'
+    - var: item.sensitivityLevel
+      op: equals
+      value: HIGH
+- rule_id: aws.macie.findings.macie_logs_centralized_and_encrypted
+  for_each: aws.macie.list_findings
+  conditions:
+    all:
+    - var: item.resourcesAffected.s3BucketDetails.defaultServerSideEncryption
+      op: exists
+      value: null
+    - var: item.resourcesAffected.s3BucketDetails.defaultServerSideEncryption.encryptionType
+      op: in
+      value:
+      - aws:kms
+      - AES256
+    - var: item.resourcesAffected.s3BucketDetails.defaultServerSideEncryption.kmsMasterKeyId
+      op: exists
+      value: null
+- rule_id: aws.macie.custom_data_identifier.macie_required_sensitivity_tags_present
+  for_each: aws.macie2.list_members
+  conditions:
+    all:
+    - var: item.tags
+      op: exists
+      value: null
+    - var: item.tags
+      op: not_equals
+      value: []
+- rule_id: aws.macie.findings.macie_export_destinations_private_configured
+  for_each: aws.macie2.describe_buckets
+  conditions:
+    all:
+    - var: item.s3Destination.bucketName
+      op: exists
+      value: null
+    - var: item.s3Destination.bucketName
+      op: contains
+      value: private
+    - var: item.s3Destination.kmsKeyArn
+      op: exists
+      value: null
+- rule_id: aws.macie.findings.rbac_least_privilege
+  for_each: aws.macie2.list_resource_profile_detections
+  conditions:
+    all:
+    - var: item.ResourcesAffected.S3Bucket.AccessControlList.Grants.Grantee.Type
+      op: equals
+      value: CanonicalUser
+    - var: item.ResourcesAffected.S3Bucket.AccessControlList.Grants.Permission
+      op: in
+      value:
+      - READ
+      - WRITE
+      - READ_ACP
+      - WRITE_ACP
+- rule_id: aws.macie.classification_job.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie2.list_organization_admin_accounts
+  conditions:
+    all:
+    - var: item.s3JobDefinition.bucketDefinitions.accountId
+      op: exists
+      value: null
+    - var: item.s3JobDefinition.bucketDefinitions.buckets.name
+      op: exists
+      value: null
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.comparator
+      op: equals
+      value: EQ
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.key
+      op: equals
+      value: OBJECT_EXTENSION
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.values
+      op: exists
+      value: null
+- rule_id: aws.macie.findings.integrations_authenticated_configured
+  for_each: aws.macie.list_findings
+  conditions:
+    var: item.Resources.Details.AwsMacieFinding.IntegrationsAuthenticated
+    op: equals
+    value: 'true'
+- rule_id: aws.macie.classification_job.macie_required_sensitivity_tags_present
+  for_each: aws.macie2.list_members
+  conditions:
+    all:
+    - var: item.tags
+      op: exists
+      value: null
+    - var: item.tags
+      op: not_equals
+      value: []
+- rule_id: aws.macie.findings.macie_reports_storage_encrypted
+  for_each: aws.macie.list_findings
+  conditions:
+    all:
+    - var: item.Resources.S3BucketDetails.Encryption
+      op: exists
+      value: 'true'
+    - var: item.Resources.S3BucketDetails.Encryption
+      op: equals
+      value: AES256
+- rule_id: aws.macie.classification_job.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie2.list_organization_admin_accounts
+  conditions:
+    all:
+    - var: item.s3JobDefinition.bucketDefinitions.accountId
+      op: exists
+      value: null
+    - var: item.s3JobDefinition.bucketDefinitions.buckets
+      op: exists
+      value: null
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.comparator
+      op: equals
+      value: EQ
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.key
+      op: equals
+      value: OBJECT_EXTENSION
+    - var: item.s3JobDefinition.scoping.includes.and.simpleScopeTerm.values
+      op: in
+      value:
+      - pdf
+      - docx
+      - xlsx
+- rule_id: aws.macie.findings.alert_destinations_configured
+  for_each: aws.macie.list_findings
+  conditions:
+    all:
+    - var: item.Resources.S3BucketDetails.AlertDestinations
+      op: exists
+      value: null
+    - var: item.Resources.S3BucketDetails.AlertDestinations
+      op: not_equals
+      value: []

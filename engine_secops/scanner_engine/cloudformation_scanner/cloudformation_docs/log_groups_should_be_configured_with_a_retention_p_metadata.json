@@ -1,0 +1,41 @@
+{
+  "filename": "log_groups_should_be_configured_with_a_retention_p_metadata.json",
+  "rule_id": "log_groups_configured_retention",
+  "title": "Log Groups should be configured with a retention policy",
+  "description": "Inadequately configured \"Log Groups\" can lead to indefinite storage of log streams on AWS, resulting in potential cost implications and non-compliance with data retention policies. It’s crucial to set the appropriate retention policy for AWS::Logs::LogGroup by defining the RetentionInDays property with a valid value. What is the potential impact? Properly managing log data is essential for effective system monitoring, troubleshooting, and security auditing.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  AppLogGroup:\n    Type: AWS::Logs::LogGroup\n    Properties:\n      LogGroupName: /aws/lambda/myfunction  # Non-compliant: no retention policy"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  AppLogGroup:\n    Type: AWS::Logs::LogGroup\n    Properties:\n      LogGroupName: /aws/lambda/myfunction\n      RetentionInDays: 30  # Compliant: retention policy set"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6295"
+  ],
+  "logic": {
+    "node_types": ["Resource"],
+    "checks": [
+      {
+        "check_type": "logging_check",
+        "resource_types": ["AWS::Logs::LogGroup"],
+        "property_checks": [
+          {
+            "property_path": ["properties", "RetentionInDays"],
+            "message": "Log Group should be configured with a retention policy"
+          }
+        ]
+      }
+    ]
+  }
+}

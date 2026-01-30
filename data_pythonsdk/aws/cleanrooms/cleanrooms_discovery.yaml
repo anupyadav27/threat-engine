@@ -1,0 +1,151 @@
+version: '1.0'
+provider: aws
+service: cleanrooms
+services:
+  client: cleanrooms
+  module: boto3.client
+discovery:
+- discovery_id: aws.cleanrooms.list_memberships
+  calls:
+  - action: list_memberships
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.membershipSummaries }}'
+- discovery_id: aws.cleanrooms.list_collaborations
+  calls:
+  - action: list_collaborations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.collaborationList }}'
+- discovery_id: aws.cleanrooms.list_configured_tables
+  calls:
+  - action: list_configured_tables
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.configuredTableSummaries }}'
+- discovery_id: aws.cleanrooms.get_schema
+  for_each: aws.cleanrooms.list_collaborations
+  calls:
+  - action: get_schema
+    save_as: response
+    on_error: continue
+    params:
+      collaborationIdentifier: '{{ item.collaborationListName }}'
+  emit:
+    as: item
+    items_for: '{{ response.schema }}'
+- discovery_id: aws.cleanrooms.get_collaboration
+  calls:
+  - action: get_collaboration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.collaboration }}'
+- discovery_id: aws.cleanrooms.get_collaboration_analysis_template
+  calls:
+  - action: get_collaboration_analysis_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.collaborationAnalysisTemplate }}'
+- discovery_id: aws.cleanrooms.list_members
+  calls:
+  - action: list_members
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.memberSummaries }}'
+- discovery_id: aws.cleanrooms.get_collaboration_id_namespace_association
+  calls:
+  - action: get_collaboration_id_namespace_association
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.collaborationIdNamespaceAssociation }}'
+- discovery_id: aws.cleanrooms.get_collaboration_privacy_budget_template
+  calls:
+  - action: get_collaboration_privacy_budget_template
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.collaborationPrivacyBudgetTemplate }}'
+- discovery_id: aws.cleanrooms.list_collaboration_privacy_budgets
+  for_each: aws.cleanrooms.get_collaboration_privacy_budget_template
+  calls:
+  - action: list_collaboration_privacy_budgets
+    save_as: response
+    on_error: continue
+    params:
+      collaborationIdentifier: '{{ item.collaborationPrivacyBudgetTemplatePrivacyBudgetType }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.collaborationPrivacyBudgetSummaries }}'
+- discovery_id: aws.cleanrooms.get_schema_analysis_rule
+  for_each: aws.cleanrooms.get_schema
+  calls:
+  - action: get_schema_analysis_rule
+    save_as: response
+    on_error: continue
+    params:
+      collaborationIdentifier: '{{ item.collaborationListName }}'
+  emit:
+    as: item
+    items_for: '{{ response.analysisRule }}'
+- discovery_id: aws.cleanrooms.get_configured_table
+  calls:
+  - action: get_configured_table
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.configuredTable }}'
+- discovery_id: aws.cleanrooms.list_collaboration_change_requests
+  calls:
+  - action: list_collaboration_change_requests
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.collaborationChangeRequestSummaries }}'
+- discovery_id: aws.cleanrooms.get_configured_table_analysis_rule
+  for_each: aws.cleanrooms.get_schema
+  calls:
+  - action: get_configured_table_analysis_rule
+    save_as: response
+    on_error: continue
+    params:
+      analysisRuleType: '{{ item.analysisRuleType }}'
+  emit:
+    as: item
+    items_for: '{{ response.analysisRule }}'
+- discovery_id: aws.cleanrooms.get_collaboration_configured_audience_model_association
+  calls:
+  - action: get_collaboration_configured_audience_model_association
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.collaborationConfiguredAudienceModelAssociation }}'
+checks: []

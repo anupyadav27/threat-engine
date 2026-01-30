@@ -1,0 +1,38 @@
+{
+  "filename": "properties_should_not_make_collection_or_array_cop_metadata.json",
+  "rule_id": "properties_make_collection_array",
+  "title": "Properties should not make collection or array copies",
+  "description": "Properties should not make collection or array copiesAnalyze your codeintentionality-clearmaintainabilityCode Smellapi-designperformanceWhy is this an issue?How can I fix it?More InfoMost developers expect property access to be as efficient as field access. However, if a property returns a copy of an array or collection, it will be much slower than a simple field access, contrary to the caller’s likely expectations. Therefore, such properties should be refactored into methods so that callers are not surprised by the unexpectedly poor performance.This rule tracks calls to the following methods inside properties:Enumerable.ToListEnumerable.ToArrayArray.CloneAvailable In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositorie",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass\n{\n    private List<string> items = new List<string>();\n\n    public List<string> Items\n    {\n        get { return items.ToList(); } // Noncompliant - creates copy\n    }\n\n    public string[] ItemArray\n    {\n        get { return items.ToArray(); } // Noncompliant - creates copy\n    }\n}"
+    ],
+    "compliant": [
+      "public class MyClass\n{\n    private List<string> items = new List<string>();\n\n    public IReadOnlyList<string> Items\n    {\n        get { return items; } // Compliant - no copy\n    }\n\n    public List<string> GetItemsCopy()\n    {\n        return items.ToList(); // Compliant - method clearly indicates copy\n    }\n\n    public string[] GetItemsArray()\n    {\n        return items.ToArray(); // Compliant - method clearly indicates copy\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2365"
+  ],
+  "logic": {
+    "node_types": ["PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "get\\s*{[^}]*\\.(ToList|ToArray|Clone)\\s*\\(\\)",
+        "description": "Detect property getters that return collection or array copies using ToList(), ToArray(), or Clone."
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "filename": "synchronization_should_not_be_done_on_instances_of_value_based_classes_metadata.json",
+  "rule_id": "java_synchronization_value_based_classes",
+  "title": "Avoid Synchronization on Instances of Value-Based Classes in Java",
+  "description": "In Java, value-based classes are immutable and final, such as String and Integer, and their identity is based on their value, not their reference. Synchronization on instances of these classes can lead to unexpected behavior and deadlocks with unclear stack traces. This rule helps to identify such synchronization and prevent potential issues.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Concurrency",
+  "recommendation": "Avoid using synchronization on instances of value-based classes. Instead, consider using other synchronization mechanisms or other types of classes that are safe for synchronization.",
+  "impact": "Improper synchronization on value-based classes can lead to deadlocks and other concurrency issues, negatively impacting the program's reliability and robustness.",
+  "examples": {
+    "noncompliant": [
+      "synchronized (Integer.valueOf(1)) { // Noncompliant\n  // ... \n}"
+    ],
+    "compliant": [
+      "synchronized (new Object()) { // Compliant\n  // ... \n}"
+    ]
+  },
+  "references": [
+    {
+      "url": "https://rules.sonarsource.com/java/RSPEC-1860",
+      "title": "RSPEC-1860"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "synchronized\\s*\\(\\s*(String\\.|Integer\\.|Boolean\\.|Character\\.|Byte\\.|Short\\.|Long\\.|Float\\.|Double\\.)"
+        ],
+        "message": "Avoid using synchronization on instances of value-based classes. Instead, consider using other synchronization mechanisms or other types of classes that are safe for synchronization."
+      }
+    ]
+  }
+}

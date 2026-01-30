@@ -1,0 +1,57 @@
+{
+  "filename": "try_statements_with_identical_catch_andor_finally__metadata.json",
+  "rule_id": "try_statements_identical_catch",
+  "title": "try statements with identical catch and/or finally blocks should be merged",
+  "description": "\"try\" statements with identical \"catch\" and/or \"finally\" blocks should be mergedAnalyze your codeadaptability-distinctmaintainabilityCode SmellclumsyWhy is this an issue?When multiple, adjacenttrystatements have duplicatecatchand/orfinallyblocks, they should be merged to consolidate thecatch/finallylogic for cleaner, more readable code. Note that this applies even when there is intervening code outside anytryblock.Noncompliant code exampletry { DoTheFirstThing(a, b); } catch (InvalidOperationException ex) { HandleException(ex); } DoSomeOtherStuff(); try // Noncompliant; catch is identical to previous { DoTheSecondThing(); } catch (InvalidOperationException ex) { HandleException(ex); } try // Compliant; catch handles exception differently { DoTheThirdThing(a); } catch (InvalidOperationExcep",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try // Noncompliant - identical catch blocks should be merged\n{\n    DoFirstThing();\n}\ncatch (IOException e)\n{\n    Log(e);\n}\n\ntry\n{\n    DoSecondThing();\n}\ncatch (IOException e)\n{\n    Log(e);\n}"
+    ],
+    "compliant": [
+      "try // Compliant - merged into single try block\n{\n    DoFirstThing();\n    DoSecondThing();\n}\ncatch (IOException e)\n{\n    Log(e);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2327"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "catch\\s*\\(\\s*(\\w+)\\s+\\w+\\s*\\)\\s*\\{[^}]+\\}[^{}]*try\\s*\\{[^}]+\\}\\s*catch\\s*\\(\\s*\\1\\s+\\w+\\s*\\)",
+        "exclude_patterns": [],
+        "message": "Multiple try statements with identical catch blocks detected. Consider merging them into a single try block for cleaner code."
+      }
+    ],
+    "never_trigger_on": [
+      "Single try-catch blocks",
+      "Try blocks with different exception types in catch",
+      "Try blocks with different exception handlers",
+      "Merged try blocks (compliant code)"
+    ],
+    "reasoning": "When multiple adjacent try statements have duplicate catch and/or finally blocks, they should be merged to consolidate the exception handling logic. This makes the code cleaner and more readable. The rule detects patterns where two try-catch blocks handle the same exception type with similar handlers.",
+    "validation_examples": {
+      "should_trigger": [
+        "try { A(); } catch (IOException e) { Log(e); } try { B(); } catch (IOException e) { Log(e); }",
+        "try { First(); } catch (Exception ex) { Handle(ex); } try { Second(); } catch (Exception ex) { Handle(ex); }"
+      ],
+      "should_not_trigger": [
+        "try { A(); B(); } catch (IOException e) { Log(e); }",
+        "try { A(); } catch (IOException e) { LogA(e); } try { B(); } catch (IOException e) { LogB(e); }",
+        "try { A(); } catch (IOException e) { Log(e); } try { B(); } catch (ArgumentException e) { Log(e); }"
+      ]
+    }
+  }
+}

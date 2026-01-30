@@ -1,0 +1,69 @@
+{
+  "filename": "servicecontract_and_operationcontract_attributes_s_metadata.json",
+  "rule_id": "servicecontract_operationcontract_attributes_preferred",
+  "title": "ServiceContract and OperationContract attributes should be preferred together",
+  "description": "\"ServiceContract\" and \"OperationContract\" attributes should be used togetherAnalyze your codeintentionality-logicalmaintainabilityCode Smellapi-designWhy is this an issue?TheServiceContractattribute specifies that a class or interface defines the communication contract of a Windows Communication Foundation (WCF) service. The service operations of this class or interface are defined byOperationContractattributes added to methods. It doesn’t make sense to define a contract without any service operations; thus, in aServiceContractclass or interface at least one method should be annotated withOperationContract.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[ServiceContract]\npublic interface ICalculatorService\n{\n    // Missing OperationContract attributes\n    int Add(int a, int b);\n    int Subtract(int a, int b);\n}",
+      "[ServiceContract]\npublic class CalculatorService\n{\n    // No OperationContract attributes defined\n    public int Multiply(int a, int b) => a * b;\n}"
+    ],
+    "compliant": [
+      "[ServiceContract]\npublic interface ICalculatorService\n{\n    [OperationContract]\n    int Add(int a, int b);\n    \n    [OperationContract]\n    int Subtract(int a, int b);\n}",
+      "[ServiceContract]\npublic class CalculatorService\n{\n    [OperationContract]\n    public int Add(int a, int b) => a + b;\n    \n    [OperationContract]\n    public int Multiply(int a, int b) => a * b;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3597"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_servicecontract_operationcontract_correlation"
+      }
+    ],
+    "triggering_conditions": {
+      "description": "ServiceContract attribute present AND no OperationContract attributes in the same class/interface",
+      "logic": "Custom function handles correlation between attributes and type declarations"
+    },
+    "exclusion_conditions": [
+      {
+        "description": "Comments, logging, string formatting, unit tests, and other non-functional contexts",
+        "handled_by": "Custom function with built-in exclusion logic"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /*/, ///)",
+      "Generated code",
+      "ToString() implementations"
+    ],
+    "reasoning": "Uses custom function to correlate ServiceContract attributes with their target classes/interfaces, then checks if any OperationContract attributes exist within the type body. This approach handles the attribute-to-type relationship that simple regex cannot capture. Built-in exclusions prevent false positives in logging, comments, and test code.",
+    "validation_examples": {
+      "should_trigger": [
+        "[ServiceContract]\npublic interface ICalculatorService\n{\n    int Add(int a, int b);\n    int Subtract(int a, int b);\n}",
+        "[ServiceContract]\npublic class CalculatorService\n{\n    public int Multiply(int a, int b) => a * b;\n}"
+      ],
+      "should_not_trigger": [
+        "[ServiceContract]\npublic interface ICalculatorService\n{\n    [OperationContract]\n    int Add(int a, int b);\n}",
+        "Console.WriteLine(\"Using [ServiceContract] attribute\");",
+        "// [ServiceContract] example in comments",
+        "public class RegularClass { public void Method() {} }"
+      ]
+    }
+  }
+}

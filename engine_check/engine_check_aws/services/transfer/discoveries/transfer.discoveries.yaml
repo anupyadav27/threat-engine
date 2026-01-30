@@ -1,0 +1,25 @@
+version: '1.0'
+provider: aws
+service: transfer
+services:
+  client: transfer
+  module: boto3.client
+discovery:
+- discovery_id: aws.transfer.list_servers
+  calls:
+  - action: list_servers
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Servers }}'
+    as: item
+- discovery_id: aws.transfer.describe_server
+  for_each: aws.transfer.list_servers
+  calls:
+  - action: describe_server
+    params:
+      ServerId: '{{ item.ServerId }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}

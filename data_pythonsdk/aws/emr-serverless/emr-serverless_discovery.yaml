@@ -1,0 +1,41 @@
+version: '1.0'
+provider: aws
+service: emr-serverless
+services:
+  client: emr-serverless
+  module: boto3.client
+discovery:
+- discovery_id: aws.emr-serverless.list_applications
+  calls:
+  - action: list_applications
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.applications }}'
+- discovery_id: aws.emr-serverless.get_application
+  for_each: aws.emr-serverless.list_applications
+  calls:
+  - action: get_application
+    save_as: response
+    on_error: continue
+    params:
+      applicationId: '{{ item.applicationId }}'
+  emit:
+    as: item
+    items_for: '{{ response.application }}'
+- discovery_id: aws.emr-serverless.list_job_runs
+  for_each: aws.emr-serverless.list_applications
+  calls:
+  - action: list_job_runs
+    save_as: response
+    on_error: continue
+    params:
+      applicationId: '{{ item.applicationId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.jobRuns }}'
+checks: []

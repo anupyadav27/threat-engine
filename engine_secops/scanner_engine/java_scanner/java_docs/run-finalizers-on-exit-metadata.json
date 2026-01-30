@@ -1,0 +1,29 @@
+{
+  "filename": "run-finalizers-on-exit-metadata.json",
+  "rule_id": "bug_should-not-call-runFinalizersOnExit",
+  "title": "Avoid calling runFinalizersOnExit",
+  "description": "Enabling runFinalizersOnExit is unsafe as it might result in erratic behavior and deadlocks on application exit. Instead, use shutdown hooks.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Java - Object Lifecycle",
+  "recommendation": "Use shutdown hooks instead.",
+  "impact": "Potential for erratic behavior and deadlocks on application exit.",
+  "examples": {
+    "noncompliant": [
+      "public static void main(String [] args) {\n  System.runFinalizersOnExit(true);  // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public static void main(String [] args) {\n  Thread myThread = new Thread( () -> { doShutdownOperations(); });\n  Runtime.getRuntime().addShutdownHook(myThread);\n}"
+    ]
+  },
+  "references": [],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": ["System\\.runFinalizersOnExit\\s*\\(", "Runtime\\.runFinalizersOnExit\\s*\\("],
+      "message": "Avoid calling runFinalizersOnExit - use shutdown hooks instead"
+    }]
+  }
+}

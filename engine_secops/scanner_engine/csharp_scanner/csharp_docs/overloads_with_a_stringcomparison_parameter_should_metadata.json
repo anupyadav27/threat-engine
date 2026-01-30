@@ -1,0 +1,92 @@
+{
+  "filename": "overloads_with_a_stringcomparison_parameter_should_metadata.json",
+  "rule_id": "overloads_stringcomparison_parameter_preferred",
+  "title": "Overloads with a StringComparison parameter should be preferred",
+  "description": "Overloads with a \"StringComparison\" parameter should be usedAnalyze your codeintentionality-clearmaintainabilityCode SmellWhy is this an issue?Many string operations, theCompareandEqualsmethods in particular, provide an overload that accepts aStringComparisonenumeration value as a parameter. Calling these overloads and explicitly providing this parameter makes your code clearer and easier to maintain.This rule raises an issue when a string comparison operation doesn’t use the overload that takes aStringComparisonparameter.Noncompliant code exampleusing System; namespace MyLibrary { public class Foo { public bool HaveSameNames(string name1, string name2) { return string.Compare(name1, name2) == 0; // Noncompliant } } }Compliant solutionusing System; namespace MyLibrary { public class Foo {",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public bool CompareName(string name1, string name2)\n{\n    return string.Compare(name1, name2) == 0; // Noncompliant: no StringComparison\n}",
+      "public bool IsEqual(string str1, string str2)\n{\n    return str1.Equals(str2); // Noncompliant: no StringComparison\n}"
+    ],
+    "compliant": [
+      "public bool CompareName(string name1, string name2)\n{\n    return string.Compare(name1, name2, StringComparison.OrdinalIgnoreCase) == 0; // Compliant\n}",
+      "public bool IsEqual(string str1, string str2)\n{\n    return str1.Equals(str2, StringComparison.Ordinal); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4058"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:string|String)\\.Compare\\s*\\(",
+        "message": "String comparison without StringComparison parameter",
+        "exclude_patterns": [
+          "StringComparison",
+          "Console\\.",
+          "Logger\\.",
+          "\\$\"",
+          "ToString\\s*\\(\\)",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Debug\\."
+        ]
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "pattern": "\\.Equals\\s*\\(",
+        "message": "String comparison without StringComparison parameter",
+        "exclude_patterns": [
+          "StringComparison",
+          "Console\\.",
+          "Logger\\.",
+          "\\$\"", 
+          "ToString\\s*\\(\\)",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Debug\\."
+        ]
+      }
+    ],
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Uses regex patterns to detect string comparison calls without StringComparison parameter",
+    "triggering_conditions": "Either string.Compare() OR .Equals() calls without StringComparison parameter AND not in excluded contexts",
+    "exclusion_conditions": "Excludes logging, string formatting, unit tests, and ToString implementations but not comments since those are just documentation",
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)", 
+      "ToString() implementations",
+      "Configuration files",
+      "Generated code"
+    ],
+    "reasoning": "Detects string.Compare() and .Equals() calls that don't specify StringComparison parameter. Excludes display/logging contexts where StringComparison is not needed for business logic. Comments are not excluded since they don't affect the actual code behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "string.Compare(name1, name2) == 0",
+        "str1.Equals(str2)",
+        "String.Compare(a, b)"
+      ],
+      "should_not_trigger": [
+        "string.Compare(name1, name2, StringComparison.OrdinalIgnoreCase) == 0",
+        "str1.Equals(str2, StringComparison.Ordinal)",
+        "Console.WriteLine($\"Result: {string.Compare(a, b)}\");",
+        "public override string ToString() { return string.Compare(\"a\", \"b\").ToString(); }"
+      ]
+    }
+  }
+}

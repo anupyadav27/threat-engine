@@ -1,0 +1,61 @@
+{
+  "filename": "start_index_should_be_preferred_instead_of_calling_metadata.json",
+  "rule_id": "start_index_preferred_instead",
+  "title": "Start index should be preferred instead of calling Substring",
+  "description": "Start index should be used instead of calling SubstringAnalyze your codeintentionality-efficientmaintainabilityCode SmellperformanceWhy is this an issue?More InfoIt is important to be careful when searching for characters within a substring. Let’s consider the following example:if (str.SubString(startIndex).IndexOf(char1) == -1) // Noncompliant: a new string is going to be created by \"Substring\" { // ... }A newstringobject is created with every call to theSubstringmethod.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (str.SubString(startIndex).IndexOf(char1) == -1) // Noncompliant: a new string is going to be created by \"Substring\"\n{\n   // ...\n}"
+    ],
+    "compliant": [
+      "if (str.IndexOf(char1, startIndex) == -1) // Compliant: uses start index directly\n{\n   // ...\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4635"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.Substring\\s*\\([^)]+\\)\\.(?:IndexOf|LastIndexOf|Contains)\\s*\\(",
+        "exclude_patterns": [
+          "^\\s*//",
+          "Console\\.Write",
+          "Logger\\.",
+          "\\[Test\\]",
+          "Assert\\."
+        ],
+        "message": "Use IndexOf with startIndex parameter instead of Substring().IndexOf() to avoid creating unnecessary string objects."
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// , /* */)"
+    ],
+    "reasoning": "Substring creates a new string object on each call. Using IndexOf with startIndex avoids this allocation.",
+    "validation_examples": {
+      "should_trigger": [
+        "str.Substring(startIndex).IndexOf(char1);",
+        "text.Substring(5).Contains(\"x\");"
+      ],
+      "should_not_trigger": [
+        "str.IndexOf(char1, startIndex);",
+        "str.Substring(0, 10);"
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "filename": "using_non_standard_cryptographic_algorithms_is_sec_metadata.json",
+  "rule_id": "using_nonstandard_cryptographic_algorithms",
+  "title": "Using non-standard cryptographic algorithms is security-sensitive",
+  "description": "Using non-standard cryptographic algorithms is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotcweThe use of a non-standard algorithm is dangerous because a determined attacker may be able to break the algorithm and compromise whatever data has been protected. Standard algorithms likeAES,RSA,SHA, …​ should be used instead.This rule tracks custom implementation of these types fromSystem.Security.Cryptographynamespace:AsymmetricAlgorithmAsymmetricKeyExchangeDeformatterAsymmetricKeyExchangeFormatterAsymmetricSignatureDeformatterAsymmetricSignatureFormatterDeriveBytesHashAlgorithmICryptoTransformSymmetricAlgorithmRecommended Secure Coding PracticesUse a standard algorithm instead of creating a custom one.Sensitive Code Examplepublic class CustomHash : HashA",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class CustomHash : HashAlgorithm\n{\n    public override void Initialize() { }\n    protected override void HashCore(byte[] array, int ibStart, int cbSize) { }\n    protected override byte[] HashFinal() => new byte[16];\n}",
+      "public class MyEncryption : SymmetricAlgorithm { }"
+    ],
+    "compliant": [
+      "var aes = Aes.Create();",
+      "var rsa = RSA.Create();",
+      "var sha256 = SHA256.Create();"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2257"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+\\w+\\s*:\\s*(HashAlgorithm|SymmetricAlgorithm|AsymmetricAlgorithm|AsymmetricKeyExchangeDeformatter|AsymmetricKeyExchangeFormatter|AsymmetricSignatureDeformatter|AsymmetricSignatureFormatter|DeriveBytes|ICryptoTransform)",
+        "exclude_patterns": [
+          "//.*class.*:",
+          "/\\*.*class.*:",
+          "Assert\\.",
+          "\\[Test",
+          "\\[Fact"
+        ],
+        "message": "Custom cryptographic algorithm implementations are security-sensitive. Use standard algorithms like AES, RSA, SHA256 instead"
+      }
+    ],
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Class inheriting from System.Security.Cryptography base types",
+    "triggering_conditions": "Class declaration extending HashAlgorithm, SymmetricAlgorithm, AsymmetricAlgorithm, DeriveBytes, or other crypto base classes",
+    "exclusion_conditions": ["Comments", "Unit tests", "Classes not inheriting from crypto base classes"],
+    "never_trigger_on": [
+      "Classes that don't inherit from cryptographic base types",
+      "Using standard algorithm factory methods (Aes.Create(), RSA.Create())",
+      "Comments containing example code",
+      "Unit test code",
+      "Generated code"
+    ],
+    "reasoning": "Custom cryptographic algorithm implementations are risky because they may have vulnerabilities that have been identified and fixed in standard implementations. Standard algorithms like AES, RSA, and SHA256 have been extensively analyzed and tested. The rule detects classes that inherit from System.Security.Cryptography base types which indicates custom implementation.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class CustomHash : HashAlgorithm { }",
+        "public class MyEncryption : SymmetricAlgorithm { }",
+        "public class CustomRSA : AsymmetricAlgorithm { }"
+      ],
+      "should_not_trigger": [
+        "var aes = Aes.Create();",
+        "var rsa = RSA.Create();",
+        "var sha256 = SHA256.Create();",
+        "// public class CustomHash : HashAlgorithm"
+      ]
+    }
+  }
+}

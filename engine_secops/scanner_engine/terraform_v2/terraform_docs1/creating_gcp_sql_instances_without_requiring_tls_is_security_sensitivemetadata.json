@@ -1,0 +1,56 @@
+{
+  "rule_id": "creating_gcp_sql_instances_without_requiring_tls_is_security_sensitive",
+  "title": "Creating GCP SQL instances without requiring TLS is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "Major",
+  "description": "GCP SQL instances that do not require TLS allow unencrypted connections, exposing sensitive data to interception and tampering. Enforcing TLS ensures data in transit is protected and meets compliance requirements.",
+  "message": "SQL instance does not require TLS. Enforce encrypted connections for all database access.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "30min"
+  },
+  "tags": [
+    "gcp"
+  ],
+  "impact": "Unencrypted database connections can be intercepted, leading to data breaches and regulatory violations.",
+  "recommendation": "Configure all GCP SQL instances to require SSL/TLS for client connections. Disallow unencrypted access.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6403/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"google_sql_database_instance\" \"bad_example\" {\n  name = \"bad-instance\"\n  settings {\n    ip_configuration {\n      require_ssl = false\n    }\n  }\n}",
+        "description": "Instance allows unencrypted connections, exposing data in transit."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"google_sql_database_instance\" \"good_example\" {\n  name = \"good-instance\"\n  settings {\n    ip_configuration {\n      require_ssl = true\n    }\n  }\n}",
+        "description": "Instance requires SSL/TLS for all connections, protecting data in transit."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Encryption & Data Protection",
+    "security": "TLS protects database credentials and sensitive data from interception.",
+    "automation": "CI/CD should enforce 'require_ssl = true' for all SQL instances.",
+    "compliance": "Encrypted connections are required by PCI DSS, HIPAA, and other standards."
+  },
+  "why_is_this_an_issue": "Allowing unencrypted database connections exposes sensitive data to attackers and violates compliance requirements.",
+  "how_to_fix": "Set 'require_ssl = true' in all SQL instance configurations. Test connections to ensure encryption is enforced.",
+  "security_mappings": {
+    "CWE": "CWE-319: Cleartext Transmission of Sensitive Information",
+    "CERT": "MSC12-C: Use SSL/TLS for sensitive communication",
+    "OWASP": "A2: Cryptographic Failures"
+  },
+  "logic": {
+    "resource_type": "google_sql_database_instance",
+    "property_path": ["settings", "ip_configuration", "require_ssl"],
+    "check_type": "equals",
+    "forbidden_values": [false],
+    "required_values": [true],
+    "custom_function": ""
+  }
+}

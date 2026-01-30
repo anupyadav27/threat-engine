@@ -1,0 +1,36 @@
+version: '1.0'
+provider: alicloud
+service: dedicated
+discovery:
+- discovery_id: alicloud.dedicated.host
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeHosts
+    params: {}
+    save_as: host_response
+  emit:
+    items_for: '{ host_response.Hosts.Host }'
+    as: r
+    item:
+      id: '{{ r.HostId }}'
+      name: '{{ r.HostId }}'
+      resource_type: host
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.dedicated.host.dedicated_host_host_sharing_restricted
+  title: Ensure AliCloud Dedicated Host sharing is properly restricted
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.dedicated.host
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'

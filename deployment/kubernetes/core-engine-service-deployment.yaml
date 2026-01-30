@@ -1,0 +1,166 @@
+---
+# Core Engine Service Deployment  
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-engine-service
+  labels:
+    app: core-engine-service
+    tier: core
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: core-engine-service
+  template:
+    metadata:
+      labels:
+        app: core-engine-service
+        tier: core  
+        version: v1
+    spec:
+      containers:
+      - name: core-engine-service
+        image: threat-engine/core-engine-service:latest
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        # Database configuration
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        # Storage configuration
+        - name: USE_S3
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        - name: SCAN_RESULTS_DIR
+          value: "/app/engine_output"
+        # Module configuration
+        - name: THREAT_MODULE_ENABLED
+          value: "true"
+        - name: COMPLIANCE_MODULE_ENABLED
+          value: "true"
+        - name: RULE_MODULE_ENABLED
+          value: "true"
+        # Performance tuning
+        - name: MAX_WORKERS
+          value: "10"
+        - name: CACHE_TTL_SECONDS
+          value: "300"
+        # Logging
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: scan-results-storage
+          mountPath: /app/engine_output
+        - name: aws-credentials
+          mountPath: /app/.aws
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: scan-results-storage
+        persistentVolumeClaim:
+          claimName: scan-results-pvc
+      - name: aws-credentials
+        secret:
+          secretName: aws-credentials
+
+---
+# Core Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-engine-service
+  labels:
+    app: core-engine-service
+    tier: core
+spec:
+  selector:
+    app: core-engine-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+# Core Engine Service Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: core-engine-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: core-engine-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60

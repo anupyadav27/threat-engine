@@ -1,0 +1,128 @@
+version: '1.0'
+provider: aws
+service: support
+services:
+  client: support
+  module: boto3.client
+discovery:
+- discovery_id: aws.support.describe_cases
+  calls:
+  - action: describe_cases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.cases }}'
+- discovery_id: aws.support.describe_services
+  calls:
+  - action: describe_services
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.services }}'
+- discovery_id: aws.support.describe_severity_levels
+  calls:
+  - action: describe_severity_levels
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.severityLevels }}'
+- discovery_id: aws.support.describe_trusted_advisor_check_summaries
+  calls:
+  - action: describe_trusted_advisor_check_summaries
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.summaries }}'
+- discovery_id: aws.support.describe_trusted_advisor_checks
+  for_each: aws.support.describe_cases
+  calls:
+  - action: describe_trusted_advisor_checks
+    save_as: response
+    on_error: continue
+    params:
+      language: '{{ item.casLanguage }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.checks }}'
+- discovery_id: aws.support.describe_communications
+  for_each: aws.support.describe_cases
+  calls:
+  - action: describe_communications
+    save_as: response
+    on_error: continue
+    params:
+      caseId: '{{ item.casCaseId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.communications }}'
+- discovery_id: aws.support.describe_attachment
+  calls:
+  - action: describe_attachment
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.attachment }}'
+- discovery_id: aws.support.describe_create_case_options
+  for_each: aws.support.describe_cases
+  calls:
+  - action: describe_create_case_options
+    save_as: response
+    on_error: continue
+    params:
+      issueType: '{{ item.casServiceCode }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.communicationTypes }}'
+- discovery_id: aws.support.describe_trusted_advisor_check_result
+  for_each: aws.support.describe_trusted_advisor_checks
+  calls:
+  - action: describe_trusted_advisor_check_result
+    save_as: response
+    on_error: continue
+    params:
+      checkId: '{{ item.checkId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.result }}'
+- discovery_id: aws.support.describe_supported_languages
+  for_each: aws.support.describe_cases
+  calls:
+  - action: describe_supported_languages
+    save_as: response
+    on_error: continue
+    params:
+      issueType: '{{ item.casServiceCode }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.supportedLanguages }}'
+- discovery_id: aws.support.describe_trusted_advisor_check_refresh_statuses
+  calls:
+  - action: describe_trusted_advisor_check_refresh_statuses
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.statuses }}'
+checks: []

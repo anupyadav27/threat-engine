@@ -1,0 +1,97 @@
+version: '1.0'
+provider: aws
+service: detective
+services:
+  client: detective
+  module: boto3.client
+discovery:
+- discovery_id: aws.detective.list_invitations
+  calls:
+  - action: list_invitations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Invitations }}'
+- discovery_id: aws.detective.list_organization_admin_accounts
+  calls:
+  - action: list_organization_admin_accounts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Administrators }}'
+- discovery_id: aws.detective.list_graphs
+  calls:
+  - action: list_graphs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.GraphList }}'
+- discovery_id: aws.detective.list_investigations
+  for_each: aws.detective.list_invitations
+  calls:
+  - action: list_investigations
+    save_as: response
+    on_error: continue
+    params:
+      GraphArn: '{{ item.invitationGraphArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InvestigationDetails }}'
+- discovery_id: aws.detective.list_indicators
+  for_each: aws.detective.list_investigations
+  calls:
+  - action: list_indicators
+    save_as: response
+    on_error: continue
+    params:
+      GraphArn: '{{ item.invitationGraphArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Indicators }}'
+- discovery_id: aws.detective.list_members
+  for_each: aws.detective.list_invitations
+  calls:
+  - action: list_members
+    save_as: response
+    on_error: continue
+    params:
+      GraphArn: '{{ item.invitationGraphArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.MemberDetails }}'
+- discovery_id: aws.detective.get_investigation
+  for_each: aws.detective.list_investigations
+  calls:
+  - action: get_investigation
+    save_as: response
+    on_error: continue
+    params:
+      GraphArn: '{{ item.invitationGraphArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.GraphArn }}'
+- discovery_id: aws.detective.describe_organization_configuration
+  for_each: aws.detective.list_invitations
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    on_error: continue
+    params:
+      GraphArn: '{{ item.invitationGraphArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AutoEnable }}'
+checks: []

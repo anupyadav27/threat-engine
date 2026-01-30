@@ -1,0 +1,61 @@
+version: '1.0'
+provider: aws
+service: redshift-data
+services:
+  client: redshift-data
+  module: boto3.client
+discovery:
+- discovery_id: aws.redshift-data.list_statements
+  calls:
+  - action: list_statements
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Statements }}'
+- discovery_id: aws.redshift-data.describe_table
+  calls:
+  - action: describe_table
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ColumnList }}'
+- discovery_id: aws.redshift-data.describe_statement
+  for_each: aws.redshift-data.list_statements
+  calls:
+  - action: describe_statement
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.statementId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.QueryParameters }}'
+- discovery_id: aws.redshift-data.list_tables
+  calls:
+  - action: list_tables
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tables }}'
+- discovery_id: aws.redshift-data.get_statement_result_v2
+  for_each: aws.redshift-data.list_statements
+  calls:
+  - action: get_statement_result_v2
+    save_as: response
+    on_error: continue
+    params:
+      Id: '{{ item.statementId }}'
+  emit:
+    as: item
+    items_for: '{{ response.Records }}'
+checks: []

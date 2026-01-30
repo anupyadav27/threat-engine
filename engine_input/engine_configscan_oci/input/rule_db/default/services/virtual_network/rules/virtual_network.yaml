@@ -1,0 +1,906 @@
+virtual_network:
+  version: '1.0'
+  provider: oci
+  service: virtual_network
+  scope: regional
+  discovery:
+  - discovery_id: list_security_lists
+    resource_type: security_list
+    calls:
+    - action: list
+      client: VirtualNetworkClient
+      method: list_security_lists
+      fields:
+      - path: id
+        var: security_list_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_security_list_details
+    resource_type: security_list
+    for_each: list_security_lists
+    calls:
+    - action: get
+      client: VirtualNetworkClient
+      method: get_security_list
+      fields:
+      - path: ingress_security_rules
+        var: ingress_security_rules
+      - path: egress_security_rules
+        var: egress_security_rules
+  - discovery_id: list_subnets
+    resource_type: subnet
+    calls:
+    - action: list
+      client: VirtualNetworkClient
+      method: list_subnets
+      fields:
+      - path: id
+        var: subnet_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_subnet_details
+    resource_type: subnet
+    for_each: list_subnets
+    calls:
+    - action: get
+      client: VirtualNetworkClient
+      method: get_subnet
+      fields:
+      - path: prohibit_public_ip_on_vnic
+        var: prohibit_public_ip_on_vnic
+      - path: prohibit_internet_ingress
+        var: prohibit_internet_ingress
+      - path: security_list_ids
+        var: security_list_ids
+  - discovery_id: list_vcns
+    resource_type: vcn
+    calls:
+    - action: list
+      client: VirtualNetworkClient
+      method: list_vcns
+      fields:
+      - path: id
+        var: vcn_id
+      - path: display_name
+        var: display_name
+      - path: lifecycle_state
+        var: lifecycle_state
+      - path: compartment_id
+        var: compartment_id
+  - discovery_id: get_vcn_details
+    resource_type: vcn
+    for_each: list_vcns
+    calls:
+    - action: get
+      client: VirtualNetworkClient
+      method: get_vcn
+      fields:
+      - path: cidr_blocks
+        var: cidr_blocks
+      - path: ipv6_cidr_blocks
+        var: ipv6_cidr_blocks
+  checks:
+  - check_id: oci.virtual_network.security_list.cgw_ip_addresses_valid_and_owned
+    title: 'OCI VIRTUAL_NETWORK Security_list: Cgw Ip Addresses Valid And Owned'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.cgw_no_public_management_interfaces_exposed_blocked
+    title: 'OCI VIRTUAL_NETWORK Security_list: Cgw No Public Management Interfaces Exposed Blocked'
+    severity: critical
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.subnet.subnet_group_private_subnets_only_enforced
+    title: 'OCI VIRTUAL_NETWORK Subnet: Subnet Group Private Subnets Only Enforced'
+    severity: low
+    for_each: list_subnets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.vpn_ike_phase_encryption_strong_enabled
+    title: 'OCI VIRTUAL_NETWORK Security_list: Vpn Ike Phase Encryption Strong Enabled'
+    severity: high
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.vpn_pre_shared_keys_rotation_policy_defined_required
+    title: 'OCI VIRTUAL_NETWORK Security_list: Vpn Pre Shared Keys Rotation Policy Defined Required'
+    severity: high
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.ip_sec_connection.vpn_tunnel_health_monitoring_enabled
+    title: 'OCI VIRTUAL_NETWORK Ip_sec_connection: Vpn Tunnel Health Monitoring Enabled'
+    severity: medium
+    for_each: list_ip_sec_connections
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.vpn_tunnel_health_monitoring_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Vpn Tunnel Health Monitoring Enabled'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.encryption_mtls_required_for_internal_services_where_supported
+    title: 'OCI VIRTUAL_NETWORK Vcn: Encryption Mtls Required For Internal Services Where Supported'
+    severity: high
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.encryption_tls_min_1_2_enforced
+    title: 'OCI VIRTUAL_NETWORK Vcn: Encryption TLS Min 1 2 Enforced'
+    severity: high
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.sg_egress_restricted
+    title: 'OCI VIRTUAL_NETWORK Security_list: Sg Egress Restricted'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.sg_no_0_ingress
+    title: 'OCI VIRTUAL_NETWORK Security_list: Sg No 0 Ingress'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.sg_only_required_ports_open
+    title: 'OCI VIRTUAL_NETWORK Vcn: Sg Only Required Ports Open'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.microseg_endpoint_policies_applied
+    title: 'OCI VIRTUAL_NETWORK Security_list: Microseg Endpoint Policies Applied'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.microseg_identity_aware_policies_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Microseg Identity Aware Policies Enabled'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.sg_ingress_no_0
+    title: 'OCI VIRTUAL_NETWORK Security_list: Sg Ingress No 0'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.sg_ingress_only_required_ports
+    title: 'OCI VIRTUAL_NETWORK Vcn: Sg Ingress Only Required Ports'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.sg_no_0_ingress_on_db_ports
+    title: 'OCI VIRTUAL_NETWORK Security_list: Sg No 0 Ingress On Db Ports'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.access_control_no_permit_all_restricted
+    title: 'OCI VIRTUAL_NETWORK Security_list: Access Control No Permit All Restricted'
+    severity: medium
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.access_control_policies_present_restricted
+    title: 'OCI VIRTUAL_NETWORK Security_list: Access Control Policies Present Restricted'
+    severity: medium
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.access_control_policy_store_encrypted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Access Control Policy Store Encrypted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.endpoint_policy_least_privilege_required
+    title: 'OCI VIRTUAL_NETWORK Security_list: Endpoint Policy Least Privilege Required'
+    severity: high
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.endpoint_private_dns_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Endpoint Private Dns Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.nacl_egress_restricted
+    title: 'OCI VIRTUAL_NETWORK Security_list: Nacl Egress Restricted'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.nacl_no_allow_all_rules
+    title: 'OCI VIRTUAL_NETWORK Security_list: Nacl No Allow All Rules'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.subnet.subnet_private_subnets_no_igw_route_enforced
+    title: 'OCI VIRTUAL_NETWORK Subnet: Subnet Private Subnets No Igw Route Enforced'
+    severity: low
+    for_each: list_subnets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.subnet.subnet_public_subnets_use_nacl_restrictions_blocked
+    title: 'OCI VIRTUAL_NETWORK Subnet: Subnet Public Subnets Use Nacl Restrictions Blocked'
+    severity: critical
+    for_each: list_subnets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.subnet.subnet_route_table_association_present
+    title: 'OCI VIRTUAL_NETWORK Subnet: Subnet Route Table Association Present'
+    severity: low
+    for_each: list_subnets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.subnet.route_table_no_0_from_private_subnets_enforced
+    title: 'OCI VIRTUAL_NETWORK Subnet: Route Table No 0 From Private Subnets Enforced'
+    severity: low
+    for_each: list_subnets
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.route_table.route_table_vpc_endpoints_used_for_supported
+    title: 'OCI VIRTUAL_NETWORK Route_table: Route Table VPC Endpoints Used For Supported'
+    severity: low
+    for_each: list_route_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.segmentation_default_deny_between_tiers_enabled
+    title: 'OCI VIRTUAL_NETWORK Security_list: Segmentation Default Deny Between Tiers Enabled'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.segmentation_exception_approvals_required
+    title: 'OCI VIRTUAL_NETWORK Vcn: Segmentation Exception Approvals Required'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.segmentation_tier_to_policies_defined_required
+    title: 'OCI VIRTUAL_NETWORK Security_list: Segmentation Tier To Policies Defined Required'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.isolation_automated_supported
+    title: 'OCI VIRTUAL_NETWORK Security_list: Isolation Automated Supported'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.isolation_quarantine_network_defined_required
+    title: 'OCI VIRTUAL_NETWORK Security_list: Isolation Quarantine Network Defined Required'
+    severity: medium
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.vpc_dns_hostnames_and_support_configured
+    title: 'OCI VIRTUAL_NETWORK Security_list: VPC Dns Hostnames And Support Configured'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.vpc_flow_logs_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: VPC Flow Logs Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.route_table.vpc_route_tables_no_unintended_internet_paths
+    title: 'OCI VIRTUAL_NETWORK Route_table: VPC Route Tables No Unintended Internet Paths'
+    severity: low
+    for_each: list_route_tables
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.eni_security_groups_present
+    title: 'OCI VIRTUAL_NETWORK Security_list: Eni Security Groups Present'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.security_list.eni_security_groups_restrictive
+    title: 'OCI VIRTUAL_NETWORK Security_list: Eni Security Groups Restrictive'
+    severity: low
+    for_each: list_security_lists
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.attached
+    title: 'OCI VIRTUAL_NETWORK Vcn: Attached'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.flow_log_captured_sent
+    title: 'OCI VIRTUAL_NETWORK Vcn: Flow Log Captured Sent'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.flow_log_more_than_90_days
+    title: 'OCI VIRTUAL_NETWORK Vcn: Flow Log More Than 90 Days'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.http_internet_access_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Http Internet Access Restricted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.group_ssh_ingress_from_any_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Group Ssh Ingress From Any Restricted'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.nsg_ingress_rdp_access_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Nsg Ingress Rdp Access Restricted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.public_ip_shodan
+    title: 'OCI VIRTUAL_NETWORK Vcn: Public Ip Shodan'
+    severity: critical
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.rdp_internet_access_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Rdp Internet Access Restricted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.ssh_internet_access_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Ssh Internet Access Restricted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.udp_internet_access_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Udp Internet Access Restricted'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.flow_logs_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Flow Logs Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.network_acl_unused
+    title: 'OCI VIRTUAL_NETWORK Vcn: Network ACL Unused'
+    severity: medium
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.security_list_rdp_port_3389_ingress_restricted
+    title: 'OCI VIRTUAL_NETWORK Vcn: Security List Rdp Port 3389 Ingress Restricted'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.subnet_no_public_ip_by_default
+    title: 'OCI VIRTUAL_NETWORK Vcn: Subnet No Public Ip By Default'
+    severity: critical
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.subnet_separate_private_public
+    title: 'OCI VIRTUAL_NETWORK Vcn: Subnet Separate Private Public'
+    severity: critical
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.connection_redundancy
+    title: 'OCI VIRTUAL_NETWORK Vcn: Connection Redundancy'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vnic.virtual_interface_redundancy
+    title: 'OCI VIRTUAL_NETWORK Vnic: Virtual Interface Redundancy'
+    severity: low
+    for_each: list_vnics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.bastion_host_configured
+    title: 'OCI VIRTUAL_NETWORK Vcn: Bastion Host Configured'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.watcher_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Watcher Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vnic.ip_attached
+    title: 'OCI VIRTUAL_NETWORK Vnic: Ip Attached'
+    severity: low
+    for_each: list_vnics
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.default_security_group_closed
+    title: 'OCI VIRTUAL_NETWORK Vcn: Default Security Group Closed'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.different_regions
+    title: 'OCI VIRTUAL_NETWORK Vcn: Different Regions'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.endpoint_connections_trust_boundaries
+    title: 'OCI VIRTUAL_NETWORK Vcn: Endpoint Connections Trust Boundaries'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.endpoint_multi_az_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Endpoint Multi Az Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.endpoint_services_allowed_principals_trust_boundaries
+    title: 'OCI VIRTUAL_NETWORK Vcn: Endpoint Services Allowed Principals Trust Boundaries'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.peering_routing_tables_with_least_privilege_required
+    title: 'OCI VIRTUAL_NETWORK Vcn: Peering Routing Tables With Least Privilege Required'
+    severity: high
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.subnet_different_az
+    title: 'OCI VIRTUAL_NETWORK Vcn: Subnet Different Az'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.vpn_connection_tunnels_up
+    title: 'OCI VIRTUAL_NETWORK Vcn: Vpn Connection Tunnels Up'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)
+  - check_id: oci.virtual_network.vcn.endpoint_for_compute_enabled
+    title: 'OCI VIRTUAL_NETWORK Vcn: Endpoint For Compute Enabled'
+    severity: low
+    for_each: list_vcns
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: lifecycle_state
+        operator: equals
+        expected: ACTIVE
+        description: Verify resource is in active state (placeholder check)

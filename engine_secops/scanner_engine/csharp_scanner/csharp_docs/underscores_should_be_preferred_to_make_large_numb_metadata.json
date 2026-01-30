@@ -1,0 +1,67 @@
+{
+  "filename": "underscores_should_be_preferred_to_make_large_numb_metadata.json",
+  "rule_id": "underscores_preferred_make_large",
+  "title": "Underscores should be preferred to make large numbers readable",
+  "description": "Underscores should be used to make large numbers readableAnalyze your codeconsistency-formattedmaintainabilityCode SmellconventionWhy is this an issue?Beginning with C# 7, it is possible to add underscores ('_') to numeric literals to enhance readability. The addition of underscores in this manner has no semantic meaning, but makes it easier for maintainers to understand the code.The number of digits to the left of a decimal point needed to trigger this rule varies by base.BaseMinimum digitsbinary9decimal6hexadecimal9It is only the presence of underscores, not their spacing that is scrutinized by this rule.Notethat this rule is automatically disabled when the project’sC# versionis lower than7.Noncompliant code exampleint i = 10000000; // Noncompliant; is this 10 million or 100 million? int",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int i = 10000000; // Noncompliant - hard to read\nlong l = 9876543210;"
+    ],
+    "compliant": [
+      "int i = 10_000_000; // Compliant - underscores improve readability\nlong l = 9_876_543_210;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2148"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "VariableDeclaration"],
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_underscores_large_numbers"
+      }
+    ],
+    "detection_conditions": "Find numeric literals with 6+ digits (decimal) or 9+ digits (binary/hex) without underscores",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Numeric literal exceeds digit threshold",
+        "No underscores present in number"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Numbers with underscores",
+      "Small numbers below threshold",
+      "Comments"
+    ],
+    "reasoning": "Large numbers without underscores are hard to read. Adding underscores (e.g., 10_000_000) improves readability.",
+    "validation_examples": {
+      "should_trigger": [
+        "int i = 10000000;",
+        "long l = 9876543210;"
+      ],
+      "should_not_trigger": [
+        "int i = 10_000_000;",
+        "int small = 1000;"
+      ]
+    }
+  }
+}

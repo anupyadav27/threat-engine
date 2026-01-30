@@ -1,0 +1,62 @@
+{
+  "rule_id": "disabling_versioning_of_s3_buckets_is_security_sensitive",
+  "title": "Disabling versioning of S3 buckets is security-sensitive",
+  "type": "SECURITY_HOTSPOT",
+  "status": "READY",
+  "defaultSeverity": "MINOR",
+  "description": "Disabling versioning on Amazon S3 buckets increases the risk of accidental or malicious data loss. Versioning allows you to preserve, retrieve, and restore every version of every object stored in your bucket, providing protection against accidental deletions and overwrites.",
+  "message": "S3 bucket without versioning detected. Enable versioning to protect against data loss.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "data-protection",
+    "storage",
+    "compliance"
+  ],
+  "impact": "Without versioning, deleted or overwritten objects cannot be recovered, increasing the risk of data loss and non-compliance with data retention policies.",
+  "recommendation": "Enable versioning on all S3 buckets to ensure that deleted or overwritten objects can be recovered. Use the 'versioning' block in your Terraform configuration.",
+  "references": [
+    "https://rules.sonarsource.com/terraform/RSPEC-6252/",
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "resource \"aws_s3_bucket\" \"bad_example\" {\n  bucket = \"my-bucket\"\n  # No versioning block\n}",
+        "description": "S3 bucket is created without versioning enabled."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "resource \"aws_s3_bucket\" \"good_example\" {\n  bucket = \"my-bucket\"\n  versioning {\n    enabled = true\n  }\n}",
+        "description": "S3 bucket is created with versioning enabled."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Data Protection & Recovery"
+  },
+  "logic": {
+    "resource_type": "aws_s3_bucket",
+    "property_path": [
+      "versioning",
+      "enabled"
+    ],
+    "check_type": "not_exists",
+    "forbidden_values": [],
+    "required_values": [
+      true
+    ],
+    "custom_function": ""
+  },
+  "why_is_this_an_issue": "Without versioning, data deleted or overwritten in S3 buckets cannot be recovered, increasing the risk of permanent data loss.",
+  "how_to_fix": "Update S3 bucket configurations to include a versioning block with 'enabled = true'. Test to ensure versioning is active on all buckets.",
+  "security_mappings": {
+    "CWE": "CWE-710: Improper Adherence to Coding Standards",
+    "CERT": "MSC04-J: Do not disable automatic resource management",
+    "OWASP": "A6: Security Misconfiguration"
+  }
+}

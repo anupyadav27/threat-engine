@@ -1,0 +1,86 @@
+{
+  "filename": "methods_and_properties_that_dont_access_instance_d_metadata.json",
+  "rule_id": "methods_properties_that_dont",
+  "title": "Methods and properties that don't access instance data should be static",
+  "description": "Methods and properties that don’t access instance data should be marked as static for the following reasons: Clarity and Intent: Marking a method/property as static makes it clear that the method does not depend on instance data and can be called without creating an instance of the class. This improves the readability of the code by clearly conveying the member’s intended use. Performance: Instance methods/properties in C# require an instance of the class to be called.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MathHelper\n{\n    public int Add(int a, int b) // Noncompliant: doesn't access instance data, should be static\n    {\n        return a + b;\n    }\n    \n    public string FormatCurrency(decimal amount) // Noncompliant: utility method that doesn't use instance\n    {\n        return amount.ToString(\"C\");\n    }\n}",
+      "public class StringUtil\n{\n    public bool IsNullOrEmpty(string value) // Noncompliant: should be static\n    {\n        return string.IsNullOrEmpty(value);\n    }\n}"
+    ],
+    "compliant": [
+      "public class MathHelper\n{\n    public static int Add(int a, int b) // Compliant: marked as static\n    {\n        return a + b;\n    }\n    \n    public static string FormatCurrency(decimal amount) // Compliant: static utility method\n    {\n        return amount.ToString(\"C\");\n    }\n}",
+      "public class Calculator\n{\n    private double lastResult;\n    \n    public double AddToLastResult(double value) // Compliant: uses instance data\n    {\n        lastResult += value;\n        return lastResult;\n    }\n    \n    public static double Add(double a, double b) // Compliant: static method for utility\n    {\n        return a + b;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2325"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(public|protected|internal)\\s+(?!static\\b)(?!virtual\\b)(?!override\\b)(?!abstract\\b)\\w+\\s+\\w+\\s*[(\\{]",
+        "exclude_patterns": [
+          "\\bthis\\.",
+          "\\b_\\w+\\s*[=;]",
+          "\\bbase\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "ToString\\(\\)",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "Assert\\.",
+          "EventArgs",
+          "object sender",
+          "\\[\\w+\\]"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Virtual/override/abstract methods",
+      "Static methods (already compliant)",
+      "Interface implementations",
+      "Methods accessing instance data (this., fields)",
+      "Event handlers (object sender, EventArgs)",
+      "Methods with attributes [Test], [Fact], etc.",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Comments (//, /*, ///)",
+      "ToString implementations",
+      "Constructor-related methods"
+    ],
+    "reasoning": "This rule identifies methods and properties that don't access instance data and could be made static for better performance and clarity. The pattern matches non-static, non-virtual methods that don't use 'this.', instance fields, or base class members. It excludes polymorphic methods, interface implementations, event handlers, and methods that access instance data. The detection focuses on utility methods that perform computations only on parameters.",
+    "validation_examples": {
+      "should_trigger": [
+        "public int Add(int a, int b) { return a + b; }",
+        "public string FormatCurrency(decimal amount) { return amount.ToString(\"C\"); }",
+        "public bool IsValid(string input) { return !string.IsNullOrEmpty(input); }",
+        "public string DefaultName => \"Unknown\";"
+      ],
+      "should_not_trigger": [
+        "public static int Add(int a, int b) { return a + b; }",
+        "public virtual string Process(string input) { return input.ToUpper(); }",
+        "public override string Process(string input) { return input.ToLower(); }",
+        "public double AddToLastResult(double value) { lastResult += value; return lastResult; }",
+        "public void OnClick(object sender, EventArgs e) { Console.WriteLine(\"Clicked\"); }",
+        "[Test] public bool ValidateInput(string input) { return !string.IsNullOrEmpty(input); }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+# STATUS: ✅ COMPLETE AND TESTED
+# - metadata_mapping.json created and reviewed
+# - YAML generated and tested against AWS
+# - All 1 checks executed successfully (5 accounts, 0 total checks - no memberships found)
+# - 0 execution errors
+# - Tested: 2026-01-01
+version: '1.0'
+provider: aws
+service: edr
+services:
+  client: edr
+  module: boto3.client
+discovery:
+- discovery_id: aws.edr.list_memberships
+  calls:
+  - action: list_memberships
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+    item:
+      membershipId: '{{ item.membershipId }}'
+      membershipArn: '{{ item.membershipArn }}'
+      membershipStatus: '{{ item.membershipStatus }}'
+      accountId: '{{ item.accountId }}'
+      region: '{{ item.region }}'
+checks:
+- rule_id: aws.edr.resource.edr_operational_readiness_configured
+  for_each: aws.edr.list_memberships
+  conditions:
+    var: item.membershipStatus
+    op: equals
+    value: Active

@@ -1,0 +1,76 @@
+version: '1.0'
+provider: oci
+service: em_warehouse
+services:
+  client: em_warehouse
+  module: oci.em_warehouse
+discovery:
+- discovery_id: oci.em_warehouse.get_em_warehouse_resource_usage
+  calls:
+  - action: get_em_warehouse_resource_usage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.get_em_warehouse
+  calls:
+  - action: get_em_warehouse
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.get_work_request
+  calls:
+  - action: get_work_request
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.list_em_warehouses
+  for_each: oci.em_warehouse.get_em_warehouse_resource_usage
+  calls:
+  - action: list_em_warehouses
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.list_work_request_errors
+  for_each: oci.em_warehouse.get_em_warehouse_resource_usage
+  calls:
+  - action: list_work_request_errors
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.list_etl_runs
+  for_each: oci.em_warehouse.get_em_warehouse_resource_usage
+  calls:
+  - action: list_etl_runs
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.em_warehouse.list_work_request_logs
+  for_each: oci.em_warehouse.get_em_warehouse_resource_usage
+  calls:
+  - action: list_work_request_logs
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

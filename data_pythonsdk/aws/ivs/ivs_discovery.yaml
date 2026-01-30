@@ -1,0 +1,137 @@
+version: '1.0'
+provider: aws
+service: ivs
+services:
+  client: ivs
+  module: boto3.client
+discovery:
+- discovery_id: aws.ivs.list_channels
+  calls:
+  - action: list_channels
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.channels }}'
+- discovery_id: aws.ivs.list_playback_restriction_policies
+  calls:
+  - action: list_playback_restriction_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.playbackRestrictionPolicies }}'
+- discovery_id: aws.ivs.list_streams
+  calls:
+  - action: list_streams
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.streams }}'
+- discovery_id: aws.ivs.list_recording_configurations
+  calls:
+  - action: list_recording_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recordingConfigurations }}'
+- discovery_id: aws.ivs.get_stream_session
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_stream_session
+    save_as: response
+    on_error: continue
+    params:
+      channelArn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.streamSession }}'
+- discovery_id: aws.ivs.get_channel
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_channel
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.channel }}'
+- discovery_id: aws.ivs.get_recording_configuration
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_recording_configuration
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.recordingConfiguration }}'
+- discovery_id: aws.ivs.get_playback_key_pair
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_playback_key_pair
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.keyPair }}'
+- discovery_id: aws.ivs.get_stream
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_stream
+    save_as: response
+    on_error: continue
+    params:
+      channelArn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.stream }}'
+- discovery_id: aws.ivs.get_playback_restriction_policy
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_playback_restriction_policy
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.playbackRestrictionPolicy }}'
+- discovery_id: aws.ivs.list_stream_sessions
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: list_stream_sessions
+    save_as: response
+    on_error: continue
+    params:
+      channelArn: '{{ item.channelArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.streamSessions }}'
+- discovery_id: aws.ivs.get_stream_key
+  for_each: aws.ivs.list_channels
+  calls:
+  - action: get_stream_key
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.channelArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.streamKey }}'
+checks: []

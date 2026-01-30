@@ -1,0 +1,165 @@
+version: '1.0'
+provider: aws
+service: frauddetector
+services:
+  client: frauddetector
+  module: boto3.client
+discovery:
+- discovery_id: aws.frauddetector.get_batch_prediction_jobs
+  calls:
+  - action: get_batch_prediction_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.batchPredictions }}'
+- discovery_id: aws.frauddetector.get_batch_import_jobs
+  calls:
+  - action: get_batch_import_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.batchImports }}'
+- discovery_id: aws.frauddetector.describe_model_versions
+  calls:
+  - action: describe_model_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.modelVersionDetails }}'
+- discovery_id: aws.frauddetector.get_event_types
+  calls:
+  - action: get_event_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.eventTypes }}'
+- discovery_id: aws.frauddetector.get_variables
+  calls:
+  - action: get_variables
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.variables }}'
+- discovery_id: aws.frauddetector.get_external_models
+  calls:
+  - action: get_external_models
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.externalModels }}'
+- discovery_id: aws.frauddetector.get_detectors
+  calls:
+  - action: get_detectors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.detectors }}'
+- discovery_id: aws.frauddetector.get_lists_metadata
+  calls:
+  - action: get_lists_metadata
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.lists }}'
+- discovery_id: aws.frauddetector.list_event_predictions
+  calls:
+  - action: list_event_predictions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.eventPredictionSummaries }}'
+- discovery_id: aws.frauddetector.get_outcomes
+  calls:
+  - action: get_outcomes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.outcomes }}'
+- discovery_id: aws.frauddetector.get_kms_encryption_key
+  calls:
+  - action: get_kms_encryption_key
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.kmsKey }}'
+- discovery_id: aws.frauddetector.get_rules
+  for_each: aws.frauddetector.get_detectors
+  calls:
+  - action: get_rules
+    save_as: response
+    on_error: continue
+    params:
+      detectorId: '{{ item.detectorDetectorId }}'
+  emit:
+    as: item
+    items_for: '{{ response.ruleDetails }}'
+- discovery_id: aws.frauddetector.get_event
+  for_each: aws.frauddetector.get_batch_prediction_jobs
+  calls:
+  - action: get_event
+    save_as: response
+    on_error: continue
+    params:
+      eventId: '{{ item.eventPredictionSummaryEventId }}'
+  emit:
+    as: item
+    items_for: '{{ response.event }}'
+- discovery_id: aws.frauddetector.get_model_version
+  for_each: aws.frauddetector.describe_model_versions
+  calls:
+  - action: get_model_version
+    save_as: response
+    on_error: continue
+    params:
+      modelId: '{{ item.modelVersionDetailModelVersionNumber }}'
+  emit:
+    as: item
+    items_for: '{{ response.trainingDataSchema }}'
+- discovery_id: aws.frauddetector.get_event_prediction_metadata
+  for_each: aws.frauddetector.get_batch_prediction_jobs
+  calls:
+  - action: get_event_prediction_metadata
+    save_as: response
+    on_error: continue
+    params:
+      eventId: '{{ item.eventPredictionSummaryPredictionTimestamp }}'
+  emit:
+    as: item
+    items_for: '{{ response.eventVariables }}'
+- discovery_id: aws.frauddetector.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.frauddetector.get_list_elements
+  for_each: aws.frauddetector.get_event_types
+  calls:
+  - action: get_list_elements
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.entityTypName }}'
+  emit:
+    as: item
+    items_for: '{{ response.elements }}'
+checks: []

@@ -1,0 +1,87 @@
+{
+  "filename": "administration_services_access_should_be_restricte_metadata.json",
+  "rule_id": "administration_services_access_restricted",
+  "title": "Administration services access should be restricted to specific IP addresses",
+  "description": "Administration services access should be restricted to specific IP addressesAnalyze your codeconsistency-conventionalsecurityVulnerabilitycweazureWhy is this an issue?How can I fix it?More InfoCloud platforms such as Azure support virtual firewalls that can be used to restrict access to services by controlling inbound and outbound traffic.Any firewall rule allowing traffic from all IP addresses to standard network ports on which administration services traditionally listen, such as 22 for SSH, can expose these services to exploits and unauthorized access.What is the potential impact?Like any other service, administration services can contain vulnerabilities. Administration services run with elevated privileges and thus a vulnerability could have a high impact on the system.Additionally, cr",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "convention"
+    ],
+    "examples": {
+      "noncompliant": [
+        "resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {\n  name: 'exampleVM'\n  properties: {\n    networkProfile: {\n      networkInterfaces: [\n        {\n          id: '/subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Network/networkInterfaces/exampleNic'\n        }\n      ]\n    }\n  }\n}\n\nresource nsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {\n  name: 'exampleNSG'\n  properties: {\n    securityRules: [\n      {\n        name: 'Allow-SSH-All'\n        properties: {\n          protocol: 'Tcp'\n          sourcePortRange: '*'\n          destinationPortRange: '22'\n          sourceAddressPrefix: '*' // Sensitive: allows all IPs\n          destinationAddressPrefix: '*'\n          access: 'Allow'\n          priority: 100\n          direction: 'Inbound'\n        }\n      }\n    ]\n  }\n}"
+      ],
+      "compliant": [
+        "resource nsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {\n  name: 'exampleNSG'\n  properties: {\n    securityRules: [\n      {\n        name: 'Allow-SSH-Admin'\n        properties: {\n          protocol: 'Tcp'\n          sourcePortRange: '*'\n          destinationPortRange: '22'\n          sourceAddressPrefix: '203.0.113.10' // Only admin IP\n          destinationAddressPrefix: '*'\n          access: 'Allow'\n          priority: 100\n          direction: 'Inbound'\n        }\n      }\n    ]\n  }\n}"
+      ]
+    },
+  "references": [
+    "https://rules.sonarsource.com/azureresourcemanager/RSPEC-6321"
+  ],
+  "logic": {
+    "node_types": ["Microsoft.Network/networkSecurityGroups"],
+    "checks": [
+      {
+        "type": "conditional_check",
+        "property_path": ["securityRules", "0", "properties", "destinationPortRange"],
+        "condition_pattern": "^(22|3389|5985|5986|\\*)$",
+        "target_check": {
+          "type": "forbidden_value",
+          "property_path": ["securityRules", "0", "properties", "sourceAddressPrefix"],
+          "forbidden_values": ["*", "0.0.0.0/0", "Internet"],
+          "message": "Administration services access should be restricted to specific IP addresses. Network security group rule allows unrestricted access from all IP addresses."
+        }
+      },
+      {
+        "type": "conditional_check",
+        "property_path": ["securityRules", "1", "properties", "destinationPortRange"],
+        "condition_pattern": "^(22|3389|5985|5986|\\*)$",
+        "target_check": {
+          "type": "forbidden_value",
+          "property_path": ["securityRules", "1", "properties", "sourceAddressPrefix"],
+          "forbidden_values": ["*", "0.0.0.0/0", "Internet"],
+          "message": "Administration services access should be restricted to specific IP addresses. Network security group rule allows unrestricted access from all IP addresses."
+        }
+      },
+      {
+        "type": "conditional_check",
+        "property_path": ["securityRules", "2", "properties", "destinationPortRange"],
+        "condition_pattern": "^(22|3389|5985|5986|\\*)$",
+        "target_check": {
+          "type": "forbidden_value",
+          "property_path": ["securityRules", "2", "properties", "sourceAddressPrefix"],
+          "forbidden_values": ["*", "0.0.0.0/0", "Internet"],
+          "message": "Administration services access should be restricted to specific IP addresses. Network security group rule allows unrestricted access from all IP addresses."
+        }
+      },
+      {
+        "type": "conditional_check",
+        "property_path": ["securityRules", "3", "properties", "destinationPortRange"],
+        "condition_pattern": "^(22|3389|5985|5986|\\*)$",
+        "target_check": {
+          "type": "forbidden_value",
+          "property_path": ["securityRules", "3", "properties", "sourceAddressPrefix"],
+          "forbidden_values": ["*", "0.0.0.0/0", "Internet"],
+          "message": "Administration services access should be restricted to specific IP addresses. Network security group rule allows unrestricted access from all IP addresses."
+        }
+      },
+      {
+        "type": "conditional_check",
+        "property_path": ["securityRules", "4", "properties", "destinationPortRange"],
+        "condition_pattern": "^(22|3389|5985|5986|\\*)$",
+        "target_check": {
+          "type": "forbidden_value",
+          "property_path": ["securityRules", "4", "properties", "sourceAddressPrefix"],
+          "forbidden_values": ["*", "0.0.0.0/0", "Internet"],
+          "message": "Administration services access should be restricted to specific IP addresses. Network security group rule allows unrestricted access from all IP addresses."
+        }
+      }
+    ]
+  }
+}

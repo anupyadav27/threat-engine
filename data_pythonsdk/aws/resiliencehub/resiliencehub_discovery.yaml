@@ -1,0 +1,272 @@
+version: '1.0'
+provider: aws
+service: resiliencehub
+services:
+  client: resiliencehub
+  module: boto3.client
+discovery:
+- discovery_id: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_assessments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assessmentSummaries }}'
+- discovery_id: aws.resiliencehub.list_recommendation_templates
+  calls:
+  - action: list_recommendation_templates
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.recommendationTemplates }}'
+- discovery_id: aws.resiliencehub.list_apps
+  calls:
+  - action: list_apps
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.appSummaries }}'
+- discovery_id: aws.resiliencehub.list_suggested_resiliency_policies
+  calls:
+  - action: list_suggested_resiliency_policies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resiliencyPolicies }}'
+- discovery_id: aws.resiliencehub.list_resource_grouping_recommendations
+  calls:
+  - action: list_resource_grouping_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.groupingRecommendations }}'
+- discovery_id: aws.resiliencehub.list_test_recommendations
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_test_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.testRecommendations }}'
+- discovery_id: aws.resiliencehub.describe_app_version_resource
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: describe_app_version_resource
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.physicalResource }}'
+- discovery_id: aws.resiliencehub.list_app_assessment_compliance_drifts
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_assessment_compliance_drifts
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.complianceDrifts }}'
+- discovery_id: aws.resiliencehub.list_app_version_resource_mappings
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_version_resource_mappings
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resourceMappings }}'
+- discovery_id: aws.resiliencehub.list_app_input_sources
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_input_sources
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.appInputSources }}'
+- discovery_id: aws.resiliencehub.describe_app_assessment
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: describe_app_assessment
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.assessment }}'
+- discovery_id: aws.resiliencehub.describe_app
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: describe_app
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.app }}'
+- discovery_id: aws.resiliencehub.describe_draft_app_version_resources_import_status
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: describe_draft_app_version_resources_import_status
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.errorDetails }}'
+- discovery_id: aws.resiliencehub.describe_metrics_export
+  calls:
+  - action: describe_metrics_export
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.exportLocation }}'
+- discovery_id: aws.resiliencehub.list_alarm_recommendations
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_alarm_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.alarmRecommendations }}'
+- discovery_id: aws.resiliencehub.list_sop_recommendations
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_sop_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.sopRecommendations }}'
+- discovery_id: aws.resiliencehub.list_app_version_app_components
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_version_app_components
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.appComponents }}'
+- discovery_id: aws.resiliencehub.describe_app_version_app_component
+  for_each: aws.resiliencehub.list_app_version_app_components
+  calls:
+  - action: describe_app_version_app_component
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.appComponent }}'
+- discovery_id: aws.resiliencehub.list_app_assessment_resource_drifts
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_assessment_resource_drifts
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.resourceDrifts }}'
+- discovery_id: aws.resiliencehub.list_unsupported_app_version_resources
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_unsupported_app_version_resources
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppVersion }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.unsupportedResources }}'
+- discovery_id: aws.resiliencehub.list_app_versions
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_versions
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.appVersions }}'
+- discovery_id: aws.resiliencehub.describe_resource_grouping_recommendation_task
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: describe_resource_grouping_recommendation_task
+    save_as: response
+    on_error: continue
+    params:
+      appArn: '{{ item.assessmentSummaryAppArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.errorMessage }}'
+- discovery_id: aws.resiliencehub.list_app_component_recommendations
+  for_each: aws.resiliencehub.list_app_assessments
+  calls:
+  - action: list_app_component_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      assessmentArn: '{{ item.assessmentSummaryAssessmentArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.componentRecommendations }}'
+checks: []

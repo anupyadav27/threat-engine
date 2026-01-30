@@ -1,0 +1,40 @@
+version: '1.0'
+provider: azure
+service: managementgroups
+services:
+  client: managementgroups
+  module: azure.mgmt.managementgroups
+discovery:
+- discovery_id: azure.managementgroups.managementgroupsapimixin.start_tenant_backfill
+  calls:
+  - action: start_tenant_backfill
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tenant_id }}'
+- discovery_id: azure.managementgroups.entities.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+- discovery_id: azure.managementgroups.managementgroupsapimixin.check_name_availability
+  calls:
+  - action: check_name_availability
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.name_available }}'
+- discovery_id: azure.managementgroups.managementgroupsapimixin.tenant_backfill_status
+  calls:
+  - action: tenant_backfill_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tenant_id }}'
+checks: []

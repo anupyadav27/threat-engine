@@ -1,0 +1,178 @@
+version: '1.0'
+provider: aws
+service: route53
+services:
+  client: route53
+  module: boto3.client
+discovery:
+- discovery_id: aws.route53.list_hosted_zones
+  calls:
+  - action: list_hosted_zones
+    params:
+      MaxItems: '100'
+    save_as: response
+  emit:
+    items_for: '{{ response.HostedZones }}'
+    as: item
+- discovery_id: aws.route53.list_query_logging_configs
+  calls:
+  - action: list_query_logging_configs
+    params:
+      MaxItems: '100'
+    save_as: response
+  emit:
+    items_for: '{{ response.QueryLoggingConfigs }}'
+    as: item
+- discovery_id: aws.route53.list_traffic_policy_instances
+  calls:
+  - action: list_traffic_policy_instances
+    params:
+      MaxItems: '100'
+    save_as: response
+  emit:
+    items_for: '{{ response.TrafficPolicyInstances }}'
+    as: item
+- discovery_id: aws.route53.list_health_checks
+  calls:
+  - action: list_health_checks
+    params:
+      MaxItems: '100'
+    save_as: response
+  emit:
+    items_for: '{{ response.HealthChecks }}'
+    as: item
+checks:
+- rule_id: aws.route53.recordset.no_rfc1918_in_public_zones_configured
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.Config.PrivateZone
+    op: equals
+    value: 'false'
+- rule_id: aws.route53.hostedzone.query_logging_enabled
+  for_each: aws.route53.list_query_logging_configs
+  conditions:
+    var: item.CloudWatchLogsLogGroupArn
+    op: not_equals
+    value: null
+- rule_id: aws.route53.trafficpolicy.security_check_health_checks_required_for_failover_configured
+  for_each: aws.route53.list_traffic_policy_instances
+  conditions:
+    all:
+    - var: item.Id
+      op: exists
+      value: null
+    - var: item.TrafficPolicyId
+      op: exists
+      value: null
+- rule_id: aws.route53.healthcheck.alerts_configured
+  for_each: aws.route53.list_health_checks
+  conditions:
+    var: item.CloudWatchAlarmConfiguration
+    op: exists
+    value: null
+- rule_id: aws.route53.recordset.route53_caa_records_present_for_root_and_wildcard_configured
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.Config.PrivateZone
+    op: equals
+    value: 'false'
+- rule_id: aws.route53.healthcheck.route53_no_plaintext_credentials_in_url_configured
+  for_each: aws.route53.list_health_checks
+  conditions:
+    all:
+    - var: item.HealthCheckConfig.IPAddress
+      op: not_equals
+      value: null
+    - var: item.HealthCheckConfig.FullyQualifiedDomainName
+      op: not_equals
+      value: null
+- rule_id: aws.route53.hostedzone.route53_zone_transfer_restricted_or_tsig_required
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    all:
+    - var: item.Config.PrivateZone
+      op: equals
+      value: 'true'
+    - var: item.Config.Comment
+      op: exists
+      value: null
+- rule_id: aws.route53.hostedzone.route53_cross_account_sharing_restricted
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    all:
+    - var: item.Config.PrivateZone
+      op: equals
+      value: 'true'
+    - var: item.LinkedService
+      op: not_equals
+      value: null
+- rule_id: aws.route53.hostedzone.route53_dnssec_enabled_if_supported
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.Features.DNSSEC
+    op: equals
+    value: ENABLED
+- rule_id: aws.route53.healthcheck.https_or_tls_used_configured
+  for_each: aws.route53.list_health_checks
+  conditions:
+    any:
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: HTTPS
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: TLS
+- rule_id: aws.route53.resource.public_hosted_zones_cloudwatch_logging_enabled
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    all:
+    - var: item.Config.PrivateZone
+      op: equals
+      value: 'false'
+    - var: item.ResourceRecordSetCount
+      op: exists
+      value: null
+- rule_id: aws.route53.recordset.route53_alias_targets_in_approved_services_configured
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.LinkedService.ServicePrincipal
+    op: in
+    value:
+    - s3.amazonaws.com
+    - cloudfront.net
+    - elasticloadbalancing.amazonaws.com
+- rule_id: aws.route53.recordset.route53_dmarc_record_present_when_mx_configured
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.Config.PrivateZone
+    op: equals
+    value: 'false'
+- rule_id: aws.route53.trafficpolicy.policy_documents_encrypted_and_private
+  for_each: aws.route53.list_traffic_policy_instances
+  conditions:
+    all:
+    - var: item.TrafficPolicyId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.route53.recordset.route53_no_broad_wildcards_sensitive_zones_configured
+  for_each: aws.route53.list_hosted_zones
+  conditions:
+    var: item.Config.PrivateZone
+    op: equals
+    value: 'false'
+- rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
+  for_each: aws.route53.list_traffic_policy_instances
+  conditions:
+    all:
+    - var: item.Id
+      op: exists
+      value: null
+    - var: item.TrafficPolicyId
+      op: exists
+      value: null
+    - var: item.HostedZoneId
+      op: exists
+      value: null

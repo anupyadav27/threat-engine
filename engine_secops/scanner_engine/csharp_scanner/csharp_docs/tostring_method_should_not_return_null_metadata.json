@@ -1,0 +1,61 @@
+{
+  "filename": "tostring_method_should_not_return_null_metadata.json",
+  "rule_id": "tostring_method_return_null",
+  "title": "ToString() method should not return null",
+  "description": "\"ToString()\" method should not return nullAnalyze your codeintentionality-logicalreliabilityBugcweWhy is this an issue?More InfoCallingToString()on an object should always return astring. Thus,overriding the ToString methodshould never returnnull, as it breaks the method’s implicit contract, and as a result the consumer’s expectations.public override string ToString () { if (this.collection.Count == 0) { return null; // Noncompliant } else { // ... } }A better alternative is to use theString.Emptybuilt-in field.public override string ToString () { if (this.collection.Count == 0) { return string.Empty; } else { // ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public override string ToString()\n{\n    if (string.IsNullOrEmpty(this.Name))\n    {\n        return null; // Noncompliant\n    }\n    return this.Name;\n}"
+    ],
+    "compliant": [
+      "public override string ToString()\n{\n    if (string.IsNullOrEmpty(this.Name))\n    {\n        return string.Empty; // Compliant\n    }\n    return this.Name;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2225"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "override\\s+string\\s+ToString\\s*\\([^)]*\\)[^{]*\\{[^}]*return\\s+null\\s*;",
+        "exclude_patterns": [
+          "//.*return\\s+null",
+          "/\\*[^*]*return\\s+null[^*]*\\*/"
+        ],
+        "message": "ToString() method should not return null - use string.Empty instead"
+      }
+    ],
+    "never_trigger_on": [
+      "Comments containing return null",
+      "String literals containing return null",
+      "Non-ToString methods",
+      "ToString methods that don't return null"
+    ],
+    "reasoning": "ToString() should always return a valid string. Returning null breaks the implicit contract and causes NullReferenceExceptions for callers. This rule detects ToString() override methods that explicitly return null.",
+    "validation_examples": {
+      "should_trigger": [
+        "public override string ToString() { return null; }",
+        "public override string ToString() { if (empty) return null; return value; }",
+        "public override string ToString() { return condition ? value : null; }"
+      ],
+      "should_not_trigger": [
+        "public override string ToString() { return string.Empty; }",
+        "public override string ToString() { return \"\"; }",
+        "public string GetValue() { return null; }"
+      ]
+    }
+  }
+}

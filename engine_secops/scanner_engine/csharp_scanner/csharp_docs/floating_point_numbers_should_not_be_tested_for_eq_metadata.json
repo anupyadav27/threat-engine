@@ -1,0 +1,64 @@
+{
+  "filename": "floating_point_numbers_should_not_be_tested_for_eq_metadata.json",
+  "rule_id": "floating_point_numbers_tested",
+  "title": "Floating point numbers should not be tested for equality",
+  "description": "Floating point numbers in C# (and in most other programming languages) are not precise. They are a binary approximation of the actual value. This means that even if two floating point numbers appear to be equal, they might not be due to the tiny differences in their binary representation.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "float f = 0.1f;\nfloat g = 0.2f;\nfloat sum = f + f + f;\n\nif (sum == g) // Noncompliant: due to floating point imprecision, this condition may be false\n{\n    // ...\n}"
+    ],
+    "compliant": [
+      "float f = 0.1f;\nfloat g = 0.2f;\nfloat sum = f + f + f;\nfloat epsilon = 0.00001f;\n\nif (Math.Abs(sum - g) < epsilon) // Compliant: using epsilon for comparison\n{\n    // ...\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1244"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "PropertyDeclaration", "ClassDeclaration"],
+    "detection_conditions": "Detects direct equality (==) or inequality (!=) comparisons on floating point types (float, double, decimal)",
+    "triggering_conditions": "Triggers when: method or property source contains == or != operators with floating point operands on the same line",
+    "exclusion_conditions": "Excludes: epsilon-based comparisons (Math.Abs on same line), logging statements (Console/Logger on same line as comparison), comments",
+    "never_trigger_on": [
+      "Epsilon-based comparisons (Math.Abs(a - b) < epsilon)",
+      "Logging statements where comparison is inside Console.WriteLine",
+      "String formatting for display where comparison is in interpolation",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//, /*, ///)",
+      "ToString() calls",
+      "String literal comparisons"
+    ],
+    "reasoning": "Floating point numbers are imprecise due to binary representation, making direct equality checks unreliable. This rule uses a line-by-line approach to detect == or != operators applied to floating point literals (0.1f, 0.2f) or declarations. The pattern matches lines containing float/double declarations or literals followed by equality operators. Excludes lines with Math.Abs (epsilon-based comparison), and avoids false positives from logging by requiring no Console/Logger on the same line as the comparison.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (sum == g) // where sum and g are floats",
+        "if (0.1f + 0.2f == 0.3f)",
+        "if (doubleValue != expected)",
+        "while (floatX == floatY)"
+      ],
+      "should_not_trigger": [
+        "if (Math.Abs(sum - g) < epsilon)",
+        "Console.WriteLine($\"{f} == {g}\");",
+        "// if (sum == g)",
+        "if (intValue == expected)"
+      ]
+    },
+    "node_types": ["MethodDeclaration", "PropertyDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_floating_point_equality"
+      }
+    ]
+  }
+}

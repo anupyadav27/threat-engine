@@ -1,0 +1,188 @@
+version: '1.0'
+provider: aws
+service: finspace
+services:
+  client: finspace
+  module: boto3.client
+discovery:
+- discovery_id: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_environments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.environments }}'
+- discovery_id: aws.finspace.list_environments
+  calls:
+  - action: list_environments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.environments }}'
+- discovery_id: aws.finspace.list_kx_clusters
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_clusters
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.kxClusterSummaries }}'
+- discovery_id: aws.finspace.get_kx_cluster
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_cluster
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.kxClusterSummaryClusterName }}'
+  emit:
+    as: item
+    items_for: '{{ response.volumes }}'
+- discovery_id: aws.finspace.list_kx_users
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_users
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.users }}'
+- discovery_id: aws.finspace.get_kx_volume
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_volume
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.volumVolumeName }}'
+  emit:
+    as: item
+    items_for: '{{ response.availabilityZoneIds }}'
+- discovery_id: aws.finspace.list_kx_scaling_groups
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_scaling_groups
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scalingGroups }}'
+- discovery_id: aws.finspace.get_kx_environment
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_environment
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.customDNSConfiguration }}'
+- discovery_id: aws.finspace.list_kx_cluster_nodes
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_cluster_nodes
+    save_as: response
+    on_error: continue
+    params:
+      clusterName: '{{ item.kxClusterSummaryClusterName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.nodes }}'
+- discovery_id: aws.finspace.get_environment
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_environment
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+  emit:
+    as: item
+    items_for: '{{ response.environment }}'
+- discovery_id: aws.finspace.get_kx_scaling_group
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_scaling_group
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.scalingGroupScalingGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.clusters }}'
+- discovery_id: aws.finspace.list_kx_databases
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_databases
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.environmentEnvironmentId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.kxDatabases }}'
+- discovery_id: aws.finspace.list_kx_dataviews
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: list_kx_dataviews
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.kxDatabasDatabaseName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.kxDataviews }}'
+- discovery_id: aws.finspace.get_kx_changeset
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_changeset
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.kxDatabasDatabaseName }}'
+  emit:
+    as: item
+    items_for: '{{ response.changeRequests }}'
+- discovery_id: aws.finspace.get_kx_database
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_database
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.kxDatabasDatabaseName }}'
+  emit:
+    as: item
+    items_for: '{{ response.databaseName }}'
+- discovery_id: aws.finspace.get_kx_dataview
+  for_each: aws.finspace.list_kx_environments
+  calls:
+  - action: get_kx_dataview
+    save_as: response
+    on_error: continue
+    params:
+      environmentId: '{{ item.kxDataviewDataviewName }}'
+  emit:
+    as: item
+    items_for: '{{ response.segmentConfigurations }}'
+checks: []

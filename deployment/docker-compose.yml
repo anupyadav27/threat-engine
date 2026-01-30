@@ -1,0 +1,127 @@
+version: '3.8'
+
+# Docker Compose for Consolidated Threat Engine Services
+# For local development and testing
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: threat_engine
+      POSTGRES_USER: threat_engine
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - threat-engine
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - threat-engine
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ../api_gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - CORE_ENGINE_URL=http://core-engine:8001
+      - CONFIGSCAN_SERVICE_URL=http://configscan:8002
+      - PLATFORM_SERVICE_URL=http://platform:8003
+      - DATA_SECOPS_SERVICE_URL=http://data-secops:8004
+    depends_on:
+      - core-engine
+      - configscan
+      - platform
+      - data-secops
+    networks:
+      - threat-engine
+
+  # Core Engine Service
+  core-engine:
+    build:
+      context: ../consolidated_services/core_engine_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://threat_engine:password@postgres:5432/threat_engine
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - scan_results:/app/engine_output
+    networks:
+      - threat-engine
+
+  # ConfigScan Service
+  configscan:
+    build:
+      context: ../consolidated_services/configscan_service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://threat_engine:password@postgres:5432/threat_engine
+    depends_on:
+      - postgres
+    volumes:
+      - scan_results:/app/engine_output
+    networks:
+      - threat-engine
+
+  # Platform Service
+  platform:
+    build:
+      context: ../consolidated_services/platform_service
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://threat_engine:password@postgres:5432/threat_engine
+    depends_on:
+      - postgres
+    volumes:
+      - scan_results:/app/engine_output
+    networks:
+      - threat-engine
+
+  # Data SecOps Service
+  data-secops:
+    build:
+      context: ../consolidated_services/data_secops_service
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://threat_engine:password@postgres:5432/threat_engine
+      - SCAN_INPUT_PATH=/app/scan_input
+      - SCAN_OUTPUT_PATH=/app/scan_output
+    depends_on:
+      - postgres
+    volumes:
+      - scan_input:/app/scan_input
+      - scan_output:/app/scan_output
+    networks:
+      - threat-engine
+
+volumes:
+  postgres_data:
+  scan_results:
+  scan_input:
+  scan_output:
+
+networks:
+  threat-engine:
+    driver: bridge

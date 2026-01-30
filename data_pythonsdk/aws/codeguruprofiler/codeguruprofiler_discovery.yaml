@@ -1,0 +1,71 @@
+version: '1.0'
+provider: aws
+service: codeguruprofiler
+services:
+  client: codeguruprofiler
+  module: boto3.client
+discovery:
+- discovery_id: aws.codeguruprofiler.list_profiling_groups
+  calls:
+  - action: list_profiling_groups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.profilingGroups }}'
+- discovery_id: aws.codeguruprofiler.get_findings_report_account_summary
+  calls:
+  - action: get_findings_report_account_summary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.reportSummaries }}'
+- discovery_id: aws.codeguruprofiler.get_recommendations
+  for_each: aws.codeguruprofiler.list_profiling_groups
+  calls:
+  - action: get_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      profilingGroupName: '{{ item.profilingGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.anomalies }}'
+- discovery_id: aws.codeguruprofiler.list_profile_times
+  for_each: aws.codeguruprofiler.list_profiling_groups
+  calls:
+  - action: list_profile_times
+    save_as: response
+    on_error: continue
+    params:
+      profilingGroupName: '{{ item.profilingGroupName }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.profileTimes }}'
+- discovery_id: aws.codeguruprofiler.get_notification_configuration
+  for_each: aws.codeguruprofiler.list_profiling_groups
+  calls:
+  - action: get_notification_configuration
+    save_as: response
+    on_error: continue
+    params:
+      profilingGroupName: '{{ item.profilingGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.notificationConfiguration }}'
+- discovery_id: aws.codeguruprofiler.get_policy
+  for_each: aws.codeguruprofiler.list_profiling_groups
+  calls:
+  - action: get_policy
+    save_as: response
+    on_error: continue
+    params:
+      profilingGroupName: '{{ item.profilingGroupName }}'
+  emit:
+    as: item
+    items_for: '{{ response.policy }}'
+checks: []

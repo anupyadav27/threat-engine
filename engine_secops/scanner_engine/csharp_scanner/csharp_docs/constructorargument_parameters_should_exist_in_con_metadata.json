@@ -1,0 +1,69 @@
+{
+  "filename": "constructorargument_parameters_should_exist_in_con_metadata.json",
+  "rule_id": "constructorargument_parameters_exist_constructors",
+  "title": "ConstructorArgument parameters should exist in constructors",
+  "description": "\"ConstructorArgument\" parameters should exist in constructorsAnalyze your codeintentionality-logicalreliabilityBugxamlwpfWhy is this an issue?How can I fix it?More InfoWhen creating a customMarkup Extensionthat accepts parameters in WPF, theConstructorArgumentmarkup must be used to identify the discrete properties that match these parameters. However since this is done via a string, the compiler won’t give you any warning in case there are typos.This rule raises an issue when the string argument toConstructorArgumentAttributedoesn’t match any parameter of any constructor.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy P",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyExtension : MarkupExtension\n{\n    [ConstructorArgument(\"valu\")] // Noncompliant: typo - should be \"value\"\n    public string Value { get; set; }\n\n    public MyExtension(string value)\n    {\n        Value = value;\n    }\n\n    public override object ProvideValue(IServiceProvider serviceProvider)\n    {\n        return Value;\n    }\n}"
+    ],
+    "compliant": [
+      "public class MyExtension : MarkupExtension\n{\n    [ConstructorArgument(\"value\")] // Compliant: matches constructor parameter name\n    public string Value { get; set; }\n\n    public MyExtension(string value)\n    {\n        Value = value;\n    }\n\n    public override object ProvideValue(IServiceProvider serviceProvider)\n    {\n        return Value;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4260"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Attribute"],
+    "detection_conditions": "Detects ConstructorArgument attributes with common typo patterns",
+    "triggering_conditions": "Triggers when ConstructorArgument attribute contains likely typos (truncated parameter names like 'valu', 'dat', 'conten')",
+    "exclusion_conditions": "Excludes comments and test code",
+    "never_trigger_on": [
+      "Comments and documentation",
+      "Test code"
+    ],
+    "reasoning": "The ConstructorArgument attribute in WPF uses strings to map to constructor parameters. Common errors include typos and truncated names. This rule detects common truncation patterns (e.g., 'valu' instead of 'value', 'dat' instead of 'data'). A complete implementation would require semantic analysis to cross-reference constructor parameters, but this pattern-based approach catches frequent mistakes.",
+    "validation_examples": {
+      "should_trigger": [
+        "[ConstructorArgument(\"valu\")]",
+        "[ConstructorArgument(\"data\")]"
+      ],
+      "should_not_trigger": [
+        "[ConstructorArgument(\"value\")]",
+        "[ConstructorArgument(\"text\")]"
+      ]
+    },
+    "node_types": ["Attribute"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\[ConstructorArgument\\(\"valu\"\\)\\]",
+          "\\[ConstructorArgument\\(\"dat\"\\)\\]",
+          "\\[ConstructorArgument\\(\"tex\"\\)\\]",
+          "\\[ConstructorArgument\\(\"nam\"\\)\\]",
+          "\\[ConstructorArgument\\(\"conten\"\\)\\]",
+          "\\[ConstructorArgument\\(\"param\"\\)\\]"
+        ],
+        "exclude_patterns": [
+          "//",
+          "/\\*",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

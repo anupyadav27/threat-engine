@@ -1,0 +1,125 @@
+version: '1.0'
+provider: azure
+service: eventhub
+discovery:
+- discovery_id: azure.event.list_available_cluster_region
+  calls:
+  - action: list_available_cluster_region
+    save_as: list_available_cluster_region_response
+  emit:
+    items_for: '{{ list_available_cluster_region_response.value }}'
+    as: item
+    item:
+      location: '{{ item.location }}'
+- discovery_id: azure.event.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      sku: '{{ item.sku }}'
+      system_data: '{{ item.system_data }}'
+      created_at: '{{ item.created_at }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      updated_at: '{{ item.updated_at }}'
+      metric_id: '{{ item.metric_id }}'
+      status: '{{ item.status }}'
+      supports_scaling: '{{ item.supports_scaling }}'
+- discovery_id: azure.notification.list_available_cluster_region
+  calls:
+  - action: list_available_cluster_region
+    save_as: list_available_cluster_region_response
+  emit:
+    items_for: '{{ list_available_cluster_region_response.value }}'
+    as: item
+    item:
+      location: '{{ item.location }}'
+checks:
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_destination_least_privilege
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: equals
+    value: true
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_destination_least_privilege
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: equals
+    value: true
+- rule_id: azure.event.event_hub.private_network_only_where_supported
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: equals
+    value: true
+- rule_id: azure.event.event_hub.encryption_at_rest_enabled
+  for_each: azure.event.list_by_resource_group
+  conditions:
+    var: item.status
+    op: equals
+    value: Enabled
+- rule_id: azure.event.event_hub.consumer_auth_required
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.event_hub_consumer.streaming_consumer_auth_required
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_destination_encrypted
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_destination_encrypted
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_cross_account_sharing_restricted
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_cross_account_sharing_restricted
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_private_network_only_where_supported
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: equals
+    value: true
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_encryption_at_rest_enabled
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: equals
+    value: true
+- rule_id: azure.event.event_hub_consumer.streaming_consumer_access_least_privilege
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_consumer_auth_required
+  for_each: azure.event.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty
+- rule_id: azure.notification.hub.topic_subscription_configured
+  for_each: azure.notification.list_available_cluster_region
+  conditions:
+    var: item.location
+    op: not_empty

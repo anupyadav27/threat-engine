@@ -1,0 +1,66 @@
+{
+  "filename": "gccollect_should_not_be_called_metadata.json",
+  "rule_id": "gccollect_called",
+  "title": "GC.Collect should not be called",
+  "description": "GC.Collect is a method that forces or suggests to the garbage collector to run a collection of objects in the managed heap that are no longer being used and free their memory. Calling GC.Collect is rarely necessary and can significantly affect application performance. That’s because it is a tracing garbage collector and needs to examine every object in memory for cleanup and analyze all reachable objects from every application’s root (static fields, local variables on thread stacks, etc.).",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessLargeData()\n{\n    var data = LoadLargeData();\n    ProcessData(data);\n    data = null;\n    GC.Collect(); // Noncompliant: manually forcing garbage collection\n    GC.WaitForPendingFinalizers();\n    GC.Collect(); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public void ProcessLargeData()\n{\n    var data = LoadLargeData();\n    ProcessData(data);\n    // Compliant: let the GC decide when to collect\n    // The runtime will manage memory efficiently\n}\n\npublic void ProcessWithUsing()\n{\n    using (var resource = new LargeResource())\n    {\n        ProcessResource(resource);\n    } // Compliant: using statement ensures proper disposal\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1215"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression", "MethodDeclaration"],
+    "detection_conditions": "Detects calls to GC.Collect() which manually triggers garbage collection",
+    "triggering_conditions": "Triggers when: CallExpression or method source contains GC.Collect(",
+    "exclusion_conditions": "Excludes: comments, test code, performance benchmarking code",
+    "never_trigger_on": [
+      "Comments (//, /*, ///)",
+      "Test code ([Test], [Fact], [Benchmark])",
+      "Performance measurement code",
+      "Memory profiling code"
+    ],
+    "reasoning": "Manual garbage collection via GC.Collect() is rarely necessary and can harm performance. The .NET garbage collector is optimized to manage memory automatically. This rule detects GC.Collect() calls by pattern matching for 'GC.Collect(' in call expressions and method bodies. Excludes test/benchmark code where manual GC triggering may be intentional for measurement purposes.",
+    "validation_examples": {
+      "should_trigger": [
+        "GC.Collect();",
+        "GC.Collect(2);",
+        "System.GC.Collect();"
+      ],
+      "should_not_trigger": [
+        "// GC.Collect();",
+        "[Test] public void TestMethod() { GC.Collect(); }"
+      ]
+    },
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "^\\s*(?:System\\.)?GC\\.Collect\\s*\\(",
+        "exclude_patterns": [
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\"[^\"]*GC\\.Collect",
+          "GC\\.Collect[^\"]*\"",
+          "@\"[^\"]*GC\\.Collect"
+        ]
+      }
+    ]
+  }
+}

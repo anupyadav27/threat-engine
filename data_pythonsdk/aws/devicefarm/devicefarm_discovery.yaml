@@ -1,0 +1,235 @@
+version: '1.0'
+provider: aws
+service: devicefarm
+services:
+  client: devicefarm
+  module: boto3.client
+discovery:
+- discovery_id: aws.devicefarm.list_devices
+  calls:
+  - action: list_devices
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.devices }}'
+- discovery_id: aws.devicefarm.get_account_settings
+  calls:
+  - action: get_account_settings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountSettings }}'
+- discovery_id: aws.devicefarm.list_projects
+  calls:
+  - action: list_projects
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+- discovery_id: aws.devicefarm.list_instance_profiles
+  calls:
+  - action: list_instance_profiles
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.instanceProfiles }}'
+- discovery_id: aws.devicefarm.list_device_instances
+  calls:
+  - action: list_device_instances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.deviceInstances }}'
+- discovery_id: aws.devicefarm.get_test_grid_session
+  calls:
+  - action: get_test_grid_session
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.testGridSession }}'
+- discovery_id: aws.devicefarm.list_offerings
+  calls:
+  - action: list_offerings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.offerings }}'
+- discovery_id: aws.devicefarm.list_offering_transactions
+  calls:
+  - action: list_offering_transactions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.offeringTransactions }}'
+- discovery_id: aws.devicefarm.list_vpce_configurations
+  calls:
+  - action: list_vpce_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.vpceConfigurations }}'
+- discovery_id: aws.devicefarm.get_offering_status
+  calls:
+  - action: get_offering_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.current }}'
+- discovery_id: aws.devicefarm.list_runs
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: list_runs
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.runs }}'
+- discovery_id: aws.devicefarm.get_network_profile
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: get_network_profile
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.networkProfile }}'
+- discovery_id: aws.devicefarm.list_remote_access_sessions
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: list_remote_access_sessions
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.remoteAccessSessions }}'
+- discovery_id: aws.devicefarm.get_upload
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: get_upload
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.upload }}'
+- discovery_id: aws.devicefarm.list_test_grid_session_actions
+  calls:
+  - action: list_test_grid_session_actions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.actions }}'
+- discovery_id: aws.devicefarm.get_job
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: get_job
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.job }}'
+- discovery_id: aws.devicefarm.list_device_pools
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: list_device_pools
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.devicePools }}'
+- discovery_id: aws.devicefarm.get_device_pool_compatibility
+  for_each: aws.devicefarm.list_runs
+  calls:
+  - action: get_device_pool_compatibility
+    save_as: response
+    on_error: continue
+    params:
+      devicePoolArn: '{{ item.runDevicePoolArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.compatibleDevices }}'
+- discovery_id: aws.devicefarm.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.devicefarm.list_artifacts
+  for_each: aws.devicefarm.list_offerings
+  calls:
+  - action: list_artifacts
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.artifacts }}'
+- discovery_id: aws.devicefarm.get_vpce_configuration
+  for_each: aws.devicefarm.list_devices
+  calls:
+  - action: get_vpce_configuration
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.testGridSessionArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.vpceConfiguration }}'
+- discovery_id: aws.devicefarm.list_test_grid_session_artifacts
+  calls:
+  - action: list_test_grid_session_artifacts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.artifacts }}'
+checks: []

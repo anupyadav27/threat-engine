@@ -1,0 +1,41 @@
+{
+  "filename": "base_class_methods_should_not_be_hidden_metadata.json",
+  "rule_id": "base_class_methods_hidden",
+  "title": "Base class methods should not be hidden",
+  "description": "Base class methods should not be hiddenAnalyze your codeintentionality-logicalmaintainabilityCode SmellpitfallWhy is this an issue?More InfoWhen a method in a derived class has:the same name as a method in the base classbut types of parameters that are ancestors (for examplestringin the base class andobjectin the derived class)the result is that the base method becomes hidden.As shown in the following code snippet, when an instance of the derived class is used, invoking the method with an argument that matches the less derived parameter type will invoke the derived class method instead of the base class method:class BaseClass { internal void MyMethod(string str) => Console.WriteLine(\"BaseClass: Method(string)\"); } class DerivedClass : BaseClass { internal void MyMethod(object str) => Conso",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class BaseClass\n{\n    internal void MyMethod(string str) => Console.WriteLine(\"BaseClass\");\n}\n\nclass DerivedClass : BaseClass\n{\n    internal void MyMethod(object str) => Console.WriteLine(\"DerivedClass\"); // Noncompliant - hides base method\n}",
+      "class Animal\n{\n    public virtual void Move(int speed) { }\n}\n\nclass Dog : Animal\n{\n    public void Move(object speed) { } // Noncompliant - parameter type is less specific\n}"
+    ],
+    "compliant": [
+      "class BaseClass\n{\n    internal virtual void MyMethod(string str) => Console.WriteLine(\"BaseClass\");\n}\n\nclass DerivedClass : BaseClass\n{\n    internal override void MyMethod(string str) => Console.WriteLine(\"DerivedClass\"); // Compliant - proper override\n}",
+      "class Animal\n{\n    public virtual void Move(int speed) { }\n}\n\nclass Dog : Animal\n{\n    public override void Move(int speed) { } // Compliant - same parameter type\n    public void Move(string direction) { } // Compliant - different parameter type (overload)\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4019"
+  ],
+  "logic": {
+    "node_types": [
+      "CompilationUnit"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_base_class_methods_hidden",
+        "message": "Base class methods should not be hidden. Use 'override' or 'new' keyword explicitly."
+      }
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "filename": "promises_should_not_be_misused_metadata.json",
+  "rule_id": "promises_misused",
+  "title": "Promises should not be misused",
+  "description": "Promises need to be resolved or awaited to return the expected value, otherwise, they return the promise object. Forgetting to await a promise is a frequent mistake. There are places where the use of a promise object is confusing or unclear because the developer forgot to resolve it.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "await"
+    ],
+    "compliant": [
+      "Promise"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6544"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "ExpressionStatement",
+      "VariableDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(expect|assert|should)\\s*\\(\\s*(?!await\\s)(fetch\\w*\\(|\\w*[Gg]et\\w*\\(|\\w*[Ff]etch\\w*\\(|\\w*[Ll]oad\\w*\\(|\\w*[Aa]sync\\w*\\()",
+        "message": "Ensure promises are awaited before using in assertions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "const\\s+\\w+\\s*=\\s*(?!await\\s)(fetch\\w*\\(|\\w*[Gg]et\\w*\\(|\\w*[Ff]etch\\w*\\(|\\w*[Ll]oad\\w*\\(|\\w*[Aa]sync\\w*\\(|\\w*[Aa]pi\\w*\\(|\\w*[Dd]atabase\\w*\\(|\\w*[Dd]b\\w*\\(|\\w*[Rr]equest\\w*\\()",
+        "message": "Missing await for async function call."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(expect|assert|should)\\s*\\(\\s*(?!await\\s)[^)]*Promise\\.(resolve|reject|all|race|allSettled)\\s*\\([^)]*\\)\\s*\\)",
+        "message": "Ensure Promise methods are awaited in assertions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(expect|assert|should)\\s*\\(\\s*(?!await\\s)[^)]*\\bnew\\s+Promise\\s*\\(",
+        "message": "Ensure Promise constructor results are awaited in assertions."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "const\\s+\\w+\\s*=\\s*(?!await\\s)\\w+\\.[a-zA-Z]*[Aa]sync[a-zA-Z]*\\s*\\([^)]*\\)",
+        "message": "Missing await for method call that returns a promise."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "const\\s+\\w+\\s*=\\s*(?!await\\s)Promise\\.",
+        "message": "Missing await for Promise method call."
+      }
+    ]
+  }
+}

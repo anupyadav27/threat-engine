@@ -1,0 +1,29 @@
+version: '1.0'
+provider: aws
+service: notificationscontacts
+services:
+  client: notificationscontacts
+  module: boto3.client
+discovery:
+- discovery_id: aws.notificationscontacts.list_email_contacts
+  calls:
+  - action: list_email_contacts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.emailContacts }}'
+- discovery_id: aws.notificationscontacts.get_email_contact
+  for_each: aws.notificationscontacts.list_email_contacts
+  calls:
+  - action: get_email_contact
+    save_as: response
+    on_error: continue
+    params:
+      arn: '{{ item.emailContactArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.emailContact }}'
+checks: []

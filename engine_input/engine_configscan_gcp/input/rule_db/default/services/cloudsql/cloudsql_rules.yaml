@@ -1,0 +1,1073 @@
+# ============================================================================
+# CURSOR AI: GCP SERVICE VALIDATION INSTRUCTIONS
+# ============================================================================
+# 
+# 🎯 YOUR MISSION: Validate and fix this GCP service YAML file
+#
+# WORKFLOW:
+# 1. Read this entire YAML file structure
+# 2. Run: `export GCP_ENGINE_FILTER_SERVICES="<SERVICE>" && python engine/gcp_engine.py > output/test_<service>.json 2>&1`
+# 3. Analyze output - check for inventories, main_checks, errors
+# 4. Fix issues in discovery and checks sections below
+# 5. Re-run engine and verify output
+# 6. Iterate until all checks work (PASS/FAIL based on resources)
+# 7. Update validation status at bottom of file
+#
+# COMMON ISSUES & FIXES:
+#
+# ❌ Empty inventories → Fix discovery action (must be: list_<resource>, aggregatedList_<resource>)
+# ❌ Zero checks executed → Fix for_each to match discovery_id
+# ❌ All checks fail → Fix field paths to match GCP API response
+# ❌ Skipped checks → Verify discovery_id exists and completed
+# ❌ Python errors → Check YAML syntax, action names
+#
+# TESTING:
+# - Run engine: `export GCP_ENGINE_FILTER_SERVICES="<service>" && python engine/gcp_engine.py > output/test.json 2>&1`
+# - Check output: `cat output/test.json | python3 -m json.tool`
+# - Verify: inventories array has resources, main_checks array has results
+#
+# SUCCESS CRITERIA:
+# ✅ Engine runs without Python exceptions
+# ✅ Inventories populated (if resources exist in GCP)
+# ✅ All checks execute (PASS/FAIL based on actual resource state)
+# ✅ No skipped checks (unless expected)
+# ✅ Clean JSON output
+#
+# DOCUMENTATION:
+# After fixing, update validation section at bottom:
+# # VALIDATION STATUS:
+# # - Issues Found: <what was wrong>
+# # - Fixes Applied: <what you fixed>
+# # - Tested: <date>
+# # - Inventories: <count>
+# # - Checks: <count executed>
+# # - Status: ✅ VALIDATED / ⏳ IN PROGRESS / ❌ NEEDS WORK
+#
+# ============================================================================
+
+service_name:  # e.g., compute, gcs, pubsub
+
+cloudsql:
+  version: '1.0'
+  provider: gcp
+  service: cloudsql
+  scope: regional
+  api_name: sqladmin
+  api_version: v1
+  discovery:
+  - discovery_id: list_cloudsql_instances
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: instance_name
+      - path: project
+        var: project_id
+      - path: region
+        var: region
+  - discovery_id: list_cloudsql_backups
+    calls:
+    - action: list
+      fields:
+      - path: id
+        var: backup_id
+      - path: instance
+        var: instance_name
+  - discovery_id: list_cloudsql_snapshots
+    calls:
+    - action: list
+      fields:
+      - path: name
+        var: snapshot_name
+      - path: sourceInstance
+        var: source_instance
+  checks:
+  - check_id: gcp.cloudsql.backup.db_cluster_snapshot_cross_account_sharing_restricted
+    title: Restrict Cross-Account Sharing of Cloud SQL Backups
+    severity: high
+    for_each: list_cloudsql_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: iamConfiguration.authorizedNetworks
+        operator: not_exists
+      - path: settings.ipConfiguration.authorizedNetworks[].value
+        operator: not_contains
+        expected: 0.0.0.0/0
+  - check_id: gcp.cloudsql.backup.db_cluster_snapshot_cross_region_copy_encrypted
+    title: Ensure Cloud SQL Snapshots Are Encrypted for Cross-Region Copies
+    severity: high
+    for_each: list_cloudsql_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kmsKeyName
+        operator: exists
+      - path: diskEncryptionStatus.kmsKeyVersionName
+        operator: exists
+  - check_id: gcp.cloudsql.backup.db_cluster_snapshot_encrypted
+    title: Ensure Cloud SQL Backup Snapshots Are Encrypted
+    severity: high
+    for_each: list_cloudsql_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kind
+        operator: equals
+        expected: sql#diskEncryptionConfiguration
+  - check_id: gcp.cloudsql.backup.db_cluster_snapshot_not_publicly_shared
+    title: Prevent Public Sharing of Cloud SQL Backup Snapshots
+    severity: critical
+    for_each: list_cloudsql_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.cloudsql.backup.db_snapshot_cross_account_sharing_restricted
+    title: Restrict Cross-Account Sharing of Cloud SQL Backups
+    severity: high
+    for_each: list_cloudsql_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: backupConfiguration.enabled
+        operator: equals
+        expected: true
+      - path: settings.userLabels.shared
+        operator: not_exists
+  - check_id: gcp.cloudsql.backup.db_snapshot_cross_region_copy_encrypted
+    title: Ensure Cross-Region SQL Backups are Encrypted
+    severity: high
+    for_each: list_cloudsql_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kmsKeyName
+        operator: exists
+      - path: location
+        operator: exists
+  - check_id: gcp.cloudsql.backup.db_snapshot_encrypted
+    title: Ensure Cloud SQL Snapshots are Encrypted at Rest
+    severity: high
+    for_each: list_cloudsql_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionStatus.kind
+        operator: equals
+        expected: sql#diskEncryptionStatus
+  - check_id: gcp.cloudsql.backup.db_snapshot_not_publicly_shared
+    title: Prevent Public Access to Cloud SQL Backup Snapshots
+    severity: critical
+    for_each: list_cloudsql_backups
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.privateNetwork
+        operator: exists
+  - check_id: gcp.cloudsql.backup.snapshots_public_access_configured
+    title: Ensure Cloud SQL Snapshots Do Not Have Public Access
+    severity: critical
+    for_each: list_cloudsql_snapshots
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.authorizedNetworks[].value
+        operator: not_equals
+        expected: 0.0.0.0/0
+  - check_id: gcp.cloudsql.instance.auto_minor_version_upgrade_configured
+    title: Ensure Auto Minor Version Upgrade for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.maintenanceWindow.updateTrack
+        operator: equals
+        expected: stable
+  - check_id: gcp.cloudsql.instance.automated_backups
+    title: Enable Automated Backups for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.automated_backups_enabled
+    title: Enable Automated Backups for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.enabled
+        operator: equals
+        expected: true
+      - path: settings.backupConfiguration.startTime
+        operator: exists
+  - check_id: gcp.cloudsql.instance.backup_enabled
+    title: Ensure Cloud SQL Instances Have Backups Enabled
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.enabled
+        operator: equals
+        expected: true
+      - path: settings.backupConfiguration.pointInTimeRecoveryEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.backup_encrypted
+    title: Ensure Cloud SQL Backups are Encrypted at Rest
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kmsKeyName
+        operator: exists
+  - check_id: gcp.cloudsql.instance.backup_retention_configured
+    title: Ensure Cloud SQL Backup Retention is Properly Configured
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.transactionLogRetentionDays
+        operator: exists
+  - check_id: gcp.cloudsql.instance.contained_db_authentication_disabled
+    title: Disable Contained Database Authentication for Cloud SQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: not_equals
+        expected: contained database authentication
+  - check_id: gcp.cloudsql.instance.cross_db_ownership_chaining_off
+    title: Disable Cross Database Ownership Chaining in Cloud SQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: not_equals
+        expected: cross db ownership chaining
+  - check_id: gcp.cloudsql.instance.db_cluster_audit_logging_enabled
+    title: Ensure Cloud SQL Audit Logging is Enabled for Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: contains
+        expected: log_statement
+  - check_id: gcp.cloudsql.instance.db_cluster_deletion_protection_enabled
+    title: Enable Deletion Protection for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.deletionProtectionEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.db_cluster_encryption_at_rest_cmek
+    title: Enable CMEK for Cloud SQL Encryption at Rest
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kmsKeyName
+        operator: exists
+      - path: diskEncryptionConfiguration.kind
+        operator: equals
+        expected: sql#diskEncryptionConfiguration
+  - check_id: gcp.cloudsql.instance.db_cluster_iam_authentication_enabled
+    title: Enable IAM Authentication for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: cloudsql.iam_authentication
+  - check_id: gcp.cloudsql.instance.db_cluster_logging_enabled
+    title: Enable Logging for Cloud SQL Database Clusters
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: contains
+        expected: log_
+  - check_id: gcp.cloudsql.instance.db_cluster_multi_az_enabled
+    title: Enable Multi-AZ for Cloud SQL Database Clusters
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.availabilityType
+        operator: equals
+        expected: REGIONAL
+  - check_id: gcp.cloudsql.instance.db_cluster_publicly_accessible
+    title: Ensure Cloud SQL Clusters are Not Publicly Accessible
+    severity: critical
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.cloudsql.instance.db_cluster_snapshot_encrypted
+    title: Ensure Cloud SQL Cluster Snapshots are Encrypted
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionStatus.kmsKeyVersionName
+        operator: exists
+  - check_id: gcp.cloudsql.instance.db_instance_backup_enabled
+    title: Ensure Cloud SQL Database Instance Backups are Enabled
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.enabled
+        operator: equals
+        expected: true
+      - path: settings.backupConfiguration.binaryLogEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.db_instance_deletion_protection_enabled
+    title: Enable Deletion Protection for Cloud SQL Database Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.deletionProtectionEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.db_instance_encrypted_at_rest
+    title: Ensure Cloud SQL Database Instances are Encrypted at Rest
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kind
+        operator: exists
+  - check_id: gcp.cloudsql.instance.db_instance_logging_enabled
+    title: Enable Logging for Cloud SQL Database Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_checkpoints
+  - check_id: gcp.cloudsql.instance.db_instance_multi_az_enabled
+    title: Enable Multi-AZ for Cloud SQL Database Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.availabilityType
+        operator: equals
+        expected: REGIONAL
+  - check_id: gcp.cloudsql.instance.db_instance_publicly_accessible
+    title: Ensure Cloud SQL Database Instances are Not Publicly Accessible
+    severity: critical
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: false
+      - path: settings.ipConfiguration.privateNetwork
+        operator: exists
+  - check_id: gcp.cloudsql.instance.db_instance_requires_ssl
+    title: Ensure Cloud SQL Database Instances Require SSL
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.requireSsl
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.db_publicly_accessible
+    title: Ensure Cloud SQL Databases are Not Publicly Accessible
+    severity: critical
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.authorizedNetworks
+        operator: not_exists
+  - check_id: gcp.cloudsql.instance.deletion_protection_enabled
+    title: Enable Deletion Protection for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.deletionProtectionEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.encryption_at_rest_enabled
+    title: Enable Encryption at Rest for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionStatus.kind
+        operator: equals
+        expected: sql#diskEncryptionStatus
+  - check_id: gcp.cloudsql.instance.high_availability_enabled
+    title: Enable High Availability for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.availabilityType
+        operator: equals
+        expected: REGIONAL
+  - check_id: gcp.cloudsql.instance.iam_authentication_enabled
+    title: Enable IAM Authentication for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: cloudsql.iam_authentication
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.local_infile_off
+    title: Disable Local Infile for Cloud SQL MySQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: local_infile
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.log_checkpoints_enabled
+    title: Enable Log Checkpoints for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_checkpoints
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_connections_enabled
+    title: Enable Log Connections for Cloud SQL PostgreSQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_connections
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_disconnections_enabled
+    title: Enable Log Disconnections for Cloud SQL PostgreSQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_disconnections
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_duration_enabled
+    title: Enable Log Duration for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_duration
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_error_verbosity_configured
+    title: Configure Log Error Verbosity for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_error_verbosity
+  - check_id: gcp.cloudsql.instance.log_executor_stats_off
+    title: Disable Log Executor Stats for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_executor_stats
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.log_hostname_enabled
+    title: Enable Log Hostname for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_hostname
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_lock_waits_enabled
+    title: Enable Log Lock Waits for Cloud SQL PostgreSQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_lock_waits
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.log_min_duration_statement_configured
+    title: Configure Log Min Duration Statement for Cloud SQL PostgreSQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_min_duration_statement
+  - check_id: gcp.cloudsql.instance.log_min_error_statement_configured
+    title: Configure Log Min Error Statement for Cloud SQL PostgreSQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_min_error_statement
+  - check_id: gcp.cloudsql.instance.log_min_messages_configured
+    title: Configure Log Min Messages for Cloud SQL PostgreSQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_min_messages
+  - check_id: gcp.cloudsql.instance.log_parser_stats_off
+    title: Disable Log Parser Stats for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_parser_stats
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.log_planner_stats_off
+    title: Disable Log Planner Stats for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_planner_stats
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.log_statement_configured
+    title: Configure Log Statement for Cloud SQL PostgreSQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_statement
+  - check_id: gcp.cloudsql.instance.log_statement_stats_off
+    title: Disable Log Statement Stats for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_statement_stats
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.log_temp_files_configured
+    title: Configure Log Temp Files for Cloud SQL PostgreSQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_temp_files
+  - check_id: gcp.cloudsql.instance.maintenance_window_configured
+    title: Configure Maintenance Window for Cloud SQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.maintenanceWindow.day
+        operator: exists
+      - path: settings.maintenanceWindow.hour
+        operator: exists
+  - check_id: gcp.cloudsql.instance.mysql_skip_show_database_flag_on
+    title: Enable Skip Show Database Flag for Cloud SQL MySQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: skip_show_database
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.no_public_ip
+    title: Ensure Cloud SQL Instances Do Not Have Public IP Addresses
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.cloudsql.instance.not_publicly_accessible
+    title: Ensure Cloud SQL Instances are Not Publicly Accessible
+    severity: critical
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.authorizedNetworks[].value
+        operator: not_equals
+        expected: 0.0.0.0/0
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: false
+  - check_id: gcp.cloudsql.instance.point_in_time_recovery_enabled
+    title: Enable Point-in-Time Recovery for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.pointInTimeRecoveryEnabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.postgresql_log_statement_ddl
+    title: Configure PostgreSQL Log Statement DDL for Cloud SQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_statement
+      - path: settings.databaseFlags[].value
+        operator: contains
+        expected: ddl
+  - check_id: gcp.cloudsql.instance.postgresql_log_statement_mod
+    title: Configure PostgreSQL Log Statement Mod for Cloud SQL
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: log_statement
+      - path: settings.databaseFlags[].value
+        operator: contains
+        expected: mod
+  - check_id: gcp.cloudsql.instance.private_ip_configured
+    title: Configure Private IP for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.privateNetwork
+        operator: exists
+  - check_id: gcp.cloudsql.instance.publicly_accessible
+    title: Check Cloud SQL Instance Public Accessibility
+    severity: critical
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.ipv4Enabled
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.require_ssl
+    title: Require SSL for Cloud SQL Instance Connections
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.requireSsl
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.root_password_configured
+    title: Ensure Root Password is Configured for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: rootPassword
+        operator: exists
+  - check_id: gcp.cloudsql.instance.sql_server_audit_configured
+    title: Configure SQL Server Audit for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: '3625'
+  - check_id: gcp.cloudsql.instance.sql_server_external_scripts_disabled
+    title: Disable External Scripts for Cloud SQL SQL Server Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: external scripts enabled
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.sql_server_remote_access_off
+    title: Disable Remote Access for Cloud SQL SQL Server Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: remote access
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'off'
+  - check_id: gcp.cloudsql.instance.sql_server_trace_flag_3625_on
+    title: Enable Trace Flag 3625 for Cloud SQL SQL Server Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: '3625'
+      - path: settings.databaseFlags[].value
+        operator: equals
+        expected: 'on'
+  - check_id: gcp.cloudsql.instance.sql_server_user_connections_configured
+    title: Configure User Connections for Cloud SQL SQL Server Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: user connections
+  - check_id: gcp.cloudsql.instance.sql_server_user_options_configured
+    title: Configure User Options for Cloud SQL SQL Server Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags[].name
+        operator: equals
+        expected: user options
+  - check_id: gcp.cloudsql.instance.ssl_enabled
+    title: Enable SSL for Cloud SQL Instance Connections
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.requireSsl
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.storage_auto_resize_enabled
+    title: Enable Storage Auto Resize for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.storageAutoResize
+        operator: equals
+        expected: true
+  - check_id: gcp.cloudsql.instance.storage_encrypted
+    title: Ensure Cloud SQL Instance Storage is Encrypted
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration.kind
+        operator: exists
+  - check_id: gcp.cloudsql.instance.transaction_log_retention_configured
+    title: Configure Transaction Log Retention for Cloud SQL Instances
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.backupConfiguration.transactionLogRetentionDays
+        operator: exists
+  - check_id: gcp.cloudsql.instance.version_up_to_date
+    title: Ensure Cloud SQL Instance Versions are Up to Date
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: databaseVersion
+        operator: exists
+  - check_id: gcp.cloudsql.network.authorized_networks_configured
+    title: Configure Authorized Networks for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.authorizedNetworks
+        operator: exists
+  - check_id: gcp.cloudsql.network.private_network_configured
+    title: Configure Private Network for Cloud SQL Instances
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.privateNetwork
+        operator: exists
+  - check_id: gcp.cloudsql.security.database_flags_secure
+    title: Ensure Cloud SQL Database Flags are Securely Configured
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.databaseFlags
+        operator: exists
+  - check_id: gcp.cloudsql.security.user_labels_configured
+    title: Configure User Labels for Cloud SQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.userLabels
+        operator: exists
+        
+  - check_id: gcp.cloudsql.instance.db_deletion_protection_enabled
+    title: Enable Deletion Protection for Cloud SQL Instances
+    severity: low
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.deletionProtectionEnabled
+        operator: equals
+        expected: true
+        
+  - check_id: gcp.cloudsql.instance.db_encryption_at_rest_enabled
+    title: Ensure Cloud SQL Encryption at Rest is Enabled
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: diskEncryptionConfiguration
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.cloudsql.instance.db_cluster_private_networking_enforced
+    title: Ensure Cloud SQL Uses Private Networking
+    severity: high
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.ipConfiguration.privateNetwork
+        operator: exists
+        expected: true
+        
+  - check_id: gcp.cloudsql.instance.db_cluster_minor_version_auto_upgrade_enabled
+    title: Ensure Cloud SQL Auto Minor Version Upgrade is Enabled
+    severity: medium
+    for_each: list_cloudsql_instances
+    logic: AND
+    calls:
+    - action: eval
+      fields:
+      - path: settings.maintenanceWindow.updateTrack
+        operator: exists
+        expected: true

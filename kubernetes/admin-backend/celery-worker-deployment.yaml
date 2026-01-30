@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-backend-celery-worker
+  namespace: cspm
+  labels:
+    app: admin-backend-celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-backend-celery
+  template:
+    metadata:
+      labels:
+        app: admin-backend-celery
+    spec:
+      containers:
+      - name: celery-worker
+        image: engine-adminportal:latest
+        command: ["celery", "-A", "admin_portal", "worker", "--loglevel=info"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: url
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: password
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: host
+        - name: DB_PORT
+          value: "5432"
+        - name: REDIS_URL
+          value: "redis://redis-service:6379/1"
+        - name: CELERY_BROKER_URL
+          value: "redis://redis-service:6379/0"
+        - name: CELERY_RESULT_BACKEND
+          value: "redis://redis-service:6379/0"
+        - name: ADMIN_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: admin-secret
+              key: secret-key
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"

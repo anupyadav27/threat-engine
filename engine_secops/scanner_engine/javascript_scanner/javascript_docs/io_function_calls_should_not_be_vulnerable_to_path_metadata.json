@@ -1,0 +1,61 @@
+{
+  "filename": "io_function_calls_should_not_be_vulnerable_to_path_metadata.json",
+  "rule_id": "io_function_calls_vulnerable",
+  "title": "I/O function calls should not be vulnerable to path injection attacks",
+  "description": "Path injection vulnerabilities occur when an application uses untrusted user input to construct file paths for I/O operations without proper validation. Attackers can inject malicious path components like '../', absolute paths, or special characters to access files outside the intended directory, potentially leading to unauthorized file access, data disclosure, or system compromise. This rule detects I/O function calls that may be vulnerable to such attacks.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "fs.readFile(userInput + '/config.txt', callback);",
+      "fs.readFileSync(req.query.file);",
+      "fs.writeFile('/uploads/' + fileName, data);",
+      "const path = req.params.path; fs.readFile(path, callback);",
+      "fs.readFile('../' + userFile, callback);"
+    ],
+    "compliant": [
+      "fs.readFile(path.join(__dirname, 'config.txt'), callback);",
+      "const safePath = path.resolve('./uploads', path.basename(fileName)); fs.readFile(safePath, callback);",
+      "if (isValidPath(userPath)) { fs.readFile(userPath, callback); }",
+      "fs.readFile(path.normalize(sanitizedPath), callback);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-2083"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_path_injection_vulnerability",
+        "message": "I/O function call may be vulnerable to path injection attacks"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?:fs\\.|require\\(['\"]fs['\"]\\)\\.)(?:readFile|writeFile|appendFile|readdir|stat|access|mkdir|rmdir|unlink)\\s*\\([^)]*(?:req\\.|request\\.|input|user|param|query|body|headers).*?\\)",
+          "(?:fs\\.|require\\(['\"]fs['\"]\\)\\.)(?:readFile|writeFile|appendFile)\\s*\\([^)]*\\+[^)]*\\)",
+          "(?:fs\\.|require\\(['\"]fs['\"]\\)\\.)(?:readFile|writeFile|appendFile)\\s*\\([^)]*\\$\\{[^}]*(?:req\\.|request\\.|input|user|param|query)[^}]*\\}",
+          "(?:fs\\.|require\\(['\"]fs['\"]\\)\\.)(?:readFile|writeFile|appendFile)\\s*\\(\\s*['\\\"][^'\\\"]*\\.\\./[^'\\\"]*['\\\"]\\s*[,)]"
+        ],
+        "message": "File operation uses potentially unsafe path construction"
+      }
+    ]
+  }
+}

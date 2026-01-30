@@ -1,0 +1,40 @@
+{
+  "filename": "constructors_should_only_call_non_overridable_methods_metadata.json",
+  "rule_id": "java_bug_constructors_non_overridable_methods",
+  "title": "Constructors Should Only Call Non-Overridable Methods",
+  "description": "This rule warns when a constructor calls an overridable method. This practice could result in failures or strange behaviors when instantiating a subclass which overrides the method. If the behavior of the child class method depends on fields that are initialized in the child class constructor, unexpected behavior can occur.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "java",
+  "recommendation": "To fix this issue, ensure that constructors only call non-overridable methods.",
+  "impact": "Ignoring this rule may lead to unexpected behavior such as NullPointerExceptions due to the order of constructor calls and field initialization.",
+  "examples": {
+    "noncompliant": [
+      "public class Parent {\n  public Parent () {\n    doSomething();  // Noncompliant\n  }\n  public void doSomething () {  // not final; can be overridden\n    ...\n  }\n}\npublic class Child extends Parent {\n  private String foo;\n  public Child(String foo) {\n    super(); // leads to call doSomething() in Parent constructor which triggers a NullPointerException as foo has not yet been initialized\n    this.foo = foo;\n  }\n  public void doSomething () {\n    System.out.println(this.foo.length());\n  }\n}"
+    ],
+    "compliant": []
+  },
+  "references": [
+    {
+      "title": "RSPEC-1699",
+      "url": "https://rules.sonarsource.com/java/RSPEC-1699"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          ".*"
+        ],
+        "message": "Rule: Constructors Should Only Call Non-Overridable Methods"
+      }
+    ]
+  }
+}

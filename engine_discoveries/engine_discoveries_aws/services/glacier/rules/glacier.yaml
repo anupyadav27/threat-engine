@@ -1,0 +1,139 @@
+version: '1.0'
+provider: aws
+service: glacier
+services:
+  client: glacier
+  module: boto3.client
+discovery:
+- discovery_id: aws.glacier.get_data_retrieval_policy
+  calls:
+  - action: get_data_retrieval_policy
+    params:
+      accountId: '-'
+    save_as: response
+  emit:
+    item:
+      Policy: '{{ response.Policy }}'
+      Rules: '{{ response.Policy.Rules }}'
+- discovery_id: aws.glacier.list_vaults
+  calls:
+  - action: list_vaults
+    params:
+      accountId: '-'
+    save_as: response
+  emit:
+    items_for: '{{ response.VaultList }}'
+    as: item
+    item:
+      VaultName: '{{ item.VaultName }}'
+      VaultARN: '{{ item.VaultARN }}'
+      CreationDate: '{{ item.CreationDate }}'
+      LastInventoryDate: '{{ item.LastInventoryDate }}'
+      NumberOfArchives: '{{ item.NumberOfArchives }}'
+      SizeInBytes: '{{ item.SizeInBytes }}'
+- discovery_id: aws.glacier.describe_vault
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: describe_vault
+    params:
+      accountId: '-'
+      vaultName: '{{ item.VaultName }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.glacier.get_vault_access_policy
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: get_vault_access_policy
+    params:
+      accountId: '-'
+      vaultName: '{{ item.VaultName }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.glacier.get_vault_lock
+  for_each: aws.glacier.list_vaults
+  calls:
+  - action: get_vault_lock
+    params:
+      accountId: '-'
+      vaultName: '{{ item.VaultName }}'
+    save_as: response
+  emit: {}
+checks:
+- rule_id: aws.glacier.policy.public_access_configured
+  for_each: aws.glacier.get_data_retrieval_policy
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.backup_enforced_on_sensitive_datasets_configured
+  for_each: aws.glacier.describe_vault
+  conditions:
+    var: item.VaultARN
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.backup_policies_configured
+  for_each: aws.glacier.get_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.backup_storage_immutability_enabled
+  for_each: aws.glacier.get_vault_lock
+  conditions:
+    var: item.State
+    op: equals
+    value: Locked
+- rule_id: aws.glacier.vault.certificate_expiration_rules_configured
+  for_each: aws.glacier.describe_vault
+  conditions:
+    var: item.VaultARN
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.cmk_cmek_key_configured
+  for_each: aws.glacier.get_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.encryption_at_rest_enabled
+  for_each: aws.glacier.describe_vault
+  conditions:
+    var: item.VaultARN
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.encryption_in_transit_tls_min_1_2_configured
+  for_each: aws.glacier.describe_vault
+  conditions:
+    var: item.VaultARN
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.immutable_retention_locked_where_required
+  for_each: aws.glacier.get_vault_lock
+  conditions:
+    var: item.State
+    op: equals
+    value: Locked
+- rule_id: aws.glacier.vault.key_policy_least_privilege
+  for_each: aws.glacier.get_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.key_rotation_enabled
+  for_each: aws.glacier.get_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.protected_from_public_override_configured
+  for_each: aws.glacier.get_vault_access_policy
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.glacier.vault.versioning_enabled_if_supported
+  for_each: aws.glacier.describe_vault
+  conditions:
+    var: item.VaultARN
+    op: exists
+    value: null

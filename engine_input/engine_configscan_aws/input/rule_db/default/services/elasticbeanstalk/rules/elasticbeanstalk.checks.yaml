@@ -1,0 +1,191 @@
+version: '1.0'
+provider: aws
+service: elasticbeanstalk
+checks:
+- rule_id: aws.elasticbeanstalk.application.env_secrets_from_vault_only_configured
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:application:environment
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: SecretsManagerSecret
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+- rule_id: aws.elasticbeanstalk.application.logging_enabled
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:cloudwatch:logs
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: StreamLogs
+      - var: item.OptionSettings[].Value
+        op: equals
+        value: 'true'
+- rule_id: aws.elasticbeanstalk.application.private_networking_enforced
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:ec2:vpc
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: VPCId
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:ec2:vpc
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: Subnets
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+- rule_id: aws.elasticbeanstalk.application.tls_min_1_2_enforced
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elbv2:listener:443
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: Protocol
+      - var: item.OptionSettings[].Value
+        op: in
+        value:
+        - ELBSecurityPolicy-TLS-1-2-2017-01
+        - ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+- rule_id: aws.elasticbeanstalk.application_version.elasticbeanstalk_artifact_encrypted
+  for_each: aws.elasticbeanstalk.describe_application_versions
+  conditions:
+    all:
+    - var: item.SourceBundle
+      op: exists
+      value: null
+    - var: item.SourceBundle.S3Bucket
+      op: exists
+      value: null
+    - var: item.SourceBundle.S3Key
+      op: exists
+      value: null
+- rule_id: aws.elasticbeanstalk.application_version.elasticbeanstalk_immutability_enabled
+  for_each: aws.elasticbeanstalk.describe_applications
+  conditions:
+    all:
+    - var: item.ResourceLifecycleConfig
+      op: exists
+      value: null
+    - var: item.ResourceLifecycleConfig.VersionLifecycleConfig
+      op: exists
+      value: null
+- rule_id: aws.elasticbeanstalk.environment.env_secrets_from_vault_only_configured
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:application:environment
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: SecretsManagerSecret
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+- rule_id: aws.elasticbeanstalk.environment.logging_enabled
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:cloudwatch:logs
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: StreamLogs
+      - var: item.OptionSettings[].Value
+        op: equals
+        value: 'true'
+- rule_id: aws.elasticbeanstalk.environment.private_networking_enforced
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:ec2:vpc
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: VPCId
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:ec2:vpc
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: Subnets
+      - var: item.OptionSettings[].Value
+        op: exists
+        value: null
+- rule_id: aws.elasticbeanstalk.environment.tls_min_1_2_enforced
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elbv2:listener:443
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: Protocol
+      - var: item.OptionSettings[].Value
+        op: in
+        value:
+        - ELBSecurityPolicy-TLS-1-2-2017-01
+        - ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+- rule_id: aws.elasticbeanstalk.resource.elasticbeanstalk_managed_updates_enabled
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:managedactions
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: ManagedActionsEnabled
+      - var: item.OptionSettings[].Value
+        op: equals
+        value: 'true'
+- rule_id: aws.elasticbeanstalk.resource.environment_cloudwatch_logging_enabled
+  for_each: aws.elasticbeanstalk.describe_configuration_settings_for_environment
+  conditions:
+    any:
+    - all:
+      - var: item.OptionSettings[].Namespace
+        op: equals
+        value: aws:elasticbeanstalk:cloudwatch:logs
+      - var: item.OptionSettings[].OptionName
+        op: equals
+        value: StreamLogs
+      - var: item.OptionSettings[].Value
+        op: equals
+        value: 'true'

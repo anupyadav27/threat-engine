@@ -1,0 +1,73 @@
+{
+  "filename": "exceptions_should_not_be_created_without_being_thr_metadata.json",
+  "rule_id": "exceptions_created_without_being",
+  "title": "Exceptions should not be created without being thrown",
+  "description": "Exceptions should not be created without being thrownAnalyze your codeintentionality-clearreliabilityBugerror-handlingWhy is this an issue?More InfoCreating a newExceptionwithout actually throwing does not achieve the intended purpose.if (x < 0) { new ArgumentException(\"x must be nonnegative\"); }Ensure to throw theExceptionwith athrowstatement.if (x < 0) { throw new ArgumentException(\"x must be nonnegative\"); }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (x < 0)\n{\n    new ArgumentException(\"x must be nonnegative\"); // Noncompliant - exception created but not thrown\n}",
+      "public void ValidateInput(string input)\n{\n    if (string.IsNullOrEmpty(input))\n    {\n        new InvalidOperationException(\"Input cannot be null or empty\"); // Noncompliant\n    }\n}"
+    ],
+    "compliant": [
+      "if (x < 0)\n{\n    throw new ArgumentException(\"x must be nonnegative\");\n}",
+      "public void ValidateInput(string input)\n{\n    if (string.IsNullOrEmpty(input))\n    {\n        throw new InvalidOperationException(\"Input cannot be null or empty\");\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3984"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_exceptions_created_without_being_thrown",
+        "exclude_patterns": [
+          "throw\\s+new",
+          "return\\s+new",
+          "=\\s*new",
+          "\\[Test",
+          "[Ff]act\\]",
+          "//.*new.*Exception",
+          "/\\*.*new.*Exception.*\\*/",
+          "var\\s+\\w+\\s*=",
+          "\\w+\\s*=\\s*new"
+        ],
+        "message": "Exception created but not thrown - use 'throw' keyword or assign to variable"
+      }
+    ],
+    "never_trigger_on": [
+      "Exception assignment to variables (var ex = new Exception)",
+      "Exception return statements (return new Exception)",
+      "Throw statements (throw new Exception)",
+      "Unit tests creating exceptions for testing",
+      "Comments discussing exceptions"
+    ],
+    "reasoning": "Detects 'new Exception()' statements that are not preceded by 'throw' keyword and not assigned to variables or returned. This catches cases where exceptions are instantiated but never thrown, which is a logic error. Excludes assignments, returns, throw statements, and test code.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (x < 0) { new ArgumentException(\"x must be nonnegative\"); }",
+        "new InvalidOperationException(\"Input cannot be null\");",
+        "if (condition) { new Exception(\"Error\"); }"
+      ],
+      "should_not_trigger": [
+        "if (x < 0) { throw new ArgumentException(\"x must be nonnegative\"); }",
+        "var ex = new ArgumentException(\"test\");",
+        "return new InvalidOperationException(\"error\");",
+        "// new ArgumentException should be thrown"
+      ]
+    },
+    "precision_target": "90%",
+    "self_critique_notes": "Pattern uses negative lookbehind to ensure 'throw' doesn't precede 'new Exception'. Added exclusions for assignments (var/field = new Exception), return statements, and actual throw statements. Edge cases considered: (1) Exception in variable assignment - excluded via assignment patterns; (2) Exception as return value - excluded via return pattern; (3) Test code creating exceptions for assertions - excluded via test attributes."
+  }
+}

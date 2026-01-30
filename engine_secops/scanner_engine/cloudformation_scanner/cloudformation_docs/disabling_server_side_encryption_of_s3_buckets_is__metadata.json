@@ -1,0 +1,50 @@
+{
+  "filename": "disabling_server_side_encryption_of_s3_buckets_is__metadata.json",
+  "rule_id": "disabling_serverside_encryption_s3",
+  "title": "Disabling server-side encryption of S3 buckets is security-sensitive",
+  "description": "Server-side encryption (SSE) encrypts an object (not the metadata) as it is written to disk (where the S3 bucket resides) and decrypts it as it is read from disk. This doesn’t change the way the objects are accessed, as long as the user has the necessary permissions, objects are retrieved as if they were unencrypted. Thus, SSE only helps in the event of disk thefts, improper disposals of disks and other attacks on the AWS infrastructure itself.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "deprecated"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: 'AWS::S3::Bucket'\n    Properties:\n      BucketName: my-bucket  # Sensitive - no encryption",
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: 'AWS::S3::Bucket'\n    Properties:\n      BucketName: my-bucket\n      BucketEncryption:\n        ServerSideEncryptionConfiguration:\n          - ServerSideEncryptionByDefault:\n              SSEAlgorithm: None  # Sensitive - encryption explicitly disabled"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: 'AWS::S3::Bucket'\n    Properties:\n      BucketName: my-bucket\n      BucketEncryption:\n        ServerSideEncryptionConfiguration:\n          - ServerSideEncryptionByDefault:\n              SSEAlgorithm: AES256",
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  S3Bucket:\n    Type: 'AWS::S3::Bucket'\n    Properties:\n      BucketName: my-bucket\n      BucketEncryption:\n        ServerSideEncryptionConfiguration:\n          - ServerSideEncryptionByDefault:\n              SSEAlgorithm: aws:kms\n              KMSMasterKeyID: arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6245"
+  ],
+  "logic": {
+    "resource_types": ["AWS::S3::Bucket"],
+    "checks": [
+      {
+        "type": "encryption_check",
+        "message": "S3 bucket should have server-side encryption configured"
+      },
+      {
+        "type": "property_comparison", 
+        "property_path": ["properties", "BucketEncryption", "ServerSideEncryptionConfiguration", "0", "ServerSideEncryptionByDefault", "SSEAlgorithm"],
+        "operator": "equals",
+        "value": "None",
+        "message": "S3 bucket explicitly disables encryption with SSEAlgorithm: None"
+      },
+      {
+        "type": "forbidden_value",
+        "property_path": ["properties", "BucketEncryption", "ServerSideEncryptionConfiguration", "0", "ServerSideEncryptionByDefault", "SSEAlgorithm"],
+        "forbidden_values": ["None", "", null],
+        "message": "S3 bucket should not explicitly disable encryption"
+      }
+    ]
+  }
+}

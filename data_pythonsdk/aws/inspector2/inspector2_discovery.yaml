@@ -1,0 +1,260 @@
+version: '1.0'
+provider: aws
+service: inspector2
+services:
+  client: inspector2
+  module: boto3.client
+discovery:
+- discovery_id: aws.inspector2.list_findings
+  calls:
+  - action: list_findings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+- discovery_id: aws.inspector2.list_cis_scans
+  calls:
+  - action: list_cis_scans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scans }}'
+- discovery_id: aws.inspector2.list_code_security_scan_configurations
+  calls:
+  - action: list_code_security_scan_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.configurations }}'
+- discovery_id: aws.inspector2.list_filters
+  calls:
+  - action: list_filters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.filters }}'
+- discovery_id: aws.inspector2.list_code_security_integrations
+  calls:
+  - action: list_code_security_integrations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.integrations }}'
+- discovery_id: aws.inspector2.list_coverage
+  calls:
+  - action: list_coverage
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.coveredResources }}'
+- discovery_id: aws.inspector2.list_cis_scan_configurations
+  calls:
+  - action: list_cis_scan_configurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.scanConfigurations }}'
+- discovery_id: aws.inspector2.get_findings_report_status
+  calls:
+  - action: get_findings_report_status
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.destination }}'
+- discovery_id: aws.inspector2.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.autoEnable }}'
+- discovery_id: aws.inspector2.list_members
+  calls:
+  - action: list_members
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.members }}'
+- discovery_id: aws.inspector2.list_coverage_statistics
+  calls:
+  - action: list_coverage_statistics
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.countsByGroup }}'
+- discovery_id: aws.inspector2.get_configuration
+  calls:
+  - action: get_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ecrConfiguration }}'
+- discovery_id: aws.inspector2.list_account_permissions
+  calls:
+  - action: list_account_permissions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.permissions }}'
+- discovery_id: aws.inspector2.get_delegated_admin_account
+  calls:
+  - action: get_delegated_admin_account
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.delegatedAdmin }}'
+- discovery_id: aws.inspector2.list_usage_totals
+  calls:
+  - action: list_usage_totals
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.totals }}'
+- discovery_id: aws.inspector2.get_ec2_deep_inspection_configuration
+  calls:
+  - action: get_ec2_deep_inspection_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.packagePaths }}'
+- discovery_id: aws.inspector2.list_finding_aggregations
+  calls:
+  - action: list_finding_aggregations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.responses }}'
+- discovery_id: aws.inspector2.list_cis_scan_results_aggregated_by_target_resource
+  for_each: aws.inspector2.list_cis_scans
+  calls:
+  - action: list_cis_scan_results_aggregated_by_target_resource
+    save_as: response
+    on_error: continue
+    params:
+      scanArn: '{{ item.scanScanArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.targetResourceAggregations }}'
+- discovery_id: aws.inspector2.get_code_security_scan_configuration
+  for_each: aws.inspector2.list_cis_scans
+  calls:
+  - action: get_code_security_scan_configuration
+    save_as: response
+    on_error: continue
+    params:
+      scanConfigurationArn: '{{ item.scanConfigurationScanConfigurationArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.configuration }}'
+- discovery_id: aws.inspector2.get_clusters_for_image
+  for_each: aws.inspector2.list_filters
+  calls:
+  - action: get_clusters_for_image
+    save_as: response
+    on_error: continue
+    params:
+      filter: '{{ item.filterArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.cluster }}'
+- discovery_id: aws.inspector2.get_cis_scan_result_details
+  for_each: aws.inspector2.list_coverage
+  calls:
+  - action: get_cis_scan_result_details
+    save_as: response
+    on_error: continue
+    params:
+      scanArn: '{{ item.scanScanArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.scanResultDetails }}'
+- discovery_id: aws.inspector2.get_member
+  for_each: aws.inspector2.list_coverage
+  calls:
+  - action: get_member
+    save_as: response
+    on_error: continue
+    params:
+      accountId: '{{ item.delegatedAdminAccountId }}'
+  emit:
+    as: item
+    items_for: '{{ response.member }}'
+- discovery_id: aws.inspector2.list_code_security_scan_configuration_associations
+  for_each: aws.inspector2.list_cis_scans
+  calls:
+  - action: list_code_security_scan_configuration_associations
+    save_as: response
+    on_error: continue
+    params:
+      scanConfigurationArn: '{{ item.scanConfigurationScanConfigurationArn }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.associations }}'
+- discovery_id: aws.inspector2.get_code_security_scan
+  for_each: aws.inspector2.list_code_security_scan_configuration_associations
+  calls:
+  - action: get_code_security_scan
+    save_as: response
+    on_error: continue
+    params:
+      resource: '{{ item.associationResource }}'
+  emit:
+    as: item
+    items_for: '{{ response.resource }}'
+- discovery_id: aws.inspector2.get_cis_scan_report
+  for_each: aws.inspector2.list_cis_scans
+  calls:
+  - action: get_cis_scan_report
+    save_as: response
+    on_error: continue
+    params:
+      scanArn: '{{ item.scanScanArn }}'
+  emit:
+    as: item
+    items_for: '{{ response.url }}'
+checks: []

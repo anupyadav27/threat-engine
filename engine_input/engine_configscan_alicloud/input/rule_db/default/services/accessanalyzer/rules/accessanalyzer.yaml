@@ -1,0 +1,50 @@
+version: '1.0'
+provider: alicloud
+service: accessanalyzer
+discovery:
+- discovery_id: alicloud.accessanalyzer.enabled
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeEnableds
+    params: {}
+    save_as: enabled_response
+  emit:
+    items_for: '{ enabled_response.Enableds.Enabled }'
+    as: r
+    item:
+      id: '{{ r.EnabledId }}'
+      name: '{{ r.EnabledId }}'
+      resource_type: enabled
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.accessanalyzer.enabled.configured
+  title: Ensure AliCloud Access Analyzer is Enabled and Configured
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.accessanalyzer.enabled
+  params: {}
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: equals
+      value: true
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.accessanalyzer.enabled.without_findings
+  title: AliCloud Access Analyzer Should Be Enabled Without Active Security Findings
+  severity: medium
+  assertion_id: iso27001_2022_multi_cloud_A.8.3_0085
+  for_each: alicloud.accessanalyzer.enabled
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true

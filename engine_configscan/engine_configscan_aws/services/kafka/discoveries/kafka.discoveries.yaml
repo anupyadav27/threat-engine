@@ -1,0 +1,25 @@
+version: '1.0'
+provider: aws
+service: kafka
+services:
+  client: kafka
+  module: boto3.client
+discovery:
+- discovery_id: aws.kafka.list_clusters
+  calls:
+  - action: list_clusters
+    params:
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.ClusterInfoList }}'
+    as: item
+- discovery_id: aws.kafka.describe_cluster
+  for_each: aws.kafka.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterArn: '{{ item.ClusterArn }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}

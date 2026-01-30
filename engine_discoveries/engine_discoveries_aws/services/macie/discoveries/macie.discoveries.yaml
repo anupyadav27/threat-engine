@@ -1,0 +1,63 @@
+version: '1.0'
+provider: aws
+service: macie
+services:
+  client: macie2
+  module: boto3.client
+discovery:
+- discovery_id: aws.macie.list_findings
+  calls:
+  - action: list_findings
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.findings }}'
+    as: item
+- discovery_id: aws.macie2.list_classification_jobs
+  calls:
+  - action: list_classification_jobs
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.macie.list_custom_data_identifiers
+  calls:
+  - action: list_custom_data_identifiers
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.macie2.list_members
+  calls:
+  - action: describe_buckets
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.macie2.describe_buckets
+  calls:
+  - action: describe_buckets
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}
+- discovery_id: aws.macie2.list_resource_profile_detections
+  calls:
+  - action: get_usage_totals
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.usageTotals }}'
+    as: item
+- discovery_id: aws.macie2.list_organization_admin_accounts
+  calls:
+  - action: describe_buckets
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit: {}

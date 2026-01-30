@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-compliance-engine
+  namespace: threat-engine-engines
+  labels:
+    app: aws-compliance-engine
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Single-node clusters can’t afford a surge pod. Replace in-place.
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: aws-compliance-engine
+  template:
+    metadata:
+      labels:
+        app: aws-compliance-engine
+        tier: engine
+    spec:
+      serviceAccountName: aws-compliance-engine-sa
+      containers:
+      - name: aws-engine
+        image: yadavanup84/threat-engine-aws-compliance-engine:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: USER_RULES_DIR
+          value: "/user-rules"
+        volumeMounts:
+        - name: output-volume
+          mountPath: /output
+        - name: user-rules-volume
+          mountPath: /user-rules
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "2Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 5
+          failureThreshold: 6
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            while true; do
+              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+                echo "$(date): Syncing /output to s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/"
+                aws s3 sync /output "s3://${S3_BUCKET}/${S3_OUTPUT_PATH}/" \
+                  --delete \
+                  --exclude "*.tmp" \
+                  --exclude "*.lock" \
+                  --region "${AWS_REGION:-ap-south-1}" || true
+              fi
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: S3_OUTPUT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: aws-output-path
+        - name: AWS_REGION
+          value: "ap-south-1"
+        volumeMounts:
+        - name: output-volume
+          mountPath: /output
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      - name: user-rules-sync
+        image: amazon/aws-cli:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            while true; do
+              echo "$(date): Syncing s3://${S3_BUCKET}/${S3_USER_RULES_PATH}/ to /user-rules/"
+              aws s3 sync "s3://${S3_BUCKET}/${S3_USER_RULES_PATH}/" /user-rules/ \
+                --delete \
+                --exclude "*.tmp" \
+                --exclude "*.lock" \
+                --region "${AWS_REGION:-ap-south-1}" || true
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: S3_USER_RULES_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: yaml-builder-output-path
+        - name: AWS_REGION
+          value: "ap-south-1"
+        volumeMounts:
+        - name: user-rules-volume
+          mountPath: /user-rules
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: output-volume
+        emptyDir: {}
+      - name: user-rules-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aws-compliance-engine
+  namespace: threat-engine-engines
+  labels:
+    app: aws-compliance-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: aws-compliance-engine

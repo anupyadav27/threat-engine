@@ -1,0 +1,112 @@
+version: '1.0'
+provider: aws
+service: snowball
+services:
+  client: snowball
+  module: boto3.client
+discovery:
+- discovery_id: aws.snowball.list_pickup_locations
+  calls:
+  - action: list_pickup_locations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Addresses }}'
+- discovery_id: aws.snowball.list_long_term_pricing
+  calls:
+  - action: list_long_term_pricing
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.LongTermPricingEntries }}'
+- discovery_id: aws.snowball.list_jobs
+  calls:
+  - action: list_jobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.JobListEntries }}'
+- discovery_id: aws.snowball.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ClusterListEntries }}'
+- discovery_id: aws.snowball.list_compatible_images
+  calls:
+  - action: list_compatible_images
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CompatibleImages }}'
+- discovery_id: aws.snowball.get_snowball_usage
+  calls:
+  - action: get_snowball_usage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SnowballLimit }}'
+- discovery_id: aws.snowball.describe_job
+  for_each: aws.snowball.list_jobs
+  calls:
+  - action: describe_job
+    save_as: response
+    on_error: continue
+    params:
+      JobId: '{{ item.jobListEntryJobId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SubJobMetadata }}'
+- discovery_id: aws.snowball.describe_address
+  for_each: aws.snowball.list_pickup_locations
+  calls:
+  - action: describe_address
+    save_as: response
+    on_error: continue
+    params:
+      AddressId: '{{ item.addressAddressId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Address }}'
+- discovery_id: aws.snowball.describe_cluster
+  for_each: aws.snowball.list_clusters
+  calls:
+  - action: describe_cluster
+    save_as: response
+    on_error: continue
+    params:
+      ClusterId: '{{ item.clusterListEntryClusterId }}'
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ClusterMetadata }}'
+- discovery_id: aws.snowball.list_service_versions
+  calls:
+  - action: list_service_versions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ServiceVersions }}'
+checks: []

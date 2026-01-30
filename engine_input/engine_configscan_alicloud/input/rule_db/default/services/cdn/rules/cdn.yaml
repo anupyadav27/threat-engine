@@ -1,0 +1,415 @@
+version: '1.0'
+provider: alicloud
+service: cdn
+discovery:
+- discovery_id: alicloud.cdn.cache_policy
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCachePolicys
+    params: {}
+    save_as: cache_policy_response
+  emit:
+    items_for: '{ cache_policy_response.CachePolicys.CachePolicy }'
+    as: r
+    item:
+      id: '{{ r.CachePolicyId }}'
+      name: '{{ r.CachePolicyId }}'
+      resource_type: cache_policy
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.cloudfront
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeCloudfronts
+    params: {}
+    save_as: cloudfront_response
+  emit:
+    items_for: '{ cloudfront_response.Cloudfronts.Cloudfront }'
+    as: r
+    item:
+      id: '{{ r.CloudfrontId }}'
+      name: '{{ r.CloudfrontId }}'
+      resource_type: cloudfront
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.dcdn
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDcdns
+    params: {}
+    save_as: dcdn_response
+  emit:
+    items_for: '{ dcdn_response.Dcdns.Dcdn }'
+    as: r
+    item:
+      id: '{{ r.DcdnId }}'
+      name: '{{ r.DcdnId }}'
+      resource_type: dcdn
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.distribution
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDistributions
+    params: {}
+    save_as: distribution_response
+  emit:
+    items_for: '{ distribution_response.Distributions.Distribution }'
+    as: r
+    item:
+      id: '{{ r.DistributionId }}'
+      name: '{{ r.DistributionId }}'
+      resource_type: distribution
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.domain
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeDomains
+    params: {}
+    save_as: domain_response
+  emit:
+    items_for: '{ domain_response.Domains.Domain }'
+    as: r
+    item:
+      id: '{{ r.DomainId }}'
+      name: '{{ r.DomainId }}'
+      resource_type: domain
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.edge
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeEdges
+    params: {}
+    save_as: edge_response
+  emit:
+    items_for: '{ edge_response.Edges.Edge }'
+    as: r
+    item:
+      id: '{{ r.EdgeId }}'
+      name: '{{ r.EdgeId }}'
+      resource_type: edge
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+- discovery_id: alicloud.cdn.origin
+  calls:
+  - product: Unknown
+    version: '2014-05-26'
+    action: DescribeOrigins
+    params: {}
+    save_as: origin_response
+  emit:
+    items_for: '{ origin_response.Origins.Origin }'
+    as: r
+    item:
+      id: '{{ r.OriginId }}'
+      name: '{{ r.OriginId }}'
+      resource_type: origin
+      region: '{{ region }}'
+      encrypted: '{{ r.Encrypted }}'
+      kms_key_id: '{{ r.KMSKeyId }}'
+      public_ip_address: '{{ r.PublicIpAddress }}'
+      vpc_id: '{{ r.VpcId }}'
+      status: '{{ r.Status }}'
+      tags: '{{ r.Tags }}'
+checks:
+- rule_id: alicloud.cdn.cache_policy.no_sensitive_headers_cached
+  title: AliCloud Content Delivery Network Cache Policy Should Not Cache Sensitive Headers
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.cache_policy
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.cloudfront.https_enforced
+  title: Alibaba Cloud Content Delivery Network Domain Must Enforce HTTPS Protocol
+  severity: low
+  assertion_id: canada_pbmm_moderate_multi_cloud_CCCS_SC-8_0133
+  for_each: alicloud.cdn.cloudfront
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+- rule_id: alicloud.cdn.dcdn.cdn_access_logging_enabled
+  title: AliCloud Dynamic Route for Content Delivery Network (DCDN) Access Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.dcdn.cdn_cache_key_excludes_sensitive_headers
+  title: AliCloud Dynamic Route for Content Delivery Network Cache Key Should Exclude Sensitive Headers
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.dcdn.cdn_hsts_enabled
+  title: Ensure AliCloud Dynamic Route for Content Delivery Network (DCDN) has HTTP Strict Transport Security (HSTS) enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.dcdn.cdn_https_only_viewer_protocol
+  title: AliCloud Dynamic Content Delivery Network (DCDN) Should Enforce HTTPS-Only Viewer Protocol
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.dcdn.cdn_origin_access_restricted
+  title: AliCloud Dynamic Route for Content Delivery Network (DCDN) Origin Access Should Be Restricted
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cdn.dcdn.cdn_signed_urls_or_headers_required_for_private_content
+  title: AliCloud Dynamic Content Delivery Network (DCDN) Should Require Signed URLs or Headers for Private Content Access
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.dcdn.cdn_tls_min_1_2_enforced
+  title: Alibaba Cloud Dynamic Route for CDN (DCDN) Should Enforce TLS Version 1.2 or Higher
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cdn.dcdn.cdn_valid_trusted_certificate_attached
+  title: AliCloud Dynamic Route for Content Delivery Network (DCDN) Should Have Valid Trusted Certificate Attached
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.dcdn.cdn_waf_web_acl_attached
+  title: Ensure Dynamic Route for Content Delivery Network (DCDN) has Web Application Firewall (WAF) Web ACL Attached
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.dcdn
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.distribution.custom_ssl_certificate_valid
+  title: Alibaba Cloud Content Delivery Network Distribution Custom SSL Certificate Must Be Valid
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.distribution
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.distribution.logging_enabled_90_day_retention
+  title: AliCloud Content Delivery Network Distribution Must Have Logging Enabled with 90-Day Retention
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.distribution
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.distribution.origin_traffic_encrypted_tls1_2_or_higher
+  title: Alibaba Cloud Content Delivery Network distribution should encrypt origin traffic with TLS 1.2 or higher
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.distribution
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cdn.distribution.tls1_2_or_higher_enforced
+  title: Alibaba Cloud Content Delivery Network Distribution Must Enforce TLS 1.2 or Higher
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.distribution
+  params: {}
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+      value: true
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cdn.domain.custom_ssl_certificate
+  title: Content Delivery Network Domain Should Use Custom SSL Certificate
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.domain.field_level_encryption_enabled
+  title: AliCloud Content Delivery Network Domain Field Level Encryption Should Be Enabled
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.domain.https_enabled
+  title: Alibaba Cloud Content Delivery Network Domain Should Have HTTPS Enabled
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.domain.logging_enabled
+  title: Alibaba Cloud Content Delivery Network Domain Logging Should Be Enabled
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.domain.multiple_origin_failover_configured
+  title: Alibaba Cloud Content Delivery Network Domain Multiple Origin Failover Configuration
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.domain.origin_traffic_encrypted
+  title: Alibaba Cloud Content Delivery Network domain should have encrypted origin traffic
+  severity: low
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: true
+- rule_id: alicloud.cdn.domain.using_deprecated_ssl_protocols
+  title: AliCloud Content Delivery Network Domain Should Not Use Deprecated SSL Protocols
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.domain
+  params: {}
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+      value: true
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cdn.edge.cache_policy_no_sensitive_headers_cached
+  title: AliCloud Content Delivery Network Cache Policy Should Not Cache Sensitive Headers
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.edge
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.edge.cache_policy_respects_cache_control_no_store_private
+  title: AliCloud Content Delivery Network Edge Cache Policy Should Respect Cache-Control No-Store and Private Directives
+  severity: medium
+  assertion_id: ''
+  for_each: alicloud.cdn.edge
+  params: {}
+  conditions:
+    var: item.id
+    op: exists
+- rule_id: alicloud.cdn.origin.origin_request_policy_no_secret_headers_forwarded
+  title: Alibaba Cloud Content Delivery Network Origin Request Policy Should Not Forward Secret Headers
+  severity: high
+  assertion_id: ''
+  for_each: alicloud.cdn.origin
+  params: {}
+  conditions:
+    var: item.id
+    op: exists

@@ -1,0 +1,72 @@
+{
+  "filename": "a-new-session-should-be-created-during-user-authentication_metadata.json",
+  "rule_id": "security_create_session_on_auth_spring",
+  "title": "Create a new session during user authentication in Spring applications",
+  "description": "An attacker may trick a user into using a predetermined session identifier. Consequently, this attacker can gain unauthorized access and impersonate the user's session. This kind of attack is called session fixation, and protections against it should not be disabled.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Ensure a new session is created during user authentication",
+  "impact": "Allows unauthorized access and impersonation of user sessions",
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [],
+  "logic": {
+    "node_types": [
+      "Method",
+      "Annotation"
+    ],
+    "checks": [
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "annotation",
+          "id"
+        ],
+        "forbidden_values": [
+          "@SessionAttributes"
+        ],
+        "message": "Using @SessionAttributes may lead to session fixation. Use @SessionAttribute with a new session instead."
+      },
+      {
+        "type": "required_value",
+        "property_path": [
+          "annotation",
+          "id"
+        ],
+        "required_values": [
+          "@RequestMapping",
+          "@PostMapping",
+          "@GetMapping"
+        ],
+        "message": "Ensure that the handler method is mapped to a web request."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "modifiers"
+        ],
+        "regex_patterns": [
+          "(public\\s+)?void\\s+.*"
+        ],
+        "message": "Handler methods should return void or a model and view object."
+      },
+      {
+        "type": "property_comparison",
+        "property_path": [
+          "method",
+          "body",
+          "statements",
+          "expression",
+          "methodInvocation",
+          "name"
+        ],
+        "comparison_type": "equals",
+        "comparison_value": "setStatus",
+        "message": "Ensure that setStatus is not used to set a session status manually. Let Spring handle session creation."
+      }
+    ]
+  }
+}

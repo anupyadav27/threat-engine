@@ -1,0 +1,73 @@
+{
+  "filename": "method_signatures_should_avoid_containing_nested_g_metadata.json",
+  "rule_id": "method_signatures_avoid_containing",
+  "title": "Method signatures should avoid containing nested generic types",
+  "description": "Method signatures should not contain nested generic typesAnalyze your codeintentionality-clearmaintainabilityCode SmellconfusingWhy is this an issue?A nested type is a type argument that is also a generic type. Calling a method with such a nested type argument requires complicated and confusing code. It should be avoided as much as possible.Noncompliant code exampleusing System; using System.Collections.Generic; namespace MyLibrary { public class Foo { public void DoSomething(ICollection<ICollection<int>> outerCollect) // Noncompliant { } } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\nusing System.Collections.Generic;\n\nnamespace MyLibrary\n{\n    public class Foo\n    {\n        public void DoSomething(ICollection<ICollection<int>> outerCollect) // Noncompliant: nested generic types\n        {\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\nusing System.Collections.Generic;\n\nnamespace MyLibrary\n{\n    public class IntCollection : List<int> { }\n\n    public class Foo\n    {\n        public void DoSomething(ICollection<IntCollection> outerCollect) // Compliant: use wrapper type\n        {\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4017"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\(\\s*\\w+<\\w+<[^>]+>>",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*///",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"\", string.Format",
+      "Unit tests: [Test], [Fact], Assert.*",
+      "Comments: //, /*, ///"
+    ],
+    "reasoning": "This rule detects method signatures with nested generic types (e.g., ICollection<ICollection<int>>), which make method calls complicated and confusing. The pattern matches parameters with nested angle brackets - Type<Type<...>>. This indicates a generic type argument that is itself a generic type. Such nested generics should be avoided by using wrapper types or flattening the structure. The exclusion patterns prevent false positives in logging, testing, and display contexts.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void DoSomething(ICollection<ICollection<int>> outerCollect)\n{\n}",
+        "public void Process(List<List<string>> nested)\n{\n}",
+        "public void Handle(Dictionary<string, List<int>> data)\n{\n}"
+      ],
+      "should_not_trigger": [
+        "public class IntCollection : List<int> { }\npublic void DoSomething(ICollection<IntCollection> outerCollect)\n{\n}",
+        "public void Process(List<string> items)\n{\n}",
+        "[Test]\npublic void TestNested(List<List<int>> test)\n{\n}"
+      ]
+    }
+  }
+}

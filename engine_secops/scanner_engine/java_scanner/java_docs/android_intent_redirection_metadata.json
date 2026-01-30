@@ -1,0 +1,33 @@
+{
+  "filename": "android_intent_redirection_metadata.json",
+  "rule_id": "android_intent_redirection",
+  "title": "Components should not be vulnerable to intent redirection",
+  "description": "Android components that handle intents must validate the source and content of the intent to prevent redirection attacks. Failing to do so can allow malicious applications to redirect intents to unintended components, leading to privilege escalation or unauthorized actions.",
+  "status": "active",
+  "defaultSeverity": "CRITICAL",
+  "category": "Vulnerability",
+  "recommendation": "Always validate the source and content of incoming intents in Android components. Use explicit intents where possible and avoid exposing components unnecessarily.",
+  "impact": "Exploiting intent redirection vulnerabilities can allow attackers to perform unauthorized actions or escalate privileges within the application.",
+  "examples": {
+    "noncompliant": [
+      "// Vulnerable: does not validate the intent source\\npublic void onReceive(Context context, Intent intent) {\\n    startActivity(intent);\\n}"
+    ],
+    "compliant": [
+      "// Safe: validates the intent source\\npublic void onReceive(Context context, Intent intent) {\\n    if (isTrustedSource(intent)) {\\n        startActivity(intent);\\n    }\\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6384",
+    "https://developer.android.com/guide/components/intents-filters"
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "custom_android_intent_redirection",
+        "message": "startActivity called with intent argument without validation."
+      }
+    ]
+  }
+}
