@@ -21,6 +21,8 @@ from .enricher.finding_enricher import FindingEnricher
 from .reporter.iam_reporter import IAMReporter
 from .storage.report_storage import ReportStorage
 
+import json
+
 logger = setup_logger(__name__, engine_name="engine-iam")
 
 app = FastAPI(
@@ -91,7 +93,12 @@ async def generate_report(request: ScanRequest):
                 max_findings=request.max_findings,
             )
             
-            # Save report to engine_output/iam/reports/
+            # Add report_id if missing
+            if "report_id" not in report:
+                import uuid
+                report["report_id"] = str(uuid.uuid4())
+            
+            # Save to local file storage
             try:
                 report_path = report_storage.save_report(
                     report=report,
@@ -100,7 +107,29 @@ async def generate_report(request: ScanRequest):
                 )
                 logger.info(f"IAM report saved to: {report_path}")
             except Exception as e:
-                logger.error(f"Error saving IAM report to storage: {e}")
+                logger.error(f"Error saving IAM report to file storage: {e}")
+            
+            # Save to /output for S3 sync
+            try:
+                output_dir = os.getenv("OUTPUT_DIR", "/output")
+                if output_dir and os.path.exists(output_dir):
+                    iam_dir = os.path.join(output_dir, "iam", request.tenant_id, request.scan_id)
+                    os.makedirs(iam_dir, exist_ok=True)
+                    
+                    with open(os.path.join(iam_dir, "iam_report.json"), "w") as f:
+                        json.dump(report, f, indent=2, default=str)
+                    
+                    logger.info(f"IAM report saved to {iam_dir}")
+            except Exception as e:
+                logger.error(f"Error saving IAM report to output dir: {e}")
+            
+            # Save to database
+            try:
+                from .storage.iam_db_writer import save_iam_report_to_db
+                saved_id = save_iam_report_to_db(report)
+                logger.info(f"IAM report saved to database: {saved_id}")
+            except Exception as e:
+                logger.error(f"Error saving IAM report to database: {e}", exc_info=True)
             
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "IAM security report generated", duration_ms)

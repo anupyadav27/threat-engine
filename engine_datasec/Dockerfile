@@ -15,11 +15,11 @@ COPY consolidated_services/ ./consolidated_services/
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PORT=8000
+ENV PORT=8004
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8004
 
 # Run API server
-CMD ["python", "-m", "uvicorn", "data_security_engine.api_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "data_security_engine.api_server:app", "--host", "0.0.0.0", "--port", "8004"]
 

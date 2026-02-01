@@ -20,19 +20,15 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _threat_db_connection_string() -> str:
-    """Build Threat DB connection string from env vars (same pattern as Compliance's ThreatDBLoader)."""
-    base = (
-        f"postgresql://{os.getenv('THREAT_DB_USER', 'threat_user')}:"
-        f"{os.getenv('THREAT_DB_PASSWORD', 'threat_password')}@"
-        f"{os.getenv('THREAT_DB_HOST', 'localhost')}:"
-        f"{os.getenv('THREAT_DB_PORT', '5432')}/"
-        f"{os.getenv('THREAT_DB_NAME', 'threat_engine_threat')}"
+def _get_threat_db_connection():
+    """Get Threat DB connection using individual parameters to avoid password encoding issues."""
+    return psycopg2.connect(
+        host=os.getenv('THREAT_DB_HOST', 'localhost'),
+        port=int(os.getenv('THREAT_DB_PORT', '5432')),
+        database=os.getenv('THREAT_DB_NAME', 'threat_engine_threat'),
+        user=os.getenv('THREAT_DB_USER', 'postgres'),
+        password=os.getenv('THREAT_DB_PASSWORD', '')
     )
-    schema = (os.getenv("DB_SCHEMA") or "engine_threat,engine_shared").strip()
-    sep = "&" if "?" in base else "?"
-    opts = f"options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-    return f"{base}{sep}{opts}"
 
 
 class ThreatDBReader:
@@ -43,23 +39,9 @@ class ThreatDBReader:
         Initialize Threat DB reader.
         
         Args:
-            db_url: Optional database URL. Default: from env vars via get_database_config("threat")
+            db_url: Optional database URL (ignored, uses env vars with individual params)
         """
-        if db_url is None:
-            try:
-                self.db_url = _threat_db_connection_string()
-            except Exception as e:
-                logger.warning(f"Could not get Threat DB config, will use env vars: {e}")
-                # Fallback to direct env vars
-                self.db_url = (
-                    f"postgresql://{os.getenv('THREAT_DB_USER', 'threat_user')}:"
-                    f"{os.getenv('THREAT_DB_PASSWORD', 'threat_password')}@"
-                    f"{os.getenv('THREAT_DB_HOST', 'localhost')}:"
-                    f"{os.getenv('THREAT_DB_PORT', '5432')}/"
-                    f"{os.getenv('THREAT_DB_NAME', 'threat_engine_threat')}"
-                )
-        else:
-            self.db_url = db_url
+        self.db_url = None  # Not used
         self._conn = None
 
     def _get_conn(self):
@@ -67,7 +49,7 @@ class ThreatDBReader:
         if self._conn is None or self._conn.closed:
             if not PSYCOPG_AVAILABLE:
                 raise RuntimeError("psycopg2 required for ThreatDBReader. Install psycopg2-binary.")
-            self._conn = psycopg2.connect(self.db_url)
+            self._conn = _get_threat_db_connection()
         return self._conn
 
     def close(self):

@@ -62,7 +62,14 @@ class CheckDBLoader:
         if self._connection is None or self._connection.closed:
             if not PSYCOPG_AVAILABLE:
                 raise RuntimeError("psycopg2 is required for CheckDBLoader. Install psycopg2-binary.")
-            self._connection = psycopg2.connect(self.db_url)
+            # Use individual parameters to avoid DSN password encoding issues with %2O
+            self._connection = psycopg2.connect(
+                host=os.getenv('CHECK_DB_HOST', 'localhost'),
+                port=int(os.getenv('CHECK_DB_PORT', '5432')),
+                database=os.getenv('CHECK_DB_NAME', 'threat_engine_check'),
+                user=os.getenv('CHECK_DB_USER', 'check_user'),
+                password=os.getenv('CHECK_DB_PASSWORD', 'check_password')
+            )
         return self._connection
 
     def close(self) -> None:
@@ -136,7 +143,7 @@ class CheckDBLoader:
                 cr.scan_id, cr.customer_id, cr.tenant_id, cr.provider,
                 cr.hierarchy_id, cr.hierarchy_type, cr.rule_id,
                 cr.resource_uid, cr.resource_arn, cr.resource_id, cr.resource_type,
-                cr.status, cr.checked_fields, cr.finding_data, cr.created_at
+                cr.status, cr.checked_fields, cr.finding_data, cr.scan_timestamp as created_at
             FROM check_results cr
             WHERE cr.scan_id = %s AND cr.tenant_id = %s
         """
@@ -156,7 +163,7 @@ class CheckDBLoader:
             query += " AND cr.status = %s"
             params.append(status_filter)
 
-        query += " ORDER BY cr.created_at DESC, cr.resource_uid"
+        query += " ORDER BY cr.scan_timestamp DESC, cr.resource_uid"
 
         rows: List[Dict[str, Any]] = []
         try:
