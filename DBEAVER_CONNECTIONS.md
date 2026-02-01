@@ -11,7 +11,81 @@ You need to connect to **4 databases** to see the complete threat-engine data:
 
 ---
 
-## Connection Settings
+## RDS Mumbai (ap-south-1) – connect from DBeaver locally
+
+Use this when your database is on **AWS RDS in Mumbai** and you want to open all tables in DBeaver on your laptop.
+
+### What you need
+
+| Item | Where to get it |
+|------|-----------------|
+| **Host** | RDS endpoint, e.g. `threat-engine-rds.xxxxx.ap-south-1.rds.amazonaws.com` (AWS Console → RDS → your instance → Connectivity) |
+| **Port** | `5432` (PostgreSQL) |
+| **Username** | Master user (e.g. `postgres`) or app user you created |
+| **Password** | Same as used for RDS / K8s secret |
+| **Database names** | One connection per database, or change "Database" in DBeaver to switch |
+
+**Databases on the same RDS instance (same Host/Port/User/Password):**
+
+| Database | Purpose |
+|----------|---------|
+| `threat_engine_shared` | Tenants, orchestration, audit |
+| `threat_engine_configscan` | Scans, check_results, rule_metadata |
+| `threat_engine_compliance` | Compliance scores, controls |
+| `threat_engine_inventory` | Assets, relationships |
+| `threat_engine_threat` | Threats, threat_resources |
+
+### AWS prerequisites (so your laptop can reach RDS)
+
+1. **Option A – RDS is publicly accessible**
+   - RDS → your instance → **Modify** → **Publicly accessible**: Yes → Save.
+   - **Security group**: Inbound rule **Type** = PostgreSQL, **Port** = 5432, **Source** = Your IP (or `0.0.0.0/0` only for testing).
+   - Then in DBeaver use **Host** = RDS endpoint, **Port** = 5432.
+
+2. **Option B – RDS is private (no public IP)**
+   - Use an **SSH tunnel** via a bastion in the same VPC:
+     - DBeaver: **Edit connection** → **SSH** tab → Enable **Use SSH Tunnel**.
+     - **Host/IP** = bastion public IP or EC2 DNS.
+     - **Port** = 22, **User** = ec2-user (or your SSH user).
+     - **Authentication** = Private Key → choose your `.pem` (or use Password).
+     - **Main** tab: **Host** = RDS **private** endpoint (e.g. `xxxxx.xxxxx.ap-south-1.rds.amazonaws.com`), **Port** = 5432.
+
+### DBeaver steps (one connection per database)
+
+1. **Database** → **New Database Connection** → **PostgreSQL** → Next.
+2. **Main** tab:
+   - **Host**: RDS endpoint (e.g. `threat-engine-rds.xxxxx.ap-south-1.rds.amazonaws.com`).
+   - **Port**: `5432`.
+   - **Database**: pick one, e.g. `threat_engine_configscan`.
+   - **Username** / **Password**: your RDS user.
+3. **SSL** tab (if RDS enforces SSL):
+   - **Use SSL**: true.
+   - **SSL mode**: `require` (or `verify-full` if you have a CA cert).
+4. **Test Connection** → Finish.
+5. **Repeat** for each database: `threat_engine_shared`, `threat_engine_configscan`, `threat_engine_compliance`, `threat_engine_inventory`, `threat_engine_threat`.
+
+### View all tables
+
+For each connection, expand in the tree:
+
+```
+Connection name
+  └─ Databases
+      └─ threat_engine_* (e.g. threat_engine_configscan)
+          └─ Schemas
+              └─ public
+                  └─ Tables   ← right‑click table → View Data
+```
+
+### Quick test query (any DB)
+
+```sql
+SELECT current_database(), current_user, inet_server_addr(), inet_server_port();
+```
+
+---
+
+## Connection Settings (localhost)
 
 ### 1. Check Database (Input Data)
 

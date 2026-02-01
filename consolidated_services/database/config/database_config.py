@@ -51,12 +51,19 @@ class Neo4jConnectionConfig(BaseModel):
 class ConsolidatedDatabaseSettings(BaseSettings):
     """Centralized database settings for all engines"""
     
-    # ConfigScan Database
-    configscan_host: str = Field(default="localhost", env="CONFIGSCAN_DB_HOST")
-    configscan_port: int = Field(default=5432, env="CONFIGSCAN_DB_PORT")
-    configscan_database: str = Field(default="threat_engine_configscan", env="CONFIGSCAN_DB_NAME")
-    configscan_username: str = Field(default="configscan_user", env="CONFIGSCAN_DB_USER")
-    configscan_password: str = Field(default="configscan_password", env="CONFIGSCAN_DB_PASSWORD")
+    # Check Engine Database (check_results, rule_metadata)
+    check_host: str = Field(default="localhost", env="CHECK_DB_HOST")
+    check_port: int = Field(default=5432, env="CHECK_DB_PORT")
+    check_database: str = Field(default="threat_engine_check", env="CHECK_DB_NAME")
+    check_username: str = Field(default="check_user", env="CHECK_DB_USER")
+    check_password: str = Field(default="check_password", env="CHECK_DB_PASSWORD")
+    
+    # Discoveries Engine Database (scans, discoveries, discovery_history)
+    discoveries_host: str = Field(default="localhost", env="DISCOVERIES_DB_HOST")
+    discoveries_port: int = Field(default=5432, env="DISCOVERIES_DB_PORT")
+    discoveries_database: str = Field(default="threat_engine_discoveries", env="DISCOVERIES_DB_NAME")
+    discoveries_username: str = Field(default="discoveries_user", env="DISCOVERIES_DB_USER")
+    discoveries_password: str = Field(default="discoveries_password", env="DISCOVERIES_DB_PASSWORD")
     
     # Compliance Database
     compliance_host: str = Field(default="localhost", env="COMPLIANCE_DB_HOST")
@@ -192,7 +199,8 @@ class ConsolidatedDatabaseSettings(BaseSettings):
     def get_all_engine_configs(self) -> Dict[str, DatabaseConnectionConfig]:
         """Get all engine database configurations"""
         return {
-            "configscan": self.get_engine_config("configscan"),
+            "check": self.get_engine_config("check"),
+            "discoveries": self.get_engine_config("discoveries"),
             "compliance": self.get_engine_config("compliance"),
             "inventory": self.get_engine_config("inventory"),
             "threat": self.get_engine_config("threat"),
@@ -220,9 +228,14 @@ def get_async_connection_string(engine_name: str) -> str:
 
 
 # Convenience functions for each engine
-def get_configscan_config() -> DatabaseConnectionConfig:
-    """Get ConfigScan database configuration"""
-    return db_settings.get_engine_config("configscan")
+def get_check_config() -> DatabaseConnectionConfig:
+    """Get Check Engine database configuration"""
+    return db_settings.get_engine_config("check")
+
+
+def get_discoveries_config() -> DatabaseConnectionConfig:
+    """Get Discoveries Engine database configuration"""
+    return db_settings.get_engine_config("discoveries")
 
 
 def get_compliance_config() -> DatabaseConnectionConfig:

@@ -136,7 +136,21 @@ async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
                 hierarchy_id = sts.get_caller_identity().get('Account')
             
             # Initialize database manager and discovery engine
-            db_manager = DatabaseManager() if os.getenv("DATABASE_URL") else None
+            # Try to create DatabaseManager; it will fail gracefully if config not available
+            db_manager = None
+            if request.use_database is True or (request.use_database is None and os.getenv("DISCOVERIES_DB_HOST")):
+                try:
+                    db_manager = DatabaseManager()
+                    logger.info(f"DatabaseManager initialized successfully: {db_manager}")
+                except Exception as e:
+                    logger.error(f"DatabaseManager init failed: {e}", exc_info=True)
+                    # If user explicitly requested database mode, fail loudly
+                    if request.use_database is True:
+                        raise RuntimeError(f"Database mode requested but DatabaseManager init failed: {e}") from e
+                    db_manager = None
+            # If db_manager is None but use_database is True, fail
+            if request.use_database is True and db_manager is None:
+                raise ValueError("Database mode requested but DatabaseManager could not be initialized")
             discovery_engine = DiscoveryEngine(db_manager, use_database=request.use_database)
             
             # Get services

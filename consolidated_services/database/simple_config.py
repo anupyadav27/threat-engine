@@ -12,12 +12,19 @@ class SimpleDatabaseConfig:
     
     # Centralized database connection strings
     DATABASES = {
-        "configscan": {
-            "host": os.getenv("CONFIGSCAN_DB_HOST", "localhost"),
-            "port": int(os.getenv("CONFIGSCAN_DB_PORT", "5432")),
-            "database": os.getenv("CONFIGSCAN_DB_NAME", "threat_engine_configscan"),
-            "user": os.getenv("CONFIGSCAN_DB_USER", "configscan_user"),
-            "password": os.getenv("CONFIGSCAN_DB_PASSWORD", "configscan_password"),
+        "check": {
+            "host": os.getenv("CHECK_DB_HOST", "localhost"),
+            "port": int(os.getenv("CHECK_DB_PORT", "5432")),
+            "database": os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+            "user": os.getenv("CHECK_DB_USER", "check_user"),
+            "password": os.getenv("CHECK_DB_PASSWORD", "check_password"),
+        },
+        "discoveries": {
+            "host": os.getenv("DISCOVERIES_DB_HOST", "localhost"),
+            "port": int(os.getenv("DISCOVERIES_DB_PORT", "5432")),
+            "database": os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
+            "user": os.getenv("DISCOVERIES_DB_USER", "discoveries_user"),
+            "password": os.getenv("DISCOVERIES_DB_PASSWORD", "discoveries_password"),
         },
         "compliance": {
             "host": os.getenv("COMPLIANCE_DB_HOST", "localhost"),
@@ -69,9 +76,13 @@ class SimpleDatabaseConfig:
         return cls.get_connection_string(engine_name)
 
 
-def get_configscan_database_url() -> str:
-    """Get ConfigScan database connection URL"""
-    return SimpleDatabaseConfig.get_database_url("configscan")
+def get_check_database_url() -> str:
+    """Get Check database connection URL"""
+    return SimpleDatabaseConfig.get_database_url("check")
+
+def get_discoveries_database_url() -> str:
+    """Get Discoveries database connection URL"""
+    return SimpleDatabaseConfig.get_database_url("discoveries")
 
 
 def get_centralized_db_config(engine_name: str) -> Dict[str, any]:

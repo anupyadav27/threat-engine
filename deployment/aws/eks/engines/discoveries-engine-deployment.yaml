@@ -1,35 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: compliance-engine
+  name: engine-discoveries-aws
   namespace: threat-engine-engines
   labels:
-    app: compliance-engine
+    app: engine-discoveries-aws
     tier: engine
+    engine-type: discoveries
 spec:
   replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # Single-node clusters can't afford a surge pod. Replace in-place.
       maxSurge: 0
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: compliance-engine
+      app: engine-discoveries-aws
   template:
     metadata:
       labels:
-        app: compliance-engine
+        app: engine-discoveries-aws
         tier: engine
     spec:
-      serviceAccountName: aws-compliance-engine-sa  # Reuse existing SA with S3 permissions
+      serviceAccountName: aws-compliance-engine-sa  # Has IRSA IAM role for AWS API access
       containers:
-      - name: compliance-engine
-        image: yadavanup84/threat-engine-compliance-engine:latest
-        imagePullPolicy: Always  # Always pull latest image
+      # Main engine container
+      - name: discoveries-engine
+        image: yadavanup84/engine-discoveries-aws:latest
+        imagePullPolicy: Always
         ports:
-        - containerPort: 8010
+        - containerPort: 8000
           name: http
         envFrom:
         - configMapRef:
@@ -56,7 +57,9 @@ spec:
         - name: INPUT_DIR
           value: "/input"
         - name: ENGINE_NAME
-          value: "compliance"
+          value: "discoveries-aws"
+        - name: DISCOVERY_MODE
+          value: "database"  # Use database-first mode
         volumeMounts:
         - name: output
           mountPath: /output
@@ -71,42 +74,60 @@ spec:
             cpu: "250m"
         livenessProbe:
           httpGet:
-            path: /api/v1/health
-            port: 8010
-          initialDelaySeconds: 30
-          timeoutSeconds: 5
-          periodSeconds: 10
-          failureThreshold: 6
+            path: /api/v1/health/live
+            port: 8001
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          failureThreshold: 5
         readinessProbe:
           httpGet:
-            path: /api/v1/health
-            port: 8010
-          initialDelaySeconds: 10
-          timeoutSeconds: 5
-          periodSeconds: 5
-          failureThreshold: 6
+            path: /api/v1/health/ready
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
       
-      # S3 sync sidecar - syncs output to S3
+      # S3 sync sidecar - syncs output to S3 and downloads input from S3
       - name: s3-sync
         image: amazon/aws-cli:latest
         command: ["/bin/sh", "-c"]
         args:
           - |
-            echo "S3 Sync Sidecar starting for Compliance Engine..."
+            echo "S3 Sync Sidecar starting..."
             echo "Bucket: s3://${S3_BUCKET}"
+            echo "Input: s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/ -> /input"
             echo "Output: /output -> s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/"
+            
+            # Initial sync of input from S3 (discovery rule YAMLs if any)
+            if aws s3 ls "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" 2>/dev/null; then
+              echo "Syncing input from S3..."
+              aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input \
+                --region ${AWS_REGION}
+            else
+              echo "No input data in S3 yet (will use DB rules)"
+            fi
             
             # Continuous sync loop
             while true; do
               # Sync output TO S3 (every 30s)
               if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                echo "$(date): Syncing compliance output to S3..."
+                echo "$(date): Syncing output to S3..."
                 aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
                   --region ${AWS_REGION} \
                   --exclude "*.tmp" \
                   --exclude "*.lock" \
                   --delete || echo "Sync failed, retrying..."
+                
+                # After sync to S3, trigger DB upload (via engine API if available)
+                # Or engines can watch OUTPUT_DIR and auto-upload to RDS
               fi
+              
+              # Sync input FROM S3 (every 5 minutes for rule updates)
+              if [ $((SECONDS % 300)) -eq 0 ]; then
+                aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input \
+                  --region ${AWS_REGION} 2>/dev/null || true
+              fi
+              
               sleep 30
             done
         env:
@@ -121,10 +142,12 @@ spec:
               name: s3-mount-config
               key: s3-region
         - name: ENGINE_NAME
-          value: "compliance"
+          value: "discoveries-aws"
         volumeMounts:
         - name: output
           mountPath: /output
+        - name: input
+          mountPath: /input
         resources:
           requests:
             memory: "64Mi"
@@ -142,38 +165,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: compliance-engine
+  name: engine-discoveries-aws
   namespace: threat-engine-engines
   labels:
-    app: compliance-engine
+    app: engine-discoveries-aws
 spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 8000
+    targetPort: 8001
     protocol: TCP
     name: http
   selector:
-    app: compliance-engine
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: compliance-engine-lb
-  namespace: threat-engine-engines
-  labels:
-    app: compliance-engine
-    service-type: loadbalancer
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-spec:
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
-  selector:
-    app: compliance-engine
-  sessionAffinity: None
-
+    app: engine-discoveries-aws

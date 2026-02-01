@@ -243,7 +243,9 @@ class OrchestrationService:
             
             try:
                 response = await client.get(
-                    f"{self.discoveries_engine_url}/api/v1/discovery/{scan_id}/status"
+                    # ConfigScan engines expose a unified scan status endpoint.
+                    # Discovery and Check scans are stored in the same in-memory `scans` map.
+                    f"{self.discoveries_engine_url}/api/v1/scan/{scan_id}/status"
                 )
                 response.raise_for_status()
                 status_data = response.json()
@@ -315,7 +317,8 @@ class OrchestrationService:
             
             try:
                 response = await client.get(
-                    f"{self.check_engine_url}/api/v1/check/{scan_id}/status"
+                    # ConfigScan engines expose a unified scan status endpoint.
+                    f"{self.check_engine_url}/api/v1/scan/{scan_id}/status"
                 )
                 response.raise_for_status()
                 status_data = response.json()
