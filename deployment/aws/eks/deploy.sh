@@ -48,16 +48,16 @@ echo "  ✓ api-gateway deployed"
 echo ""
 echo "[6/6] Deploying engines..."
 
-# Active engines (replicas: 1)
-for engine in engine-threat engine-discoveries engine-check engine-inventory engine-onboarding; do
+# Core engines
+for engine in engine-threat engine-discoveries engine-check engine-inventory engine-onboarding engine-secops; do
     echo "  Deploying $engine..."
     kubectl apply -f "$SCRIPT_DIR/engines/${engine}.yaml"
 done
 
 if [ "$1" != "--active-only" ]; then
-    # Scale-to-0 engines (replicas: 0, ready to scale up)
+    # Additional engines
     for engine in engine-compliance engine-iam engine-datasec engine-rule; do
-        echo "  Deploying $engine (replicas: 0)..."
+        echo "  Deploying $engine..."
         kubectl apply -f "$SCRIPT_DIR/engines/${engine}.yaml"
     done
 fi

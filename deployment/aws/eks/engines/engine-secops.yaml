@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: engine-iam
+  name: engine-secops
   namespace: threat-engine-engines
   labels:
-    app: engine-iam
+    app: engine-secops
     tier: engine
 spec:
   replicas: 1
@@ -15,20 +15,20 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: engine-iam
+      app: engine-secops
   template:
     metadata:
       labels:
-        app: engine-iam
+        app: engine-secops
         tier: engine
     spec:
       serviceAccountName: engine-sa
       containers:
-      - name: engine-iam
-        image: yadavanup84/threat-engine-iam:latest
+      - name: engine-secops
+        image: yadavanup84/secops-scanner:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8003
+        - containerPort: 8000
           name: http
         envFrom:
         - configMapRef:
@@ -40,6 +40,12 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
+        - name: SCAN_INPUT_PATH
+          value: "/app/scan_input"
+        - name: SCAN_OUTPUT_PATH
+          value: "/app/scan_output"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         - name: S3_BUCKET
           valueFrom:
             configMapKeyRef:
@@ -50,36 +56,34 @@ spec:
             configMapKeyRef:
               name: s3-mount-config
               key: s3-region
-        - name: OUTPUT_DIR
-          value: "/output"
         - name: ENGINE_NAME
-          value: "iam"
+          value: "secops"
         volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
+        - name: scan-input
+          mountPath: /app/scan_input
+        - name: scan-output
+          mountPath: /app/scan_output
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "50m"
+            memory: "256Mi"
+            cpu: "100m"
           limits:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "1Gi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /health
-            port: 8003
+            port: 8000
           initialDelaySeconds: 30
-          periodSeconds: 10
-          failureThreshold: 6
+          periodSeconds: 30
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: 8003
+            port: 8000
           initialDelaySeconds: 10
-          periodSeconds: 5
-          failureThreshold: 6
+          periodSeconds: 10
+          failureThreshold: 3
 
       - name: s3-sync
         image: amazon/aws-cli:latest
@@ -87,8 +91,12 @@ spec:
         args:
           - |
             while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
+              # Sync input FROM S3
+              aws s3 sync "s3://${S3_BUCKET}/secops/input/" /app/scan_input/ \
+                --region ${AWS_REGION} --delete 2>/dev/null || true
+              # Sync output TO S3
+              if [ -d "/app/scan_output" ] && [ "$(ls -A /app/scan_output 2>/dev/null)" ]; then
+                aws s3 sync /app/scan_output/ "s3://${S3_BUCKET}/secops/output/" \
                   --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
               fi
               sleep 30
@@ -104,11 +112,11 @@ spec:
             configMapKeyRef:
               name: s3-mount-config
               key: s3-region
-        - name: ENGINE_NAME
-          value: "iam"
         volumeMounts:
-        - name: output
-          mountPath: /output
+        - name: scan-input
+          mountPath: /app/scan_input
+        - name: scan-output
+          mountPath: /app/scan_output
         resources:
           requests:
             memory: "64Mi"
@@ -118,24 +126,24 @@ spec:
             cpu: "100m"
 
       volumes:
-      - name: output
+      - name: scan-input
         emptyDir: {}
-      - name: input
+      - name: scan-output
         emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: engine-iam
+  name: engine-secops
   namespace: threat-engine-engines
   labels:
-    app: engine-iam
+    app: engine-secops
 spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 8003
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
-    app: engine-iam
+    app: engine-secops
