@@ -2,140 +2,195 @@
 Metadata Enrichment
 
 Utilities for enriching check results with rule metadata from database.
-This replaces the need to load YAML files for metadata enrichment.
+Uses check_findings table with MITRE ATT&CK enrichment from rule_metadata.
 """
 
 from typing import List, Dict, Any, Optional
-import sys
-from pathlib import Path
-
-# Add consolidated_services to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-# from consolidated_services.database.connections.postgres_connection import get_postgres_connection
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import pool
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Connection pool (thread-safe, shared across calls)
+_connection_pool = None
+
+
+def _get_pool():
+    """Get or create connection pool for check DB."""
+    global _connection_pool
+    if _connection_pool is None:
+        _connection_pool = pool.ThreadedConnectionPool(
+            minconn=2,
+            maxconn=int(os.getenv("DB_POOL_SIZE", "10")),
+            host=os.getenv("CHECK_DB_HOST", "localhost"),
+            port=int(os.getenv("CHECK_DB_PORT", "5432")),
+            database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+            user=os.getenv("CHECK_DB_USER", "check_user"),
+            password=os.getenv("CHECK_DB_PASSWORD", "check_password"),
+            cursor_factory=RealDictCursor,
+        )
+    return _connection_pool
+
 
 def get_postgres_connection(schema=None):
-    """Simple PostgreSQL connection helper"""
-    return psycopg2.connect(
-        host=os.getenv("CHECK_DB_HOST", "localhost"),
-        port=int(os.getenv("CHECK_DB_PORT", "5432")),
-        database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-        user=os.getenv("CHECK_DB_USER", "check_user"),
-        password=os.getenv("CHECK_DB_PASSWORD", "check_password"),
-        cursor_factory=RealDictCursor
-    )
+    """Get pooled PostgreSQL connection for check DB."""
+    try:
+        return _get_pool().getconn()
+    except Exception:
+        # Fallback to direct connection if pool fails
+        return psycopg2.connect(
+            host=os.getenv("CHECK_DB_HOST", "localhost"),
+            port=int(os.getenv("CHECK_DB_PORT", "5432")),
+            database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+            user=os.getenv("CHECK_DB_USER", "check_user"),
+            password=os.getenv("CHECK_DB_PASSWORD", "check_password"),
+            cursor_factory=RealDictCursor,
+        )
+
+
+def _return_connection(conn):
+    """Return connection to pool."""
+    try:
+        _get_pool().putconn(conn)
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def get_enriched_check_results(
     scan_id: str,
-    schema: str = 'engine_configscan',
-    status_filter: Optional[List[str]] = None
+    schema: str = 'check_db',
+    status_filter: Optional[List[str]] = None,
+    customer_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Get check results enriched with metadata from rule_metadata table.
-    
+    Get check results enriched with metadata + MITRE ATT&CK from rule_metadata table.
+
+    Reads from check_findings (actual table name) with LEFT JOIN to rule_metadata.
+    Returns enriched results including severity, title, threat_category,
+    mitre_techniques, mitre_tactics, and risk_score.
+
     Args:
-        scan_id: Scan ID to filter results
-        schema: Database schema (default: engine_configscan)
+        scan_id: Check scan ID (check_scan_id in check_findings)
+        schema: Ignored (kept for backward compat)
         status_filter: Filter by status (e.g., ['FAIL', 'WARN']). Default: all
-    
+        customer_id: Optional customer_id filter
+        tenant_id: Optional tenant_id filter
+
     Returns:
-        List of check results with metadata fields (severity, title, description, remediation)
-    
-    Example:
-        results = get_enriched_check_results('scan_123', status_filter=['FAIL', 'WARN'])
-        # Each result has: rule_id, status, severity, title, description, remediation, etc.
+        List of enriched check result dicts with MITRE metadata
     """
     conn = get_postgres_connection(schema)
-    
+
     try:
         with conn.cursor() as cur:
-            # Build query with metadata JOIN
             query = """
-                SELECT 
-                    cr.id,
-                    cr.scan_id,
-                    cr.customer_id,
-                    cr.tenant_id,
-                    cr.provider,
-                    cr.hierarchy_id,
-                    cr.hierarchy_type,
-                    cr.rule_id,
-                    cr.resource_arn,
-                    cr.resource_uid,
-                    cr.resource_id,
-                    cr.resource_type,
-                    cr.status,
-                    cr.checked_fields,
-                    cr.finding_data,
-                    cr.created_at as scan_timestamp,
-                    NULL::text as check_metadata_source,
-                    
-                    -- Metadata from rule_metadata table
+                SELECT
+                    cf.id,
+                    cf.check_scan_id,
+                    cf.customer_id,
+                    cf.tenant_id,
+                    cf.provider,
+                    cf.hierarchy_id,
+                    cf.hierarchy_type,
+                    cf.rule_id,
+                    cf.resource_arn,
+                    cf.resource_uid,
+                    cf.resource_id,
+                    cf.resource_type,
+                    cf.status,
+                    cf.checked_fields,
+                    cf.finding_data,
+                    cf.created_at as scan_timestamp,
+
+                    -- Rule metadata
+                    rm.service as rule_service,
                     rm.severity,
                     rm.title,
                     rm.description,
                     rm.remediation,
+                    rm.rationale,
+                    rm.domain,
+                    rm.subcategory,
                     rm.compliance_frameworks,
                     rm.data_security,
-                    rm.references,
+                    rm."references" as rule_references,
                     rm.metadata_source as rule_metadata_source,
-                    -- Threat categorization metadata
+
+                    -- MITRE ATT&CK enrichment
                     rm.threat_category,
                     rm.threat_tags,
                     rm.risk_score,
-                    rm.risk_indicators
-                    
-                FROM check_results cr
-                LEFT JOIN rule_metadata rm ON cr.rule_id = rm.rule_id
-                WHERE cr.scan_id = %s
+                    rm.risk_indicators,
+                    rm.mitre_techniques,
+                    rm.mitre_tactics
+
+                FROM check_findings cf
+                LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
+                WHERE cf.check_scan_id = %s
             """
-            
-            params = [scan_id]
-            
-            # Add status filter if provided
+
+            params: list = [scan_id]
+
             if status_filter:
-                query += " AND cr.status = ANY(%s)"
+                query += " AND cf.status = ANY(%s)"
                 params.append(status_filter)
-            
-            query += " ORDER BY cr.rule_id, cr.resource_arn"
-            
+
+            if customer_id:
+                query += " AND cf.customer_id = %s"
+                params.append(customer_id)
+
+            if tenant_id:
+                query += " AND cf.tenant_id = %s"
+                params.append(tenant_id)
+
+            query += " ORDER BY rm.severity DESC, cf.rule_id, cf.resource_arn"
+
             cur.execute(query, params)
-            
-            # Fetch all results (RealDictCursor returns dict-like rows already)
-            results = []
-            for row in cur.fetchall():
-                results.append(dict(row))
-            
+
+            results = [dict(row) for row in cur.fetchall()]
+
+            logger.info(
+                "Enriched check results loaded",
+                extra={"extra_fields": {
+                    "scan_id": scan_id,
+                    "total_results": len(results),
+                    "has_mitre": bool(results and results[0].get('mitre_techniques')),
+                }}
+            )
+
             return results
-            
+
     finally:
-        conn.close()
+        _return_connection(conn)
 
 
 def get_rule_metadata(
     rule_id: str,
-    schema: str = 'engine_configscan'
+    schema: str = 'check_db'
 ) -> Optional[Dict[str, Any]]:
     """
-    Get metadata for a specific rule.
-    
+    Get metadata for a specific rule including MITRE ATT&CK data.
+
     Args:
         rule_id: Rule ID (e.g., 'aws.s3.bucket.encryption_enabled')
-        schema: Database schema (default: engine_configscan)
-    
+        schema: Ignored (kept for backward compat)
+
     Returns:
-        Dictionary with rule metadata or None if not found
+        Dictionary with rule metadata including MITRE fields, or None if not found
     """
     conn = get_postgres_connection(schema)
-    
+
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT 
+                SELECT
                     rule_id,
                     service,
                     provider,
@@ -151,144 +206,145 @@ def get_rule_metadata(
                     assertion_id,
                     compliance_frameworks,
                     data_security,
-                    references,
+                    "references",
                     metadata_source,
                     source,
-                    generated_by
+                    generated_by,
+                    threat_category,
+                    threat_tags,
+                    risk_score,
+                    risk_indicators,
+                    mitre_techniques,
+                    mitre_tactics
                 FROM rule_metadata
                 WHERE rule_id = %s
             """, (rule_id,))
-            
+
             row = cur.fetchone()
             if not row:
                 return None
-            
-            columns = [desc[0] for desc in cur.description]
-            return dict(zip(columns, row))
-            
+
+            return dict(row)
+
     finally:
-        conn.close()
+        _return_connection(conn)
 
 
 def get_rules_by_severity(
     severity: str,
-    schema: str = 'engine_configscan',
+    schema: str = 'check_db',
     limit: int = 100
 ) -> List[Dict[str, Any]]:
     """
-    Get rules filtered by severity.
-    
+    Get rules filtered by severity with MITRE ATT&CK data.
+
     Args:
         severity: Severity level ('critical', 'high', 'medium', 'low', 'info')
-        schema: Database schema (default: engine_configscan)
+        schema: Ignored (kept for backward compat)
         limit: Maximum number of results
-    
+
     Returns:
         List of rule metadata dictionaries
     """
     conn = get_postgres_connection(schema)
-    
+
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT 
+                SELECT
                     rule_id,
                     service,
+                    provider,
                     severity,
                     title,
                     description,
                     compliance_frameworks,
-                    metadata_source
+                    metadata_source,
+                    threat_category,
+                    mitre_techniques,
+                    mitre_tactics,
+                    risk_score
                 FROM rule_metadata
                 WHERE severity = %s
                 ORDER BY service, rule_id
                 LIMIT %s
             """, (severity.lower(), limit))
-            
-            columns = [desc[0] for desc in cur.description]
-            results = []
-            
-            for row in cur.fetchall():
-                result = dict(zip(columns, row))
-                results.append(result)
-            
-            return results
-            
+
+            return [dict(row) for row in cur.fetchall()]
+
     finally:
-        conn.close()
+        _return_connection(conn)
 
 
 def get_rules_by_service(
     service: str,
-    schema: str = 'engine_configscan',
+    schema: str = 'check_db',
     limit: int = 100
 ) -> List[Dict[str, Any]]:
     """
-    Get rules for a specific service.
-    
+    Get rules for a specific service with MITRE ATT&CK data.
+
     Args:
         service: Service name (e.g., 's3', 'ec2', 'iam')
-        schema: Database schema (default: engine_configscan)
+        schema: Ignored (kept for backward compat)
         limit: Maximum number of results
-    
+
     Returns:
         List of rule metadata dictionaries
     """
     conn = get_postgres_connection(schema)
-    
+
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT 
+                SELECT
                     rule_id,
                     service,
+                    provider,
                     severity,
                     title,
                     description,
-                    metadata_source
+                    metadata_source,
+                    threat_category,
+                    mitre_techniques,
+                    mitre_tactics,
+                    risk_score
                 FROM rule_metadata
                 WHERE service = %s
                 ORDER BY severity DESC, rule_id
                 LIMIT %s
             """, (service.lower(), limit))
-            
-            columns = [desc[0] for desc in cur.description]
-            results = []
-            
-            for row in cur.fetchall():
-                result = dict(zip(columns, row))
-                results.append(result)
-            
-            return results
-            
+
+            return [dict(row) for row in cur.fetchall()]
+
     finally:
-        conn.close()
+        _return_connection(conn)
 
 
-def get_metadata_statistics(schema: str = 'engine_configscan') -> Dict[str, Any]:
+def get_metadata_statistics(schema: str = 'check_db') -> Dict[str, Any]:
     """
-    Get statistics about rule metadata.
-    
+    Get statistics about rule metadata including MITRE coverage.
+
     Args:
-        schema: Database schema (default: engine_configscan)
-    
+        schema: Ignored (kept for backward compat)
+
     Returns:
         Dictionary with statistics
     """
     conn = get_postgres_connection(schema)
-    
+
     try:
         with conn.cursor() as cur:
             # Total rules
-            cur.execute("SELECT COUNT(*) FROM rule_metadata")
-            total_rules = cur.fetchone()[0]
-            
+            cur.execute("SELECT COUNT(*) as cnt FROM rule_metadata")
+            total_rules = cur.fetchone()['cnt']
+
             # By severity
             cur.execute("""
-                SELECT severity, COUNT(*) 
-                FROM rule_metadata 
-                GROUP BY severity 
-                ORDER BY 
+                SELECT severity, COUNT(*) as cnt
+                FROM rule_metadata
+                GROUP BY severity
+                ORDER BY
                     CASE severity
                         WHEN 'critical' THEN 1
                         WHEN 'high' THEN 2
@@ -298,45 +354,73 @@ def get_metadata_statistics(schema: str = 'engine_configscan') -> Dict[str, Any]
                         ELSE 6
                     END
             """)
-            by_severity = {row[0]: row[1] for row in cur.fetchall()}
-            
-            # By service
+            by_severity = {row['severity']: row['cnt'] for row in cur.fetchall()}
+
+            # By provider
             cur.execute("""
-                SELECT service, COUNT(*) 
-                FROM rule_metadata 
-                GROUP BY service 
-                ORDER BY COUNT(*) DESC 
+                SELECT provider, COUNT(*) as cnt
+                FROM rule_metadata
+                GROUP BY provider
+                ORDER BY COUNT(*) DESC
+            """)
+            by_provider = {row['provider']: row['cnt'] for row in cur.fetchall()}
+
+            # By service (top 10)
+            cur.execute("""
+                SELECT service, COUNT(*) as cnt
+                FROM rule_metadata
+                GROUP BY service
+                ORDER BY COUNT(*) DESC
                 LIMIT 10
             """)
-            by_service = {row[0]: row[1] for row in cur.fetchall()}
-            
+            by_service = {row['service']: row['cnt'] for row in cur.fetchall()}
+
             # By metadata source
             cur.execute("""
-                SELECT metadata_source, COUNT(*) 
-                FROM rule_metadata 
+                SELECT metadata_source, COUNT(*) as cnt
+                FROM rule_metadata
                 GROUP BY metadata_source
             """)
-            by_source = {row[0]: row[1] for row in cur.fetchall()}
-            
+            by_source = {row['metadata_source']: row['cnt'] for row in cur.fetchall()}
+
+            # MITRE coverage
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE mitre_techniques IS NOT NULL) as mitre_mapped,
+                    COUNT(*) as total,
+                    AVG(CASE WHEN risk_score IS NOT NULL THEN risk_score ELSE NULL END) as avg_risk_score
+                FROM rule_metadata
+            """)
+            mitre_row = cur.fetchone()
+
             return {
                 'total_rules': total_rules,
                 'by_severity': by_severity,
+                'by_provider': by_provider,
                 'top_10_services': by_service,
-                'by_metadata_source': by_source
+                'by_metadata_source': by_source,
+                'mitre_coverage': {
+                    'mapped': mitre_row['mitre_mapped'],
+                    'total': mitre_row['total'],
+                    'percentage': round(mitre_row['mitre_mapped'] / mitre_row['total'] * 100, 1) if mitre_row['total'] > 0 else 0,
+                    'avg_risk_score': round(float(mitre_row['avg_risk_score']), 2) if mitre_row['avg_risk_score'] else 0
+                }
             }
-            
+
     finally:
-        conn.close()
+        _return_connection(conn)
 
 
 if __name__ == '__main__':
     # Test the enrichment functions
     print("Testing metadata enrichment...")
-    
+
     # Get statistics
     stats = get_metadata_statistics()
     print(f"\nMetadata Statistics:")
     print(f"Total rules: {stats['total_rules']}")
     print(f"By severity: {stats['by_severity']}")
+    print(f"By provider: {stats['by_provider']}")
     print(f"Top services: {list(stats['top_10_services'].keys())[:5]}")
     print(f"By source: {stats['by_metadata_source']}")
+    print(f"MITRE coverage: {stats['mitre_coverage']}")

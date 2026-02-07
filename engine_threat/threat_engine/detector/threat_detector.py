@@ -140,62 +140,65 @@ class ThreatDetector:
         graph_context: Optional[Dict[str, Any]] = None
     ) -> List[Threat]:
         """
-        Detect threats from misconfig findings using metadata-driven categorization.
-        
-        Uses threat_category from rule_metadata (enriched via JOIN) instead of pattern matching.
-        
+        Detect threats from misconfig findings using MITRE ATT&CK enriched metadata.
+
+        Uses threat_category and mitre_techniques/mitre_tactics from rule_metadata
+        (enriched via database JOIN in check_findings → rule_metadata).
+
         Args:
-            findings: Normalized misconfig findings (with rule metadata)
-            graph_context: Optional graph context (asset relationships, reachability)
-        
+            findings: Normalized misconfig findings (with MITRE ATT&CK data)
+            graph_context: Optional graph context from inventory_relationships
+                          (asset relationships, reachability, network topology)
+
         Returns:
-            List of detected threats
+            List of detected threats with MITRE ATT&CK enrichment
         """
         threats = []
         threat_groups = {}  # Group threats by type and resource
-        
+
+        # Build reachability map from graph_context if available
+        reachable_resources = set()
+        if graph_context:
+            for rel in graph_context.get("relationships", []):
+                if rel.get("relationship_type") in ("exposes", "routes_to", "allows_traffic"):
+                    reachable_resources.add(rel.get("target_resource_uid"))
+
         for finding in findings:
             if finding.result != "FAIL":
                 continue
-            
-            # Get threat category from rule metadata (enriched via database JOIN)
-            threat_category = None
-            risk_score = 50
-            threat_tags = []
-            
-            # Check if finding has metadata fields (from check_results JOIN rule_metadata)
-            if hasattr(finding, 'threat_category'):
-                threat_category = finding.threat_category
-                risk_score = getattr(finding, 'risk_score', 50) or 50
-                threat_tags = getattr(finding, 'threat_tags', []) or []
-            elif isinstance(finding, dict):
-                threat_category = finding.get('threat_category')
-                risk_score = finding.get('risk_score', 50) or 50
-                threat_tags = finding.get('threat_tags', []) or []
-            
-            # Skip if no threat category in metadata
+
+            # Get MITRE data directly from finding (populated by normalizer)
+            threat_category = finding.threat_category
+            risk_score = finding.risk_score or 50
+            threat_tags = finding.threat_tags or []
+            mitre_techniques = finding.mitre_techniques or []
+            mitre_tactics = finding.mitre_tactics or []
+
+            # Fallback to pattern matching for rules without metadata
             if not threat_category:
-                # Fallback to pattern matching for rules without metadata
                 threat_category = self._infer_category_from_rule_id(finding.rule_id)
-            
+
+            # Boost risk score if resource is internet-reachable (from graph context)
+            resource_uid = finding.resource.get("resource_uid", "")
+            if resource_uid in reachable_resources:
+                risk_score = min(100, risk_score + 15)
+
             # Convert category string to ThreatType enum
             try:
                 threat_type = ThreatType(threat_category)
             except (ValueError, TypeError):
-                # Default to misconfiguration if category doesn't map to enum
                 threat_type = ThreatType.MISCONFIGURATION
-            
-            # Determine confidence from metadata or default
-            confidence = Confidence.MEDIUM  # Default
+
+            # Determine confidence from risk_score
+            confidence = Confidence.MEDIUM
             if risk_score >= 85:
                 confidence = Confidence.HIGH
             elif risk_score <= 60:
                 confidence = Confidence.LOW
-            
+
             # Create threat key for grouping (group by threat type + resource)
-            resource_uid = finding.resource.get("resource_uid", "")
             threat_key = f"{threat_type.value}:{resource_uid}:{finding.account}:{finding.region}"
-            
+
             if threat_key not in threat_groups:
                 threat_groups[threat_key] = {
                     "threat_type": threat_type,
@@ -203,20 +206,30 @@ class ThreatDetector:
                     "resource_uid": resource_uid,
                     "account": finding.account,
                     "region": finding.region,
-                    "severity": finding.severity,  # Use rule's severity
+                    "severity": finding.severity,
                     "confidence": confidence,
                     "risk_score": risk_score,
-                    "threat_tags": threat_tags
+                    "threat_tags": threat_tags,
+                    "mitre_techniques": [],
+                    "mitre_tactics": [],
                 }
-            
+
             threat_groups[threat_key]["findings"].append(finding)
-        
+            # Aggregate MITRE techniques and tactics across findings in group
+            if mitre_techniques:
+                threat_groups[threat_key]["mitre_techniques"].extend(mitre_techniques)
+            if mitre_tactics:
+                threat_groups[threat_key]["mitre_tactics"].extend(mitre_tactics)
+
         # Generate threats from groups
         for threat_key, group in threat_groups.items():
+            # Deduplicate MITRE data
+            group["mitre_techniques"] = list(set(group["mitre_techniques"]))
+            group["mitre_tactics"] = list(set(group["mitre_tactics"]))
             threat = self._create_threat_from_group(group)
             if threat:
                 threats.append(threat)
-        
+
         return threats
     
     def _infer_category_from_rule_id(self, rule_id: str) -> str:
@@ -267,14 +280,14 @@ class ThreatDetector:
         return finding_severity
     
     def _create_threat_from_group(self, group: Dict[str, Any]) -> Optional[Threat]:
-        """Create threat object from grouped findings"""
+        """Create threat object from grouped findings with MITRE ATT&CK enrichment"""
         findings = group["findings"]
         if not findings:
             return None
-        
+
         # Use first finding for base information
         first_finding = findings[0]
-        
+
         # Generate threat ID
         threat_id = generate_stable_threat_id(
             group["threat_type"],
@@ -282,23 +295,18 @@ class ThreatDetector:
             group["account"],
             group["region"]
         )
-        
+
         # Collect misconfig finding refs
         misconfig_finding_refs = [f.misconfig_finding_id for f in findings]
-        
+
         # Build title and description from rule metadata (use first finding's metadata)
         threat_type = group["threat_type"]
-        
-        # Try to get title from rule metadata (findings should have this from enrichment)
-        rule_title = None
-        for finding in findings:
-            # Check if finding has metadata fields (from database JOIN)
-            if hasattr(finding, 'title') or (isinstance(finding, dict) and 'title' in finding):
-                rule_title = finding.title if hasattr(finding, 'title') else finding.get('title')
-                break
-        
+
+        # Try to get title from rule metadata (findings now have this from enrichment)
+        rule_title = first_finding.title if first_finding.title else None
+        rule_remediation = first_finding.remediation if first_finding.remediation else None
+
         if rule_title:
-            # Use rule metadata title with resource context
             title = f"{rule_title} - {threat_type.value.replace('_', ' ').title()}"
             description = (
                 f"Detected {len(findings)} violations of '{rule_title}' "
@@ -306,14 +314,19 @@ class ThreatDetector:
                 f"Affected resource: {group['resource_uid']}"
             )
         else:
-            # Fallback to generic title
             title = f"{threat_type.value.replace('_', ' ').title()} Threat Detected"
             description = (
                 f"Detected {len(findings)} misconfiguration(s) that indicate a "
                 f"{threat_type.value.replace('_', ' ')} threat. "
                 f"Resource: {group['resource_uid']}"
             )
-        
+
+        # Add MITRE context to description if available
+        mitre_techniques = group.get("mitre_techniques", [])
+        mitre_tactics = group.get("mitre_tactics", [])
+        if mitre_techniques:
+            description += f" MITRE ATT&CK: {', '.join(mitre_techniques[:3])}"
+
         # Extract affected assets
         affected_assets = []
         for finding in findings:
@@ -327,19 +340,19 @@ class ThreatDetector:
             }
             if asset not in affected_assets:
                 affected_assets.append(asset)
-        
+
         # Collect evidence refs
         evidence_refs = []
         for finding in findings:
             evidence_refs.extend(finding.evidence_refs)
-        evidence_refs = list(set(evidence_refs))  # Deduplicate
-        
+        evidence_refs = list(set(evidence_refs))
+
         # Build correlations
         correlations = ThreatCorrelation(
             misconfig_finding_refs=misconfig_finding_refs,
             affected_assets=affected_assets
         )
-        
+
         # Determine highest severity from findings
         severities = [f.severity for f in findings]
         severity_order = [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]
@@ -348,7 +361,17 @@ class ThreatDetector:
             if sev in severities:
                 highest_severity = sev
                 break
-        
+
+        # Build remediation from rule metadata or generic
+        remediation_steps = []
+        if rule_remediation:
+            remediation_steps.append(rule_remediation)
+        remediation_steps.extend([
+            f"Review misconfig findings: {', '.join(misconfig_finding_refs[:3])}",
+            "Apply recommended remediation for each finding",
+            "Re-scan to verify threat is resolved"
+        ])
+
         threat = Threat(
             threat_id=threat_id,
             threat_type=threat_type,
@@ -364,13 +387,13 @@ class ThreatDetector:
             evidence_refs=evidence_refs,
             remediation={
                 "summary": f"Review and remediate {len(findings)} misconfiguration(s) to mitigate this threat",
-                "steps": [
-                    f"Review misconfig findings: {', '.join(misconfig_finding_refs[:3])}",
-                    "Apply recommended remediation for each finding",
-                    "Re-scan to verify threat is resolved"
-                ]
-            }
+                "steps": remediation_steps
+            },
+            # MITRE ATT&CK enrichment
+            mitre_techniques=mitre_techniques,
+            mitre_tactics=mitre_tactics,
+            risk_score=group.get("risk_score"),
         )
-        
+
         return threat
 
