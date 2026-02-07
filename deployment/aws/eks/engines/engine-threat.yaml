@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-threat
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-threat
+  template:
+    metadata:
+      labels:
+        app: engine-threat
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-threat
+        image: yadavanup84/threat-engine:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8020
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PORT
+          value: "8020"
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: ENGINE_NAME
+          value: "threat"
+        - name: NEO4J_URI
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_URI
+              optional: true
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_USER
+              optional: true
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_PASSWORD
+              optional: true
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        - name: input
+          mountPath: /input
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8020
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8020
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            while true; do
+              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
+                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
+              fi
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: ENGINE_NAME
+          value: "threat"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+
+      volumes:
+      - name: output
+        emptyDir: {}
+      - name: input
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-threat
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8020
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-threat

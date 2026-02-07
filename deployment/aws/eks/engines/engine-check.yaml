@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-check
+  namespace: threat-engine-engines
+  labels:
+    app: engine-check
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-check
+  template:
+    metadata:
+      labels:
+        app: engine-check
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-check
+        image: yadavanup84/engine-check-aws:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8002
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: INPUT_DIR
+          value: "/input"
+        - name: ENGINE_NAME
+          value: "check"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        - name: input
+          mountPath: /input
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 3
+
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            while true; do
+              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
+                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
+              fi
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: ENGINE_NAME
+          value: "check"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+
+      volumes:
+      - name: output
+        emptyDir: {}
+      - name: input
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-check
+  namespace: threat-engine-engines
+  labels:
+    app: engine-check
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-check

@@ -159,11 +159,11 @@ INVENTORY_ENGINE_URL = os.getenv("INVENTORY_ENGINE_URL", f"{API_GATEWAY_URL}/api
 ONBOARDING_ENGINE_URL = os.getenv("ONBOARDING_ENGINE_URL", f"{API_GATEWAY_URL}/api/v1/onboarding")
 SECOPS_ENGINE_URL = os.getenv("SECOPS_ENGINE_URL", f"{API_GATEWAY_URL}/api/v1/secops")
 
-# Direct service URLs (for debugging and direct access)
-CORE_ENGINE_URL = os.getenv("CORE_ENGINE_URL", "http://core-engine-service:8001")
-CONFIGSCAN_SERVICE_URL = os.getenv("CONFIGSCAN_SERVICE_URL", "http://configscan-service:8002")
-PLATFORM_SERVICE_URL = os.getenv("PLATFORM_SERVICE_URL", "http://platform-service:8003")
-DATA_SECOPS_SERVICE_URL = os.getenv("DATA_SECOPS_SERVICE_URL", "http://data-secops-service:8004")
+# Direct service URLs (uniform naming - matches K8s service names)
+DISCOVERIES_ENGINE_URL = os.getenv("DISCOVERIES_ENGINE_URL", "http://engine-discoveries:8001")
+CHECK_ENGINE_URL = os.getenv("CHECK_ENGINE_URL", "http://engine-check:8002")
+IAM_ENGINE_URL = os.getenv("IAM_ENGINE_URL", "http://engine-iam:8003")
+RULE_ENGINE_URL = os.getenv("RULE_ENGINE_URL", "http://engine-rule:8000")
 
 # Feature flags for gradual migration
 USE_API_GATEWAY = os.getenv("USE_API_GATEWAY", "true").lower() == "true"

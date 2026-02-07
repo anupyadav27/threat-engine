@@ -145,52 +145,73 @@ kubectl apply -f kubernetes/platform-config.yaml
 ### Step 5: Create Service Account (IRSA)
 
 ```bash
-kubectl apply -f kubernetes/aws-engine-sa.yaml
+# Single service account for ALL engines with IRSA
+kubectl apply -f deployment/aws/eks/01-service-account.yaml
 ```
 
-### Step 6: Initialize Database
+**IRSA Role:** `threat-engine-platform-role` with policies:
+- `ThreatEngineSecretsManager` — access to `threat-engine/*` secrets
+- `threat-engine-s3-cspm-lgtech-access` — S3 bucket access
+- `ThreatEngineAssumeCustomerRoles` — STS AssumeRole for customer scans
+- `ThreatEngineDynamoDB` — DynamoDB access (onboarding)
+
+### Step 6: Deploy All Engines (One Command)
 
 ```bash
-kubectl apply -f kubernetes/init-db-schema-job.yaml
-# Wait for completion
-kubectl wait --for=condition=complete job/init-db-schema --timeout=300s
+# Deploy everything using the deploy script
+cd deployment/aws/eks
+./deploy.sh
+
+# Or deploy individually with uniform naming:
+kubectl apply -f deployment/aws/eks/api-gateway.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-threat.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-discoveries.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-check.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-inventory.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-onboarding.yaml
+
+# Scale-to-0 engines (deploy manifests, scale up when ready)
+kubectl apply -f deployment/aws/eks/engines/engine-compliance.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-iam.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-datasec.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-rule.yaml
 ```
 
-### Step 7: Deploy Engines
+### Engine Naming Convention
 
-```bash
-# Deploy all engines
-kubectl apply -f deployment/aws/eks/api-gateway-deployment.yaml
-kubectl apply -f deployment/aws/eks/threat-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/check-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/discoveries-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/compliance-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/yaml-rule-builder-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/datasec-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/engines/iam-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/inventory-engine-deployment.yaml
-kubectl apply -f deployment/aws/eks/onboarding/onboarding-deployment.yaml
-kubectl apply -f deployment/aws/eks/scheduler/scheduler-deployment.yaml
+| Deployment | Service (ClusterIP) | Port | Image |
+|------------|-------------------|------|-------|
+| `api-gateway` | `api-gateway` + `api-gateway-lb` | 8000 | `yadavanup84/threat-engine-api-gateway:latest` |
+| `engine-threat` | `engine-threat` | 8020 | `yadavanup84/threat-engine:latest` |
+| `engine-discoveries` | `engine-discoveries` | 8001 | `yadavanup84/engine-discoveries-aws:latest` |
+| `engine-check` | `engine-check` | 8002 | `yadavanup84/engine-check-aws:latest` |
+| `engine-inventory` | `engine-inventory` | 8022 | `yadavanup84/inventory-engine:latest` |
+| `engine-onboarding` | `engine-onboarding` | 8008 | `yadavanup84/threat-engine-onboarding-api:latest` |
+| `engine-compliance` | `engine-compliance` | 8010 | `yadavanup84/threat-engine-compliance-engine:latest` |
+| `engine-iam` | `engine-iam` | 8003 | `yadavanup84/threat-engine-iam:latest` |
+| `engine-datasec` | `engine-datasec` | 8004 | `yadavanup84/threat-engine-datasec:latest` |
+| `engine-rule` | `engine-rule` | 8000 | `yadavanup84/threat-engine-yaml-rule-builder:latest` |
 
-# Verify
-kubectl get pods
-kubectl get services
-```
-
-### Step 8: Verify Deployment
+### Step 7: Verify Deployment
 
 ```bash
 # Check all pods are running
-kubectl get pods -o wide
+kubectl get pods -n threat-engine-engines -o wide
 
 # Check services
-kubectl get svc
+kubectl get svc -n threat-engine-engines
+
+# Check deployments
+kubectl get deployments -n threat-engine-engines
 
 # Port forward for testing
-kubectl port-forward svc/api-gateway 8000:8000
+kubectl port-forward svc/api-gateway 8000:80 -n threat-engine-engines
 
 # Test
 curl http://localhost:8000/gateway/health
+
+# Scale up an engine when ready
+kubectl scale deployment engine-compliance --replicas=1 -n threat-engine-engines
 ```
 
 ---
@@ -199,11 +220,16 @@ curl http://localhost:8000/gateway/health
 
 | Service | Memory Request/Limit | CPU Request/Limit |
 |---------|---------------------|-------------------|
-| API Gateway | 256Mi / 512Mi | 250m / 500m |
-| Core Engine | 2Gi / 4Gi | 1000m / 2000m |
-| Threat Engine | 512Mi / 2Gi | 250m / 1000m |
-| Scanner Engine | 512Mi / 2Gi | 250m / 1000m |
-| Other Engines | 256Mi / 1Gi | 250m / 500m |
+| `api-gateway` | 256Mi / 512Mi | 100m / 500m |
+| `engine-threat` | 256Mi / 1Gi | 100m / 500m |
+| `engine-onboarding` | 512Mi / 1Gi | 250m / 1000m |
+| `engine-discoveries` | 128Mi / 512Mi | 50m / 250m |
+| `engine-check` | 128Mi / 512Mi | 50m / 250m |
+| `engine-inventory` | 128Mi / 512Mi | 50m / 250m |
+| `engine-compliance` | 128Mi / 512Mi | 50m / 250m |
+| `engine-iam` | 128Mi / 512Mi | 50m / 250m |
+| `engine-datasec` | 128Mi / 512Mi | 50m / 250m |
+| S3 Sync Sidecar | 64Mi / 128Mi | 25m / 100m |
 
 ---
 
@@ -217,12 +243,12 @@ kubectl apply -f - <<EOF
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: core-engine-hpa
+  name: engine-threat-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: core-engine
+    name: engine-threat
   minReplicas: 2
   maxReplicas: 10
   metrics:
@@ -240,15 +266,15 @@ EOF
 ## Rolling Updates
 
 ```bash
-# Update image
-kubectl set image deployment/threat-engine \
-  threat-engine=yadavanup84/threat-engine:v2.0
+# Update image (example: engine-threat)
+kubectl set image deployment/engine-threat \
+  engine-threat=yadavanup84/threat-engine:v2.0
 
 # Check rollout status
-kubectl rollout status deployment/threat-engine
+kubectl rollout status deployment/engine-threat
 
 # Rollback if needed
-kubectl rollout undo deployment/threat-engine
+kubectl rollout undo deployment/engine-threat
 ```
 
 ---
@@ -258,16 +284,20 @@ kubectl rollout undo deployment/threat-engine
 ### Pod Health
 
 ```bash
-kubectl get pods
-kubectl describe pod <pod-name>
-kubectl logs <pod-name> -f
-kubectl top pods
+kubectl get pods -n threat-engine-engines
+kubectl describe pod <pod-name> -n threat-engine-engines
+kubectl logs <pod-name> -f -n threat-engine-engines
+kubectl top pods -n threat-engine-engines
 ```
 
 ### Service Health
 
 ```bash
 # Port forward and check health endpoints
-kubectl port-forward svc/threat-engine 8020:8020
+kubectl port-forward svc/engine-threat 8020:80 -n threat-engine-engines
 curl http://localhost:8020/health
+
+# Or via API Gateway
+kubectl port-forward svc/api-gateway 8000:80 -n threat-engine-engines
+curl http://localhost:8000/gateway/health
 ```

@@ -12,9 +12,10 @@
                      │            AWS EKS Cluster                   │
                      │       (ap-south-1 / Mumbai)                  │
                      │    Namespace: threat-engine-engines           │
+                     │    Service Account: engine-sa (IRSA)          │
                      │                                              │
   Internet ────────► │   ┌────────────────────┐                     │
-                     │   │   API Gateway       │                     │
+                     │   │   api-gateway       │                     │
                      │   │   Port 8000         │                     │
                      │   │   (LoadBalancer)     │                     │
                      │   └────────┬─────────────┘                     │
@@ -22,19 +23,16 @@
          ┌──────────┼────────────┼────────────────────────┐         │
          │          │            │                        │         │
     ┌────▼────┐ ┌───▼─────┐ ┌───▼──────┐ ┌──────────┐ ┌──▼────┐   │
-    │ Threat  │ │  Check  │ │Inventory │ │Compliance│ │ Rule  │   │
-    │  :8020  │ │  :8001  │ │  :8022   │ │  :8021   │ │ :8011 │   │
+    │engine-  │ │engine-  │ │engine-   │ │engine-   │ │engine-│   │
+    │threat   │ │check    │ │inventory │ │compliance│ │rule   │   │
+    │  :8020  │ │  :8002  │ │  :8022   │ │  :8010   │ │ :8000 │   │
     └────┬────┘ └───┬─────┘ └───┬──────┘ └────┬─────┘ └──┬────┘   │
          │          │            │              │          │        │
     ┌────▼────┐ ┌───▼─────┐ ┌───▼──────┐ ┌────▼─────┐    │        │
-    │DataSec  │ │  IAM    │ │Discover  │ │Onboarding│    │        │
-    │  :8004  │ │  :8003  │ │  :8002   │ │  :8010   │    │        │
+    │engine-  │ │engine-  │ │engine-   │ │engine-   │    │        │
+    │datasec  │ │iam      │ │discover. │ │onboarding│    │        │
+    │  :8004  │ │  :8003  │ │  :8001   │ │  :8008   │    │        │
     └─────────┘ └─────────┘ └──────────┘ └──────────┘    │        │
-         │                                                │        │
-    ┌────▼────┐                                      ┌────▼────┐   │
-    │ SecOps  │                                      │PythonSDK│   │
-    │         │                                      │         │   │
-    └─────────┘                                      └─────────┘   │
                      │                                              │
                      │   ┌─────────────┐  ┌──────────────┐         │
                      │   │ PostgreSQL  │  │    Neo4j     │         │
@@ -53,20 +51,20 @@
 
 ## Engine Registry
 
-| # | Engine | Port | Docker Image | Code Path | API Prefix | Endpoints |
-|---|--------|------|-------------|-----------|------------|-----------|
-| 1 | **engine_threat** | 8020 | `yadavanup84/threat-engine:latest` | `engine_threat/threat_engine/` | `/api/v1/threat/`, `/api/v1/graph/`, `/api/v1/intel/`, `/api/v1/hunt/` | 63+ |
-| 2 | **engine_check** | 8001 | `yadavanup84/check-engine:latest` | `engine_check/engine_check_aws/` | `/api/v1/check/` | 7 |
-| 3 | **engine_inventory** | 8022 | `yadavanup84/inventory-engine:latest` | `engine_inventory/inventory_engine/` | `/api/v1/inventory/` | 20+ |
-| 4 | **engine_compliance** | 8021 | `yadavanup84/compliance-engine:latest` | `engine_compliance/compliance_engine/` | `/api/v1/compliance/` | 34 |
-| 5 | **engine_rule** | 8011 | `yadavanup84/rule-engine:latest` | `engine_rule/` | `/api/v1/rules/`, `/api/v1/providers/` | 23 |
-| 6 | **engine_datasec** | 8004 | `yadavanup84/datasec-engine:latest` | `engine_datasec/data_security_engine/` | `/api/v1/data-security/` | 17 |
-| 7 | **engine_iam** | 8003 | `yadavanup84/iam-engine:latest` | `engine_iam/iam_engine/` | `/api/v1/iam-security/` | 8 |
-| 8 | **engine_discoveries** | 8002 | `yadavanup84/discoveries-engine:latest` | `engine_discoveries/engine_discoveries_aws/` | `/api/v1/discovery/` | 8 |
-| 9 | **engine_onboarding** | 8010 | `yadavanup84/onboarding-engine:latest` | `engine_onboarding/` | `/api/v1/onboarding/`, `/api/v1/schedules/`, `/api/v1/accounts/` | 28 |
-| 10 | **engine_secops** | 8000 | `yadavanup84/secops-engine:latest` | `engine_secops/scanner_engine/` | `/api/v1/secops/`, `/scan` | 7 |
-| 11 | **engine_pythonsdk** | 8000 | - | `engine_pythonsdk/pythonsdk_service/` | `/api/v1/` | 13 |
-| 12 | **api_gateway** | 8000 | `threat-engine/api-gateway:latest` | `api_gateway/` | `/gateway/` | 6 |
+| # | Engine | K8s Name | Port | Docker Image | Code Path | API Prefix | Endpoints |
+|---|--------|----------|------|-------------|-----------|------------|-----------|
+| 1 | **engine_threat** | `engine-threat` | 8020 | `yadavanup84/threat-engine:latest` | `engine_threat/threat_engine/` | `/api/v1/threat/`, `/api/v1/graph/`, `/api/v1/intel/`, `/api/v1/hunt/` | 63+ |
+| 2 | **engine_check** | `engine-check` | 8002 | `yadavanup84/engine-check-aws:latest` | `engine_check/engine_check_aws/` | `/api/v1/check/` | 7 |
+| 3 | **engine_inventory** | `engine-inventory` | 8022 | `yadavanup84/inventory-engine:latest` | `engine_inventory/inventory_engine/` | `/api/v1/inventory/` | 20+ |
+| 4 | **engine_compliance** | `engine-compliance` | 8010 | `yadavanup84/threat-engine-compliance-engine:latest` | `engine_compliance/compliance_engine/` | `/api/v1/compliance/` | 34 |
+| 5 | **engine_rule** | `engine-rule` | 8000 | `yadavanup84/threat-engine-yaml-rule-builder:latest` | `engine_rule/` | `/api/v1/rules/`, `/api/v1/providers/` | 23 |
+| 6 | **engine_datasec** | `engine-datasec` | 8004 | `yadavanup84/threat-engine-datasec:latest` | `engine_datasec/data_security_engine/` | `/api/v1/data-security/` | 17 |
+| 7 | **engine_iam** | `engine-iam` | 8003 | `yadavanup84/threat-engine-iam:latest` | `engine_iam/iam_engine/` | `/api/v1/iam-security/` | 8 |
+| 8 | **engine_discoveries** | `engine-discoveries` | 8001 | `yadavanup84/engine-discoveries-aws:latest` | `engine_discoveries/engine_discoveries_aws/` | `/api/v1/discovery/` | 8 |
+| 9 | **engine_onboarding** | `engine-onboarding` | 8008 | `yadavanup84/threat-engine-onboarding-api:latest` | `engine_onboarding/` | `/api/v1/onboarding/`, `/api/v1/schedules/`, `/api/v1/accounts/` | 28 |
+| 10 | **engine_secops** | - | - | - | `engine_secops/scanner_engine/` | `/api/v1/secops/`, `/scan` | 7 |
+| 11 | **engine_pythonsdk** | - | - | - | `engine_pythonsdk/pythonsdk_service/` | `/api/v1/` | 13 |
+| 12 | **api_gateway** | `api-gateway` | 8000 | `yadavanup84/threat-engine-api-gateway:latest` | `api_gateway/` | `/gateway/` | 6 |
 
 **Non-API Engines:**
 
@@ -139,45 +137,52 @@ User: postgres
 | Region | `ap-south-1` (Mumbai) |
 | Namespace | `threat-engine-engines` |
 | Node Groups | Managed |
-| Service Account | `aws-engine-sa` |
+| Service Account | `engine-sa` (unified, single SA for all engines) |
 | IAM Role | `arn:aws:iam::588989875114:role/threat-engine-platform-role` |
 
-### Kubernetes Services
+### Kubernetes Services (Uniform Naming)
 
 **External (LoadBalancer):**
 
 | Service | Port | Type |
 |---------|------|------|
-| api-gateway | 8000 | LoadBalancer |
-| onboarding-service | 8010 | LoadBalancer |
-| yaml-rule-builder | 8011 | LoadBalancer |
+| `api-gateway-lb` | 8000 | LoadBalancer |
 
-**Internal (ClusterIP):**
+**Internal (ClusterIP) — All engines use `engine-{name}` naming:**
 
-| Service | Port | Replicas |
-|---------|------|----------|
-| core-engine-service | 8001 | 3 (min 2, max 10) |
-| configscan-service | 8002 | 1 |
-| platform-service | 8003 | 1 |
-| data-secops-service | 8004 | 1 |
-| threat-engine | 8020 | 1 |
-| compliance-engine | 8021 | 1 |
-| inventory-engine | 8022 | 1 |
+| Service | Port | Replicas | Image |
+|---------|------|----------|-------|
+| `api-gateway` | 8000 | 1 | `yadavanup84/threat-engine-api-gateway:latest` |
+| `engine-threat` | 8020 | 1 | `yadavanup84/threat-engine:latest` |
+| `engine-discoveries` | 8001 | 1 | `yadavanup84/engine-discoveries-aws:latest` |
+| `engine-check` | 8002 | 1 | `yadavanup84/engine-check-aws:latest` |
+| `engine-inventory` | 8022 | 1 | `yadavanup84/inventory-engine:latest` |
+| `engine-onboarding` | 8008 | 1 | `yadavanup84/threat-engine-onboarding-api:latest` |
+| `engine-compliance` | 8010 | 0 (scale when ready) | `yadavanup84/threat-engine-compliance-engine:latest` |
+| `engine-iam` | 8003 | 0 (scale when ready) | `yadavanup84/threat-engine-iam:latest` |
+| `engine-datasec` | 8004 | 0 (scale when ready) | `yadavanup84/threat-engine-datasec:latest` |
+| `engine-rule` | 8000 | 0 (scale when ready) | `yadavanup84/threat-engine-yaml-rule-builder:latest` |
 
 ### Resource Limits
 
 | Service | Memory Request/Limit | CPU Request/Limit |
 |---------|---------------------|-------------------|
-| API Gateway | 256Mi / 512Mi | 250m / 500m |
-| Core Engine | 2Gi / 4Gi | 1000m / 2000m |
-| Scanner Engine | 512Mi / 2Gi | 250m / 1000m |
+| `api-gateway` | 256Mi / 512Mi | 100m / 500m |
+| `engine-threat` | 256Mi / 1Gi | 100m / 500m |
+| `engine-onboarding` | 512Mi / 1Gi | 250m / 1000m |
+| `engine-discoveries` | 128Mi / 512Mi | 50m / 250m |
+| `engine-check` | 128Mi / 512Mi | 50m / 250m |
+| `engine-inventory` | 128Mi / 512Mi | 50m / 250m |
+| `engine-compliance` | 128Mi / 512Mi | 50m / 250m |
+| `engine-iam` | 128Mi / 512Mi | 50m / 250m |
+| `engine-datasec` | 128Mi / 512Mi | 50m / 250m |
+| S3 Sync Sidecar | 64Mi / 128Mi | 25m / 100m |
 
 ### HPA (Horizontal Pod Autoscaler)
 
-| Service | Min | Max | CPU Target | Memory Target |
-|---------|-----|-----|------------|---------------|
-| API Gateway | 2 | 10 | 70% | 80% |
-| Core Engine | 3 | 10 | 70% | 80% |
+| Service | Min | Max | CPU Target |
+|---------|-----|-----|------------|
+| engine-threat | 2 | 10 | 70% |
 
 ### Health Probes
 
@@ -210,21 +215,20 @@ The API Gateway at port 8000 routes requests to backend services:
 
 | URL Pattern | Backend Service | Port |
 |-------------|----------------|------|
-| `/api/v1/threat/*` | threat-engine | 8020 |
-| `/api/v1/graph/*` | threat-engine | 8020 |
-| `/api/v1/intel/*` | threat-engine | 8020 |
-| `/api/v1/hunt/*` | threat-engine | 8020 |
-| `/api/v1/check/*` | check-engine | 8001 |
-| `/api/v1/inventory/*` | inventory-engine | 8022 |
-| `/api/v1/compliance/*` | compliance-engine | 8021 |
-| `/api/v1/rules/*`, `/api/v1/providers/*` | rule-engine | 8011 |
-| `/api/v1/data-security/*` | datasec-engine | 8004 |
-| `/api/v1/iam-security/*` | iam-engine | 8003 |
-| `/api/v1/discovery/*` | discoveries-engine | 8002 |
-| `/api/v1/onboarding/*` | onboarding-engine | 8010 |
-| `/api/v1/schedules/*` | onboarding-engine | 8010 |
-| `/api/v1/secops/*` | secops-engine | 8000 |
-| `/gateway/*` | api-gateway (self) | 8000 |
+| `/api/v1/threat/*` | `engine-threat` | 8020 |
+| `/api/v1/graph/*` | `engine-threat` | 8020 |
+| `/api/v1/intel/*` | `engine-threat` | 8020 |
+| `/api/v1/hunt/*` | `engine-threat` | 8020 |
+| `/api/v1/check/*` | `engine-check` | 8002 |
+| `/api/v1/inventory/*` | `engine-inventory` | 8022 |
+| `/api/v1/compliance/*` | `engine-compliance` | 8010 |
+| `/api/v1/rules/*`, `/api/v1/providers/*` | `engine-rule` | 8000 |
+| `/api/v1/data-security/*` | `engine-datasec` | 8004 |
+| `/api/v1/iam-security/*` | `engine-iam` | 8003 |
+| `/api/v1/discovery/*` | `engine-discoveries` | 8001 |
+| `/api/v1/onboarding/*` | `engine-onboarding` | 8008 |
+| `/api/v1/schedules/*` | `engine-onboarding` | 8008 |
+| `/gateway/*` | `api-gateway` (self) | 8000 |
 
 ### Gateway-Specific Endpoints
 
@@ -302,12 +306,16 @@ DB_SCHEMA=engine_configscan,engine_shared
 USE_S3=true
 S3_BUCKET=cspm-lgtech
 
-# Service Discovery
-CORE_ENGINE_URL=http://core-engine-service:8001
-CONFIGSCAN_SERVICE_URL=http://configscan-service:8002
-PLATFORM_SERVICE_URL=http://platform-service:8003
-ONBOARDING_ENGINE_URL=http://onboarding-engine:8010
-RULE_ENGINE_URL=http://rule-engine:8011
+# Service Discovery (uniform naming)
+THREAT_ENGINE_URL=http://engine-threat:8020
+DISCOVERIES_ENGINE_URL=http://engine-discoveries:8001
+CHECK_ENGINE_URL=http://engine-check:8002
+INVENTORY_ENGINE_URL=http://engine-inventory:8022
+COMPLIANCE_ENGINE_URL=http://engine-compliance:8010
+IAM_ENGINE_URL=http://engine-iam:8003
+DATASEC_ENGINE_URL=http://engine-datasec:8004
+ONBOARDING_ENGINE_URL=http://engine-onboarding:8008
+RULE_ENGINE_URL=http://engine-rule:8000
 
 # Cache
 REDIS_URL=redis://redis:6379
@@ -324,11 +332,11 @@ ENVIRONMENT=production
 
 ### IAM Roles (IRSA)
 
-| Role | ARN | Used By |
-|------|-----|---------|
-| Platform Role | `arn:aws:iam::588989875114:role/threat-engine-platform-role` | All engines |
-| SecOps S3 Role | `arn:aws:iam::588989875114:role/secops-s3-access-role` | SecOps scanner |
-| CSPM Role | `arn:aws:iam::588989875114:role/cspm-eks-role` | EKS service account |
+Single unified service account `engine-sa` with IRSA binding to one role:
+
+| Role | ARN | Policies |
+|------|-----|----------|
+| Platform Role | `arn:aws:iam::588989875114:role/threat-engine-platform-role` | `ThreatEngineSecretsManager`, `threat-engine-s3-cspm-lgtech-access`, `ThreatEngineAssumeCustomerRoles`, `ThreatEngineDynamoDB` |
 
 ### Security Context (All Pods)
 

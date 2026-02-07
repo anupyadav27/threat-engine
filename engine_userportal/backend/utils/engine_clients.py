@@ -52,12 +52,16 @@ class EngineClientBase:
     def _get_legacy_url(self) -> str:
         """Get legacy URL mapping for backward compatibility"""
         legacy_mapping = {
-            'threat': getattr(settings, 'THREAT_ENGINE_URL', 'http://engine-threat:8000'),
-            'compliance': getattr(settings, 'COMPLIANCE_ENGINE_URL', 'http://engine-compliance:8000'),
-            'inventory': getattr(settings, 'INVENTORY_ENGINE_URL', 'http://engine-inventory:8000'),
-            'onboarding': getattr(settings, 'ONBOARDING_ENGINE_URL', 'http://engine-onboarding:8000'),
-            'datasec': getattr(settings, 'DATASEC_ENGINE_URL', 'http://engine-datasec:8000'),
+            'threat': getattr(settings, 'THREAT_ENGINE_URL', 'http://engine-threat:8020'),
+            'compliance': getattr(settings, 'COMPLIANCE_ENGINE_URL', 'http://engine-compliance:8010'),
+            'inventory': getattr(settings, 'INVENTORY_ENGINE_URL', 'http://engine-inventory:8022'),
+            'onboarding': getattr(settings, 'ONBOARDING_ENGINE_URL', 'http://engine-onboarding:8008'),
+            'datasec': getattr(settings, 'DATASEC_ENGINE_URL', 'http://engine-datasec:8004'),
             'secops': getattr(settings, 'SECOPS_ENGINE_URL', 'http://engine-secops:8000'),
+            'check': getattr(settings, 'CHECK_ENGINE_URL', 'http://engine-check:8002'),
+            'discoveries': getattr(settings, 'DISCOVERIES_ENGINE_URL', 'http://engine-discoveries:8001'),
+            'iam': getattr(settings, 'IAM_ENGINE_URL', 'http://engine-iam:8003'),
+            'rule': getattr(settings, 'RULE_ENGINE_URL', 'http://engine-rule:8000'),
         }
         return legacy_mapping.get(self.service_name, f'http://engine-{self.service_name}:8000')
     

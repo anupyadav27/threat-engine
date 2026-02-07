@@ -7,32 +7,33 @@ Cloud Security Posture Management (CSPM) platform built as a microservices archi
 ## Architecture
 
 ```
-                        API Gateway (:8000)
+                        api-gateway (:8000)
                               |
         +---------+-----------+-----------+---------+----------+
         |         |           |           |         |          |
-   Threat     Check      Inventory   Compliance    Rule      ...
-   (:8020)    (:8001)     (:8022)     (:8021)    (:8011)
+   engine-    engine-    engine-     engine-     engine-     ...
+   threat     check      inventory   compliance  rule
+   (:8020)    (:8002)     (:8022)     (:8010)    (:8000)
         |         |           |           |         |
    PostgreSQL  PostgreSQL  PostgreSQL  PostgreSQL PostgreSQL
-   + Neo4j     (check DB)  (inv DB)   (check DB) (check DB)
+   + Neo4j     (check DB)  (inv DB)   (comp DB)  (check DB)
 ```
 
 ### Engines
 
-| Engine | Port | Purpose |
-|--------|------|---------|
-| **engine_discoveries** | 8002 | Discover cloud resources via AWS/Azure/GCP APIs |
-| **engine_check** | 8001 | Evaluate YAML security rules against discoveries |
-| **engine_inventory** | 8022 | Normalize assets, build relationships, detect drift |
-| **engine_threat** | 8020 | Detect threats, risk scoring, attack paths (Neo4j), MITRE mapping |
-| **engine_compliance** | 8021 | Map findings to compliance frameworks (CIS, NIST, SOC2, etc.) |
-| **engine_rule** | 8011 | YAML rule builder for 7 cloud providers |
-| **engine_onboarding** | 8010 | Account onboarding, credential management, scan scheduling |
-| **engine_datasec** | 8004 | Data classification, lineage, residency, governance |
-| **engine_iam** | 8003 | IAM posture analysis, privilege escalation detection |
-| **engine_secops** | - | IaC/code scanning (Terraform, CloudFormation, Docker, K8s) |
-| **api_gateway** | 8000 | Unified entry point, service routing, scan orchestration |
+| Engine | K8s Name | Port | Purpose |
+|--------|----------|------|---------|
+| **engine_discoveries** | `engine-discoveries` | 8001 | Discover cloud resources via AWS/Azure/GCP APIs |
+| **engine_check** | `engine-check` | 8002 | Evaluate YAML security rules against discoveries |
+| **engine_inventory** | `engine-inventory` | 8022 | Normalize assets, build relationships, detect drift |
+| **engine_threat** | `engine-threat` | 8020 | Detect threats, risk scoring, attack paths (Neo4j), MITRE mapping |
+| **engine_compliance** | `engine-compliance` | 8010 | Map findings to compliance frameworks (CIS, NIST, SOC2, etc.) |
+| **engine_rule** | `engine-rule` | 8000 | YAML rule builder for 7 cloud providers |
+| **engine_onboarding** | `engine-onboarding` | 8008 | Account onboarding, credential management, scan scheduling |
+| **engine_datasec** | `engine-datasec` | 8004 | Data classification, lineage, residency, governance |
+| **engine_iam** | `engine-iam` | 8003 | IAM posture analysis, privilege escalation detection |
+| **engine_secops** | - | - | IaC/code scanning (Terraform, CloudFormation, Docker, K8s) |
+| **api_gateway** | `api-gateway` | 8000 | Unified entry point, service routing, scan orchestration |
 
 ### Scan Pipeline
 
