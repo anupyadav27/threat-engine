@@ -15,36 +15,38 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE TABLE IF NOT EXISTS customers (
     customer_id VARCHAR(255) PRIMARY KEY,
     customer_name VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id VARCHAR(255) PRIMARY KEY,
-    customer_id VARCHAR(255) NOT NULL,
-    provider VARCHAR(50) NOT NULL,
+    customer_id VARCHAR(255),           -- nullable in RDS
+    provider VARCHAR(50),               -- nullable in RDS
     tenant_name VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB DEFAULT '{}'::jsonb
+    -- NOTE: No FK to customers enforced in RDS
 );
 
 CREATE TABLE IF NOT EXISTS discovery_report (
     discovery_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
-    customer_id VARCHAR(255) NOT NULL,
-    tenant_id VARCHAR(255) NOT NULL,
-    provider VARCHAR(50) NOT NULL,
+    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    customer_id VARCHAR(255),       -- nullable in RDS
+    tenant_id VARCHAR(255),         -- nullable in RDS
+    provider VARCHAR(50),           -- nullable in RDS
     hierarchy_id VARCHAR(255),
     hierarchy_type VARCHAR(50),
-    region VARCHAR(50),
+    region VARCHAR(100),
     service VARCHAR(100),
-    scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    scan_timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     scan_type VARCHAR(50) DEFAULT 'discovery',
-    status VARCHAR(50),
-    metadata JSONB,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+    status VARCHAR(50) DEFAULT 'running',
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    -- NOTE: No FK constraints enforced in RDS
 );
 
 -- ============================================================================
@@ -71,9 +73,8 @@ CREATE TABLE IF NOT EXISTS discovery_findings (
     config_hash VARCHAR(64),
     version INTEGER DEFAULT 1,
     scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+    FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE
+    -- NOTE: No FK to customers/tenants enforced in RDS
 );
 
 CREATE TABLE IF NOT EXISTS discovery_history (
@@ -94,9 +95,8 @@ CREATE TABLE IF NOT EXISTS discovery_history (
     version INTEGER NOT NULL,
     change_type VARCHAR(50),
     previous_hash VARCHAR(64),
-    diff_summary JSONB,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+    diff_summary JSONB
+    -- NOTE: No FK to customers/tenants enforced in RDS
 );
 
 -- ============================================================================
@@ -118,8 +118,11 @@ CREATE TABLE IF NOT EXISTS rule_definitions (
 -- INDEXES
 -- ============================================================================
 
+-- PLANNED: not yet deployed to RDS
 CREATE INDEX IF NOT EXISTS idx_dr_customer_tenant ON discovery_report(customer_id, tenant_id);
+-- PLANNED: not yet deployed to RDS
 CREATE INDEX IF NOT EXISTS idx_dr_timestamp ON discovery_report(scan_timestamp DESC);
+-- PLANNED: not yet deployed to RDS
 CREATE INDEX IF NOT EXISTS idx_dr_orchestration ON discovery_report(orchestration_id);
 
 CREATE INDEX IF NOT EXISTS idx_df_scan ON discovery_findings(discovery_scan_id, discovery_id);
@@ -139,6 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp_service ON rule_definitions(
 CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp ON rule_definitions(csp);
 
 CREATE INDEX IF NOT EXISTS idx_df_emitted_fields_gin ON discovery_findings USING gin(emitted_fields);
+CREATE INDEX IF NOT EXISTS idx_discoveries_raw_response_gin ON discovery_findings USING gin(raw_response);
 CREATE INDEX IF NOT EXISTS idx_history_diff_summary_gin ON discovery_history USING gin(diff_summary);
 
 -- ============================================================================

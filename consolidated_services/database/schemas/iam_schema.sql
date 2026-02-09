@@ -20,11 +20,12 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 -- IAM Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS iam_report (
-    iam_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
+    iam_scan_id VARCHAR(255) PRIMARY KEY DEFAULT uuid_generate_v4(),
+    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    execution_id VARCHAR(255),
     tenant_id VARCHAR(255) NOT NULL,
-    scan_run_id VARCHAR(255),
-    cloud VARCHAR(50),
+    scan_run_id VARCHAR(255) NOT NULL,
+    cloud VARCHAR(50) DEFAULT 'aws',
     generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     total_findings INTEGER DEFAULT 0,
     iam_relevant_findings INTEGER DEFAULT 0,
@@ -38,9 +39,8 @@ CREATE TABLE IF NOT EXISTS iam_report (
     customer_id VARCHAR(255),
     check_scan_id VARCHAR(255),
     threat_scan_id VARCHAR(255),
-    status VARCHAR(50),
-    execution_id VARCHAR(255),
-    provider VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'completed',
+    provider VARCHAR(50) DEFAULT 'aws',
 
     CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS iam_report (
 -- IAM Findings (individual IAM security findings)
 CREATE TABLE IF NOT EXISTS iam_findings (
     finding_id VARCHAR(255) PRIMARY KEY,
-    iam_scan_id VARCHAR(255),
+    iam_scan_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
-    scan_run_id VARCHAR(255),
+    scan_run_id VARCHAR(255) NOT NULL,
     rule_id VARCHAR(255) NOT NULL,
     iam_modules TEXT[],
     severity VARCHAR(20) NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS iam_findings (
     resource_arn TEXT,
     account_id VARCHAR(50),
     region VARCHAR(50),
-    finding_data JSONB,
+    finding_data JSONB NOT NULL,
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     customer_id VARCHAR(255),

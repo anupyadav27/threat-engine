@@ -198,7 +198,8 @@ CREATE TABLE IF NOT EXISTS relation_types (
     description TEXT,
     cardinality VARCHAR(20),
     type_data JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Relationship Rules (per-CSP resource-to-resource relationship definitions)

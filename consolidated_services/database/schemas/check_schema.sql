@@ -3,35 +3,20 @@
 -- ============================================================================
 -- Purpose: Store security check results and parsed rule metadata
 -- Used by: engine_check_aws
--- Tables: customers, tenants, check_report, check_findings, rule_checks, rule_metadata
+-- Tables: check_report, check_findings, rule_checks, rule_metadata, rule_discoveries
+-- NOTE: customers/tenants tables do NOT exist in check DB on RDS
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- ============================================================================
--- CORE TABLES
+-- REPORT TABLE
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS customers (
-    customer_id VARCHAR(255) PRIMARY KEY,
-    customer_name VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB
-);
-
-CREATE TABLE IF NOT EXISTS tenants (
-    tenant_id VARCHAR(255) PRIMARY KEY,
-    customer_id VARCHAR(255) NOT NULL,
-    provider VARCHAR(50) NOT NULL,
-    tenant_name VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata JSONB,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
-);
 
 CREATE TABLE IF NOT EXISTS check_report (
     check_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
+    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    execution_id VARCHAR(255),      -- exists in RDS
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -43,9 +28,8 @@ CREATE TABLE IF NOT EXISTS check_report (
     scan_type VARCHAR(50) DEFAULT 'check',
     status VARCHAR(50),
     metadata JSONB,
-    discovery_scan_id VARCHAR(255),
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+    discovery_scan_id VARCHAR(255)
+    -- NOTE: No FK constraints — customers/tenants tables don't exist in check DB
 );
 
 -- ============================================================================
@@ -68,28 +52,28 @@ CREATE TABLE IF NOT EXISTS check_findings (
     status VARCHAR(50) NOT NULL,
     checked_fields JSONB,
     finding_data JSONB NOT NULL,
-    scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    metadata_source VARCHAR(50) DEFAULT 'default',
-    FOREIGN KEY (check_scan_id) REFERENCES check_report(check_scan_id) ON DELETE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+    FOREIGN KEY (check_scan_id) REFERENCES check_report(check_scan_id) ON DELETE CASCADE
+    -- NOTE: No FK to customers/tenants
 );
 
 CREATE TABLE IF NOT EXISTS rule_checks (
     id SERIAL PRIMARY KEY,
     rule_id VARCHAR(255) NOT NULL,
     service VARCHAR(100) NOT NULL,
-    provider VARCHAR(50) NOT NULL,
+    provider VARCHAR(50) NOT NULL DEFAULT 'aws',
     check_type VARCHAR(50) DEFAULT 'default',
     customer_id VARCHAR(255),
     tenant_id VARCHAR(255),
-    check_config JSONB NOT NULL,
+    check_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    version VARCHAR(50) DEFAULT '1.0',
+    source VARCHAR(50) NOT NULL DEFAULT 'default',
+    generated_by VARCHAR(50) DEFAULT 'default',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_active BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     UNIQUE(rule_id, customer_id, tenant_id)
+    -- NOTE: No FK to customers/tenants
 );
 
 -- ============================================================================
@@ -98,7 +82,7 @@ CREATE TABLE IF NOT EXISTS rule_checks (
 
 CREATE TABLE IF NOT EXISTS rule_metadata (
     id SERIAL PRIMARY KEY,
-    rule_id VARCHAR(255) NOT NULL UNIQUE,
+    rule_id VARCHAR(255) NOT NULL,
     service VARCHAR(100) NOT NULL,
     provider VARCHAR(50) NOT NULL DEFAULT 'aws',
     resource VARCHAR(100),
@@ -113,16 +97,42 @@ CREATE TABLE IF NOT EXISTS rule_metadata (
     assertion_id VARCHAR(255),
     compliance_frameworks JSONB,
     data_security JSONB,
+    iam_security JSONB DEFAULT '{}'::jsonb,
     "references" JSONB,
     metadata_source VARCHAR(50) NOT NULL DEFAULT 'default',
     source VARCHAR(50) NOT NULL DEFAULT 'default',
     generated_by VARCHAR(50) DEFAULT 'default',
+    customer_id VARCHAR(255),
+    tenant_id VARCHAR(255),
+    version VARCHAR(50) DEFAULT '1.0',
+    mitre_tactics JSONB DEFAULT '[]'::jsonb,
+    mitre_techniques JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     threat_category VARCHAR(50),
     threat_tags JSONB DEFAULT '[]',
     risk_score INTEGER DEFAULT 50,
-    risk_indicators JSONB DEFAULT '{}'
+    risk_indicators JSONB DEFAULT '{}',
+    UNIQUE(rule_id, customer_id, tenant_id)
+);
+
+-- ============================================================================
+-- RULE DISCOVERIES (discovery definitions loaded from YAML per service)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS rule_discoveries (
+    id SERIAL PRIMARY KEY,
+    service VARCHAR(100) NOT NULL,
+    provider VARCHAR(50) NOT NULL DEFAULT 'aws',
+    version VARCHAR(20),
+    discoveries_data JSONB NOT NULL DEFAULT '[]',
+    customer_id VARCHAR(255),
+    tenant_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    source VARCHAR(50) NOT NULL DEFAULT 'default',
+    generated_by VARCHAR(50) DEFAULT 'default',
+    UNIQUE(service, provider, customer_id, tenant_id)
 );
 
 -- ============================================================================
@@ -136,7 +146,7 @@ CREATE INDEX IF NOT EXISTS idx_cr_orchestration ON check_report(orchestration_id
 
 CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(check_scan_id, rule_id);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, hierarchy_id);
-CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cf_rule_id ON check_findings(rule_id, status);
 CREATE INDEX IF NOT EXISTS idx_cf_resource_uid ON check_findings(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_cf_resource_arn ON check_findings(resource_arn);
@@ -163,3 +173,4 @@ COMMENT ON TABLE check_report IS 'Check scan metadata with link to discovery_sca
 COMMENT ON TABLE check_findings IS 'Security check findings from check scans';
 COMMENT ON TABLE rule_metadata IS 'Parsed rule metadata for enriching check findings';
 COMMENT ON TABLE rule_checks IS 'Check rule configurations loaded from YAML or custom';
+COMMENT ON TABLE rule_discoveries IS 'Discovery definitions loaded from YAML per service';

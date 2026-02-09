@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS tenants (
 -- Inventory Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS inventory_report (
     inventory_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
+    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    execution_id VARCHAR(255),      -- exists in RDS
     tenant_id VARCHAR(255) NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
@@ -41,7 +42,6 @@ CREATE TABLE IF NOT EXISTS inventory_report (
     errors_count INTEGER NOT NULL DEFAULT 0,
     scan_metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    execution_id VARCHAR(255),
     discovery_scan_id VARCHAR(255),
     customer_id VARCHAR(255),
 
@@ -53,10 +53,10 @@ CREATE TABLE IF NOT EXISTS inventory_scans (
     scan_run_id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
     discovery_scan_id VARCHAR(255),
-    status VARCHAR(50),
+    status VARCHAR(50) NOT NULL,
     total_assets INTEGER DEFAULT 0,
     total_relationships INTEGER DEFAULT 0,
-    started_at TIMESTAMP WITH TIME ZONE,
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS inventory_findings (
 CREATE TABLE IF NOT EXISTS inventory_relationships (
     relationship_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id VARCHAR(255) NOT NULL,
-    inventory_scan_id VARCHAR(255),
+    inventory_scan_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
     account_id VARCHAR(255) NOT NULL,
     region VARCHAR(100),
@@ -155,19 +155,19 @@ CREATE TABLE IF NOT EXISTS inventory_asset_history (
 CREATE TABLE IF NOT EXISTS inventory_drift (
     id SERIAL PRIMARY KEY,
     drift_id UUID DEFAULT uuid_generate_v4(),
-    inventory_scan_id VARCHAR(255),
+    inventory_scan_id VARCHAR(255) NOT NULL,
     previous_scan_id VARCHAR(255),
-    tenant_id VARCHAR(255),
+    tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
     asset_id UUID,
-    resource_uid TEXT,
+    resource_uid TEXT NOT NULL,
     provider VARCHAR(50),
     resource_type VARCHAR(255),
-    change_type VARCHAR(50),  -- 'added', 'removed', 'modified'
+    change_type VARCHAR(50) NOT NULL,  -- 'added', 'removed', 'modified'
     previous_state JSONB,
     current_state JSONB,
-    changes_summary JSONB,
-    severity VARCHAR(20),  -- 'low', 'medium', 'high', 'critical'
+    changes_summary JSONB DEFAULT '{}'::jsonb,
+    severity VARCHAR(20) DEFAULT 'info',
     detected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
@@ -200,14 +200,14 @@ CREATE TABLE IF NOT EXISTS inventory_asset_collections (
     name VARCHAR(255) NOT NULL,
     collection_type VARCHAR(50) NOT NULL,  -- 'application', 'service', 'environment', 'team'
     description TEXT,
-    collection_criteria JSONB NOT NULL,
+    collection_criteria JSONB,            -- nullable in RDS
     is_dynamic BOOLEAN DEFAULT TRUE,
     owner VARCHAR(255),
     business_criticality VARCHAR(20),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    filters JSONB,
-    auto_assign BOOLEAN,
+    filters JSONB DEFAULT '{}'::jsonb,
+    auto_assign BOOLEAN DEFAULT false,
 
     CONSTRAINT fk_tenant_collection FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
     UNIQUE(tenant_id, name)

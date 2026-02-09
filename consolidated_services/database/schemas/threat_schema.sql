@@ -15,47 +15,49 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- CORE TABLES
 -- ============================================================================
 
--- NOTE: tenants table REMOVED. Tenant master lives in shared DB (threat_engine_shared).
--- tenant_id is a plain VARCHAR column on all tables — no local FK enforcement.
--- This avoids duplicating tenant data across 9 engine DBs.
--- The _ensure_tenant() calls in Python code are no-ops now.
+-- Tenants table exists in threat DB on RDS
+CREATE TABLE IF NOT EXISTS tenants (
+    tenant_id VARCHAR(255) PRIMARY KEY,
+    tenant_name VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Threat Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS threat_report (
     threat_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
+    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
     execution_id VARCHAR(255),
     discovery_scan_id VARCHAR(255),
     check_scan_id VARCHAR(255),
     tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
-    provider VARCHAR(50),
-    scan_run_id VARCHAR(255),
-    started_at TIMESTAMP WITH TIME ZONE,
+    provider VARCHAR(50) NOT NULL,
+    scan_run_id VARCHAR(255) NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'completed',
     total_findings INTEGER DEFAULT 0,
     critical_findings INTEGER DEFAULT 0,
     high_findings INTEGER DEFAULT 0,
     medium_findings INTEGER DEFAULT 0,
     low_findings INTEGER DEFAULT 0,
-    threat_score INTEGER,
-    report_data JSONB,
+    threat_score INTEGER DEFAULT 0,
+    report_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Threat Findings (individual threat findings from scans)
 CREATE TABLE IF NOT EXISTS threat_findings (
     id SERIAL PRIMARY KEY,
-    finding_id VARCHAR(255),
-    threat_scan_id VARCHAR(255),
+    finding_id VARCHAR(255) NOT NULL UNIQUE,
+    threat_scan_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
-    scan_run_id VARCHAR(255),
-    rule_id VARCHAR(255),
+    scan_run_id VARCHAR(255) NOT NULL,
+    rule_id VARCHAR(255) NOT NULL,
     threat_category VARCHAR(100),
-    severity VARCHAR(20),  -- 'low', 'medium', 'high', 'critical'
-    status VARCHAR(50),
+    severity VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
     resource_arn TEXT,
@@ -64,10 +66,10 @@ CREATE TABLE IF NOT EXISTS threat_findings (
     region VARCHAR(50),
     mitre_tactics JSONB DEFAULT '[]',
     mitre_techniques JSONB DEFAULT '[]',
-    evidence JSONB,
-    finding_data JSONB,
-    first_seen_at TIMESTAMP WITH TIME ZONE,
-    last_seen_at TIMESTAMP WITH TIME ZONE,
+    evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
+    finding_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -77,21 +79,21 @@ CREATE TABLE IF NOT EXISTS threat_findings (
 
 CREATE TABLE IF NOT EXISTS mitre_technique_reference (
     id SERIAL PRIMARY KEY,
-    technique_id VARCHAR(50) UNIQUE,
-    technique_name TEXT,
-    tactics JSONB,
-    sub_techniques JSONB,
+    technique_id VARCHAR(20) UNIQUE,
+    technique_name TEXT NOT NULL,
+    tactics JSONB DEFAULT '[]'::jsonb,
+    sub_techniques JSONB DEFAULT '[]'::jsonb,
     description TEXT,
     url TEXT,
-    platforms JSONB,
-    aws_checks JSONB,
-    azure_checks JSONB,
-    gcp_checks JSONB,
-    ibm_keywords JSONB,
-    k8s_keywords JSONB,
-    ocp_keywords JSONB,
-    aws_service_coverage JSONB,
-    detection_keywords JSONB,
+    platforms JSONB DEFAULT '[]'::jsonb,
+    aws_checks JSONB DEFAULT '[]'::jsonb,
+    azure_checks JSONB DEFAULT '[]'::jsonb,
+    gcp_checks JSONB DEFAULT '[]'::jsonb,
+    ibm_keywords JSONB DEFAULT '[]'::jsonb,
+    k8s_keywords JSONB DEFAULT '[]'::jsonb,
+    ocp_keywords JSONB DEFAULT '[]'::jsonb,
+    aws_service_coverage JSONB DEFAULT '{}'::jsonb,
+    detection_keywords JSONB DEFAULT '[]'::jsonb,
     -- Detection & Remediation guidance (added for actionable threat intel)
     detection_guidance JSONB DEFAULT '{}',   -- {cloudtrail_events:[], guardduty_types:[], cloudwatch_patterns:[], data_sources:[]}
     remediation_guidance JSONB DEFAULT '{}', -- {immediate:[], preventive:[], detective:[], aws_services:[]}
@@ -315,6 +317,7 @@ CREATE TRIGGER update_threat_hunt_queries_updated_at BEFORE UPDATE ON threat_hun
 -- COMMENTS
 -- ============================================================================
 
+COMMENT ON TABLE tenants IS 'Tenant master for threat engine DB';
 COMMENT ON TABLE threat_report IS 'Threat scan metadata with links to check/discovery scans';
 COMMENT ON TABLE threat_findings IS 'Individual threat findings with MITRE mapping';
 COMMENT ON TABLE mitre_technique_reference IS 'MITRE ATT&CK technique reference data';
