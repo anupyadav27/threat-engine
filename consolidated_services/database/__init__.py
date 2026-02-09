@@ -5,16 +5,17 @@ This package provides centralized database management for all engines in the thr
 
 Quick Start:
 -----------
-from consolidated_services.database import get_configscan_connection
+from consolidated_services.database import get_engine_connection
 
 async def example():
-    async with get_configscan_connection() as db:
-        result = await db.fetch_all("SELECT * FROM scans LIMIT 10")
+    async with get_engine_connection("discovery") as db:
+        result = await db.fetch_all("SELECT * FROM discovery_findings LIMIT 10")
         return result
 
 Available Engines:
 -----------------
-- configscan: Configuration scanning data
+- discovery: Discovery scanning data (discovery_report, discovery_findings, discovery_history)
+- check: Security check results (check_report, check_findings)
 - compliance: Compliance checking and results
 - inventory: Asset inventory and discovery
 - threat: Threat detection and analysis

@@ -2,6 +2,19 @@
 Drift Detector
 
 Compares current scan with previous scan to detect changes.
+
+=== DATABASE & TABLE MAP ===
+Database: None — pure comparison logic (no direct DB access).
+
+Input:  List[Asset] + List[Relationship] for current and previous scans
+        (loaded by orchestrator from DiscoveryDBReader / InventoryDBLoader)
+Output: List[DriftRecord] — ASSET_ADDED, ASSET_REMOVED, ASSET_CHANGED,
+                             EDGE_ADDED, EDGE_REMOVED change records
+
+Tables READ:  None (receives data from callers)
+Tables WRITTEN: None (returns DriftRecord objects; persistence handled by orchestrator
+                       writing to drift.ndjson or future inventory_drift table)
+===
 """
 
 from typing import List, Dict, Any, Optional

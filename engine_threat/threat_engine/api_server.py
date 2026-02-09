@@ -109,6 +109,8 @@ class ThreatReportRequest(BaseModel):
     engine_version: Optional[str] = None
     scan_context: Optional[Dict[str, Any]] = None
     discovery_scan_id: Optional[str] = None
+    orchestration_id: Optional[str] = None
+    check_scan_id: Optional[str] = None
 
 
 #
@@ -318,6 +320,7 @@ async def generate_threat_report(request: ThreatReportRequest):
                 analyses = analyzer.analyze_scan(
                     tenant_id=request.tenant_id,
                     scan_run_id=request.scan_run_id,
+                    orchestration_id=request.orchestration_id,
                 )
                 if analyses:
                     analysis_count = save_analyses_to_db(analyses)
@@ -694,6 +697,7 @@ async def list_threats(
 async def run_threat_analysis(
     tenant_id: str = Body(...),
     scan_run_id: str = Body(...),
+    orchestration_id: Optional[str] = Body(None),
 ):
     """
     Run threat analysis (blast radius, risk scoring, attack chains) for a scan.
@@ -701,13 +705,20 @@ async def run_threat_analysis(
     Can be called independently or is auto-triggered by /generate.
     Reads threat_detections for the scan, cross-references inventory_relationships,
     and writes results to threat_analysis table.
+
+    If orchestration_id is provided, inventory relationships are scoped to
+    the specific pipeline run (via inventory_scan_id lookup in scan_orchestration).
     """
     import time as _time
     start = _time.time()
 
     try:
         analyzer = ThreatAnalyzer()
-        analyses = analyzer.analyze_scan(tenant_id=tenant_id, scan_run_id=scan_run_id)
+        analyses = analyzer.analyze_scan(
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+            orchestration_id=orchestration_id,
+        )
 
         if not analyses:
             raise HTTPException(status_code=404, detail="No threat detections found for scan")

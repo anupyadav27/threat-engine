@@ -16,7 +16,6 @@ from engine_common.logger import setup_logger, LogContext, log_duration, audit_l
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 
 from .input.threat_db_reader import ThreatDBReader
-from .input.rule_db_reader import RuleDBReader
 from .enricher.finding_enricher import FindingEnricher
 from .reporter.iam_reporter import IAMReporter
 from .storage.report_storage import ReportStorage
@@ -42,7 +41,6 @@ app.add_middleware(
 )
 
 threat_db_reader = ThreatDBReader()
-rule_db_reader = RuleDBReader()
 finding_enricher = FindingEnricher()
 reporter = IAMReporter()
 report_storage = ReportStorage()
@@ -149,45 +147,23 @@ async def generate_report(request: ScanRequest):
 
 
 @app.get("/api/v1/iam-security/rules/{rule_id}")
-async def get_rule_info(rule_id: str, service: Optional[str] = None):
-    """Get IAM security info for a rule."""
-    if not service:
-        parts = rule_id.split(".")
-        if len(parts) >= 2:
-            service = parts[1]
-    if not service:
-        raise HTTPException(status_code=400, detail="Could not determine service from rule_id")
-    metadata = rule_db_reader.read_metadata(service, rule_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail=f"Rule not found: {rule_id}")
-    iam_security = rule_db_reader.get_iam_security_info(service, rule_id)
-    return {"rule_id": rule_id, "metadata": metadata, "iam_security": iam_security}
+async def get_rule_info(rule_id: str):
+    """Get IAM security info for a rule based on rule_id pattern."""
+    from .mapper.rule_to_module_mapper import _is_iam_relevant, _derive_modules
+    is_relevant = _is_iam_relevant(rule_id)
+    modules = _derive_modules(rule_id) if is_relevant else []
+    return {
+        "rule_id": rule_id,
+        "is_iam_relevant": is_relevant,
+        "iam_security_modules": modules,
+    }
 
 
 @app.get("/api/v1/iam-security/modules")
 async def list_modules():
     """List IAM security modules."""
-    from .input.rule_db_reader import IAM_MODULES
-    return {"modules": IAM_MODULES}
-
-
-@app.get("/api/v1/iam-security/modules/{module}/rules")
-async def get_rules_by_module(
-    module: str,
-    service: Optional[str] = Query(None, description="Filter by service"),
-):
-    """Get rules for a specific IAM module."""
-    try:
-        services = [service] if service else rule_db_reader.list_services()
-        rules = {}
-        for svc in services:
-            rule_list = rule_db_reader.get_rules_by_module(svc, module)
-            if rule_list:
-                rules[svc] = rule_list
-        return {"module": module, "rules": rules}
-    except Exception as e:
-        logger.error(f"Error getting rules by module: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    from .mapper.rule_to_module_mapper import MODULE_KEYWORDS
+    return {"modules": list(MODULE_KEYWORDS.keys())}
 
 
 @app.get("/api/v1/iam-security/findings")
@@ -203,13 +179,14 @@ async def get_findings(
 ):
     """Get IAM security findings from Threat DB with optional filters."""
     try:
-        iam_rule_ids = rule_db_reader.get_all_iam_security_rule_ids()
+        # Load all findings and enrich (IAM relevance determined by rule_id pattern)
         findings = threat_db_reader.get_misconfig_findings(
             tenant_id=tenant_id,
-            scan_run_id=scan_id,
-            iam_rule_ids=iam_rule_ids
+            scan_run_id=scan_id
         )
         enriched = finding_enricher.enrich_findings(findings)
+        # Keep only IAM-relevant findings
+        enriched = [f for f in enriched if f.get("is_iam_relevant", False)]
         if account_id:
             enriched = [f for f in enriched if f.get("account_id") == account_id]
         if service:
@@ -232,15 +209,14 @@ async def get_findings(
 
 
 @app.get("/api/v1/iam-security/rule-ids")
-async def get_iam_rule_ids(service: Optional[str] = Query(None, description="Filter by service")):
-    """Get set of all IAM-relevant rule IDs (for pre-filtering)."""
-    try:
-        services = [service] if service else None
-        ids = rule_db_reader.get_all_iam_security_rule_ids(services=services)
-        return {"count": len(ids), "rule_ids": sorted(ids)}
-    except Exception as e:
-        logger.error(f"Error getting IAM rule IDs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_iam_rule_ids():
+    """Get info about IAM rule identification patterns."""
+    from .mapper.rule_to_module_mapper import IAM_RULE_PATTERNS
+    return {
+        "method": "rule_id_pattern_matching",
+        "patterns": [p.pattern for p in IAM_RULE_PATTERNS],
+        "description": "IAM relevance is determined by matching rule_id against these patterns",
+    }
 
 
 if __name__ == "__main__":

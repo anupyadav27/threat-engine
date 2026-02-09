@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Purpose: Store security check results and parsed rule metadata
 -- Used by: engine_check_aws
--- Tables: customers, tenants, scans, check_results, checks, rule_metadata
+-- Tables: customers, tenants, check_report, check_findings, rule_checks, rule_metadata
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS tenants (
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS scans (
-    scan_id VARCHAR(255) PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS check_report (
+    check_scan_id VARCHAR(255) PRIMARY KEY,
+    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS scans (
     scan_type VARCHAR(50) DEFAULT 'check',
     status VARCHAR(50),
     metadata JSONB,
+    discovery_scan_id VARCHAR(255),
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -50,9 +52,9 @@ CREATE TABLE IF NOT EXISTS scans (
 -- CHECK TABLES
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS check_results (
+CREATE TABLE IF NOT EXISTS check_findings (
     id SERIAL PRIMARY KEY,
-    scan_id VARCHAR(255) NOT NULL,
+    check_scan_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -68,12 +70,12 @@ CREATE TABLE IF NOT EXISTS check_results (
     finding_data JSONB NOT NULL,
     scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     metadata_source VARCHAR(50) DEFAULT 'default',
-    FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE,
+    FOREIGN KEY (check_scan_id) REFERENCES check_report(check_scan_id) ON DELETE CASCADE,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS checks (
+CREATE TABLE IF NOT EXISTS rule_checks (
     id SERIAL PRIMARY KEY,
     rule_id VARCHAR(255) NOT NULL,
     service VARCHAR(100) NOT NULL,
@@ -127,19 +129,21 @@ CREATE TABLE IF NOT EXISTS rule_metadata (
 -- INDEXES
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_scans_customer_tenant ON scans(customer_id, tenant_id);
-CREATE INDEX IF NOT EXISTS idx_scans_timestamp ON scans(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_cr_customer_tenant ON check_report(customer_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cr_timestamp ON check_report(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_cr_discovery_scan ON check_report(discovery_scan_id);
+CREATE INDEX IF NOT EXISTS idx_cr_orchestration ON check_report(orchestration_id);
 
-CREATE INDEX IF NOT EXISTS idx_check_results_scan ON check_results(scan_id, rule_id);
-CREATE INDEX IF NOT EXISTS idx_check_results_tenant ON check_results(tenant_id, hierarchy_id);
-CREATE INDEX IF NOT EXISTS idx_check_results_status ON check_results(status, scan_timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_check_results_rule_id ON check_results(rule_id, status);
-CREATE INDEX IF NOT EXISTS idx_check_results_resource_uid ON check_results(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_check_results_resource_arn ON check_results(resource_arn);
-CREATE INDEX IF NOT EXISTS idx_check_results_tenant_uid ON check_results(tenant_id, resource_uid);
+CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(check_scan_id, rule_id);
+CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, hierarchy_id);
+CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_cf_rule_id ON check_findings(rule_id, status);
+CREATE INDEX IF NOT EXISTS idx_cf_resource_uid ON check_findings(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_cf_resource_arn ON check_findings(resource_arn);
+CREATE INDEX IF NOT EXISTS idx_cf_tenant_uid ON check_findings(tenant_id, resource_uid);
 
-CREATE INDEX IF NOT EXISTS idx_checks_service ON checks(service, provider, check_type);
-CREATE INDEX IF NOT EXISTS idx_checks_customer ON checks(customer_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rc_service ON rule_checks(service, provider, check_type);
+CREATE INDEX IF NOT EXISTS idx_rc_customer ON rule_checks(customer_id, tenant_id);
 
 CREATE INDEX IF NOT EXISTS idx_rule_metadata_rule_id ON rule_metadata(rule_id);
 CREATE INDEX IF NOT EXISTS idx_rule_metadata_service ON rule_metadata(service);
@@ -149,14 +153,13 @@ CREATE INDEX IF NOT EXISTS idx_rule_metadata_provider ON rule_metadata(provider)
 CREATE INDEX IF NOT EXISTS idx_rule_metadata_threat_category ON rule_metadata(threat_category);
 CREATE INDEX IF NOT EXISTS idx_rule_metadata_risk_score ON rule_metadata(risk_score DESC);
 
-CREATE INDEX IF NOT EXISTS idx_check_results_finding_data_gin ON check_results USING gin(finding_data);
+CREATE INDEX IF NOT EXISTS idx_cf_finding_data_gin ON check_findings USING gin(finding_data);
 
 -- ============================================================================
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE check_results IS 'Security check findings from check scans';
+COMMENT ON TABLE check_report IS 'Check scan metadata with link to discovery_scan_id';
+COMMENT ON TABLE check_findings IS 'Security check findings from check scans';
 COMMENT ON TABLE rule_metadata IS 'Parsed rule metadata for enriching check findings';
-COMMENT ON TABLE scans IS 'Check scan metadata';
-
--- NO discoveries, discovery_history, or rule_definitions here!
+COMMENT ON TABLE rule_checks IS 'Check rule configurations loaded from YAML or custom';

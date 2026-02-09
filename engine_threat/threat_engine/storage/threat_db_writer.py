@@ -37,12 +37,13 @@ def _connection_string() -> str:
 
 
 def _ensure_tenant(conn, tenant_id: str):
-    """Ensure tenant exists in tenants table."""
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO tenants (tenant_id) VALUES (%s) ON CONFLICT (tenant_id) DO NOTHING",
-            (tenant_id,)
-        )
+    """No-op — tenants table removed from threat DB.
+
+    Tenant master lives in shared DB (threat_engine_shared).
+    tenant_id is now a plain VARCHAR column on all tables, no local FK.
+    Keeping this function signature to avoid changing all call sites.
+    """
+    pass
 
 
 def _ts_with_tz(dt: Optional[datetime]) -> Optional[datetime]:

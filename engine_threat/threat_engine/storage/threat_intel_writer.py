@@ -38,12 +38,12 @@ def _connection_string() -> str:
 
 
 def _ensure_tenant(conn, tenant_id: str):
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO tenants (tenant_id) VALUES (%s) ON CONFLICT DO NOTHING",
-            (tenant_id,),
-        )
-    conn.commit()
+    """No-op — tenants table removed from threat DB.
+
+    Tenant master lives in shared DB (threat_engine_shared).
+    tenant_id is now a plain VARCHAR column, no local FK.
+    """
+    pass
 
 
 def _ts_now():

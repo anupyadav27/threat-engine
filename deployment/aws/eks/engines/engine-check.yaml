@@ -56,73 +56,37 @@ spec:
           value: "/input"
         - name: ENGINE_NAME
           value: "check"
+        - name: CHECK_MODE
+          value: "database"
         volumeMounts:
         - name: output
           mountPath: /output
-        - name: input
-          mountPath: /input
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "50m"
-          limits:
             memory: "512Mi"
-            cpu: "250m"
+            cpu: "100m"
+          limits:
+            memory: "2Gi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
             port: 8002
-          initialDelaySeconds: 45
-          periodSeconds: 15
-          failureThreshold: 5
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 10
         readinessProbe:
           httpGet:
             path: /api/v1/health/ready
             port: 8002
           initialDelaySeconds: 15
           periodSeconds: 10
-          failureThreshold: 3
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "check"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
+          timeoutSeconds: 5
+          failureThreshold: 6
 
       volumes:
       - name: output
-        emptyDir: {}
-      - name: input
         emptyDir: {}
 ---
 apiVersion: v1

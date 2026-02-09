@@ -6,6 +6,7 @@ import os
 import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.pool import SimpleConnectionPool
 from typing import Dict, List, Any, Optional
 import logging
 import json
@@ -28,12 +29,13 @@ class DiscoveryReader:
             db_config: Optional override (for testing). Normally uses consolidated DB config.
         """
         # Use environment variables directly (cross-engine: reading from discoveries DB)
+        # Prefer DISCOVERY_DB_* (singular, standardized) with DISCOVERIES_DB_* fallback
         self.db_config = {
-            "host": os.getenv("DISCOVERIES_DB_HOST", "localhost"),
-            "port": int(os.getenv("DISCOVERIES_DB_PORT", "5432")),
-            "database": os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
-            "user": os.getenv("DISCOVERIES_DB_USER", "discoveries_user"),
-            "password": os.getenv("DISCOVERIES_DB_PASSWORD", "discoveries_password"),
+            "host": os.getenv("DISCOVERY_DB_HOST", os.getenv("DISCOVERIES_DB_HOST", "localhost")),
+            "port": int(os.getenv("DISCOVERY_DB_PORT", os.getenv("DISCOVERIES_DB_PORT", "5432"))),
+            "database": os.getenv("DISCOVERY_DB_NAME", os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries")),
+            "user": os.getenv("DISCOVERY_DB_USER", os.getenv("DISCOVERIES_DB_USER", "discoveries_user")),
+            "password": os.getenv("DISCOVERY_DB_PASSWORD", os.getenv("DISCOVERIES_DB_PASSWORD", "discoveries_password")),
         }
         logger.info(f"DiscoveryReader: Using discoveries database: {self.db_config['database']} on {self.db_config['host']}")
         
@@ -43,16 +45,44 @@ class DiscoveryReader:
             logger.warning("Using provided db_config override (testing mode)")
         
         self.connection_pool = None
-    
+        self._init_pool()
+
+    def _init_pool(self):
+        """Initialize connection pool"""
+        try:
+            self.connection_pool = SimpleConnectionPool(
+                1, 5,
+                host=self.db_config["host"],
+                port=self.db_config["port"],
+                database=self.db_config["database"],
+                user=self.db_config["user"],
+                password=self.db_config["password"],
+                connect_timeout=10,
+            )
+            logger.info("DiscoveryReader: Connection pool initialized")
+        except Exception as e:
+            logger.warning(f"DiscoveryReader: Failed to init pool, will use direct connections: {e}")
+            self.connection_pool = None
+
     def _get_connection(self):
-        """Get database connection"""
+        """Get database connection from pool"""
+        if self.connection_pool:
+            return self.connection_pool.getconn()
         return psycopg2.connect(
             host=self.db_config["host"],
             port=self.db_config["port"],
             database=self.db_config["database"],
             user=self.db_config["user"],
             password=self.db_config["password"],
+            connect_timeout=10,
         )
+
+    def _return_connection(self, conn):
+        """Return connection to pool"""
+        if self.connection_pool:
+            self.connection_pool.putconn(conn)
+        else:
+            conn.close()
     
     def read_discovery_records(self, discovery_id: str, tenant_id: str, 
                               hierarchy_id: str, scan_id: Optional[str] = None,
@@ -74,11 +104,10 @@ class DiscoveryReader:
         try:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Build query - Always get LATEST version of each resource
-                # Don't filter by scan_id in main query since UPDATE mechanism means
-                # resources can have different scan_ids but we want latest of each
+                # Get latest version of each resource using DISTINCT ON (PostgreSQL)
+                # Much more efficient than correlated subquery for large datasets
                 query = """
-                    SELECT 
+                    SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
                         COALESCE(resource_uid, resource_arn) as resource_uid,
                         resource_arn,
                         resource_id,
@@ -86,30 +115,19 @@ class DiscoveryReader:
                         service,
                         region,
                         discovery_id,
-                        scan_id
-                    FROM discoveries d1
+                        discovery_scan_id
+                    FROM discovery_findings
                     WHERE discovery_id = %s
                       AND tenant_id = %s
                       AND hierarchy_id = %s
-                      AND scan_timestamp = (
-                          SELECT MAX(scan_timestamp)
-                          FROM discoveries d2
-                          WHERE d2.resource_uid = d1.resource_uid
-                            AND d2.discovery_id = d1.discovery_id
-                            AND d2.tenant_id = d1.tenant_id
-                            AND d2.hierarchy_id = d1.hierarchy_id
-                      )
                 """
                 params = [discovery_id, tenant_id, hierarchy_id]
-                
-                # Note: Removed scan_id filter - we always want LATEST version
-                # This handles partial scans where resources have different scan_ids
-                
+
                 if service:
                     query += " AND service = %s"
                     params.append(service)
-                
-                query += " ORDER BY COALESCE(resource_uid, resource_arn)"
+
+                query += " ORDER BY COALESCE(resource_uid, resource_arn), scan_timestamp DESC"
                 
                 cur.execute(query, params)
                 rows = cur.fetchall()
@@ -134,7 +152,7 @@ class DiscoveryReader:
             return []
         finally:
             if conn:
-                conn.close()
+                self._return_connection(conn)
     
     def get_discovery_scan_info(self, scan_id: str) -> Optional[Dict]:
         """Get discovery scan information"""
@@ -143,10 +161,10 @@ class DiscoveryReader:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT scan_id, customer_id, tenant_id, provider, 
+                    SELECT discovery_scan_id, customer_id, tenant_id, provider,
                            hierarchy_id, hierarchy_type, status, scan_timestamp
-                    FROM scans
-                    WHERE scan_id = %s AND scan_type = 'discovery'
+                    FROM discovery_report
+                    WHERE discovery_scan_id = %s AND scan_type = 'discovery'
                 """, (scan_id,))
                 row = cur.fetchone()
                 return dict(row) if row else None
@@ -155,7 +173,7 @@ class DiscoveryReader:
             return None
         finally:
             if conn:
-                conn.close()
+                self._return_connection(conn)
     
     def list_available_scans(self, tenant_id: str, hierarchy_id: Optional[str] = None) -> List[Dict]:
         """List available discovery scans"""
@@ -164,9 +182,9 @@ class DiscoveryReader:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
-                    SELECT scan_id, customer_id, tenant_id, provider,
+                    SELECT discovery_scan_id, customer_id, tenant_id, provider,
                            hierarchy_id, hierarchy_type, status, scan_timestamp
-                    FROM scans
+                    FROM discovery_report
                     WHERE tenant_id = %s AND scan_type = 'discovery'
                 """
                 params = [tenant_id]
@@ -185,4 +203,4 @@ class DiscoveryReader:
             return []
         finally:
             if conn:
-                conn.close()
+                self._return_connection(conn)

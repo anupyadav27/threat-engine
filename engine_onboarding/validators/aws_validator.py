@@ -1,6 +1,7 @@
 """
 AWS credential validator
 """
+import uuid
 import boto3
 from botocore.exceptions import ClientError
 from typing import Dict, Any

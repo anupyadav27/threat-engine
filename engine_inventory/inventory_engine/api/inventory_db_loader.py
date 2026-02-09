@@ -3,6 +3,22 @@ Inventory DB Loader
 
 Loads assets, relationships, and drift records from PostgreSQL inventory DB.
 Replaces file-based DataLoader for DB-first architecture.
+
+=== DATABASE & TABLE MAP ===
+Database: threat_engine_inventory (INVENTORY DB)
+Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_USER / INVENTORY_DB_PASSWORD
+     (connection URL passed from api_server.py via get_database_config)
+
+Tables READ:
+  - inventory_findings      : load_assets()       — SELECT with filters (tenant_id, scan_run_id,
+                                                     provider, region, resource_type, account_id)
+                               load_asset_by_uid() — SELECT WHERE tenant_id + resource_uid
+  - inventory_relationships : load_relationships() — SELECT with filters (tenant_id, scan_run_id,
+                                                     from_uid, to_uid, relation_type)
+  - inventory_report        : (accessed via api_server, not directly here)
+
+Tables WRITTEN: None (read-only loader for API queries)
+===
 """
 
 import os
@@ -49,9 +65,9 @@ class InventoryDBLoader:
         params = [tenant_id]
         
         if scan_run_id:
-            where_parts.append("latest_scan_run_id = %s")
+            where_parts.append("inventory_scan_id = %s")
             params.append(scan_run_id)
-        
+
         if provider:
             where_parts.append("provider = %s")
             params.append(provider)
@@ -71,18 +87,18 @@ class InventoryDBLoader:
         where_clause = " AND ".join(where_parts)
         
         # Get total count
-        count_query = f"SELECT COUNT(*) FROM asset_index_latest WHERE {where_clause}"
+        count_query = f"SELECT COUNT(*) FROM inventory_findings WHERE {where_clause}"
         with self.conn.cursor() as cur:
             cur.execute(count_query, params)
             total = cur.fetchone()[0]
         
         # Get paginated results
         query = f"""
-            SELECT 
+            SELECT
                 asset_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
-                latest_scan_run_id, updated_at
-            FROM asset_index_latest
+                inventory_scan_id, latest_scan_run_id, updated_at
+            FROM inventory_findings
             WHERE {where_clause}
             ORDER BY resource_type, resource_uid
             LIMIT %s OFFSET %s
@@ -99,7 +115,7 @@ class InventoryDBLoader:
             assets.append({
                 "schema_version": "cspm_asset.v1",
                 "tenant_id": row["tenant_id"],
-                "scan_run_id": row["latest_scan_run_id"],
+                "scan_run_id": row.get("inventory_scan_id") or row.get("latest_scan_run_id"),
                 "provider": row["provider"],
                 "account_id": row["account_id"],
                 "region": row["region"] or "global",
@@ -130,17 +146,17 @@ class InventoryDBLoader:
         params = [tenant_id, resource_uid]
         
         if scan_run_id:
-            where_parts.append("latest_scan_run_id = %s")
+            where_parts.append("inventory_scan_id = %s")
             params.append(scan_run_id)
-        
+
         where_clause = " AND ".join(where_parts)
-        
+
         query = f"""
-            SELECT 
+            SELECT
                 asset_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
-                latest_scan_run_id, updated_at
-            FROM asset_index_latest
+                inventory_scan_id, updated_at
+            FROM inventory_findings
             WHERE {where_clause}
             LIMIT 1
         """
@@ -155,7 +171,7 @@ class InventoryDBLoader:
         return {
             "schema_version": "cspm_asset.v1",
             "tenant_id": row["tenant_id"],
-            "scan_run_id": row["latest_scan_run_id"],
+            "scan_run_id": row.get("inventory_scan_id") or row.get("latest_scan_run_id"),
             "provider": row["provider"],
             "account_id": row["account_id"],
             "region": row["region"] or "global",
@@ -206,7 +222,7 @@ class InventoryDBLoader:
         where_clause = " AND ".join(where_parts)
         
         # Get total count
-        count_query = f"SELECT COUNT(*) FROM relationship_index_latest WHERE {where_clause}"
+        count_query = f"SELECT COUNT(*) FROM inventory_relationships WHERE {where_clause}"
         with self.conn.cursor() as cur:
             cur.execute(count_query, params)
             total = cur.fetchone()[0]
@@ -217,7 +233,7 @@ class InventoryDBLoader:
                 relationship_id, tenant_id, scan_run_id, provider,
                 account_id, region, relation_type, from_uid, to_uid,
                 properties, created_at
-            FROM relationship_index_latest
+            FROM inventory_relationships
             WHERE {where_clause}
             ORDER BY relation_type, from_uid
             LIMIT %s OFFSET %s
@@ -252,35 +268,35 @@ class InventoryDBLoader:
         scan_run_id: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Get scan summary from inventory_run_index.
-        
+        Get scan summary from inventory_report.
+
         Returns:
             Summary dict or None if not found
         """
         query = """
-            SELECT 
-                scan_run_id, tenant_id, started_at, completed_at, status,
-                total_assets, total_relationships, 
+            SELECT
+                inventory_scan_id, tenant_id, started_at, completed_at, status,
+                total_assets, total_relationships,
                 assets_by_provider, assets_by_resource_type, assets_by_region,
                 providers_scanned, accounts_scanned, regions_scanned,
                 errors_count
-            FROM inventory_run_index
-            WHERE tenant_id = %s AND scan_run_id = %s
+            FROM inventory_report
+            WHERE tenant_id = %s AND inventory_scan_id = %s
         """
-        
+
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, (tenant_id, scan_run_id))
             row = cur.fetchone()
-        
+
         if not row:
             return None
-        
+
         return dict(row)
-    
+
     def get_latest_scan_id(self, tenant_id: str) -> Optional[str]:
-        """Get latest completed scan_run_id for tenant"""
+        """Get latest completed inventory_scan_id for tenant"""
         query = """
-            SELECT scan_run_id FROM inventory_run_index
+            SELECT inventory_scan_id FROM inventory_report
             WHERE tenant_id = %s AND status = 'completed'
             ORDER BY completed_at DESC LIMIT 1
         """

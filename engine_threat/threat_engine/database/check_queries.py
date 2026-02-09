@@ -1,7 +1,7 @@
 """
-Database queries for ConfigScan Check Results
+Database queries for Check Results
 
-Reads from PostgreSQL check_results table created by configScan engine.
+Reads from PostgreSQL check_findings table created by check engine.
 Optimized queries using existing indexes for performance.
 """
 
@@ -75,7 +75,7 @@ class CheckDatabaseQueries:
         
         try:
             result = self._execute_query_one(
-                "SELECT COUNT(*) as count FROM check_results WHERE tenant_id = %s LIMIT 1",
+                "SELECT COUNT(*) as count FROM check_findings WHERE tenant_id = %s LIMIT 1",
                 [tenant_id]
             )
             return result and result.get('count', 0) > 0
@@ -184,16 +184,16 @@ class CheckDatabaseQueries:
         query = f"""
         WITH scan_stats AS (
             SELECT 
-                scan_id,
+                check_scan_id,
                 COUNT(*) as total_checks,
                 SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
                 SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
                 MAX(scan_timestamp) as scan_timestamp
-            FROM check_results
+            FROM check_findings
             WHERE tenant_id = %s
               {customer_filter}
-            GROUP BY scan_id
+            GROUP BY check_scan_id
         ),
         service_stats AS (
             SELECT 
@@ -202,7 +202,7 @@ class CheckDatabaseQueries:
                 SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
                 SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error
-            FROM check_results
+            FROM check_findings
             WHERE tenant_id = %s
               {customer_filter}
             GROUP BY resource_type
@@ -214,8 +214,8 @@ class CheckDatabaseQueries:
             (SELECT COALESCE(SUM(passed), 0) FROM scan_stats) as passed,
             (SELECT COALESCE(SUM(failed), 0) FROM scan_stats) as failed,
             (SELECT COALESCE(SUM(error), 0) FROM scan_stats) as error,
-            (SELECT COUNT(DISTINCT scan_id) FROM scan_stats) as total_scans,
-            (SELECT COUNT(DISTINCT resource_type) FROM check_results 
+            (SELECT COUNT(DISTINCT check_scan_id) FROM scan_stats) as total_scans,
+            (SELECT COUNT(DISTINCT resource_type) FROM check_findings 
              WHERE tenant_id = %s {customer_filter}) as services_scanned,
             (SELECT json_agg(row_to_json(s.*)) FROM service_stats s) as top_failing_services,
             (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.scan_timestamp DESC) 
@@ -283,16 +283,16 @@ class CheckDatabaseQueries:
         
         # Get total count
         count_query = """
-        SELECT COUNT(DISTINCT scan_id)
-        FROM check_results
+        SELECT COUNT(DISTINCT check_scan_id)
+        FROM check_findings
         WHERE tenant_id = %s
           AND ($1 OR customer_id = %s);
         """
         
         # Get scans with aggregations
         list_query = """
-        SELECT 
-            scan_id,
+        SELECT
+            check_scan_id,
             MAX(finding_data->>'discovery_id') as discovery_scan_id,
             customer_id,
             tenant_id,
@@ -305,10 +305,10 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
             COUNT(DISTINCT resource_type) as services_scanned,
             MAX(scan_timestamp) as scan_timestamp
-        FROM check_results
+        FROM check_findings
         WHERE tenant_id = %s
           AND ($1 OR customer_id = %s)
-        GROUP BY scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
+        GROUP BY check_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT %s OFFSET %s;
         """
@@ -357,8 +357,8 @@ class CheckDatabaseQueries:
         Get scan summary from database.
         """
         query = """
-        SELECT 
-            scan_id,
+        SELECT
+            check_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -371,10 +371,10 @@ class CheckDatabaseQueries:
             COUNT(DISTINCT resource_type) as services_scanned,
             MAX(scan_timestamp) as scan_timestamp,
             array_agg(DISTINCT resource_type ORDER BY resource_type) as services
-        FROM check_results
-        WHERE scan_id = %s
+        FROM check_findings
+        WHERE check_scan_id = %s
           AND tenant_id = %s
-        GROUP BY scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type;
+        GROUP BY check_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type;
         """
         
         result = self._execute_query_one(query, [scan_id, tenant_id])
@@ -420,8 +420,8 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error
-        FROM check_results
-        WHERE scan_id = %s
+        FROM check_findings
+        WHERE check_scan_id = %s
           AND tenant_id = %s
         GROUP BY resource_type
         ORDER BY resource_type;
@@ -471,8 +471,8 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
             COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resources_affected
-        FROM check_results
-        WHERE scan_id = %s
+        FROM check_findings
+        WHERE check_scan_id = %s
           AND resource_type = %s
           AND tenant_id = %s
         GROUP BY resource_type;
@@ -487,8 +487,8 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
             array_agg(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resource_arns
-        FROM check_results
-        WHERE scan_id = %s
+        FROM check_findings
+        WHERE check_scan_id = %s
           AND resource_type = %s
           AND tenant_id = %s
         GROUP BY rule_id
@@ -566,9 +566,9 @@ class CheckDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append(f"scan_id = %s")
+            where_clauses.append(f"check_scan_id = %s")
             params.append(scan_id)
-        
+
         if service:
             where_clauses.append(f"resource_type = %s")
             params.append(service)
@@ -590,15 +590,15 @@ class CheckDatabaseQueries:
         # Count query
         count_query = f"""
         SELECT COUNT(*)
-        FROM check_results
+        FROM check_findings
         WHERE {where_sql};
         """
         
         # List query
         list_query = f"""
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            check_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -611,10 +611,10 @@ class CheckDatabaseQueries:
             status,
             checked_fields,
             finding_data,
-            scan_timestamp
-        FROM check_results
+            created_at
+        FROM check_findings
         WHERE {where_sql}
-        ORDER BY scan_timestamp DESC, id DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT %s OFFSET %s;
         """
         
@@ -671,9 +671,9 @@ class CheckDatabaseQueries:
         Get resource findings from database.
         """
         query = """
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            check_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -686,12 +686,12 @@ class CheckDatabaseQueries:
             status,
             checked_fields,
             finding_data,
-            scan_timestamp
-        FROM check_results
+            created_at
+        FROM check_findings
         WHERE resource_arn = %s
           AND tenant_id = %s
           AND ($1 OR customer_id = %s)
-        ORDER BY scan_timestamp DESC;
+        ORDER BY created_at DESC;
         """
         
         findings = self._execute_query(query, [customer_id is None, resource_arn, tenant_id, customer_id or ''])
@@ -756,15 +756,15 @@ class CheckDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append("scan_id = %s")
+            where_clauses.append("check_scan_id = %s")
             params.append(scan_id)
-        
+
         where_sql = " AND ".join(where_clauses)
-        
+
         query = f"""
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            check_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -776,8 +776,8 @@ class CheckDatabaseQueries:
             status,
             checked_fields,
             finding_data,
-            scan_timestamp
-        FROM check_results
+            created_at
+        FROM check_findings
         WHERE {where_sql}
         ORDER BY scan_timestamp DESC
         LIMIT 1000;
@@ -886,10 +886,10 @@ class CheckDatabaseQueries:
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_id, MAX(scan_timestamp) as scan_timestamp
-        FROM check_results
+        SELECT check_scan_id, MAX(scan_timestamp) as scan_timestamp
+        FROM check_findings
         WHERE {where_sql}
-        GROUP BY scan_id
+        GROUP BY check_scan_id
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT 1;
         """
@@ -904,7 +904,7 @@ class CheckDatabaseQueries:
         """
         Get previous scan (immediately before current) for tenant/account/service.
         """
-        where_clauses = ["tenant_id = %s", "scan_id != %s"]
+        where_clauses = ["tenant_id = %s", "check_scan_id != %s"]
         params = [tenant_id, current_scan_id]
 
         if hierarchy_id:
@@ -925,10 +925,10 @@ class CheckDatabaseQueries:
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_id, MAX(scan_timestamp) as scan_timestamp
-        FROM check_results
+        SELECT check_scan_id, MAX(scan_timestamp) as scan_timestamp
+        FROM check_findings
         WHERE {where_sql}
-        GROUP BY scan_id
+        GROUP BY check_scan_id
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT 1;
         """
@@ -942,7 +942,7 @@ class CheckDatabaseQueries:
         """
         Get check results for a scan, optionally enriched with rule metadata.
         """
-        where_clauses = ["cr.scan_id = %s", "cr.tenant_id = %s"]
+        where_clauses = ["cr.check_scan_id = %s", "cr.tenant_id = %s"]
         params = [scan_id, tenant_id]
 
         if hierarchy_id:
@@ -958,7 +958,7 @@ class CheckDatabaseQueries:
         if include_metadata:
             query = f"""
             SELECT cr.*, rm.severity as rule_severity, rm.title as rule_title
-            FROM check_results cr
+            FROM check_findings cr
             LEFT JOIN rule_metadata rm ON cr.rule_id = rm.rule_id
             WHERE {where_sql}
             ORDER BY cr.rule_id, cr.resource_arn;
@@ -966,7 +966,7 @@ class CheckDatabaseQueries:
         else:
             query = f"""
             SELECT cr.*
-            FROM check_results cr
+            FROM check_findings cr
             WHERE {where_sql}
             ORDER BY cr.rule_id, cr.resource_arn;
             """

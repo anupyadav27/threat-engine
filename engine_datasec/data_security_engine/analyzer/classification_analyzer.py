@@ -83,7 +83,9 @@ class ClassificationAnalyzer:
         Args:
             aws_session: Optional boto3 session (uses default if not provided)
         """
-        self.session = aws_session or boto3.Session()
+        import os
+        region = os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'ap-south-1'))
+        self.session = aws_session or boto3.Session(region_name=region)
         self.s3_client = self.session.client('s3')
         self.patterns = DataClassificationPatterns()
     

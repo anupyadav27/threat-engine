@@ -29,13 +29,26 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 -- Cross-Engine Scan Orchestration
+-- Tracks the full pipeline: orchestration_id ties all per-engine scan IDs together.
+-- Each engine generates its own UUID scan ID; the orchestrator records them here.
 CREATE TABLE IF NOT EXISTS scan_orchestration (
     orchestration_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id VARCHAR(255) NOT NULL,
+    customer_id VARCHAR(255),
+    provider VARCHAR(50),
+    hierarchy_id VARCHAR(255),
     scan_name VARCHAR(255),
     scan_type VARCHAR(50) NOT NULL,  -- 'full', 'incremental', 'targeted'
     trigger_type VARCHAR(50) NOT NULL,  -- 'manual', 'scheduled', 'event_driven'
-    engines_requested JSONB NOT NULL,  -- ['configscan', 'compliance', 'inventory', 'threat']
+    -- Per-engine scan IDs (UUID, set as each engine completes)
+    discovery_scan_id VARCHAR(255),      -- from engine_discoveries
+    check_scan_id VARCHAR(255),          -- from engine_check
+    inventory_scan_id VARCHAR(255),      -- from engine_inventory
+    threat_scan_id VARCHAR(255),         -- from engine_threat
+    compliance_scan_id VARCHAR(255),     -- from engine_compliance
+    iam_scan_id VARCHAR(255),            -- from engine_iam
+    datasec_scan_id VARCHAR(255),        -- from engine_datasec
+    engines_requested JSONB NOT NULL,  -- ['discovery', 'check', 'inventory', 'threat', ...]
     engines_completed JSONB DEFAULT '[]',
     overall_status VARCHAR(50) NOT NULL DEFAULT 'pending',  -- 'pending', 'running', 'completed', 'failed'
     started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -46,7 +59,7 @@ CREATE TABLE IF NOT EXISTS scan_orchestration (
     results_summary JSONB DEFAULT '{}',
     error_details JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     CONSTRAINT fk_tenant_orchestration FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
@@ -168,6 +181,9 @@ CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(customer_type);
 CREATE INDEX IF NOT EXISTS idx_orchestration_tenant ON scan_orchestration(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_orchestration_status ON scan_orchestration(overall_status, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orchestration_type ON scan_orchestration(scan_type, trigger_type);
+CREATE INDEX IF NOT EXISTS idx_orchestration_discovery ON scan_orchestration(discovery_scan_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_check ON scan_orchestration(check_scan_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_inventory ON scan_orchestration(inventory_scan_id);
 
 CREATE INDEX IF NOT EXISTS idx_engine_status_engine ON engine_status(engine_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_engine_status_health ON engine_status(status, last_heartbeat DESC);

@@ -2,7 +2,7 @@
 DataSec Database Writer
 
 Writes data security reports to RDS:
-- datasec_reports (main report)
+- datasec_report (main report, PK: datasec_scan_id)
 - datasec_findings (individual data security findings)
 """
 
@@ -35,9 +35,9 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
         report: Full data security report dict
     
     Returns:
-        report_id (UUID string)
+        datasec_scan_id string
     """
-    report_id_str = str(report.get("report_id") or uuid.uuid4())
+    datasec_scan_id = str(report.get("datasec_scan_id") or report.get("report_id") or uuid.uuid4())
     tenant_id = report.get("tenant_id", "default")
     scan_context = report.get("scan_context", {})
     scan_run_id = scan_context.get("threat_scan_run_id", "")
@@ -77,15 +77,15 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
             
             # Insert report
             cur.execute("""
-                INSERT INTO datasec_reports (
-                    report_id, tenant_id, scan_run_id, cloud, generated_at,
-                    total_findings, datasec_relevant_findings, 
+                INSERT INTO datasec_report (
+                    datasec_scan_id, tenant_id, scan_run_id, cloud, generated_at,
+                    total_findings, datasec_relevant_findings,
                     classified_resources, total_data_stores,
                     findings_by_module, classification_summary, residency_summary,
                     report_data
                 )
-                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
-                ON CONFLICT (report_id) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
+                ON CONFLICT (datasec_scan_id) DO UPDATE SET
                     generated_at = EXCLUDED.generated_at,
                     total_findings = EXCLUDED.total_findings,
                     datasec_relevant_findings = EXCLUDED.datasec_relevant_findings,
@@ -96,7 +96,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     residency_summary = EXCLUDED.residency_summary,
                     report_data = EXCLUDED.report_data
             """, (
-                str(report_id_str),
+                datasec_scan_id,
                 tenant_id,
                 scan_run_id,
                 cloud,
@@ -137,17 +137,17 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     
                     cur.execute("""
                         INSERT INTO datasec_findings (
-                            finding_id, report_id, tenant_id, scan_run_id,
+                            finding_id, datasec_scan_id, tenant_id, scan_run_id,
                             rule_id, datasec_modules, severity, status,
                             resource_type, resource_id, resource_arn, account_id, region,
                             data_classification, sensitivity_score,
                             finding_data, first_seen_at, last_seen_at
                         )
-                        VALUES (%s, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                         ON CONFLICT (finding_id) DO NOTHING
                     """, (
                         finding_id,
-                        str(report_id_str),
+                        datasec_scan_id,
                         tenant_id,
                         scan_run_id,
                         finding.get("rule_id"),
@@ -167,7 +167,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     ))
         
         conn.commit()
-        return report_id_str
+        return datasec_scan_id
     except Exception:
         conn.rollback()
         raise

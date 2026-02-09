@@ -2,7 +2,7 @@
 IAM Database Writer
 
 Writes IAM reports to RDS:
-- iam_reports (main report)
+- iam_report (main report, PK: iam_scan_id)
 - iam_findings (individual IAM findings)
 """
 
@@ -30,40 +30,40 @@ def _get_iam_db_connection():
 def save_iam_report_to_db(report: Dict[str, Any]) -> str:
     """
     Save IAM report to database.
-    
+
     Args:
         report: Full IAM report dict
-    
+
     Returns:
-        report_id (UUID string)
+        iam_scan_id string
     """
-    report_id_str = str(report.get("report_id") or uuid.uuid4())
+    iam_scan_id = str(report.get("iam_scan_id") or report.get("report_id") or uuid.uuid4())
     tenant_id = report.get("tenant_id", "default")
     scan_context = report.get("scan_context", {})
     scan_run_id = scan_context.get("threat_scan_run_id", "")
     cloud = scan_context.get("csp", "aws")
-    
+
     # Parse timestamp
     generated_at_str = scan_context.get("generated_at", "")
     try:
         generated_at = datetime.fromisoformat(generated_at_str.replace('Z', '+00:00'))
     except:
         generated_at = datetime.now(timezone.utc)
-    
+
     # Extract summary
     summary = report.get("summary", {})
     total_findings = summary.get("total_findings", 0)
     iam_relevant = summary.get("iam_relevant_findings", 0)
     findings_by_module = summary.get("findings_by_module", {})
     findings_by_status = summary.get("findings_by_status", {})
-    
+
     # Count severity
     findings = report.get("findings", [])
     critical = sum(1 for f in findings if f.get("severity") == "critical")
     high = sum(1 for f in findings if f.get("severity") == "high")
-    
+
     conn = _get_iam_db_connection()
-    
+
     try:
         with conn.cursor() as cur:
             # Upsert tenant
@@ -72,16 +72,16 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                 VALUES (%s, %s)
                 ON CONFLICT (tenant_id) DO NOTHING
             """, (tenant_id, tenant_id))
-            
+
             # Insert report
             cur.execute("""
-                INSERT INTO iam_reports (
-                    report_id, tenant_id, scan_run_id, cloud, generated_at,
+                INSERT INTO iam_report (
+                    iam_scan_id, tenant_id, scan_run_id, cloud, generated_at,
                     total_findings, iam_relevant_findings, critical_findings, high_findings,
                     findings_by_module, findings_by_status, report_data
                 )
-                VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
-                ON CONFLICT (report_id) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+                ON CONFLICT (iam_scan_id) DO UPDATE SET
                     generated_at = EXCLUDED.generated_at,
                     total_findings = EXCLUDED.total_findings,
                     iam_relevant_findings = EXCLUDED.iam_relevant_findings,
@@ -91,7 +91,7 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                     findings_by_status = EXCLUDED.findings_by_status,
                     report_data = EXCLUDED.report_data
             """, (
-                str(report_id_str),
+                iam_scan_id,
                 tenant_id,
                 scan_run_id,
                 cloud,
@@ -104,24 +104,24 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                 json.dumps(findings_by_status),
                 json.dumps(report, default=str)
             ))
-            
+
             # Insert findings
             for finding in findings:
                 if finding.get("status") == "FAIL":  # Only store failures
                     finding_id = str(uuid.uuid4())
-                    
+
                     cur.execute("""
                         INSERT INTO iam_findings (
-                            finding_id, report_id, tenant_id, scan_run_id,
+                            finding_id, iam_scan_id, tenant_id, scan_run_id,
                             rule_id, iam_modules, severity, status,
                             resource_type, resource_id, resource_arn, account_id, region,
                             finding_data, first_seen_at, last_seen_at
                         )
-                        VALUES (%s, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                         ON CONFLICT (finding_id) DO NOTHING
                     """, (
                         finding_id,
-                        str(report_id_str),
+                        iam_scan_id,
                         tenant_id,
                         scan_run_id,
                         finding.get("rule_id"),
@@ -137,9 +137,9 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                         generated_at,
                         generated_at
                     ))
-        
+
         conn.commit()
-        return report_id_str
+        return iam_scan_id
     except Exception:
         conn.rollback()
         raise

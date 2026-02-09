@@ -152,13 +152,13 @@ class DatabaseManager:
                    hierarchy_type: str = None, region: str = None,
                    service: str = None, scan_type: str = 'discovery',
                    metadata: Dict = None) -> None:
-        """Create scan record"""
+        """Create scan record in discovery_report"""
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO scans
-                    (scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
+                    INSERT INTO discovery_report
+                    (discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
                      region, service, scan_type, status, metadata)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
@@ -172,12 +172,12 @@ class DatabaseManager:
             self._return_connection(conn)
     
     def update_scan_status(self, scan_id: str, status: str) -> None:
-        """Update scan status"""
+        """Update scan status in discovery_report"""
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    UPDATE scans SET status = %s WHERE scan_id = %s
+                    UPDATE discovery_report SET status = %s WHERE discovery_scan_id = %s
                 """, (status, scan_id))
             conn.commit()
         finally:
@@ -231,9 +231,10 @@ class DatabaseManager:
                 if resource_uids:
                     placeholders = ','.join(['%s'] * len(resource_uids))
                     cur.execute(f"""
-                        SELECT discovery_id, resource_uid, config_hash, version, scan_id, scan_timestamp, emitted_fields
-                        FROM discoveries
-                        WHERE discovery_id = %s 
+                        SELECT discovery_id, resource_uid, config_hash, version,
+                               discovery_scan_id, scan_timestamp, emitted_fields
+                        FROM discovery_findings
+                        WHERE discovery_id = %s
                           AND resource_uid IN ({placeholders})
                           AND customer_id = %s
                           AND tenant_id = %s
@@ -338,20 +339,20 @@ class DatabaseManager:
                 # Execute UPDATE for unchanged resources
                 if discoveries_to_update:
                     cur.executemany("""
-                        UPDATE discoveries
-                        SET scan_id = %s, scan_timestamp = CURRENT_TIMESTAMP
-                        WHERE resource_uid = %s 
+                        UPDATE discovery_findings
+                        SET discovery_scan_id = %s, scan_timestamp = CURRENT_TIMESTAMP
+                        WHERE resource_uid = %s
                           AND discovery_id = %s
                           AND customer_id = %s
                           AND tenant_id = %s
                           AND hierarchy_id = %s
                     """, discoveries_to_update)
-                
+
                 # Execute INSERT for new/modified resources
                 if discoveries_to_insert:
                     cur.executemany("""
-                        INSERT INTO discoveries
-                        (scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
+                        INSERT INTO discovery_findings
+                        (discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
                          discovery_id, region, service, resource_arn, resource_uid, resource_id,
                          raw_response, emitted_fields, config_hash, version)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -362,7 +363,7 @@ class DatabaseManager:
                     cur.executemany("""
                         INSERT INTO discovery_history
                         (customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
-                         discovery_id, resource_arn, resource_uid, scan_id, config_hash,
+                         discovery_id, resource_arn, resource_uid, discovery_scan_id, config_hash,
                          raw_response, emitted_fields, version, change_type,
                          previous_hash, diff_summary)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -443,7 +444,7 @@ class DatabaseManager:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if scan_id:
                     # Query specific scan
-                    query = "SELECT * FROM discoveries WHERE scan_id = %s"
+                    query = "SELECT * FROM discovery_findings WHERE discovery_scan_id = %s"
                     params = [scan_id]
                     
                     if discovery_id:
@@ -463,12 +464,12 @@ class DatabaseManager:
                 else:
                     # Query latest version
                     query = """
-                        SELECT d1.* FROM discoveries d1
+                        SELECT d1.* FROM discovery_findings d1
                         INNER JOIN (
-                            SELECT discovery_id, COALESCE(resource_uid, resource_arn, '') as resource_uid, 
+                            SELECT discovery_id, COALESCE(resource_uid, resource_arn, '') as resource_uid,
                                    customer_id, tenant_id, hierarchy_id,
                                    MAX(scan_timestamp) as max_ts
-                            FROM discoveries
+                            FROM discovery_findings
                             WHERE 1=1
                     """
                     params = []

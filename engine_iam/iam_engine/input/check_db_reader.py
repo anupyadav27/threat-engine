@@ -1,7 +1,7 @@
 """
 Check DB Reader for IAM Engine
 
-Reads check_results from threat_engine_check and filters by IAM-relevant rules.
+Reads check_findings from threat_engine_check and filters by IAM-relevant rules.
 Same pattern as compliance engine's CheckDBLoader.
 """
 
@@ -60,7 +60,7 @@ class CheckDBReader:
         iam_rule_ids: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Load IAM-relevant check results from check_results table.
+        Load IAM-relevant check results from check_findings table.
         
         Args:
             scan_id: Check scan ID
@@ -77,13 +77,13 @@ class CheckDBReader:
 
         query = """
             SELECT
-                cr.scan_id, cr.tenant_id, cr.rule_id,
+                cr.check_scan_id, cr.tenant_id, cr.rule_id,
                 cr.resource_uid, cr.resource_arn, cr.resource_id, cr.resource_type,
-                cr.status, cr.checked_fields, cr.finding_data, 
+                cr.status, cr.checked_fields, cr.finding_data,
                 cr.hierarchy_id as account_id, cr.provider,
-                cr.scan_timestamp
-            FROM check_results cr
-            WHERE cr.scan_id = %s AND cr.tenant_id = %s
+                cr.created_at as scan_timestamp
+            FROM check_findings cr
+            WHERE cr.check_scan_id = %s AND cr.tenant_id = %s
         """
         params = [scan_id, tenant_id]
 

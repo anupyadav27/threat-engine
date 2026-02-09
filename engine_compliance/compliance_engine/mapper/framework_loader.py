@@ -121,16 +121,7 @@ class FrameworkLoader:
         csv_path = self.mappings_dir / f"{csp}_rule_to_framework.csv"
         
         if not csv_path.exists():
-            # Try generic consolidated file
-            csv_path = self.data_dir.parent / "compliance" / csp / f"{csp}_consolidated_rules_with_final_checks.csv"
-        
-        if not csv_path.exists():
-            from engine_common.storage_paths import get_project_root
-            root = get_project_root()
-            csv_path = root / "data_compliance" / csp / f"{csp}_consolidated_rules_with_final_checks.csv"
-        
-        if not csv_path.exists():
-            # Return empty dict if no mappings found
+            # No local CSV — mappings loaded from database
             return {}
         
         mappings: Dict[str, List[FrameworkControl]] = {}
@@ -199,10 +190,7 @@ class FrameworkLoader:
         yaml_path = self.mappings_dir / f"{csp}_rule_to_framework.yaml"
         
         if not yaml_path.exists():
-            # Try in compliance directory
-            yaml_path = self.data_dir.parent / "compliance" / csp / f"rule_ids_BEDROCK_VALIDATED.yaml"
-        
-        if not yaml_path.exists():
+            # No local YAML — mappings loaded from database
             return {}
         
         mappings: Dict[str, List[FrameworkControl]] = {}

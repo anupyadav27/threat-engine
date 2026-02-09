@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
+import asyncio
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -36,6 +37,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Shared DatabaseManager for health checks (avoids creating new pools per request)
+_health_db_manager = None
+
+def _get_health_db_manager():
+    global _health_db_manager
+    if _health_db_manager is None:
+        try:
+            _health_db_manager = DatabaseManager()
+        except Exception:
+            pass
+    return _health_db_manager
 
 # In-memory scan storage (use Redis/DB in production)
 scans = {}
@@ -111,39 +124,35 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
     )
 
 
-async def run_check(check_scan_id: str, request: CheckRequest):
-    """Run check scan in background"""
+def _run_check_sync(check_scan_id: str, request: CheckRequest):
+    """Run check scan synchronously (called in a thread pool)"""
     with LogContext(tenant_id=request.tenant_id, scan_run_id=check_scan_id):
         try:
             # Initialize database manager and check engine
             db_manager = None
-            # If caller explicitly requests NDJSON mode, don't touch DB.
             if request.use_ndjson is not True:
-                # If environment explicitly requests NDJSON mode, don't touch DB.
                 env_mode = (os.getenv("CHECK_MODE") or "").lower()
                 if env_mode not in ("ndjson", "file", "local"):
                     try:
                         db_manager = DatabaseManager()
                     except Exception:
-                        # Keep running; CheckEngine will fall back to NDJSON mode unless
-                        # CHECK_MODE forces database mode (in which case the scan should fail loudly).
                         logger.warning("DatabaseManager init failed; will attempt NDJSON fallback", exc_info=True)
             check_engine = CheckEngine(db_manager, use_ndjson=request.use_ndjson)
-            
+
             # Get services
             services = request.include_services
             if not services:
-                # Returns list of tuples: [('s3', 'global'), ...]
                 services_with_scope = load_enabled_services_with_scope()
-                services = [s[0] for s in services_with_scope]  # Extract just service names
-            
+                services = [s[0] for s in services_with_scope]
+
             # Run checks
             customer_id = request.customer_id or "default"
             tenant_id = request.tenant_id or "default-tenant"
             hierarchy_id = request.hierarchy_id or request.discovery_scan_id
-            
+
             check_results = check_engine.run_check_scan(
-                scan_id=request.discovery_scan_id,
+                discovery_scan_id=request.discovery_scan_id,
+                check_scan_id=check_scan_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=request.provider,
@@ -153,20 +162,20 @@ async def run_check(check_scan_id: str, request: CheckRequest):
                 check_source=request.check_source,
                 use_ndjson=request.use_ndjson
             )
-            
+
             scans[check_scan_id]["status"] = "completed"
             scans[check_scan_id]["check_scan_id"] = check_results.get('check_scan_id', check_scan_id)
             scans[check_scan_id]["results"] = check_results
             scans[check_scan_id]["completed_at"] = datetime.utcnow()
             metrics["successful_scans"] += 1
-            
+
             logger.info("Check scan completed", extra={
                 "extra_fields": {
                     "check_scan_id": check_scan_id,
                     "total_checks": check_results.get('total_checks', 0)
                 }
             })
-            
+
         except Exception as e:
             logger.error("Check scan failed", exc_info=True, extra={
                 "extra_fields": {"error": str(e)}
@@ -175,6 +184,11 @@ async def run_check(check_scan_id: str, request: CheckRequest):
             scans[check_scan_id]["error"] = str(e)
             scans[check_scan_id]["completed_at"] = datetime.utcnow()
             metrics["failed_scans"] += 1
+
+
+async def run_check(check_scan_id: str, request: CheckRequest):
+    """Run check scan in a thread pool to avoid blocking the event loop"""
+    await asyncio.to_thread(_run_check_sync, check_scan_id, request)
 
 
 @app.get("/api/v1/check/{check_scan_id}/status")
@@ -232,13 +246,13 @@ async def list_checks(
 async def health():
     """Health check endpoint"""
     try:
-        db_manager = DatabaseManager()
-        db_info = db_manager.get_database_info() if hasattr(db_manager, 'get_database_info') else {}
+        db_manager = _get_health_db_manager()
+        db_info = db_manager.get_database_info() if db_manager and hasattr(db_manager, 'get_database_info') else {}
         return {
             "status": "healthy",
             "provider": "aws",
             "version": "1.0.0",
-            "database": "connected",
+            "database": "connected" if db_manager else "disconnected",
             "database_details": db_info
         }
     except Exception as e:
@@ -255,11 +269,14 @@ async def health():
 async def health_ready():
     """Readiness check endpoint"""
     try:
-        db_manager = DatabaseManager()
-        # Test connection
+        db_manager = _get_health_db_manager()
+        if not db_manager:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         conn = db_manager._get_connection()
         db_manager._return_connection(conn)
         return {"status": "ready"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Not ready: {str(e)}")
 

@@ -1,9 +1,13 @@
-"""Enrich findings with IAM security context from rule metadata."""
+"""
+Enrich findings with IAM security context using rule_id pattern matching.
+
+No external YAML metadata files needed — IAM relevance and modules
+are derived from the rule_id pattern (e.g. aws.iam.role.*, aws.iam.policy.*).
+"""
 
 from typing import Dict, List, Optional
 import logging
 
-from ..input.rule_db_reader import RuleDBReader
 from ..mapper.rule_to_module_mapper import RuleToModuleMapper
 
 logger = logging.getLogger(__name__)
@@ -13,19 +17,17 @@ class FindingEnricher:
     """Enriches findings with IAM security context."""
 
     def __init__(self, rule_db_path: Optional[str] = None):
-        self.rule_db_reader = RuleDBReader(rule_db_path)
-        self.module_mapper = RuleToModuleMapper(rule_db_path)
+        self.module_mapper = RuleToModuleMapper()
 
     def enrich_finding(self, finding: Dict) -> Dict:
         rule_id = finding.get("rule_id")
-        service = (finding.get("service") or "").lower()
-        if not rule_id or not service:
+        if not rule_id:
             return finding
         enriched = self.module_mapper.map_finding_to_modules(finding)
-        info = self.rule_db_reader.get_iam_security_info(service, rule_id)
-        if info and info.get("applicable"):
+        # Add IAM security context based on module mapping
+        if enriched.get("is_iam_relevant"):
             enriched["iam_security_context"] = {
-                "modules": info.get("modules", []),
+                "modules": enriched.get("iam_security_modules", []),
                 "applicable": True,
             }
         else:

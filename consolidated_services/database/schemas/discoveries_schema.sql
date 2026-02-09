@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Purpose: Store discovered AWS resources, rule YAMLs for loading discovery definitions
 -- Used by: engine_discoveries_aws
--- Tables: customers, tenants, scans, discoveries, discovery_history, rule_definitions
+-- Tables: customers, tenants, discovery_report, discovery_findings, discovery_history, rule_definitions
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
@@ -29,8 +29,9 @@ CREATE TABLE IF NOT EXISTS tenants (
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS scans (
-    scan_id VARCHAR(255) PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS discovery_report (
+    discovery_scan_id VARCHAR(255) PRIMARY KEY,
+    orchestration_id VARCHAR(255),  -- links to scan_orchestration in shared DB
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -50,9 +51,9 @@ CREATE TABLE IF NOT EXISTS scans (
 -- DISCOVERY TABLES
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS discoveries (
+CREATE TABLE IF NOT EXISTS discovery_findings (
     id SERIAL PRIMARY KEY,
-    scan_id VARCHAR(255) NOT NULL,
+    discovery_scan_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS discoveries (
     config_hash VARCHAR(64),
     version INTEGER DEFAULT 1,
     scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE,
+    FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -85,7 +86,7 @@ CREATE TABLE IF NOT EXISTS discovery_history (
     discovery_id VARCHAR(255) NOT NULL,
     resource_uid TEXT,
     resource_arn TEXT,
-    scan_id VARCHAR(255) NOT NULL,
+    discovery_scan_id VARCHAR(255) NOT NULL,
     config_hash VARCHAR(64) NOT NULL,
     raw_response JSONB,
     emitted_fields JSONB,
@@ -117,15 +118,18 @@ CREATE TABLE IF NOT EXISTS rule_definitions (
 -- INDEXES
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_scans_customer_tenant ON scans(customer_id, tenant_id);
-CREATE INDEX IF NOT EXISTS idx_scans_timestamp ON scans(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_dr_customer_tenant ON discovery_report(customer_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_dr_timestamp ON discovery_report(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_dr_orchestration ON discovery_report(orchestration_id);
 
-CREATE INDEX IF NOT EXISTS idx_discoveries_scan ON discoveries(scan_id, discovery_id);
-CREATE INDEX IF NOT EXISTS idx_discoveries_tenant ON discoveries(tenant_id, hierarchy_id);
-CREATE INDEX IF NOT EXISTS idx_discoveries_resource_uid ON discoveries(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_discoveries_resource_arn ON discoveries(resource_arn);
-CREATE INDEX IF NOT EXISTS idx_discoveries_hash ON discoveries(config_hash);
-CREATE INDEX IF NOT EXISTS idx_discoveries_service ON discoveries(service, region);
+CREATE INDEX IF NOT EXISTS idx_df_scan ON discovery_findings(discovery_scan_id, discovery_id);
+CREATE INDEX IF NOT EXISTS idx_df_tenant ON discovery_findings(tenant_id, hierarchy_id);
+CREATE INDEX IF NOT EXISTS idx_df_resource_uid ON discovery_findings(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_df_resource_arn ON discovery_findings(resource_arn);
+CREATE INDEX IF NOT EXISTS idx_df_hash ON discovery_findings(config_hash);
+CREATE INDEX IF NOT EXISTS idx_df_service ON discovery_findings(service, region);
+CREATE INDEX IF NOT EXISTS idx_df_lookup ON discovery_findings(discovery_id, tenant_id, hierarchy_id);
+CREATE INDEX IF NOT EXISTS idx_df_latest ON discovery_findings(resource_uid, discovery_id, tenant_id, hierarchy_id, scan_timestamp DESC);
 
 CREATE INDEX IF NOT EXISTS idx_history_tenant ON discovery_history(tenant_id, resource_uid);
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON discovery_history(scan_timestamp DESC);
@@ -134,15 +138,14 @@ CREATE INDEX IF NOT EXISTS idx_history_hash ON discovery_history(config_hash, pr
 CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp_service ON rule_definitions(csp, service);
 CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp ON rule_definitions(csp);
 
-CREATE INDEX IF NOT EXISTS idx_discoveries_raw_response_gin ON discoveries USING gin(raw_response);
-CREATE INDEX IF NOT EXISTS idx_discoveries_emitted_fields_gin ON discoveries USING gin(emitted_fields);
+CREATE INDEX IF NOT EXISTS idx_df_emitted_fields_gin ON discovery_findings USING gin(emitted_fields);
 CREATE INDEX IF NOT EXISTS idx_history_diff_summary_gin ON discovery_history USING gin(diff_summary);
 
 -- ============================================================================
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE discoveries IS 'Discovered AWS resources from discovery scans';
+COMMENT ON TABLE discovery_findings IS 'Discovered AWS resources from discovery scans';
 COMMENT ON TABLE discovery_history IS 'Version history and drift detection';
 COMMENT ON TABLE rule_definitions IS 'Full YAML rules for discoveries engine to load';
-COMMENT ON TABLE scans IS 'Discovery scan metadata';
+COMMENT ON TABLE discovery_report IS 'Discovery scan metadata';

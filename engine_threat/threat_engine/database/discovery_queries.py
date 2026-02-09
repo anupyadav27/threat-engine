@@ -1,7 +1,7 @@
 """
-Database queries for ConfigScan Discovery Results
+Database queries for Discovery Results
 
-Reads from PostgreSQL discoveries table created by configScan engine.
+Reads from PostgreSQL discovery_findings table created by discovery engine.
 Optimized queries using existing indexes for performance.
 Supports NDJSON fallback for local testing.
 """
@@ -76,7 +76,7 @@ class DiscoveryDatabaseQueries:
         
         try:
             result = self._execute_query_one(
-                "SELECT COUNT(*) as count FROM discoveries WHERE tenant_id = %s LIMIT 1",
+                "SELECT COUNT(*) as count FROM discovery_findings WHERE tenant_id = %s LIMIT 1",
                 [tenant_id]
             )
             return result and result.get('count', 0) > 0
@@ -163,37 +163,37 @@ class DiscoveryDatabaseQueries:
         
         query = f"""
         WITH scan_stats AS (
-            SELECT 
-                scan_id,
+            SELECT
+                discovery_scan_id,
                 COUNT(*) as total_discoveries,
                 COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
                 MAX(scan_timestamp) as scan_timestamp
-            FROM discoveries
+            FROM discovery_findings
             WHERE tenant_id = %s
               {customer_filter}
-            GROUP BY scan_id
+            GROUP BY discovery_scan_id
         ),
         service_stats AS (
-            SELECT 
+            SELECT
                 service,
                 COUNT(*) as total,
                 COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
                 array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions
-            FROM discoveries
+            FROM discovery_findings
             WHERE tenant_id = %s
               {customer_filter}
             GROUP BY service
             ORDER BY COUNT(*) DESC
             LIMIT 10
         )
-        SELECT 
+        SELECT
             (SELECT COALESCE(SUM(total_discoveries), 0) FROM scan_stats) as total_discoveries,
             (SELECT COALESCE(SUM(unique_resources), 0) FROM scan_stats) as unique_resources,
-            (SELECT COUNT(DISTINCT scan_id) FROM scan_stats) as total_scans,
-            (SELECT COUNT(DISTINCT service) FROM discoveries 
+            (SELECT COUNT(DISTINCT discovery_scan_id) FROM scan_stats) as total_scans,
+            (SELECT COUNT(DISTINCT service) FROM discovery_findings
              WHERE tenant_id = %s {customer_filter}) as services_scanned,
             (SELECT json_agg(row_to_json(s.*)) FROM service_stats s) as top_services,
-            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.scan_timestamp DESC) 
+            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.scan_timestamp DESC)
              FROM (SELECT * FROM scan_stats ORDER BY scan_timestamp DESC LIMIT %s) sc) as recent_scans;
         """
         
@@ -253,16 +253,16 @@ class DiscoveryDatabaseQueries:
         
         # Get total count
         count_query = f"""
-        SELECT COUNT(DISTINCT scan_id)
-        FROM discoveries
+        SELECT COUNT(DISTINCT discovery_scan_id)
+        FROM discovery_findings
         WHERE tenant_id = %s
           {customer_filter};
         """
-        
+
         # Get scans with aggregations
         list_query = f"""
-        SELECT 
-            scan_id,
+        SELECT
+            discovery_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -273,10 +273,10 @@ class DiscoveryDatabaseQueries:
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
             MAX(scan_timestamp) as scan_timestamp
-        FROM discoveries
+        FROM discovery_findings
         WHERE tenant_id = %s
           {customer_filter}
-        GROUP BY scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
+        GROUP BY discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT %s OFFSET %s;
         """
@@ -311,8 +311,8 @@ class DiscoveryDatabaseQueries:
     def _get_scan_summary_db(self, scan_id: str, tenant_id: str) -> Optional[Dict]:
         """Get scan summary from database"""
         query = """
-        SELECT 
-            scan_id,
+        SELECT
+            discovery_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -323,10 +323,10 @@ class DiscoveryDatabaseQueries:
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
             MAX(scan_timestamp) as scan_timestamp
-        FROM discoveries
-        WHERE scan_id = %s
+        FROM discovery_findings
+        WHERE discovery_scan_id = %s
           AND tenant_id = %s
-        GROUP BY scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type;
+        GROUP BY discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type;
         """
         
         result = self._execute_query_one(query, [scan_id, tenant_id])
@@ -357,14 +357,14 @@ class DiscoveryDatabaseQueries:
     def _get_service_stats_db(self, scan_id: str, tenant_id: str) -> List[Dict]:
         """Get service stats from database"""
         query = """
-        SELECT 
+        SELECT
             service,
             COUNT(*) as total_discoveries,
             COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions,
             array_agg(DISTINCT discovery_id) as discovery_functions
-        FROM discoveries
-        WHERE scan_id = %s
+        FROM discovery_findings
+        WHERE discovery_scan_id = %s
           AND tenant_id = %s
         GROUP BY service
         ORDER BY service;
@@ -395,27 +395,27 @@ class DiscoveryDatabaseQueries:
         """Get service detail from database"""
         # Overall stats
         stats_query = """
-        SELECT 
+        SELECT
             service,
             COUNT(*) as total_discoveries,
             COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions
-        FROM discoveries
-        WHERE scan_id = %s
+        FROM discovery_findings
+        WHERE discovery_scan_id = %s
           AND service = %s
           AND tenant_id = %s
         GROUP BY service;
         """
-        
+
         # Discovery function stats
         functions_query = """
-        SELECT 
+        SELECT
             discovery_id,
             COUNT(*) as total,
             COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
             array_agg(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resource_arns
-        FROM discoveries
-        WHERE scan_id = %s
+        FROM discovery_findings
+        WHERE discovery_scan_id = %s
           AND service = %s
           AND tenant_id = %s
         GROUP BY discovery_id
@@ -481,9 +481,9 @@ class DiscoveryDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append("scan_id = %s")
+            where_clauses.append("discovery_scan_id = %s")
             params.append(scan_id)
-        
+
         if service:
             where_clauses.append("service = %s")
             params.append(service)
@@ -501,15 +501,15 @@ class DiscoveryDatabaseQueries:
         # Count query
         count_query = f"""
         SELECT COUNT(*)
-        FROM discoveries
+        FROM discovery_findings
         WHERE {where_sql};
         """
         
         # List query
         list_query = f"""
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            discovery_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -525,7 +525,7 @@ class DiscoveryDatabaseQueries:
             config_hash,
             scan_timestamp,
             version
-        FROM discoveries
+        FROM discovery_findings
         WHERE {where_sql}
         ORDER BY scan_timestamp DESC, id DESC
         LIMIT %s OFFSET %s;
@@ -543,7 +543,7 @@ class DiscoveryDatabaseQueries:
         for disc in discoveries:
             formatted.append({
                 'id': disc.get('id'),
-                'scan_id': disc['scan_id'],
+                'scan_id': disc['discovery_scan_id'],
                 'customer_id': disc['customer_id'],
                 'tenant_id': disc['tenant_id'],
                 'provider': disc['provider'],
@@ -595,9 +595,9 @@ class DiscoveryDatabaseQueries:
         where_sql = " AND ".join(where_clauses)
         
         query = f"""
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            discovery_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -612,17 +612,17 @@ class DiscoveryDatabaseQueries:
             config_hash,
             scan_timestamp,
             version
-        FROM discoveries
+        FROM discovery_findings
         WHERE {where_sql}
         ORDER BY scan_timestamp DESC
         LIMIT 1000;
         """
-        
+
         discoveries = self._execute_query(query, params)
-        
+
         if not discoveries:
             return None
-        
+
         # Calculate stats
         discovery_functions = list(set(d['discovery_id'] for d in discoveries))
         
@@ -667,15 +667,15 @@ class DiscoveryDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append("scan_id = %s")
+            where_clauses.append("discovery_scan_id = %s")
             params.append(scan_id)
-        
+
         where_sql = " AND ".join(where_clauses)
-        
+
         query = f"""
-        SELECT 
+        SELECT
             id,
-            scan_id,
+            discovery_scan_id,
             customer_id,
             tenant_id,
             provider,
@@ -690,7 +690,7 @@ class DiscoveryDatabaseQueries:
             config_hash,
             scan_timestamp,
             version
-        FROM discoveries
+        FROM discovery_findings
         WHERE {where_sql}
         ORDER BY scan_timestamp DESC
         LIMIT 1000;
@@ -743,10 +743,10 @@ class DiscoveryDatabaseQueries:
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_id, MAX(scan_timestamp) as scan_timestamp
-        FROM discoveries
+        SELECT discovery_scan_id, MAX(scan_timestamp) as scan_timestamp
+        FROM discovery_findings
         WHERE {where_sql}
-        GROUP BY scan_id
+        GROUP BY discovery_scan_id
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT 1;
         """
@@ -761,7 +761,7 @@ class DiscoveryDatabaseQueries:
         """
         Get previous discovery scan (immediately before current) for tenant/account/service.
         """
-        where_clauses = ["tenant_id = %s", "scan_id != %s"]
+        where_clauses = ["tenant_id = %s", "discovery_scan_id != %s"]
         params = [tenant_id, current_scan_id]
 
         if hierarchy_id:
@@ -782,10 +782,10 @@ class DiscoveryDatabaseQueries:
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_id, MAX(scan_timestamp) as scan_timestamp
-        FROM discoveries
+        SELECT discovery_scan_id, MAX(scan_timestamp) as scan_timestamp
+        FROM discovery_findings
         WHERE {where_sql}
-        GROUP BY scan_id
+        GROUP BY discovery_scan_id
         ORDER BY MAX(scan_timestamp) DESC
         LIMIT 1;
         """
@@ -802,7 +802,7 @@ class DiscoveryDatabaseQueries:
         """
         Get configuration drift events for a scan from discovery_history.
         """
-        where_clauses = ["dh.tenant_id = %s", "dh.scan_id = %s", "dh.change_type = 'modified'"]
+        where_clauses = ["dh.tenant_id = %s", "dh.discovery_scan_id = %s", "dh.change_type = 'modified'"]
         params = [tenant_id, current_scan_id]
 
         if hierarchy_id:
@@ -835,15 +835,15 @@ class DiscoveryDatabaseQueries:
             dh.*,
             d.service,
             d.region,
-            prev.scan_id as baseline_scan_id
+            prev.discovery_scan_id as baseline_scan_id
         FROM discovery_history dh
-        LEFT JOIN discoveries d
-          ON d.scan_id = dh.scan_id
+        LEFT JOIN discovery_findings d
+          ON d.discovery_scan_id = dh.discovery_scan_id
          AND d.discovery_id = dh.discovery_id
          AND d.resource_arn = dh.resource_arn
          AND d.tenant_id = dh.tenant_id
         LEFT JOIN LATERAL (
-            SELECT scan_id
+            SELECT discovery_scan_id
             FROM discovery_history
             WHERE tenant_id = dh.tenant_id
               AND discovery_id = dh.discovery_id

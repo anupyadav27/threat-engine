@@ -15,6 +15,9 @@ class Provider(str, Enum):
     AZURE = "azure"
     GCP = "gcp"
     K8S = "k8s"
+    OCI = "oci"
+    IBM = "ibm"
+    ALICLOUD = "alicloud"
     VMWARE = "vmware"
 
 
@@ -89,9 +92,9 @@ def compute_asset_hash(asset: Asset) -> str:
 
 
 def generate_asset_id(asset: Asset) -> str:
-    """Generate deterministic asset_id for database keys"""
-    import hashlib
-    
+    """Generate deterministic asset_id as UUID for database keys"""
+    import uuid
+
     key = f"{asset.provider.value}|{asset.account_id}|{asset.region}|{asset.resource_uid}"
-    return hashlib.sha1(key.encode()).hexdigest()
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
 

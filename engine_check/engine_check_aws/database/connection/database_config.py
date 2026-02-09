@@ -21,12 +21,12 @@ class DatabaseConnectionConfig:
         self.max_overflow = max_overflow
         self.pool_timeout = pool_timeout
         self.pool_recycle = pool_recycle
-    
+
     @property
     def connection_string(self) -> str:
         """Get PostgreSQL connection string"""
         return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
-    
+
     @property
     def async_connection_string(self) -> str:
         """Get async PostgreSQL connection string"""
@@ -37,7 +37,7 @@ def get_database_config(engine_name: str = "check") -> DatabaseConnectionConfig:
     """Get database configuration for check engine from environment variables"""
     if engine_name != "check":
         raise ValueError(f"Check engine only supports 'check' database, got: {engine_name}")
-    
+
     return DatabaseConnectionConfig(
         host=os.getenv("CHECK_DB_HOST", "localhost"),
         port=int(os.getenv("CHECK_DB_PORT", "5432")),
@@ -50,16 +50,6 @@ def get_database_config(engine_name: str = "check") -> DatabaseConnectionConfig:
         pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
         pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "3600")),
     )
-
-
-def get_connection_string(engine_name: str = "check") -> str:
-    """Get connection string for check engine"""
-    return get_database_config(engine_name).connection_string
-
-
-def get_async_connection_string(engine_name: str = "check") -> str:
-    """Get async connection string for check engine"""
-    return get_database_config(engine_name).async_connection_string
 
 
 def get_connection_string(engine_name: str = "check") -> str:
