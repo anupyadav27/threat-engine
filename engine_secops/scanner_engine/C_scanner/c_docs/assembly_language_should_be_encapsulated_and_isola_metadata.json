@@ -1,0 +1,38 @@
+{
+  "filename": "assembly_language_should_be_encapsulated_and_isola_metadata.json",
+  "rule_id": "assembly_language_encapsulated_isolated",
+  "title": "Assembly language should be encapsulated and isolated",
+  "description": "Assembly language should be encapsulated and isolatedAnalyze your codeadaptability-modularmaintainabilityCode Smellmisra-c++2008misra-c2004Why is this an issue?More InfoEnsuring that assembly language code is encapsulated and isolated aids portability. Where assembly language instructions are needed, they shall be encapsulated and isolated in either assembler functions or C++ functions.Noncompliant code examplevoid fn ( void ) { DoSomething ( ); asm ( \"NOP\" ); // Noncompliant, asm mixed with C/C++ statements DoSomething ( ); }Compliant solutionvoid Delay ( void ) { asm ( \"NOP\" ); // Compliant, asm not mixed with C/C++ statements } void fn ( void ) { DoSomething ( ); Delay ( ); // Compliant, Assembler is encapsulated DoSomething ( ); }Available In:Catch issues on the fly,in your IDEDetect i",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void fn ( void )\n{\n  DoSomething ( );\n  asm ( \"NOP\" ); // Noncompliant, asm mixed with C/C++ statements\n  DoSomething ( );\n}",
+      "int calculate(int x)\n{\n    int result = x * 2;\n    __asm__ volatile (\"nop\"); // Noncompliant, inline assembly mixed with C statements\n    return result;\n}",
+      "void process_data(void)\n{\n    init_data();\n    asm(\"mov eax, 0\"); // Noncompliant, assembly mixed with function calls\n    finalize_data();\n}"
+    ],
+    "compliant": [
+      "void Delay ( void )\n{\n  asm ( \"NOP\" ); // Compliant, asm not mixed with C/C++ statements\n}\n\nvoid fn ( void )\n{\n  DoSomething ( );\n  Delay ( ); // Compliant, Assembler is encapsulated\n  DoSomething ( );\n}",
+      "void low_level_operation(void)\n{\n    __asm__ volatile (\n        \"mov eax, 0\\n\\t\"\n        \"cpuid\\n\\t\"\n        : : : \"eax\", \"ebx\", \"ecx\", \"edx\"\n    ); // Compliant, function contains only assembly\n}",
+      "static inline void memory_barrier(void)\n{\n    asm volatile(\"\" : : : \"memory\"); // Compliant, encapsulated in dedicated function\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-784"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition", "FunctionDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_assembly_encapsulation"
+      }
+    ]
+  }
+}

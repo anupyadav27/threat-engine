@@ -1,0 +1,51 @@
+{
+  "filename": "line_continuation_characters_should_not_be_followe_metadata.json",
+  "rule_id": "line_continuation_characters_followed",
+  "title": "Line continuation characters '\\' should not be followed by trailing whitespace",
+  "description": "Line continuation characters '\\' should not be followed by trailing whitespaceAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?More InfoWhen a line of code ends with the\\(backslash) character, the newline character is deleted. The compiler considers the next line a continuation of the current line, resulting in only one logical line of code.This source code transformation, known asline-splicing, occurs during the second phase of C and C++ translation.Several compilers have a loose implementation ofline-splicingand allow whitespace after the\\character. While this practice was non-portable until C++23, it remains non-portable in C.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#define MACRO(x) \\  \t // Noncompliant: whitespace after backslash",
+      "int result = very_long_calculation() \\   // Noncompliant: spaces after continuation",
+      "printf(\"Long string that \\\\ \t // Noncompliant: tab after continuation\n       continues here\");"
+    ],
+    "compliant": [
+      "#define MACRO(x) \\\\ // Compliant: no whitespace after backslash\n  do_something(x)",
+      "int result = very_long_calculation() \\\\ // Compliant: continuation without trailing space\n             + another_calculation();",
+      "printf(\"Long string that \\\\\n       continues here\"); // Compliant: proper line continuation"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1916"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective",
+      "Statement",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\\\\\\\\\\\\\\\[ \\t]+$",
+          "\\\\\\\\\\\\\\\\[ \\t]+\\n",
+          "#define.*\\\\\\\\\\\\\\\\[ \\t]+",
+          "[^\\\"']\\\\\\\\\\\\\\\\[ \\t]+(?=\\n)"
+        ],
+        "message": "Line continuation characters '\\' should not be followed by trailing whitespace - remove spaces/tabs after backslash"
+      }
+    ]
+  }
+}

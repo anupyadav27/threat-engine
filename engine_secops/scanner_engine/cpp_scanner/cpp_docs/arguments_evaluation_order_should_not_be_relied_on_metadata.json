@@ -1,0 +1,38 @@
+{
+  "filename": "arguments_evaluation_order_should_not_be_relied_on_metadata.json",
+  "rule_id": "arguments_evaluation_order_relied",
+  "title": "Arguments evaluation order should not be relied on",
+  "description": "Arguments evaluation order should not be relied onAnalyze your codeintentionality-logicalreliabilityBugcppcoreguidelinesunpredictablelock-inWhy is this an issue?More InfoArguments evaluation order in a function call is not specified:Before C++17, the evaluation of each argument was unsequenced with the evaluation of other arguments, which can lead to undefined behavior if the same value is modified in several arguments,After C++17, it is sequenced, but in an unspecified order: the behavior is not longer undefined, but the values passed to the function will be non portable.Both cases should be avoided, because the code will probably not be what was expected.Noncompliant code examplevoid f(int i, int j); void g() { int i = 0; f(++i, ++i); // Noncompliant, the call could either be f(1,2) or f",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f(int i, int j);\n\nvoid g() {\n  int i = 0;\n  f(++i, ++i); // Noncompliant, the call could either be f(1,2) or f(2,1) (since C++17) or undefined behavior (before C++17)\n}"
+    ],
+    "compliant": [
+      "void f(int i, int j);\n\nvoid g() {\n  int i = 0;\n  int first = ++i;\n  int second = ++i;\n  f(first, second); // Compliant, evaluation order is clear\n}",
+      "void f(int i, int j);\n\nvoid g() {\n  int i = 0;\n  f(1, 2); // Compliant, using constants\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5570"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_argument_evaluation_order",
+        "message": "Arguments evaluation order should not be relied on"
+      }
+    ]
+  }
+}

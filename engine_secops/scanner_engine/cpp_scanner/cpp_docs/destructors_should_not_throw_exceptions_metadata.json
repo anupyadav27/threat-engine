@@ -1,0 +1,43 @@
+{
+  "filename": "destructors_should_not_throw_exceptions_metadata.json",
+  "rule_id": "destructors_throw_exceptions",
+  "title": "Destructors should not throw exceptions",
+  "description": "Throwing an exception from a destructor may result in a call to std::terminate. By default, compilers implicitly declare destructors as noexcept, so std::terminate is called when they exit with an exception. Destructors may still propagate an exception if they are explicitly declared as noexcept(false).",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class BadClass {\npublic:\n    ~BadClass() noexcept(false) {  // Noncompliant: allows exceptions\n        throw std::runtime_error(\"Error in destructor\");\n    }\n};\n\nclass AnotherBadClass {\npublic:\n    ~AnotherBadClass() {\n        // Noncompliant: might throw\n        resource_.close(); // This might throw\n        if (error_condition) {\n            throw std::runtime_error(\"Cleanup failed\"); // Noncompliant\n        }\n    }\n};"
+    ],
+    "compliant": [
+      "class GoodClass {\npublic:\n    ~GoodClass() noexcept {  // Compliant: explicitly noexcept\n        try {\n            resource_.close(); // Wrap risky operations in try-catch\n        } catch (...) {\n            // Log error but don't rethrow\n        }\n    }\n};\n\nclass SafeClass {\npublic:\n    ~SafeClass() {  // Compliant: only safe operations\n        // Perform cleanup that cannot throw\n        reset_member_variables();\n        release_resources_safely();\n    }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1048"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "~\\w+\\([^)]*\\)\\s*noexcept\\s*\\(\\s*false\\s*\\)",
+          "~\\w+\\([^)]*\\)[^{]*\\{[^}]*?(?:^|\\n)[^/\\n]*throw\\s+\\w+"
+        ],
+        "message": "Destructors should not throw exceptions. Make destructors noexcept and avoid throwing operations."
+      }
+    ]
+  }
+}

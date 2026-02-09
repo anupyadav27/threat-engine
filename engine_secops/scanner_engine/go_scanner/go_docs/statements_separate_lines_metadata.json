@@ -1,0 +1,50 @@
+{
+  "filename": "statements_separate_lines_metadata.json",
+  "rule_id": "formatting_statements_separate_lines",
+  "title": "Place statements on separate lines",
+  "description": "Multiple statements on a single line reduce code readability and complicate debugging. Each statement should occupy its own line to improve code clarity and make it easier to set breakpoints and trace execution.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Write one statement per line to improve readability and debugging capabilities.",
+  "impact": "Code readability problem",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Multiple statements on single lines\nfunc processUser(user User) error {\n    validate(user); save(user); notify(user) // Three statements on one line\n    \n    if user.IsActive { activate(user); sendEmail(user) } // Conditional with multiple statements\n    \n    // Loop with multiple statements per line\n    for _, item := range user.Items { process(item); log(item.ID); update(item) }\n    \n    // Variable declarations on one line\n    var name, email string; var age int; var active bool\n    \n    // Assignment and function call\n    result := calculate(user.Age); log.Printf(\"Result: %d\", result)\n    \n    // Error handling on one line\n    if err := validateUser(user); err != nil { return err }\n    \n    // Multiple short assignments\n    x, y := 1, 2; z := x + y; fmt.Println(z)\n    \n    return nil\n}\n\n// Noncompliant: Switch cases with multiple statements\nfunc handleUserAction(action string) {\n    switch action {\n    case \"create\": createUser(); logAction(\"create\"); incrementCounter()\n    case \"delete\": deleteUser(); logAction(\"delete\"); decrementCounter()\n    case \"update\": updateUser(); logAction(\"update\"); notifyChange()\n    }\n}\n\n// Noncompliant: Complex initialization\nfunc initialize() { config := loadConfig(); db := connectDB(); cache := setupCache(); startServer(config, db, cache) }",
+        "description": "Placing multiple statements on single lines makes code harder to read, debug, and maintain."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Each statement on its own line\nfunc processUser(user User) error {\n    validate(user)\n    save(user)\n    notify(user)\n    \n    if user.IsActive {\n        activate(user)\n        sendEmail(user)\n    }\n    \n    // Loop with clear statement separation\n    for _, item := range user.Items {\n        process(item)\n        log(item.ID)\n        update(item)\n    }\n    \n    // Variable declarations on separate lines\n    var name string\n    var email string\n    var age int\n    var active bool\n    \n    // Clear separation of operations\n    result := calculate(user.Age)\n    log.Printf(\"Result: %d\", result)\n    \n    // Proper error handling\n    if err := validateUser(user); err != nil {\n        return err\n    }\n    \n    // Multiple assignments separated\n    x, y := 1, 2\n    z := x + y\n    fmt.Println(z)\n    \n    return nil\n}\n\n// Compliant: Clear switch case structure\nfunc handleUserAction(action string) {\n    switch action {\n    case \"create\":\n        createUser()\n        logAction(\"create\")\n        incrementCounter()\n    case \"delete\":\n        deleteUser()\n        logAction(\"delete\")\n        decrementCounter()\n    case \"update\":\n        updateUser()\n        logAction(\"update\")\n        notifyChange()\n    }\n}\n\n// Compliant: Proper initialization sequence\nfunc initialize() {\n    config := loadConfig()\n    db := connectDB()\n    cache := setupCache()\n    startServer(config, db, cache)\n}\n\n// Compliant: When single-line statements are appropriate\nfunc simpleOperations() {\n    // Short, simple statements can sometimes be on one line if very clear\n    x := 1\n    y := 2\n    z := x + y\n    \n    // But prefer separation for debugging and clarity\n    if z > 2 {\n        fmt.Println(\"Sum is greater than 2\")\n    }\n}\n\n// Compliant: Error handling with proper separation\nfunc robustProcessing(data []byte) error {\n    content, err := parse(data)\n    if err != nil {\n        return fmt.Errorf(\"parsing failed: %w\", err)\n    }\n    \n    result, err := process(content)\n    if err != nil {\n        return fmt.Errorf(\"processing failed: %w\", err)\n    }\n    \n    err = save(result)\n    if err != nil {\n        return fmt.Errorf(\"saving failed: %w\", err)\n    }\n    \n    return nil\n}",
+        "description": "Placing each statement on its own line improves readability, debugging, and code maintenance."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-122"
+  ],
+  "logic": {
+    "node_types": [
+      "block",
+      "function_declaration",
+      "if_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          ";\\s*[a-zA-Z_][a-zA-Z0-9_]*",
+          "\\}\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*[=:]*",
+          "[;}]\\s*if\\s+",
+          "[;}]\\s*for\\s+"
+        ],
+        "message": "Place each statement on a separate line for better readability."
+      }
+    ]
+  }
+}

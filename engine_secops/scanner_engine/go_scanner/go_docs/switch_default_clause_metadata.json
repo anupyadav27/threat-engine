@@ -1,0 +1,46 @@
+{
+  "filename": "switch_default_clause_metadata.json",
+  "rule_id": "logic_switch_default_required",
+  "title": "Include default clause in switch statements",
+  "description": "Switch statements without default clauses may miss handling unexpected values, leading to silent failures. A default clause provides defensive programming and ensures all cases are explicitly considered.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Add a default clause that handles unexpected cases or contains explanatory comments.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Switch statements without default clauses\nfunc processUserRole(role string) string {\n    switch role {\n    case \"admin\":\n        return \"Administrator access granted\"\n    case \"editor\":\n        return \"Editor access granted\"\n    case \"viewer\":\n        return \"Viewer access granted\"\n    }\n    // Missing default clause - what happens with unknown roles?\n}\n\n// Noncompliant: Type switch without default\nfunc handleValue(value interface{}) {\n    switch v := value.(type) {\n    case string:\n        fmt.Printf(\"String: %s\\n\", v)\n    case int:\n        fmt.Printf(\"Integer: %d\\n\", v)\n    case bool:\n        fmt.Printf(\"Boolean: %t\\n\", v)\n    }\n    // No default case for unexpected types\n}\n\n// Noncompliant: Status code handling without fallback\nfunc getStatusMessage(code int) string {\n    switch code {\n    case 200:\n        return \"OK\"\n    case 404:\n        return \"Not Found\"\n    case 500:\n        return \"Internal Server Error\"\n    }\n    // No default case for other status codes\n}\n\n// Noncompliant: Enum-like handling without catch-all\nfunc getLogLevel(level string) int {\n    switch strings.ToUpper(level) {\n    case \"DEBUG\":\n        return 0\n    case \"INFO\":\n        return 1\n    case \"WARN\":\n        return 2\n    case \"ERROR\":\n        return 3\n    }\n    // Missing default for invalid log levels\n}",
+        "description": "Switch statements without default clauses can leave cases unhandled, potentially causing silent failures or unexpected behavior."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Switch statements with proper default clauses\nfunc processUserRole(role string) string {\n    switch role {\n    case \"admin\":\n        return \"Administrator access granted\"\n    case \"editor\":\n        return \"Editor access granted\"\n    case \"viewer\":\n        return \"Viewer access granted\"\n    default:\n        return \"Unknown role - access denied\"\n    }\n}\n\n// Compliant: Type switch with proper default handling\nfunc handleValue(value interface{}) {\n    switch v := value.(type) {\n    case string:\n        fmt.Printf(\"String: %s\\n\", v)\n    case int:\n        fmt.Printf(\"Integer: %d\\n\", v)\n    case bool:\n        fmt.Printf(\"Boolean: %t\\n\", v)\n    default:\n        fmt.Printf(\"Unsupported type: %T\\n\", v)\n    }\n}\n\n// Compliant: Status code with fallback message\nfunc getStatusMessage(code int) string {\n    switch code {\n    case 200:\n        return \"OK\"\n    case 404:\n        return \"Not Found\"\n    case 500:\n        return \"Internal Server Error\"\n    default:\n        return fmt.Sprintf(\"Unknown status code: %d\", code)\n    }\n}\n\n// Compliant: Enum handling with sensible default\nfunc getLogLevel(level string) int {\n    switch strings.ToUpper(level) {\n    case \"DEBUG\":\n        return 0\n    case \"INFO\":\n        return 1\n    case \"WARN\":\n        return 2\n    case \"ERROR\":\n        return 3\n    default:\n        return 1 // Default to INFO level for unknown values\n    }\n}\n\n// Compliant: Error handling in default clause\nfunc processCommand(cmd string) error {\n    switch cmd {\n    case \"start\":\n        return startService()\n    case \"stop\":\n        return stopService()\n    case \"restart\":\n        return restartService()\n    default:\n        return fmt.Errorf(\"unknown command: %s\", cmd)\n    }\n}\n\n// Compliant: Default clause with explanatory comment\nfunc calculateFee(accountType string) float64 {\n    switch accountType {\n    case \"premium\":\n        return 0.0\n    case \"standard\":\n        return 5.0\n    case \"basic\":\n        return 10.0\n    default:\n        // Apply highest fee for unrecognized account types for safety\n        return 15.0\n    }\n}\n\n// Compliant: When default truly isn't needed, document why\nfunc dayOfWeek(day int) string {\n    switch day {\n    case 0:\n        return \"Sunday\"\n    case 1:\n        return \"Monday\"\n    case 2:\n        return \"Tuesday\"\n    case 3:\n        return \"Wednesday\"\n    case 4:\n        return \"Thursday\"\n    case 5:\n        return \"Friday\"\n    case 6:\n        return \"Saturday\"\n    default:\n        // Should never reach here if input is validated\n        panic(\"invalid day of week\")\n    }\n}",
+        "description": "Including default clauses ensures all cases are handled explicitly, preventing silent failures and making code more robust."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-131"
+  ],
+  "logic": {
+    "node_types": [
+      "expression_switch_statement",
+      "type_switch_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "switch\\s*[^{]*{[^}]*}(?!.*default\\s*:)"
+        ],
+        "message": "Switch statements should include a default clause to handle unexpected cases."
+      }
+    ]
+  }
+}

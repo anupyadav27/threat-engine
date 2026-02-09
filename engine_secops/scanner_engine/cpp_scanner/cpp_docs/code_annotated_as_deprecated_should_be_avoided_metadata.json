@@ -1,0 +1,70 @@
+{
+  "filename": "code_annotated_as_deprecated_should_be_avoided_metadata.json",
+  "rule_id": "code_annotated_as_deprecated",
+  "title": "Code annotated as deprecated should be avoided",
+  "description": "Code is sometimes annotated as deprecated by developers maintaining libraries or APIs to indicate that the method, class, or other programming element is no longer recommended for use. This is typically due to the introduction of a newer or more effective alternative. For example, when a better solution has been identified, or when the existing code presents potential errors or security risks.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "deprecated",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using C++14 deprecated attribute\n[[deprecated(\"Use std::unique_ptr instead\")]]\nclass OldSmartPtr {};\n\n// Using GNU deprecated attribute\n__attribute__((deprecated(\"Use secure_strcpy instead\")))\nchar* strcpy_unsafe(char* dest, const char* src);\n\n// Using Microsoft deprecated attribute\n__declspec(deprecated(\"Use GetTickCount64 for 64-bit compatibility\"))\nDWORD GetTickCount();\n\nvoid badExample() {\n    OldSmartPtr ptr;           // Noncompliant - using deprecated class\n    char buffer[100];\n    strcpy_unsafe(buffer, \"test\"); // Noncompliant - calling deprecated function\n    DWORD ticks = GetTickCount(); // Noncompliant - using deprecated API\n}",
+      "// Calling deprecated standard library functions\n#include <cstring>\nvoid unsafeCode() {\n    char dest[10];\n    char src[] = \"Hello World\"; \n    strcpy(dest, src);  // Noncompliant - strcpy is deprecated due to buffer overflow risks\n    gets(dest);         // Noncompliant - gets() is deprecated and removed in C++14\n}"
+    ],
+    "compliant": [
+      "// Use modern, safe alternatives\n#include <memory>\n#include <string>\n#include <cstring>\n\nclass ModernSmartPtr {\n    std::unique_ptr<int> data;\n};\n\nchar* secure_strcpy(char* dest, const char* src, size_t dest_size) {\n    return strncpy(dest, src, dest_size - 1);\n}\n\nDWORD GetTickCount64() {\n    // 64-bit safe implementation\n    return 0;\n}\n\nvoid goodExample() {\n    ModernSmartPtr ptr;        // Compliant - using modern class\n    char buffer[100];\n    secure_strcpy(buffer, \"test\", sizeof(buffer)); // Compliant - using secure function\n    DWORD ticks = GetTickCount64(); // Compliant - using 64-bit safe API\n}",
+      "// Safe string handling practices\n#include <string>\n#include <iostream>\nvoid safeCode() {\n    std::string dest;\n    std::string src = \"Hello World\";\n    dest = src;                    // Compliant - safe string assignment\n    std::getline(std::cin, dest); // Compliant - safe input method\n    \n    // If you must use C-style strings, use safe functions\n    char buffer[100];\n    strncpy(buffer, src.c_str(), sizeof(buffer) - 1); // Compliant - bounded copy\n    buffer[sizeof(buffer) - 1] = '\\0'; // Ensure null termination\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1874"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration",
+      "function_definition",
+      "function_declarator",
+      "class_specifier", 
+      "enum_specifier",
+      "template_declaration",
+      "field_declaration",
+      "access_specifier",
+      "FunctionDefinition",
+      "ClassDeclaration",
+      "EnumDeclaration", 
+      "TemplateDeclaration",
+      "FieldDeclaration",
+      "MethodDefinition",
+      "method_definition",
+      "ClassMethod",
+      "class_method",
+      "function_declarator",
+      "attributed_declarator",
+      "attribute_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\[\\[\\s*deprecated(?:\\s*\\([^)]*\\))?\\s*\\]\\]",
+          "__attribute__\\s*\\(\\s*\\(\\s*deprecated(?:\\s*\\([^)]*\\))?\\s*\\)\\s*\\)",
+          "__declspec\\s*\\(\\s*deprecated(?:\\s*\\([^)]*\\))?\\s*\\)",
+          "\\[\\[\\s*deprecated"
+        ],
+        "message": "Remove the problematic code and refactor as needed."
+      }
+    ]
+  }
+}

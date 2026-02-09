@@ -1,0 +1,72 @@
+{
+  "filename": "sizeof_should_not_be_called_on_pointers_metadata.json",
+  "rule_id": "sizeof_called_pointers",
+  "title": "sizeof should not be called on pointers",
+  "description": "sizeof returns the size in bytes of a type. One common usage pattern, especially in C, is to use sizeof to determine the size of an array. However, arrays decay to pointers when passed as arguments to a function, and if sizeof is applied to such an argument, it will return the size of the pointer, not of the array.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void processArray(int arr[]) {\n  size_t size = sizeof(arr);  // Noncompliant: returns size of pointer\n  int count = size / sizeof(int);  // Wrong calculation\n}",
+      "void copyBuffer(char* buffer) {\n  char temp[sizeof(buffer)];  // Noncompliant: sizeof pointer, not array\n  memcpy(temp, buffer, sizeof(buffer));\n}"
+    ],
+    "compliant": [
+      "void processArray(int arr[], size_t count) {\n  size_t size = count * sizeof(int);  // Compliant: use explicit size\n  // Process array with known size\n}",
+      "void processLocalArray() {\n  int arr[10];\n  size_t size = sizeof(arr);  // Compliant: sizeof on actual array\n  int count = size / sizeof(arr[0]);\n}",
+      "#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))\nvoid useArray() {\n  int data[20];\n  size_t count = ARRAY_SIZE(data);  // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3135"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "AssignmentExpression",
+      "BinaryExpression",
+      "ArithmeticExpression",
+      "ConditionalExpression",
+      "FunctionCall",
+      "ReturnStatement",
+      "IfStatement",
+      "WhileStatement",
+      "ForStatement",
+      "Expression",
+      "Statement",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "sizeof\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)"
+        ],
+        "exclude_patterns": [
+          "sizeof\\s*\\(\\s*\\*[a-zA-Z_]\\w*",
+          "sizeof\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\[",
+          "sizeof\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\.",
+          "sizeof\\s*\\(\\s*[a-zA-Z_]\\w*\\s*->",
+          "sizeof\\s*\\(\\s*(int|char|float|double|long|short|void|size_t|bool)\\s*\\)",
+          "sizeof\\s*\\(\\s*local_\\w*\\s*\\)",
+          "sizeof\\s*\\(\\s*global_\\w*\\s*\\)",
+          "sizeof\\s*\\(\\s*readonly_\\w*\\s*\\)",
+          "sizeof\\s*\\(\\s*values\\s*\\)",
+          "/\\*\\s*Compliant",
+          "//.*Compliant"
+        ],
+        "message": "Sizeof should not be called on pointers. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

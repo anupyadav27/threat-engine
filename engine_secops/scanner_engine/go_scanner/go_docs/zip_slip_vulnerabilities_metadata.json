@@ -1,0 +1,81 @@
+{
+  "filename": "zip_slip_vulnerabilities_metadata.json",
+  "rule_id": "security_zip_slip_vulnerabilities",
+  "title": "Prevent zip slip vulnerabilities",
+  "description": "Extracting archives without proper path validation can lead to zip slip vulnerabilities where attackers can write files outside the intended directory. This can overwrite system files or place malicious files in sensitive locations.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Validate and sanitize file paths during archive extraction to prevent directory traversal attacks.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"archive/zip\"\n    \"io\"\n    \"os\"\n    \"path/filepath\"\n)\n\n// Noncompliant: Direct extraction without path validation\nfunc extractZipUnsafe(src, dest string) error {\n    reader, err := zip.OpenReader(src)\n    if err != nil {\n        return err\n    }\n    defer reader.Close()\n    \n    for _, file := range reader.File {\n        // Dangerous: No path validation\n        path := filepath.Join(dest, file.Name)\n        \n        if file.FileInfo().IsDir() {\n            os.MkdirAll(path, 0755)\n            continue\n        }\n        \n        // Create directories if needed\n        os.MkdirAll(filepath.Dir(path), 0755)\n        \n        // Extract file content\n        rc, err := file.Open()\n        if err != nil {\n            return err\n        }\n        \n        outFile, err := os.Create(path)\n        if err != nil {\n            rc.Close()\n            return err\n        }\n        \n        _, err = io.Copy(outFile, rc)\n        outFile.Close()\n        rc.Close()\n        \n        if err != nil {\n            return err\n        }\n    }\n    return nil\n}\n\n// Noncompliant: Using file.Name directly in path construction\nfunc extractTarUnsafe(src, dest string) error {\n    // Similar vulnerability exists with tar files\n    reader, err := tar.Open(src)\n    if err != nil {\n        return err\n    }\n    defer reader.Close()\n    \n    for {\n        header, err := reader.Next()\n        if err == io.EOF {\n            break\n        }\n        if err != nil {\n            return err\n        }\n        \n        // Vulnerable: No path sanitization\n        target := filepath.Join(dest, header.Name)\n        \n        switch header.Typeflag {\n        case tar.TypeDir:\n            os.MkdirAll(target, 0755)\n        case tar.TypeReg:\n            outFile, err := os.Create(target)\n            if err != nil {\n                return err\n            }\n            _, err = io.Copy(outFile, reader)\n            outFile.Close()\n            if err != nil {\n                return err\n            }\n        }\n    }\n    return nil\n}\n\n// Noncompliant: Trusting symbolic links\nfunc extractWithSymlinks(src, dest string) error {\n    reader, err := zip.OpenReader(src)\n    if err != nil {\n        return err\n    }\n    defer reader.Close()\n    \n    for _, file := range reader.File {\n        path := filepath.Join(dest, file.Name)\n        \n        // Dangerous: Follows symbolic links without validation\n        if file.Mode()&os.ModeSymlink != 0 {\n            rc, _ := file.Open()\n            linkTarget, _ := io.ReadAll(rc)\n            rc.Close()\n            \n            // Creates potentially dangerous symlink\n            os.Symlink(string(linkTarget), path)\n        }\n    }\n    return nil\n}",
+        "description": "Extracting archives without proper path validation allows zip slip attacks where malicious files can be written outside the intended directory."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"archive/tar\"\n    \"archive/zip\"\n    \"errors\"\n    \"fmt\"\n    \"io\"\n    \"os\"\n    \"path/filepath\"\n    \"strings\"\n)\n\n// Compliant: Secure zip extraction with path validation\nfunc extractZipSecure(src, dest string) error {\n    reader, err := zip.OpenReader(src)\n    if err != nil {\n        return err\n    }\n    defer reader.Close()\n    \n    // Ensure destination directory exists\n    os.MkdirAll(dest, 0755)\n    \n    for _, file := range reader.File {\n        path, err := sanitizeExtractPath(dest, file.Name)\n        if err != nil {\n            return fmt.Errorf(\"invalid file path %s: %v\", file.Name, err)\n        }\n        \n        if file.FileInfo().IsDir() {\n            err := os.MkdirAll(path, file.FileInfo().Mode())\n            if err != nil {\n                return err\n            }\n            continue\n        }\n        \n        err = extractFile(file, path)\n        if err != nil {\n            return fmt.Errorf(\"failed to extract %s: %v\", file.Name, err)\n        }\n    }\n    return nil\n}\n\n// Sanitize and validate extraction path\nfunc sanitizeExtractPath(dest, filename string) (string, error) {\n    // Clean the filename path\n    cleanName := filepath.Clean(filename)\n    \n    // Check for directory traversal patterns\n    if strings.Contains(cleanName, \"..\") {\n        return \"\", errors.New(\"path contains directory traversal\")\n    }\n    \n    // Check for absolute paths\n    if filepath.IsAbs(cleanName) {\n        return \"\", errors.New(\"path is absolute\")\n    }\n    \n    // Build the destination path\n    destPath := filepath.Join(dest, cleanName)\n    \n    // Ensure the path is still within the destination directory\n    destPath = filepath.Clean(destPath)\n    if !strings.HasPrefix(destPath, filepath.Clean(dest)+string(os.PathSeparator)) {\n        return \"\", errors.New(\"path escapes destination directory\")\n    }\n    \n    return destPath, nil\n}\n\nfunc extractFile(file *zip.File, destPath string) error {\n    // Create directory structure\n    err := os.MkdirAll(filepath.Dir(destPath), 0755)\n    if err != nil {\n        return err\n    }\n    \n    // Open file from archive\n    rc, err := file.Open()\n    if err != nil {\n        return err\n    }\n    defer rc.Close()\n    \n    // Create destination file\n    outFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.FileInfo().Mode())\n    if err != nil {\n        return err\n    }\n    defer outFile.Close()\n    \n    // Limit file size to prevent zip bombs\n    limitedReader := io.LimitReader(rc, 100*1024*1024) // 100MB limit\n    \n    _, err = io.Copy(outFile, limitedReader)\n    return err\n}\n\n// Compliant: Secure tar extraction\nfunc extractTarSecure(src, dest string) error {\n    file, err := os.Open(src)\n    if err != nil {\n        return err\n    }\n    defer file.Close()\n    \n    tarReader := tar.NewReader(file)\n    \n    for {\n        header, err := tarReader.Next()\n        if err == io.EOF {\n            break\n        }\n        if err != nil {\n            return err\n        }\n        \n        // Validate and sanitize path\n        path, err := sanitizeExtractPath(dest, header.Name)\n        if err != nil {\n            return fmt.Errorf(\"invalid path %s: %v\", header.Name, err)\n        }\n        \n        switch header.Typeflag {\n        case tar.TypeDir:\n            err = os.MkdirAll(path, 0755)\n            if err != nil {\n                return err\n            }\n        case tar.TypeReg:\n            err = extractTarFile(tarReader, path, header)\n            if err != nil {\n                return err\n            }\n        case tar.TypeSymlink, tar.TypeLink:\n            // Handle links securely or skip them\n            return errors.New(\"symbolic and hard links are not supported for security\")\n        }\n    }\n    return nil\n}\n\nfunc extractTarFile(tarReader *tar.Reader, destPath string, header *tar.Header) error {\n    // Create directory structure\n    err := os.MkdirAll(filepath.Dir(destPath), 0755)\n    if err != nil {\n        return err\n    }\n    \n    // Create destination file\n    outFile, err := os.Create(destPath)\n    if err != nil {\n        return err\n    }\n    defer outFile.Close()\n    \n    // Limit file size\n    limitedReader := io.LimitReader(tarReader, header.Size)\n    if header.Size > 100*1024*1024 { // 100MB limit\n        return errors.New(\"file too large\")\n    }\n    \n    _, err = io.Copy(outFile, limitedReader)\n    return err\n}\n\n// Compliant: Archive extraction with additional security measures\ntype SecureExtractor struct {\n    MaxFileSize   int64\n    MaxFiles      int\n    AllowedExts   map[string]bool\n    DestinationDir string\n}\n\nfunc NewSecureExtractor(destDir string) *SecureExtractor {\n    return &SecureExtractor{\n        MaxFileSize:   100 * 1024 * 1024, // 100MB\n        MaxFiles:      1000,\n        AllowedExts:   map[string]bool{\".txt\": true, \".json\": true, \".csv\": true},\n        DestinationDir: destDir,\n    }\n}\n\nfunc (se *SecureExtractor) ExtractZip(src string) error {\n    reader, err := zip.OpenReader(src)\n    if err != nil {\n        return err\n    }\n    defer reader.Close()\n    \n    if len(reader.File) > se.MaxFiles {\n        return fmt.Errorf(\"too many files in archive (max %d)\", se.MaxFiles)\n    }\n    \n    for _, file := range reader.File {\n        if err := se.validateAndExtractFile(file); err != nil {\n            return err\n        }\n    }\n    \n    return nil\n}\n\nfunc (se *SecureExtractor) validateAndExtractFile(file *zip.File) error {\n    // Check file size\n    if file.UncompressedSize64 > uint64(se.MaxFileSize) {\n        return fmt.Errorf(\"file %s exceeds size limit\", file.Name)\n    }\n    \n    // Check file extension\n    ext := filepath.Ext(file.Name)\n    if !se.AllowedExts[ext] {\n        return fmt.Errorf(\"file extension %s not allowed\", ext)\n    }\n    \n    // Sanitize path\n    path, err := sanitizeExtractPath(se.DestinationDir, file.Name)\n    if err != nil {\n        return err\n    }\n    \n    // Extract file\n    return extractFile(file, path)\n}",
+        "description": "Validating file paths, checking for directory traversal, and implementing security controls prevents zip slip vulnerabilities during archive extraction."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-6096"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "method_declaration",
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "filepath\\.Join\\s*\\([^)]*,\\s*\\w*\\.Name\\s*\\)",
+          "filepath\\.Join\\s*\\([^)]*,\\s*header\\.Name\\s*\\)",
+          "filepath\\.Join\\s*\\([^)]*,\\s*file\\.Name\\s*\\)",
+          "\\w+\\s*\\+\\s*[\"'/]\\s*\\+\\s*\\w*\\.Name",
+          "[\"'`][^\"'`]*/[\"'`]\\s*\\+\\s*\\w*\\.Name",
+          "\\w*\\.Name\\s*\\+\\s*[\"'/]",
+          "fmt\\.Sprintf\\s*\\([^)]*%s[^)]*\\).*\\w*\\.Name",
+          "os\\.Create\\s*\\([^)]*\\w*\\.Name",
+          "os\\.MkdirAll\\s*\\([^)]*\\w*\\.Name",
+          "os\\.Create\\s*\\(\\s*filepath\\.Join\\([^)]*,\\s*\\w*\\.Name",
+          "os\\.MkdirAll\\s*\\(\\s*filepath\\.Join\\([^)]*,\\s*\\w*\\.Name",
+          "\\w+\\s*:=\\s*[^\\n]*\\+\\s*\\w*\\.Name",
+          "\\w+\\s*:=\\s*[^\\n]*\\.Name[^\\n]*\\+",
+          "string\\(os\\.PathSeparator\\)\\s*\\+\\s*\\w*\\.Name",
+          "baseDir\\s*\\+\\s*[^\\n]*\\w*\\.Name",
+          "dest\\s*\\+\\s*[\"'/]\\s*\\+\\s*\\w*\\.Name"
+        ],
+        "exclude_patterns": [
+          "sanitizeExtractPath\\(",
+          "validatePath\\(",
+          "cleanPath\\(",
+          "filepath\\.Clean\\(",
+          "strings\\.Contains.*\\.\\.",
+          "filepath\\.IsAbs\\(",
+          "HasPrefix.*Clean",
+          "//.*safe",
+          "//.*SAFE",
+          "//.*secure",
+          "//.*validation",
+          "//.*check",
+          "ValidateFileName",
+          "CheckPath",
+          "SecureExtractor",
+          "allowedExts",
+          "MaxFileSize"
+        ],
+        "message": "Zip slip vulnerability detected. File path from archive used without proper validation - may allow directory traversal attacks."
+      }
+    ]
+  }
+}

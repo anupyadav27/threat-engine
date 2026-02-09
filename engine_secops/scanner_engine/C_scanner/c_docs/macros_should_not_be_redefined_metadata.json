@@ -1,0 +1,58 @@
+{
+  "filename": "macros_should_not_be_redefined_metadata.json",
+  "rule_id": "macros_redefined",
+  "title": "Macros should not be redefined",
+  "description": "Macros should not be redefinedAnalyze your codeintentionality-clearmaintainabilityCode SmellconfusingWhy is this an issue?A macro definition should not be redefined without marking that intent specifically by un-defining it first.Noncompliant code example#define A 1 #define A 2Compliant solution#define A 1 #undef A #define A 2ExceptionsIf the redefinition has the same value as the original one. This is consistent with most C compilers warnings.#define A 1 #define A 1Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Redefining without undefining first\n#define MAX_SIZE 100\n// ... later in code\n#define MAX_SIZE 200 // Non-compliant redefinition\n\n// Another example\n#define DEBUG 1\n#define DEBUG 0 // Non-compliant"
+    ],
+    "compliant": [
+      "// Properly undefine before redefining\n#define MAX_SIZE 100\n// ... later in code\n#undef MAX_SIZE\n#define MAX_SIZE 200 // Compliant\n\n// Exception: Same value redefinition is allowed\n#define VERSION 1\n#define VERSION 1 // Compliant - same value\n\n// Better approach: use different names\n#define INITIAL_MAX_SIZE 100\n#define UPDATED_MAX_SIZE 200"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3744"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective",
+      "Statement",
+      "ConditionalDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#define\\s+([A-Z_][A-Z0-9_]*)\\s+.*\\n.*#define\\s+\\1",
+          "#define\\s+MAX_SIZE\\s+\\d+",
+          "#define\\s+DEBUG\\s+\\d+",
+          "#define\\s+VERSION\\s+",
+          "#define\\s+BUFFER_SIZE\\s+",
+          "#define\\s+TIMEOUT\\s+",
+          "#define\\s+CONFIG_\\w+\\s+",
+          "#define\\s+FEATURE_\\w+\\s+",
+          "#define\\s+API_\\w+\\s+",
+          "#define\\s+FLAG_\\w+\\s+",
+          "#define\\s+ENABLE_\\w+\\s+",
+          "#define\\s+DISABLE_\\w+\\s+",
+          "#define\\s+[A-Z_][A-Z0-9_]*_SIZE\\s+",
+          "#define\\s+[A-Z_][A-Z0-9_]*_COUNT\\s+",
+          "#define\\s+[A-Z_][A-Z0-9_]*_LIMIT\\s+"
+        ],
+        "message": "Macros should not be redefined without #undef."
+      }
+    ]
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "filename": "signalh_should_be_avoided_metadata.json",
+  "rule_id": "signalh_avoided",
+  "title": "<signal.h> should be avoided",
+  "description": "\"<signal.h>\" should not be usedAnalyze your codeconsistency-conventionalreliabilityBugbased-on-misralock-inWhy is this an issue?More InfoSignal handling contains implementation-defined and undefined behavior.Noncompliant code example#include <signal.h> /* Noncompliant */Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <signal.h> // Noncompliant: signal handling has undefined behavior\n#include <stdio.h>\n\nvoid signal_handler(int sig) {\n    printf(\"Signal received: %d\", sig);\n}\n\nint main() {\n    signal(SIGINT, signal_handler); // Noncompliant: using signal()\n    while(1) {\n        // Main loop\n    }\n    return 0;\n}"
+    ],
+    "compliant": [
+      "#include <stdio.h>\n#include <stdbool.h>\n\n// Use polling or other synchronization mechanisms\nvolatile bool should_exit = false;\n\nint main() {\n    while (!should_exit) {\n        // Check for exit conditions explicitly\n        // Use proper synchronization mechanisms\n        // Handle events through polling or other means\n    }\n    return 0;\n}\n\n// Alternative: use platform-specific event mechanisms\n// like epoll on Linux, kqueue on BSD, or IOCP on Windows"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-987"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective",
+      "CallExpression",
+      "Identifier"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#include\\s*<signal\\.h>",
+          "#include\\s*\"signal\\.h\"",
+          "#\\s*include\\s*<signal\\.h>",
+          "#\\s*include\\s*\"signal\\.h\""
+        ],
+        "message": "<signal.h> should be avoided"
+      },
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "name"
+        ],
+        "forbidden_values": [
+          "signal",
+          "raise",
+          "alarm",
+          "kill",
+          "pause",
+          "abort",
+          "sigaction",
+          "sigprocmask",
+          "sigpending",
+          "sigsuspend",
+          "sigaltstack",
+          "sigqueue",
+          "sigwait",
+          "sigwaitinfo",
+          "sigtimedwait"
+        ],
+        "message": "Signal handling functions should be avoided"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\bSIG[A-Z][A-Z0-9_]*\\s*[;,=\\)]",
+          "\\bsig_t\\b",
+          "\\bsigset_t\\b", 
+          "\\bstruct\\s+sigaction\\b",
+          "\\bsiginfo_t\\b",
+          "\\bSIG_DFL\\b",
+          "\\bSIG_IGN\\b",
+          "\\bSIG_ERR\\b"
+        ],
+        "exclude_patterns": [
+          "//.*",
+          "/\\*.*?\\*/",
+          "\\*.*signal",
+          "Test.*signal",
+          "printf.*signal",
+          "Testing.*signal"
+        ],
+        "message": "Signal-related types and constants should be avoided"
+      }
+    ]
+  }
+}

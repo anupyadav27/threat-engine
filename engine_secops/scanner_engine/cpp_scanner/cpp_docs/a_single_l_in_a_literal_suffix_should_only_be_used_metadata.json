@@ -1,0 +1,48 @@
+{
+  "filename": "a_single_l_in_a_literal_suffix_should_only_be_used_metadata.json",
+  "rule_id": "single_l_literal_suffix",
+  "title": "A single L in a literal suffix should only be used for long values",
+  "description": "A single L in a literal suffix should only be used for long valuesAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEsince-c++11Why is this an issue?How can I fix it?More InfoThe type of an integer literal depends on three parameters: the value of the literal, whether it is written in decimal or not, and its suffix.A literal with a singleL(orl) will usually be of a (possiblyunsigned)longtype. But if its value cannot be represented in this type, it will be of a (possiblyunsigned)long longtype instead.In such a case, it is more straightforward to useLLin the literal suffix, which unambiguously specifies along longtype.Note: This rule targets classical integer literals, not user-defined literals whose type is entirely determi",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using single L for values that don't fit in long\nauto large_value = 9223372036854775808L; // Noncompliant: value too large for long, becomes long long\n\n// Ambiguous suffix\nauto value1 = 1000000L; // Noncompliant: unclear if long or long long intended\nauto value2 = 0x1FFFFFFFFL; // Noncompliant: may not fit in long on some systems"
+    ],
+    "compliant": [
+      "// Use LL for long long values\nauto large_value = 9223372036854775808LL; // Compliant: explicitly long long\n\n// Use L only for values that definitely fit in long\nauto small_value = 1000L; // Compliant: clearly fits in long\n\n// Use appropriate suffixes\nauto int_value = 42;        // Compliant: int literal\nauto long_value = 42L;      // Compliant: long literal\nauto longlong_value = 42LL; // Compliant: long long literal\nauto unsigned_value = 42U;  // Compliant: unsigned literal\nauto ul_value = 42UL;       // Compliant: unsigned long literal"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6996"
+  ],
+  "logic": {
+    "node_types": [
+      "number_literal"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(?:[1-9]\\d{6,}|[1-9]\\d{5}[5-9]|[5-9]\\d{5})L\\b",
+          "\\b0x(?:[1-9A-Fa-f][0-9A-Fa-f]{4,}|[5-9A-Fa-f][0-9A-Fa-f]{3}|[A-Fa-f][0-9A-Fa-f]{3,})L\\b",
+          "\\b0[0-7]{8,}L\\b"
+        ],
+        "exclude_patterns": [
+          "\\b(?:[1-9]\\d{0,4}|[1-4]\\d{4})L\\b",
+          "\\b0x(?:[1-4][0-9A-Fa-f]{0,3}|[0-9A-Fa-f]{1,3})L\\b"
+        ],
+        "message": "A single L in a literal suffix should only be used for long values"
+      }
+    ]
+  }
+}

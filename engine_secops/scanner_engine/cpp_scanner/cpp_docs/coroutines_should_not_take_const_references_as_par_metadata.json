@@ -1,0 +1,44 @@
+{
+  "filename": "coroutines_should_not_take_const_references_as_par_metadata.json",
+  "rule_id": "coroutines_take_const_references",
+  "title": "Coroutines should not take const references as parameters",
+  "description": "Coroutines, introduced in C++20, are functions in which execution can be suspended and resumed. When a coroutine resumes, it takes over where it left thanks to the coroutine state. A coroutine state is an object which contains all the information a coroutine needs to resume its execution correctly: local variables, copy of the parameters… This means that if a coroutine has a parameter that is a reference to an object, this object must exist as long as the coroutine is not destroyed.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: const reference parameters\ncppcoro::task<void> processData(const std::string& data) {\n    // The reference may become invalid if the caller\n    // destroys the string before the coroutine completes\n    co_await someAsyncOperation();\n    std::cout << data << std::endl; // Potential dangling reference\n}\n\ncppcoro::generator<int> processVector(const std::vector<int>& vec) {\n    for (const auto& item : vec) {\n        co_await std::chrono::milliseconds(100);\n        co_yield item; // vec may be destroyed\n    }\n}"
+    ],
+    "compliant": [
+      "// Compliant: Pass by value\ncppcoro::task<void> processData(std::string data) {\n    // Safe: data is copied\n    co_await someAsyncOperation();\n    std::cout << data << std::endl;\n}\n\n// Compliant: Use string_view for read-only access\ncppcoro::task<void> processDataView(std::string_view data) {\n    // Process immediately, don't store reference\n    logData(data);\n    co_await someAsyncOperation();\n}\n\n// Compliant: Move semantics\ncppcoro::task<void> processDataMove(std::string&& data) {\n    std::string local_data = std::move(data);\n    co_await someAsyncOperation();\n    std::cout << local_data << std::endl;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6391"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\b(task|generator|Task|Generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\bconst\\s+[^&,)]*\\s*&\\s*[\\w:]+[^)]*\\)",
+          "\\b(task|generator|Task|Generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\bconst\\s+\\w[^&,)]*\\s*&\\s*[^)]*\\)",
+          "\\b(task|generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*const\\s+(std\\s*::\\s*)?\\w+[^&,)]*&[^)]*\\)",
+          "(task|generator|Task|Generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\bconst\\s+[\\w:]+\\s*&\\s*\\w+[^)]*\\)",
+          "\\b(task|generator)\\s*<[^>]*>\\s+[\\w:]+\\s*\\([^)]*const\\s+[\\w:<>\\s]+&\\s*[\\w]+[^)]*\\)"
+        ],
+        "message": "Coroutines should not take const references as parameters"
+      }
+    ]
+  }
+}

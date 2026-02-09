@@ -1,0 +1,42 @@
+{
+  "filename": "local_variables_and_member_data_should_not_be_vola_metadata.json",
+  "rule_id": "local_variables_member_data",
+  "title": "Local variables and member data should not be volatile",
+  "description": "The main intended use-case for volatile in C and C++ is to access data that can be modified by something external to the program, typically some hardware register. In contrast with some other languages with a volatile keyword, it does not provide any useful guarantees related to atomicity, memory ordering, or inter-thread synchronization. It is only really needed for the kind of low-level code found in kernels or embedded software, i.e.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void function() {\n    volatile int localCounter = 0; // Noncompliant: unnecessary volatile for local var\n    localCounter++;\n}",
+      "class DataProcessor {\nprivate:\n    volatile int memberCount; // Noncompliant: volatile member data usually inappropriate\n    volatile std::string name; // Noncompliant\n};",
+      "void process() {\n    volatile bool flag = true; // Noncompliant: simple local variable\n    if (flag) doSomething();\n}"
+    ],
+    "compliant": [
+      "void function() {\n    int localCounter = 0; // Compliant: no volatile needed\n    localCounter++;\n}",
+      "class DataProcessor {\nprivate:\n    std::atomic<int> memberCount; // Compliant: use atomic for thread safety\n    std::string name; // Compliant: regular member\n};",
+      "void process() {\n    bool flag = true; // Compliant\n    if (flag) doSomething();\n}\n\n// Valid volatile usage:\nvolatile int* memoryMappedRegister = (volatile int*)0x12345678;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3687"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_volatile_usage",
+        "message": "Avoid using volatile for local variables and member data"
+      }
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "filename": "cstdio_should_be_avoided_metadata.json",
+  "rule_id": "cstdio_avoided",
+  "title": "<cstdio> should be avoided",
+  "description": "\"<cstdio>\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode Smellbased-on-misralock-inWhy is this an issue?More InfoThis includes file and I/O functionsfgetpos,fopen,ftell,gets,perror,remove,rename, etc.Streams and file I/O have a large number of unspecified, undefined and implementation-defined behaviors associated with them.Noncompliant code example#include <cstdio> /* Noncompliant */ void fn() { char_t array[10]; gets(array); /* Can lead to buffer over-run */ }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Using C stdio functions\n#include <cstdio>\n\nvoid unsafeFileHandling() {\n    char buffer[10];\n    gets(buffer); // Dangerous: buffer overflow risk\n    \n    FILE* file = fopen(\"data.txt\", \"r\");\n    fgets(buffer, sizeof(buffer), file);\n    fclose(file);\n}\n\nvoid unsafeInput() {\n    char input[100];\n    scanf(\"%s\", input); // Risk of buffer overflow\n    printf(\"Input: %s\\n\", input);\n}"
+    ],
+    "compliant": [
+      "// Compliant: Using C++ streams\n#include <iostream>\n#include <fstream>\n#include <string>\n\nvoid safeFileHandling() {\n    std::ifstream file(\"data.txt\");\n    std::string line;\n    if (file.is_open()) {\n        std::getline(file, line);\n        file.close();\n    }\n}\n\nvoid safeInput() {\n    std::string input;\n    std::cin >> input; // Safe input handling\n    std::cout << \"Input: \" << input << std::endl;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1055"
+  ],
+  "logic": {
+    "node_types": [
+      "IncludeDirective", "FunctionDefinition", "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#include\\s*[<\"]cstdio[>\"]",
+          "#include\\s*[<\"]stdio\\.h[>\"]"
+        ],
+        "message": "Remove the problematic code and refactor as needed."
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "\\bgets\\s*\\(",
+          "\\b(printf|fprintf|sprintf|snprintf|vprintf|vsprintf|vfprintf|vsnprintf)\\s*\\(",
+          "\\b(scanf|fscanf|sscanf|vscanf|vfscanf|vsscanf)\\s*\\(",
+          "\\b(fopen|fclose|fflush|freopen)\\s*\\(",
+          "\\b(fgets|fputs|fgetc|fputc|ungetc)\\s*\\(",
+          "\\b(fread|fwrite)\\s*\\(",
+          "\\b(fseek|ftell|fgetpos|fsetpos|rewind)\\s*\\(",
+          "\\b(feof|ferror|clearerr)\\s*\\(",
+          "\\b(remove|rename|tmpfile|tmpnam|mktemp)\\s*\\(",
+          "\\b(perror|puts|putchar|getchar)\\s*\\(",
+          "\\b(setbuf|setvbuf)\\s*\\("
+        ],
+        "message": "Replace C stdio functions with C++ stream I/O functions"
+      }
+    ]
+  }
+}

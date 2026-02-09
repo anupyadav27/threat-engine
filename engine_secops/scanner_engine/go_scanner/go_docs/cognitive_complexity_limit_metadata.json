@@ -1,0 +1,37 @@
+{
+  "filename": "cognitive_complexity_limit_metadata.json",
+  "rule_id": "complexity_cognitive_complexity_limit",
+  "title": "Limit function cognitive complexity",
+  "description": "Functions with high cognitive complexity are difficult to understand, test, and maintain. Cognitive complexity measures how hard it is for humans to understand the control flow, considering nested conditions, loops, and other complexity factors.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Break down complex functions into smaller, simpler functions with clear single responsibilities.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: High cognitive complexity function\nfunc processUserData(users []User, filters map[string]interface{}) []User {\n    var result []User\n    for _, user := range users {\n        if user.Active {\n            if filters[\"age\"] != nil {\n                if age, ok := filters[\"age\"].(int); ok {\n                    if user.Age >= age {\n                        if filters[\"department\"] != nil {\n                            if dept, ok := filters[\"department\"].(string); ok {\n                                if user.Department == dept {\n                                    if filters[\"salary\"] != nil {\n                                        if salary, ok := filters[\"salary\"].(float64); ok {\n                                            if user.Salary >= salary {\n                                                if user.HasPermission(\"read\") {\n                                                    result = append(result, user)\n                                                }\n                                            }\n                                        }\n                                    } else {\n                                        result = append(result, user)\n                                    }\n                                }\n                            }\n                        } else {\n                            result = append(result, user)\n                        }\n                    }\n                }\n            } else {\n                result = append(result, user)\n            }\n        }\n    }\n    return result\n}",
+        "description": "Deeply nested conditions create high cognitive complexity that is hard to understand and maintain."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\n// Compliant: Refactored into smaller, focused functions\nfunc processUserData(users []User, filters map[string]interface{}) []User {\n    var result []User\n    for _, user := range users {\n        if shouldIncludeUser(user, filters) {\n            result = append(result, user)\n        }\n    }\n    return result\n}\n\nfunc shouldIncludeUser(user User, filters map[string]interface{}) bool {\n    if !user.Active || !user.HasPermission(\"read\") {\n        return false\n    }\n    \n    return matchesAgeFilter(user, filters) &&\n           matchesDepartmentFilter(user, filters) &&\n           matchesSalaryFilter(user, filters)\n}\n\nfunc matchesAgeFilter(user User, filters map[string]interface{}) bool {\n    age, exists := filters[\"age\"].(int)\n    return !exists || user.Age >= age\n}\n\nfunc matchesDepartmentFilter(user User, filters map[string]interface{}) bool {\n    dept, exists := filters[\"department\"].(string)\n    return !exists || user.Department == dept\n}\n\nfunc matchesSalaryFilter(user User, filters map[string]interface{}) bool {\n    salary, exists := filters[\"salary\"].(float64)\n    return !exists || user.Salary >= salary\n}",
+        "description": "Break complex logic into smaller, focused functions with clear responsibilities."
+      }
+    ]
+  },
+  "references": ["https://rules.sonarsource.com/go/RSPEC-3776"],
+  "logic": {
+    "node_types": ["function_declaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source_text"],
+        "patterns": ["if\\s+.*\\{.*if\\s+.*\\{.*if\\s+.*\\{", "for\\s+.*\\{.*for\\s+.*\\{.*for\\s+.*\\{"],
+        "message": "Reduce function cognitive complexity"
+      }
+    ]
+  }
+}

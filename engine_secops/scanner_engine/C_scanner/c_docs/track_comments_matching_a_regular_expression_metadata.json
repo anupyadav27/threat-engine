@@ -1,0 +1,43 @@
+{
+  "filename": "track_comments_matching_a_regular_expression_metadata.json",
+  "rule_id": "track_comments_matching_regular",
+  "title": "Track comments matching a regular expression",
+  "description": "Track comments matching a regular expressionAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?This rule will be triggered when a comment matches one of the given regular expressions.For example, the following configuration raises issues for two different situations, each line contains a message followed by a POSIX regular expression separated by a pipe|character.This comment should be reviewed.|.*REVIEW.* Do not hardcode passwords.|.*(123456|password).*Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// REVIEW: This code needs to be checked\nvoid unsafeFunction() {\n    // password = \"123456\"; // Hardcoded password\n    char buffer[10];\n    strcpy(buffer, userInput); // Potential buffer overflow\n}\n\n/* REVIEW - security issue */\nvoid authenticate() {\n    if (strcmp(password, \"password\") == 0) {\n        grant_access();\n    }\n}"
+    ],
+    "compliant": [
+      "// Properly reviewed and secure code\nvoid safeFunction() {\n    // Use secure password storage\n    if (verify_password_hash(userInput, storedHash)) {\n        // Secure password verification\n    }\n    \n    // Use safe string operations\n    char buffer[256];\n    strncpy(buffer, userInput, sizeof(buffer) - 1);\n    buffer[sizeof(buffer) - 1] = '\\0';\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5639"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?i)//.*?\\b(todo|fixme|hack|review|deprecated|obsolete|legacy|workaround|password|123456|hardcoded|security|unsafe|vulnerable|bug)\\b.*",
+          "(?i)/\\*[\\s\\S]*?\\b(todo|fixme|hack|review|deprecated|obsolete|legacy|workaround|password|123456|hardcoded|security|unsafe|vulnerable|bug)\\b[\\s\\S]*?\\*/"
+        ],
+        "message": "Comment matching pattern detected. Review comment content for compliance with coding standards."
+      }
+    ]
+  }
+}

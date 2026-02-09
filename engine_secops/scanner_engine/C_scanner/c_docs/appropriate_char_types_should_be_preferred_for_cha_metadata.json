@@ -1,0 +1,54 @@
+{
+  "filename": "appropriate_char_types_should_be_preferred_for_cha_metadata.json",
+  "rule_id": "appropriate_char_types_preferred",
+  "title": "Appropriate char types should be preferred for character and integer values",
+  "description": "Appropriate char types should be used for character and integer valuesAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misracertconfusingWhy is this an issue?More InfoThere are three distinctchartypes, (plain)char,signed charandunsigned char.signed charandunsigned charshould only be used for numeric data, and plaincharshould only be used for character data. Since it is implementation-defined, the signedness of the plainchartype should not be assumed.Noncompliant code examplesigned char a = 'a'; // Noncompliant, explicitly signed unsigned char b = '\\r'; // Noncompliant, explicitly unsigned char c = 10; // Noncompliant unsigned char d = c; // Noncompliant, d is explicitly signed while c is not char e = a; // Noncompliant, a is explicitly signed while e is notCompliant s",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "signed char a = 'a';        // Should use plain char for characters",
+      "unsigned char b = '\\r';     // Should use plain char for characters",
+      "char c = 10;               // Should use signed/unsigned char for numeric values",
+      "unsigned char d = c;       // Mixing explicit and plain char types",
+      "char e = a;                // Mixing plain and explicitly signed char"
+    ],
+    "compliant": [
+      "char a = 'a';              // Plain char for character data",
+      "char b = '\\r';            // Plain char for character literals",
+      "signed char c = 10;        // Signed char for numeric data",
+      "unsigned char d = 255;     // Unsigned char for numeric data",
+      "char str[] = \"hello\";      // Plain char for string data"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-810"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "signed\\s+char\\s+\\w+\\s*=\\s*'[^']*'",
+          "unsigned\\s+char\\s+\\w+\\s*=\\s*'[^']*'",
+          "char\\s+\\w+\\s*=\\s*[0-9]+\\s*;",
+          "char\\s+\\w+\\s*=\\s*-[0-9]+\\s*;"
+        ],
+        "message": "Inappropriate char type usage. Use plain char for character data, signed/unsigned char for numeric data only."
+      }
+    ]
+  }
+}

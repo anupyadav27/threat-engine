@@ -1,0 +1,62 @@
+{
+  "filename": "debug_features_production_metadata.json",
+  "rule_id": "security_debug_features_production",
+  "title": "Remove debug features from production",
+  "description": "Deploying applications with debug features enabled in production environments creates security risks by exposing internal application details, error messages, and potentially sensitive information that attackers can exploit.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Disable all debug features, verbose logging, and development tools before deploying to production.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"log\"\n    \"net/http\"\n    \"os\"\n)\n\n// Noncompliant: Debug features enabled in production\nconst DEBUG = true\n\nfunc main() {\n    // BAD: Debug mode always enabled\n    if DEBUG {\n        log.SetFlags(log.LstdFlags | log.Lshortfile)\n        log.Println(\"Debug mode enabled\")\n    }\n    \n    http.HandleFunc(\"/debug\", debugHandler)\n    http.ListenAndServe(\":8080\", nil)\n}\n\nfunc debugHandler(w http.ResponseWriter, r *http.Request) {\n    // BAD: Exposing internal state in production\n    fmt.Fprintf(w, \"Debug Info:\\n\")\n    fmt.Fprintf(w, \"Environment Variables: %v\\n\", os.Environ())\n    fmt.Fprintf(w, \"Request Headers: %v\\n\", r.Header)\n    // Potentially exposing sensitive information\n}\n\nfunc processRequest(req *Request) error {\n    // BAD: Verbose error messages in production\n    if err := validateRequest(req); err != nil {\n        log.Printf(\"Validation failed: %v, Request: %+v\", err, req)\n        return fmt.Errorf(\"validation error: %v, full request: %+v\", err, req)\n    }\n    return nil\n}",
+        "description": "Debug features and verbose logging expose sensitive information in production."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"log\"\n    \"net/http\"\n    \"os\"\n)\n\n// Compliant: Environment-based debug configuration\nvar DEBUG = os.Getenv(\"DEBUG\") == \"true\"\n\nfunc main() {\n    // GOOD: Debug mode controlled by environment\n    if DEBUG {\n        log.SetFlags(log.LstdFlags | log.Lshortfile)\n        log.Println(\"Debug mode enabled\")\n        // Only register debug endpoints in debug mode\n        http.HandleFunc(\"/debug\", debugHandler)\n    } else {\n        // Production logging configuration\n        log.SetFlags(0)\n    }\n    \n    http.HandleFunc(\"/health\", healthHandler)\n    http.ListenAndServe(\":8080\", nil)\n}\n\nfunc debugHandler(w http.ResponseWriter, r *http.Request) {\n    // GOOD: Only available when debug is explicitly enabled\n    if !DEBUG {\n        http.NotFound(w, r)\n        return\n    }\n    \n    // Provide limited, safe debug information\n    fmt.Fprintf(w, \"Debug Info:\\n\")\n    fmt.Fprintf(w, \"Method: %s\\n\", r.Method)\n    fmt.Fprintf(w, \"URL: %s\\n\", r.URL.Path)\n    // Don't expose sensitive data\n}\n\nfunc healthHandler(w http.ResponseWriter, r *http.Request) {\n    // GOOD: Production-safe endpoint\n    w.WriteHeader(http.StatusOK)\n    fmt.Fprintf(w, \"OK\")\n}\n\nfunc processRequest(req *Request) error {\n    // GOOD: Different error handling for debug vs production\n    if err := validateRequest(req); err != nil {\n        if DEBUG {\n            log.Printf(\"Validation failed: %v, Request ID: %s\", err, req.ID)\n        } else {\n            log.Printf(\"Validation failed for request %s\", req.ID)\n        }\n        \n        // Return safe error message in production\n        return fmt.Errorf(\"validation error\")\n    }\n    return nil\n}",
+        "description": "Use environment variables to control debug features and avoid exposing sensitive information in production."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-4507"
+  ],
+  "logic": {
+    "node_types": [
+      "const_declaration",
+      "var_declaration",
+      "short_var_declaration", 
+      "call_expression",
+      "assignment_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "const\\s+DEBUG\\s*=\\s*true",
+          "var\\s+.*[Dd]ebug.*\\s*=\\s*true",
+          "[Dd]ebug.*:=\\s*true",
+          "fmt\\.Print[fln]*\\s*\\([^)]*[Dd]ebug",
+          "log\\.Print[fln]*\\s*\\([^)]*[Dd]ebug",
+          "fmt\\.Print[fln]*\\s*\\(",
+          "log\\.Print[fln]*\\s*\\(",
+          "/debug",
+          "debugHandler",
+          "debugMiddleware",
+          "PrintStack\\s*\\(",
+          "os\\.Environ\\s*\\(\\)",
+          "DEBUG_MODE",
+          "VERBOSE_DEBUG"
+        ],
+        "message": "Debug features detected: Remove debug code, verbose logging, and debug endpoints from production"
+      }
+    ]
+  }
+}

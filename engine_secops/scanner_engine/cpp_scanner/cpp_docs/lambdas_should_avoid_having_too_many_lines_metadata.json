@@ -1,0 +1,43 @@
+{
+  "filename": "lambdas_should_avoid_having_too_many_lines_metadata.json",
+  "rule_id": "lambdas_avoid_having_too",
+  "title": "Lambdas should avoid having too many lines",
+  "description": "Lambdas should not have too many linesAnalyze your codeadaptability-focusedmaintainabilityCode Smellsince-c++11Why is this an issue?Lambdas (introduced in C++11) are a very convenient and compact way to inject a behavior without having to create a dedicated function. But those lambdas should be used only if the behavior to be injected can be defined in a few lines of code, otherwise the source code can quickly become unreadable.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "auto complexLambda = [](const std::vector<int>& data) {\n  // This lambda is too long and complex\n  std::vector<int> result;\n  for (size_t i = 0; i < data.size(); ++i) {\n    if (data[i] % 2 == 0) {\n      int processed = data[i] * 2;\n      if (processed > 100) {\n        processed = processed / 2 + 10;\n      } else {\n        processed = processed + 5;\n      }\n      result.push_back(processed);\n    }\n  }\n  std::sort(result.begin(), result.end());\n  return result;\n}; // Noncompliant - too many lines"
+    ],
+    "compliant": [
+      "// Short, focused lambdas\nauto isEven = [](int x) { return x % 2 == 0; }; // Compliant\n\nauto multiply = [](int a, int b) { \n  return a * b; \n}; // Compliant - simple and short",
+      "// For complex logic, use separate functions\nstd::vector<int> processEvenNumbers(const std::vector<int>& data) {\n  std::vector<int> result;\n  // ... complex processing logic\n  return result;\n}\n\n// Use the function instead of a large lambda\nauto processor = processEvenNumbers; // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1188"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_lambda_lines",
+        "message": "Lambda expression has too many lines and should be refactored into a separate function",
+        "parameters": {
+          "max_lines": 5,
+          "exclude_comments": true,
+          "exclude_empty_lines": true
+        }
+      }
+    ]
+  }
+}

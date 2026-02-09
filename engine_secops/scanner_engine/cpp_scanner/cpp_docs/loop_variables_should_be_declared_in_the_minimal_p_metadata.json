@@ -1,0 +1,48 @@
+{
+  "filename": "loop_variables_should_be_declared_in_the_minimal_p_metadata.json",
+  "rule_id": "loop_variables_declared_minimal",
+  "title": "Loop variables should be declared in the minimal possible scope",
+  "description": "Loop variables should be declared in the minimal possible scopeAnalyze your codeadaptability-modularmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEcppcoreguidelinesclumsyWhy is this an issue?More InfoWhen a loop variable is not used outside of a loop, it should be declared inside the loop declaration:It improves readability. The scope of the variable is clearly defined.It reduces the number of mistakes. The variable can’t be accidentally misused outside of the loop.Resources are not retained longer than necessary.Noncompliant code examplevoid f() { int i = 0; // Noncompliant: i is not used outside of the loop for (i = 0; i < 10; ++i) { std::cout << i << std::endl; } }Compliant solutionvoid f() { for (int i = 0; i < 10; ++i) { std::cout << i << std::endl;",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f() {\n  int i = 0; // Noncompliant: i is not used outside of the loop\n  for (i = 0; i < 10; ++i) {\n    std::cout << i << std::endl;\n  }\n}",
+      "void process() {\n  size_t j; // Noncompliant: declared outside loop\n  for (j = 0; j < data.size(); ++j) {\n    process(data[j]);\n  }\n}",
+      "void iterate() {\n  auto it = container.begin(); // Noncompliant: not used after loop\n  for (it = container.begin(); it != container.end(); ++it) {\n    handleElement(*it);\n  }\n}"
+    ],
+    "compliant": [
+      "void f() {\n  for (int i = 0; i < 10; ++i) { // Compliant: declared in loop\n    std::cout << i << std::endl;\n  }\n}",
+      "void process() {\n  for (size_t j = 0; j < data.size(); ++j) { // Compliant\n    process(data[j]);\n  }\n}",
+      "void iterate() {\n  for (auto it = container.begin(); it != container.end(); ++it) { // Compliant\n    handleElement(*it);\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5955"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "FunctionDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "int\\s+(\\w+)\\s*[=;][^}]*for\\s*\\(\\s*\\1\\s*=",
+          "\\w+\\s+(\\w+)\\s*;[^}]*for\\s*\\([^;]*\\1[^;]*;"
+        ],
+        "message": "Loop variable should be declared in the for loop initialization to minimize scope."
+      }
+    ]
+  }
+}

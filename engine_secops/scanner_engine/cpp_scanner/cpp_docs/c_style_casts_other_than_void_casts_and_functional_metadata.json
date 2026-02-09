@@ -1,0 +1,41 @@
+{
+  "filename": "c_style_casts_other_than_void_casts_and_functional_metadata.json",
+  "rule_id": "cstyle_casts_other_than",
+  "title": "C-style casts (other than void casts) and functional notation casts (other than explicit constructor calls) shall not be used",
+  "description": "C-style casts (other than void casts) and functional notation casts (other than explicit constructor calls) shall not be usedAnalyze your codeintentionality-clearmaintainabilityCode Smellmisra-c++2008Why is this an issue?More InfoThis rule is a strict implementation of a MISRA (Motor Industry Software Reliability Association) rule. MISRA defines best practices for developing safety-critical software. You can learn more about this rule in the MISRA documents referenced below.If you are not concerned with MISRA compliance or with safety-critical software, you might consider using ruleS871instead ; it targets the same kind of issue for general-purpose software.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositor",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "double value = 42.7;\nint result = (int)value;           // Noncompliant: C-style cast\nint result2 = int(value);          // Noncompliant: functional notation cast\n\nclass Base {};\nclass Derived : public Base {};\nBase* base = new Derived();\nDerived* derived = (Derived*)base; // Noncompliant: unsafe downcast"
+    ],
+    "compliant": [
+      "double value = 42.7;\nint result = static_cast<int>(value);        // Compliant: explicit static_cast\n\nclass Base { virtual ~Base() {} };\nclass Derived : public Base {};\nBase* base = new Derived();\nDerived* derived = dynamic_cast<Derived*>(base);  // Compliant: safe downcast\n\n// Void casts are still allowed (for suppressing unused variable warnings)\nint unused_var = 42;\n(void)unused_var;  // Compliant: void cast is permitted"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5303"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\([a-zA-Z_]\\w*\\s*[*&]*\\)\\s*\\w+",
+        "message": "Use C++ style casts (static_cast, dynamic_cast, etc.) instead of C-style casts."
+      }
+    ]
+  }
+}

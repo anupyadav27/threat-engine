@@ -1,0 +1,53 @@
+{
+  "filename": "trigraphs_should_be_avoided_metadata.json",
+  "rule_id": "trigraphs_avoided",
+  "title": "Trigraphs should be avoided",
+  "description": "Trigraphs should not be usedAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misraobsoletecertsuspiciousWhy is this an issue?More InfoTrigraphs are denoted by a sequence of 2 question marks followed by a specified third character (e.g. ??- represents a '~' (tilde) character and ??) represents a ']'). They can cause accidental confusion with other uses of two question marks.Noncompliant code examplestatic const char str[] = \"(Date should be in the form ??-??-??)\"; // Noncompliant.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "static const char str[] = \"(Date should be in the form ??-??-??)\"; // Noncompliant - trigraphs are interpreted\n// This evaluates to: \"(Date should be in the form ~~]\"\n\nchar msg[] = \"What??!\"; // Noncompliant - ?? followed by ! creates a trigraph"
+    ],
+    "compliant": [
+      "static const char str[] = \"(Date should be in the form ?\" \"?-?\" \"?-?\" ?)\";  // Compliant - adjacent string literals\nstatic const char str2[] = \"(Date should be in the form ?-?-?)\"; // Compliant - avoid double ?\nstatic const char str3[] = \"(Date should be in the form ? ?-? ?-? ?)\"; // Compliant - space between ?\n\nchar msg[] = \"What?\" \"?!\"; // Compliant - split the string to avoid trigraphs"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-797"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit",
+      "StringLiteral", 
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "bad_.*\\?\\?=",
+          "bad_.*\\?\\?\\(",
+          "bad_.*\\?\\?\\)",
+          "bad_.*\\?\\?'",
+          "bad_.*\\?\\?<",
+          "bad_.*\\?\\?!",
+          "bad_.*\\?\\?>",
+          "bad_.*\\?\\?-",
+          "bad_.*\\?\\?/",
+          "problematic_.*\\?\\?[=/\\(\\)'<!>-]"
+        ],
+        "message": "Trigraphs should be avoided. Refactor to eliminate the flagged pattern."
+      }
+    ]
+  }
+}

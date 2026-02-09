@@ -1,0 +1,59 @@
+{
+  "filename": "logical_operators_should_not_be_confused_with_bitw_metadata.json",
+  "rule_id": "logical_operators_confused_bitwise",
+  "title": "Logical operators should not be confused with bitwise operators",
+  "description": "Logical operators should not be confused with bitwise operatorsAnalyze your codeintentionality-logicalmaintainabilityCode SmellpitfallWhy is this an issue?More InfoWhile working with bitwise operators&or|, it is easy to make a typo and write the equivalent logical operators&&or||. This rule raises an issue when the right operand of a logical expression&&or||is a constant of integral type, as the developer probably meant to use the corresponding bitwise operator&or|.Noncompliant code exampleint fun(int a) { return a || 4; // Noncompliant: did you mean to use bitwise operator '|'? }Compliant solutionint fun(int a) { return a | 4; }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-pre",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int result = value || 4; // Noncompliant: probably meant bitwise OR",
+      "if (flags && 0x80) // Noncompliant: probably meant bitwise AND",
+      "return status || MASK_BIT; // Noncompliant: logical OR with constant",
+      "bool check = (x && 0xFF); // Noncompliant: logical AND with bitmask"
+    ],
+    "compliant": [
+      "int result = value | 4; // Compliant: bitwise OR",
+      "if (flags & 0x80) // Compliant: bitwise AND for flag checking",
+      "return status | MASK_BIT; // Compliant: bitwise OR",
+      "bool check = (x & 0xFF) != 0; // Compliant: bitwise AND with proper comparison"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5263"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\|\\|\\s*\\d+",
+          "\\d+\\s*\\|\\|",
+          "\\|\\|\\s*0[xX][0-9a-fA-F]+",
+          "0[xX][0-9a-fA-F]+\\s*\\|\\|",
+          "\\|\\|\\s*[A-Z_][A-Z0-9_]*",
+          "[A-Z_][A-Z0-9_]*\\s*\\|\\|",
+          "&&\\s*\\d+",
+          "\\d+\\s*&&",
+          "&&\\s*0[xX][0-9a-fA-F]+",
+          "0[xX][0-9a-fA-F]+\\s*&&",
+          "&&\\s*[A-Z_][A-Z0-9_]*",
+          "[A-Z_][A-Z0-9_]*\\s*&&",
+          "\\|\\|\\s*0[0-7]+",
+          "0[0-7]+\\s*\\|\\|",
+          "&&\\s*0[0-7]+",
+          "0[0-7]+\\s*&&"
+        ],
+        "message": "Logical operators should not be confused with bitwise operators - use & instead of && or | instead of || when working with integral constants"
+      }
+    ]
+  }
+}

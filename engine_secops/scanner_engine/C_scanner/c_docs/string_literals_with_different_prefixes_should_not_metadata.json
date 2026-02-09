@@ -1,0 +1,52 @@
+{
+  "filename": "string_literals_with_different_prefixes_should_not_metadata.json",
+  "rule_id": "string_literals_different_prefixes",
+  "title": "String literals with different prefixes should not be concatenated",
+  "description": "String literals with different prefixes should not be concatenatedAnalyze your codeintentionality-completereliabilityBugbased-on-misracertWhy is this an issue?More InfoConcatenation of wide and narrow string literals has not always been supported in C or C++, and even when supported, the meaning may be unclear to the reader. Concatenation of string literals with different encodings is only conditionally supported, and may be removed in a future version of the language.Therefore, only string literals with the same prefix should be concatenated together.Noncompliant code examplewchar_t n_array[] = \"Hello\" L\"World\"; // Noncompliant wchar_t w_array[] = L\"Hello\" \"World\"; // NoncompliantCompliant solutionchar_t n_array[] = \"Hello\" \"World\"; // Compliant wchar_t w_array[] = L\"Hello\" L\"World\"; // C",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "wchar_t n_array[] = \"Hello\" L\"World\";     // Noncompliant\nwchar_t w_array[] = L\"Hello\" \"World\";     // Noncompliant",
+      "char16_t mixed1[] = u\"prefix\" \"suffix\";   // Noncompliant\nchar32_t mixed2[] = U\"start\" u\"end\";       // Noncompliant"
+    ],
+    "compliant": [
+      "char n_array[] = \"Hello\" \"World\";         // Compliant: same prefix\nwchar_t w_array[] = L\"Hello\" L\"World\";     // Compliant: same prefix",
+      "char16_t u_array[] = u\"Hello\" u\"World\";   // Compliant\nchar32_t U_array[] = U\"Hello\" U\"World\";   // Compliant\n\n// Use single literal instead\nwchar_t simple[] = L\"HelloWorld\";          // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-817"
+  ],
+  "logic": {
+    "node_types": ["TranslationUnit", "FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\"[^\"]*\"\\s+L\"[^\"]*\"",
+          "L\"[^\"]*\"\\s+\"[^\"]*\"",
+          "\"[^\"]*\"\\s+u\"[^\"]*\"",
+          "u\"[^\"]*\"\\s+\"[^\"]*\"",
+          "\"[^\"]*\"\\s+U\"[^\"]*\"",
+          "U\"[^\"]*\"\\s+\"[^\"]*\"",
+          "L\"[^\"]*\"\\s+u\"[^\"]*\"",
+          "u\"[^\"]*\"\\s+L\"[^\"]*\"",
+          "L\"[^\"]*\"\\s+U\"[^\"]*\"",
+          "U\"[^\"]*\"\\s+L\"[^\"]*\"",
+          "u\"[^\"]*\"\\s+U\"[^\"]*\"",
+          "U\"[^\"]*\"\\s+u\"[^\"]*\""
+        ],
+        "message": "String literals with different prefixes should not be concatenated"
+      }
+    ]
+  }
+}

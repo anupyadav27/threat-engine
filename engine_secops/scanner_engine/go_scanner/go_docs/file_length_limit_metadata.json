@@ -1,0 +1,31 @@
+{
+  "filename": "file_length_limit_metadata.json",
+  "rule_id": "structure_file_length_limit",
+  "title": "Avoid excessively long source files",
+  "description": "When source files become too large, they tend to accumulate multiple responsibilities and become difficult to understand and maintain. Large files are harder to navigate, test, and debug, leading to reduced code quality.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Refactor large files into smaller, focused files with well-defined responsibilities.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Excessively long file with multiple responsibilities\n// This file contains user management, database operations, HTTP handlers, \n// business logic, data validation, email sending, logging, configuration,\n// authentication, authorization, caching, and more...\n\nimport (\n    \"database/sql\"\n    \"encoding/json\"\n    \"fmt\"\n    \"net/http\"\n    \"time\"\n    // ... many more imports\n)\n\n// User management structures and methods (50+ lines)\ntype User struct { /* ... */ }\nfunc (u *User) Validate() error { /* 20+ lines */ }\nfunc (u *User) Save() error { /* 30+ lines */ }\nfunc (u *User) Delete() error { /* 25+ lines */ }\n\n// Database connection and operations (100+ lines)\nfunc connectDB() *sql.DB { /* 30+ lines */ }\nfunc setupMigrations() { /* 50+ lines */ }\nfunc executeQuery() { /* 40+ lines */ }\n\n// HTTP handlers (200+ lines)\nfunc handleUserCreate(w http.ResponseWriter, r *http.Request) { /* 60+ lines */ }\nfunc handleUserUpdate(w http.ResponseWriter, r *http.Request) { /* 55+ lines */ }\nfunc handleUserDelete(w http.ResponseWriter, r *http.Request) { /* 45+ lines */ }\nfunc handleUserList(w http.ResponseWriter, r *http.Request) { /* 40+ lines */ }\n\n// Business logic (150+ lines)\nfunc calculateUserScore() { /* 50+ lines */ }\nfunc processPayment() { /* 60+ lines */ }\nfunc generateReport() { /* 40+ lines */ }\n\n// Authentication and authorization (100+ lines)\nfunc authenticateUser() { /* 30+ lines */ }\nfunc authorizeAccess() { /* 35+ lines */ }\nfunc generateJWT() { /* 35+ lines */ }\n\n// Configuration management (75+ lines)\nfunc loadConfig() { /* 40+ lines */ }\nfunc validateConfig() { /* 35+ lines */ }\n\n// Email and notification services (80+ lines)\nfunc sendEmail() { /* 40+ lines */ }\nfunc sendSMS() { /* 40+ lines */ }\n\n// Logging and monitoring (60+ lines)\nfunc setupLogger() { /* 30+ lines */ }\nfunc logMetrics() { /* 30+ lines */ }\n\n// And many more functions...\n// Total: 1000+ lines in a single file",
+        "description": "A single file trying to handle too many responsibilities, making it difficult to maintain and understand."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Well-organized file structure\n\n// user.go (50-100 lines)\npackage user\n\ntype User struct {\n    ID       int    `json:\"id\"`\n    Name     string `json:\"name\"`\n    Email    string `json:\"email\"`\n    Created  time.Time\n}\n\nfunc (u *User) Validate() error {\n    // Focused validation logic\n}\n\nfunc (u *User) IsActive() bool {\n    // Simple business logic\n}\n\n// repository.go (80-120 lines)\npackage user\n\ntype Repository struct {\n    db *sql.DB\n}\n\nfunc NewRepository(db *sql.DB) *Repository {\n    return &Repository{db: db}\n}\n\nfunc (r *Repository) Create(user *User) error {\n    // Database creation logic\n}\n\nfunc (r *Repository) GetByID(id int) (*User, error) {\n    // Database retrieval logic\n}\n\n// handler.go (100-150 lines)\npackage handler\n\ntype UserHandler struct {\n    repo *user.Repository\n}\n\nfunc NewUserHandler(repo *user.Repository) *UserHandler {\n    return &UserHandler{repo: repo}\n}\n\nfunc (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {\n    // HTTP handler logic\n}\n\n// service.go (60-90 lines)\npackage service\n\ntype UserService struct {\n    repo *user.Repository\n}\n\nfunc NewUserService(repo *user.Repository) *UserService {\n    return &UserService{repo: repo}\n}\n\nfunc (s *UserService) ProcessUser(user *User) error {\n    // Business logic\n}",
+        "description": "Code organized into focused files, each with a single responsibility and manageable size."
+      }
+    ]
+  },
+  "references": ["https://rules.sonarsource.com/go/RSPEC-104"],
+  "logic": {
+    "node_types": [],
+    "checks": [],
+    "custom_function": "check_file_length_limit"
+  }
+}

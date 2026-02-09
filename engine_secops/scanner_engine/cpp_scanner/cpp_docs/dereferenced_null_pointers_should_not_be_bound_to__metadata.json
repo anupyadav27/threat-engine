@@ -1,0 +1,45 @@
+{
+  "filename": "dereferenced_null_pointers_should_not_be_bound_to__metadata.json",
+  "rule_id": "dereferenced_null_pointers_bound",
+  "title": "Dereferenced null pointers should not be bound to references",
+  "description": "Dereferenced null pointers should not be bound to referencesAnalyze your codeintentionality-completemaintainabilityCode SmellunpredictableWhy is this an issue?Dereferencing a null pointer has undefined behavior, and it is particularly harmful if a reference is then bound to the result, because a reference is assumed to refer to a valid object.Noncompliant code examplevoid doSomething(A& a); void f() { A* a = nullptr; // ... doSomething(*a); // Noncompliant }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void doSomething(A& a);\nvoid f() {\n  A* a = nullptr;\n  // ...\n  doSomething(*a); // Noncompliant: dereferencing null pointer\n}\n\nvoid processObject(Object& obj);\nvoid badFunction() {\n  Object* ptr = getObjectPointer(); // might return nullptr\n  processObject(*ptr); // Noncompliant: no null check\n}"
+    ],
+    "compliant": [
+      "void doSomething(A& a);\nvoid f() {\n  A* a = nullptr;\n  if (a != nullptr) {\n    doSomething(*a); // Compliant: checked for null\n  }\n}\n\nvoid processObject(Object& obj);\nvoid goodFunction() {\n  Object* ptr = getObjectPointer();\n  if (ptr) {\n    processObject(*ptr); // Compliant: null check before dereference\n  }\n}\n\n// Alternative: use references when object must exist\nvoid anotherGoodFunction(Object& obj) {\n  processObject(obj); // Compliant: reference guarantees valid object\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5262"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\w+\\*\\s+\\w+\\s*=\\s*nullptr\\s*;\\s*\\w+\\s*\\(\\s*\\*\\w+\\s*\\)",
+          "\\w+\\*\\s+\\w+\\s*=\\s*nullptr\\s*;\\s*\\w+\\s*->\\s*\\w+",
+          "\\w+\\s*=\\s*nullptr\\s*;\\s*\\w+\\s*\\(\\s*\\*\\w+\\s*\\)",
+          "\\w+\\s*=\\s*nullptr\\s*;\\s*\\w+\\s*->\\s*\\w+"
+        ],
+        "message": "Dangerous null pointer dereference: pointer assigned nullptr then immediately dereferenced without null check."
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "filename": "the_right_hand_operands_of_and_should_avoid_contai_metadata.json",
+  "rule_id": "righthand_operands_avoid_containing",
+  "title": "The right-hand operands of && and || should avoid containing side effects",
+  "description": "There are some situations in C++ where certain parts of expressions may not be evaluated. If these sub-expressions contain side effects then those side effects may or may not occur, depending on the values of other sub expressions. The operators which can lead to this problem are && and ||, where the evaluation of the right-hand operand is conditional on the value of the left-hand operand.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int x = 0, y = 0;\nif (x > 0 && ++y > 0) {  // Noncompliant: side effect in right operand\n  printf(\"Both conditions met\\n\");\n}",
+      "int count = 0;\nif (ptr != NULL && count++ < MAX) {  // Noncompliant: increment in right operand\n  process(ptr);\n}",
+      "if (condition1 || function_with_side_effect()) {  // Noncompliant\n  // function may not be called\n}"
+    ],
+    "compliant": [
+      "int x = 0, y = 0;\nif (x > 0) {\n  ++y;\n  if (y > 0) {  // Compliant: side effect separated\n    printf(\"Both conditions met\\n\");\n  }\n}",
+      "int count = 0;\nif (ptr != NULL) {\n  if (count < MAX) {  // Compliant: no side effects in condition\n    count++;\n    process(ptr);\n  }\n}",
+      "int result = function_with_side_effect();\nif (condition1 || result) {  // Compliant: side effect separated\n  // function already called\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-912"
+  ],
+  "logic": {
+    "node_types": [
+      "LogicalExpression",
+      "BinaryExpression",
+      "IfStatement",
+      "WhileStatement",
+      "ForStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "&&\\s*[^&|;{}]*\\+\\+[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "&&\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\+\\+",
+          "&&\\s*[^&|;{}]*--[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "&&\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*--",
+          "\\|\\|\\s*[^&|;{}]*\\+\\+[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "\\|\\|\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\+\\+",
+          "\\|\\|\\s*[^&|;{}]*--[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "\\|\\|\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*--",
+          "&&\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[^=]",
+          "\\|\\|\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[^=]",
+          "&&\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(",
+          "\\|\\|\\s*[^&|;{}]*\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*\\("
+        ],
+        "message": "The right-hand operands of && and || should avoid containing side effects"
+      }
+    ]
+  }
+}

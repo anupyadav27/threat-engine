@@ -1,0 +1,43 @@
+{
+  "filename": "classes_should_explicitly_specify_the_access_level_metadata.json",
+  "rule_id": "classes_explicitly_specify_access",
+  "title": "Classes should explicitly specify the access level when specifying base classes",
+  "description": "Classes should explicitly specify the access level when specifying base classesAnalyze your codeintentionality-clearmaintainabilityCode SmellWhy is this an issue?More InfoWhen specifying base classes for a class, the access level is private by default. While private inheritance has its uses, it is far less used than public inheritance. Therefore:Either you want public inheritance, and you have to specify itOr you want private inheritance, and you should be explicit about this design decision, by specifying it too.Noncompliant code exampleclass B { }; class C : B { };Compliant solutionclass B { }; class C : private B { // Or public, if it was private by mistake };Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repo",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class Base {\npublic:\n    virtual void method() {}\n};\n\n// Noncompliant - implicit private inheritance\nclass Derived : Base { // Missing access specifier\npublic:\n    void method() override {}\n};\n\nclass AnotherDerived : Base, OtherBase { // Noncompliant - implicit private\npublic:\n    void someMethod() {}\n};"
+    ],
+    "compliant": [
+      "class Base {\npublic:\n    virtual void method() {}\n};\n\n// Compliant - explicit access specification\nclass Derived : public Base { // Explicit public inheritance\npublic:\n    void method() override {}\n};\n\n// Compliant - explicit private inheritance when intentional\nclass PrivateDerived : private Base { // Intentional private inheritance\npublic:\n    void exposedMethod() {}\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5965"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "class\\s+\\w+\\s*:\\s*(?!(?:public|private|protected)\\s)\\w+",
+          "class\\s+\\w+\\s*:\\s*(?!(?:public|private|protected)\\s)[^,]+,\\s*(?!(?:public|private|protected)\\s)\\w+"
+        ],
+        "message": "Class inheritance should explicitly specify access level (public, private, or protected)."
+      }
+    ]
+  }
+}

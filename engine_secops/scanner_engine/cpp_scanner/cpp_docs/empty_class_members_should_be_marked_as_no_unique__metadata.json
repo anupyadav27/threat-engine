@@ -1,0 +1,38 @@
+{
+  "filename": "empty_class_members_should_be_marked_as_no_unique__metadata.json",
+  "rule_id": "empty_class_members_marked",
+  "title": "Empty class members should be marked as [[no_unique_address]]",
+  "description": "In C++, every independent object needs to have a unique address, which implies that its size cannot be null. Sub-objects of another object, however, do not have this constraint. Empty base class subobjects usually don’t take any space in the final object, but empty member variables, by default, take at least one byte.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class BadOptimization {\npublic:\n    // Noncompliant: empty class member without no_unique_address\n    EmptyClass empty_member;\n    int data;\n};\n\nstruct BadAllocator {\n    // Noncompliant: stateless allocator without optimization\n    StatelessAllocator alloc;\n    std::vector<int> vec;\n};\n\nclass EmptyClass {};\nclass StatelessAllocator {};\n\n// Results in unnecessary padding/size increase"
+    ],
+    "compliant": [
+      "class GoodOptimization {\npublic:\n    // Compliant: empty class member with no_unique_address\n    [[no_unique_address]] EmptyClass empty_member;\n    int data;\n};\n\nstruct GoodAllocator {\n    // Compliant: stateless allocator optimized\n    [[no_unique_address]] StatelessAllocator alloc;\n    std::vector<int> vec;\n};\n\ntemplate<typename T>\nclass OptimizedContainer {\npublic:\n    // Compliant: empty base optimization alternative\n    [[no_unique_address]] T comparator;\n    std::vector<int> data;\n};\n\nclass EmptyClass {};\nclass StatelessAllocator {};\n\n// Results in space-efficient layout"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6226"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration",
+      "StructDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_empty_class_members",
+        "message": "Empty class members should be marked as [[no_unique_address]] for size optimization"
+      }
+    ]
+  }
+}

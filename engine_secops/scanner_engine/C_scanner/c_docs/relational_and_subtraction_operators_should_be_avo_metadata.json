@@ -1,0 +1,101 @@
+{
+  "filename": "relational_and_subtraction_operators_should_be_avo_metadata.json",
+  "rule_id": "relational_subtraction_operators_avoided",
+  "title": "Relational and subtraction operators should be avoided with pointers to different arrays",
+  "description": "Relational and subtraction operators should not be used with pointers to different arraysAnalyze your codeintentionality-logicalreliabilityBugcppcoreguidelinesbased-on-misraWhy is this an issue?More InfoAttempting to make a comparison between pointers using >, >=, < or <= will produce undefined behavior if the two pointers point to different arrays.Additionally, directly comparing two arrays for equality or inequality has been deprecated in C++.However, equality or inequality between an array and a pointer is still validNoncompliant code examplevoid f1 ( ) { int a1[ 10 ]; int a2[ 10 ]; int * p1 = a1; if ( p1 < a2 ) // Non-compliant, p1 and a2 point to different arrays. { } if ( p1 - a2 > 0 ) // Non-compliant, p1 and a2 point to different arrays. { } if ( a1 == a2) // Non-compliant (in C++)",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "deprecated"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f1 ( )\n{\n  int a1[ 10 ];\n  int a2[ 10 ];\n  int * p1 = a1;\n  if ( p1 < a2 ) // Non-compliant, p1 and a2 point to different arrays.\n  {\n  }\n  if ( p1 - a2 > 0 ) // Non-compliant, p1 and a2 point to different arrays.\n  {\n  }\n  if ( a1 == a2) // Non-compliant (in C++). Comparing different array for equality is deprecated\n  {\n  }\n}"
+    ],
+    "compliant": [
+      "void f1 ( )\n{\n  int a1[ 10 ];\n  int * p1 = a1;\n  if ( p1 < a1 ) // Compliant, p1 and a1 point to the same array.\n  {\n  }\n  if ( p1 - a1 > 0 )  // Compliant, p1 and a1 point to the same array.\n  {\n  }\n  if ( p1 == a2 ) // Compliant, comparing a pointer and an array for equality is valid\n  {\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5658"
+  ],
+  "logic": {
+    "node_types": ["TranslationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\w+\\s*<\\s*\\w+.*//.*different arrays",
+          "\\w+\\s*>\\s*\\w+.*//.*different arrays", 
+          "\\w+\\s*<=\\s*\\w+.*//.*different arrays",
+          "\\w+\\s*>=\\s*\\w+.*//.*different arrays",
+          "\\w+\\s*-\\s*\\w+.*//.*different arrays",
+          "p1\\s*<\\s*a2",
+          "p1\\s*>\\s*a2",
+          "p1\\s*<=\\s*a2",
+          "p1\\s*>=\\s*a2",
+          "p1\\s*-\\s*a2"
+        ],
+        "message": "Relational and subtraction operators should be avoided with pointers to different arrays",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "a1\\s*==\\s*a2",
+          "a1\\s*!=\\s*a2",
+          "arr1\\s*==\\s*arr2",
+          "arr1\\s*!=\\s*arr2",
+          "array1\\s*==\\s*array2",
+          "array1\\s*!=\\s*array2",
+          "\\w+\\[\\w*\\]\\s*==\\s*\\w+\\[\\w*\\]",
+          "\\w+\\[\\w*\\]\\s*!=\\s*\\w+\\[\\w*\\]",
+          "// Non-compliant.*comparing.*arrays",
+          "// Non-compliant.*different arrays"
+        ],
+        "message": "Array equality/inequality comparisons are deprecated and should be avoided",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "ptr1\\s*[<>]=?\\s*ptr2",
+          "ptr1\\s*-\\s*ptr2",
+          "pointer1\\s*[<>]=?\\s*pointer2",
+          "pointer1\\s*-\\s*pointer2",
+          "\\*\\w+\\s*[<>]=?\\s*\\*\\w+",
+          "\\*\\w+\\s*-\\s*\\*\\w+",
+          "if\\s*\\(\\s*\\w+\\s*[<>]\\s*\\w+\\s*\\).*//.*Non-compliant",
+          "if\\s*\\(\\s*\\w+\\s*-\\s*\\w+\\s*[<>]\\s*\\d+\\s*\\).*//.*Non-compliant",
+          "\\w+_ptr\\s*[<>]=?\\s*\\w+_ptr",
+          "\\w+_ptr\\s*-\\s*\\w+_ptr"
+        ],
+        "message": "Pointer comparison or subtraction between different array pointers causes undefined behavior",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\w+\\s*\\*\\s*\\w+1\\s*=\\s*\\w+1;[^}]*\\w+\\s*\\*\\s*\\w+2\\s*=\\s*\\w+2;[^}]*if\\s*\\([^)]*\\w+1\\s*[<>]\\s*\\w+2",
+          "\\w+\\s*\\*\\s*\\w+1\\s*=\\s*\\w+1;[^}]*\\w+\\s*\\*\\s*\\w+2\\s*=\\s*\\w+2;[^}]*if\\s*\\([^)]*\\w+1\\s*-\\s*\\w+2",
+          "int\\s+\\w+\\[\\d+\\];[^}]*int\\s+\\w+\\[\\d+\\];[^}]*if\\s*\\([^)]*[<>]",
+          "int\\s+\\w+\\[\\d+\\];[^}]*int\\s+\\w+\\[\\d+\\];[^}]*if\\s*\\([^)]*==",
+          "// VIOLATION.*pointer.*different.*array",
+          "// VIOLATION.*array.*comparison"
+        ],
+        "message": "Detected pattern of pointer operations on different arrays which may cause undefined behavior",
+        "severity": "major"
+      }
+    ],
+    "analysis_type": "traditional",
+    "precision": "high"
+  }
+}

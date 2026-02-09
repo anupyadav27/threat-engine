@@ -1,0 +1,40 @@
+{
+  "filename": "control_should_not_be_transferred_into_a_complex_l_metadata.json",
+  "rule_id": "control_transferred_into_complex",
+  "title": "Control should not be transferred into a complex logic block using a goto or a switch statement",
+  "description": "Having a switch and its cases wholly encompassed by a control structure such as a try, @try, catch, @catch, or a loop is perfectly acceptable. (try and catch are used hereafter to refer to both variants.) It is also acceptable to have a goto and its target label wholly encompassed in a control structure. What is not acceptable is using a goto or case to suddenly jump into the body of a try, catch, Objective-C @finally, or loop structure.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "for (int i = 0; i < 10; i++) {\nlabel1:  // Noncompliant: label inside loop\n    // code\n}\ngoto label1;  // jumps into loop body",
+      "switch (value) {\n    case 1:\n        for (int i = 0; i < 10; i++) {\n    case 2:  // Noncompliant: case inside loop\n            // code\n        }\n}"
+    ],
+    "compliant": [
+      "for (int i = 0; i < 10; i++) {\n    // code with proper control flow\n    if (condition) break;  // Compliant: structured exit\n}",
+      "switch (value) {\n    case 1:\n        processCase1();  // Compliant: no control transfer into complex blocks\n        break;\n    case 2:\n        processCase2();\n        break;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1036"
+  ],
+  "logic": {
+    "custom_function": "check_control_transfer_into_complex",
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_control_transfer_into_complex",
+        "message": "Control should not be transferred into a complex logic block using a goto or a switch statement. Refactor to eliminate the flagged pattern."
+      }
+    ]
+  }
+}

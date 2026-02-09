@@ -1,0 +1,48 @@
+{
+  "filename": "offsetof_macro_should_be_avoided_metadata.json",
+  "rule_id": "offsetof_macro_avoided",
+  "title": "offsetof macro should be avoided",
+  "description": "\"offsetof\" macro should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode Smellmisra-c++2008misra-c2004suspiciousWhy is this an issue?More Infooffsetofcan lead to undefined behavior when the argument types are incompatible or when bit fields are used. Thereforeoffsetofshould be avoided.Noncompliant code example#include <stddef.h> struct A { int32_t i; }; void f1 ( ) { offsetof ( A, i ); // Noncompliant }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stddef.h>\nstruct A { int32_t i; };\nvoid f1() { size_t offset = offsetof(A, i); } // Noncompliant",
+      "size_t bitfield_offset = offsetof(MyStruct, bitfield); // Noncompliant: undefined with bitfields",
+      "offsetof(IncompleteType, member); // Noncompliant: undefined with incomplete types"
+    ],
+    "compliant": [
+      "struct A { int32_t i; };\nstruct A obj;\nsize_t offset = (char*)&obj.i - (char*)&obj; // Compliant: manual calculation",
+      "// Use container_of macro for pointer arithmetic instead",
+      "// Define custom offset calculation for specific use cases"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-986"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "AssignmentExpression", 
+      "ExpressionStatement",
+      "ReturnStatement",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\boffsetof\\s*\\("
+        ],
+        "message": "offsetof macro should be avoided. Use manual pointer arithmetic or alternative approaches for struct member offset calculation to avoid undefined behavior."
+      }
+    ]
+  }
+}

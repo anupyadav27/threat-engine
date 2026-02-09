@@ -1,0 +1,83 @@
+{
+  "filename": "using_strlen_or_wcslen_is_security_sensitive_metadata.json",
+  "rule_id": "using_strlen_wcslen_is",
+  "title": "Using strlen or wcslen is security-sensitive",
+  "description": "Using \"strlen\" or \"wcslen\" is security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotcwecertThe functionsize_t strlen(const char *s)measures the length of the strings(excluding the final null character).The functionsize_t wcslen(const wchar_t *s)does the same for wide characters, and should be used with the same guidelines.Similarly to many other functions in the standard C libraries,strlenandwcslenassume that their argument is not a null pointer.Additionally, they expect the strings to be null-terminated. For example, the 5-letter string \"abcde\" must be stored in memory as \"abcde\\0\" (i.e. using 6 characters) to be processed correctly.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char *str = NULL;\nsize_t len = strlen(str); // Noncompliant: NULL pointer dereference\n\nchar buffer[5];\nbuffer[0] = 'H';\nbuffer[1] = 'i';\n// Missing null terminator\nsize_t len = strlen(buffer); // Noncompliant: undefined behavior - not null terminated"
+    ],
+    "compliant": [
+      "char *str = \"Hello\";\nif (str != NULL) {\n    size_t len = strlen(str); // Compliant: checked for NULL\n}\n\n// Or use safer alternatives:\nsize_t strnlen_safe(const char *s, size_t maxlen) {\n    if (s == NULL) return 0;\n    return strnlen(s, maxlen); // Compliant: bounded length check\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5813"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "strlen\\s*\\(\\s*NULL\\s*\\)",
+          "wcslen\\s*\\(\\s*NULL\\s*\\)",
+          "strlen\\s*\\(\\s*getenv\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*getenv\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*malloc\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*calloc\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*realloc\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*malloc\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*calloc\\s*\\([^)]+\\)\\s*\\)", 
+          "wcslen\\s*\\(\\s*realloc\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*\\w+\\s*\\+\\s*\\d+\\s*\\)",
+          "wcslen\\s*\\(\\s*\\w+\\s*\\+\\s*\\d+\\s*\\)",
+          "strlen\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\+\\s*[a-zA-Z_]\\w*\\s*\\)",
+          "wcslen\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\+\\s*[a-zA-Z_]\\w*\\s*\\)",
+          "strlen\\s*\\(\\s*\\(.*\\)\\s*malloc\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\+\\s*sizeof\\s*\\(",
+          "strlen\\s*\\(\\s*strstr\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*wcsstr\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*strchr\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*wcschr\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*strrchr\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*wcsrchr\\s*\\([^)]+\\)\\s*\\)",
+          "strlen\\s*\\(\\s*strpbrk\\s*\\([^)]+\\)\\s*\\)",
+          "wcslen\\s*\\(\\s*wcspbrk\\s*\\([^)]+\\)\\s*\\)"
+        ],
+        "message": "Using strlen/wcslen on potentially NULL or unsafe pointer is security-sensitive. Verify pointer validity and null termination."
+      },
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "name"
+        ],
+        "forbidden_values": [
+          "lstrlen",
+          "lstrlenA", 
+          "lstrlenW",
+          "_tcslen",
+          "_mbslen",
+          "_mbstrlen"
+        ],
+        "message": "Using platform-specific length functions is security-sensitive. These functions have same NULL pointer risks as strlen."
+      }
+    ]
+  }
+}

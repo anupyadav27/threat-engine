@@ -1,0 +1,67 @@
+{
+  "filename": "unreachable_code_metadata.json",
+  "rule_id": "logic_unreachable_code_remove",
+  "title": "Remove unreachable code",
+  "description": "Code that appears after control flow statements like return, break, or continue is unreachable and represents dead code. This code should be removed or the logic should be corrected to ensure proper execution flow.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Remove unreachable statements or fix the control flow logic.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Code after return statements\nfunc validateUser(user User) error {\n    if user.Email == \"\" {\n        return errors.New(\"email is required\")\n        fmt.Println(\"This will never execute\") // Unreachable\n    }\n    \n    if user.Age < 0 {\n        return errors.New(\"age cannot be negative\")\n        user.Age = 0 // Dead code\n        log.Printf(\"Fixed negative age\") // Unreachable\n    }\n    \n    return nil\n    // Anything after this return is unreachable\n    fmt.Println(\"Validation complete\")\n}\n\n// Noncompliant: Code after unconditional break/continue\nfunc processItems(items []Item) {\n    for _, item := range items {\n        if item.IsValid() {\n            processItem(item)\n            break\n            fmt.Println(\"Processing next item\") // Unreachable\n        }\n        \n        if item.ShouldSkip() {\n            continue\n            log.Printf(\"Skipping item %s\", item.Name) // Dead code\n        }\n        \n        handleInvalidItem(item)\n    }\n}\n\n// Noncompliant: Code after panic\nfunc criticalOperation(data []byte) {\n    if len(data) == 0 {\n        panic(\"empty data not allowed\")\n        log.Println(\"This code will never run\") // Unreachable\n        return // Also unreachable\n    }\n    \n    process(data)\n}\n\n// Noncompliant: Unreachable code in switch cases\nfunc handleAction(action string) {\n    switch action {\n    case \"create\":\n        createResource()\n        return\n        log.Println(\"Resource created\") // Unreachable\n    case \"delete\":\n        deleteResource()\n        break\n        fmt.Println(\"After break\") // Unreachable in this case\n    }\n}\n\n// Noncompliant: Dead code after infinite loop\nfunc worker() {\n    for {\n        processWork()\n    }\n    log.Println(\"Worker finished\") // Will never execute\n}",
+        "description": "Code that appears after control flow statements like return, break, continue, or panic is unreachable and represents dead code."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Clean control flow without unreachable code\nfunc validateUser(user User) error {\n    if user.Email == \"\" {\n        return errors.New(\"email is required\")\n    }\n    \n    if user.Age < 0 {\n        return errors.New(\"age cannot be negative\")\n    }\n    \n    fmt.Println(\"Validation complete\")\n    return nil\n}\n\n// Compliant: Proper loop control flow\nfunc processItems(items []Item) {\n    for _, item := range items {\n        if item.IsValid() {\n            processItem(item)\n            fmt.Println(\"Processing next item\")\n            continue // or break, depending on intended behavior\n        }\n        \n        if item.ShouldSkip() {\n            log.Printf(\"Skipping item %s\", item.Name)\n            continue\n        }\n        \n        handleInvalidItem(item)\n    }\n}\n\n// Compliant: Error handling without unreachable code\nfunc criticalOperation(data []byte) error {\n    if len(data) == 0 {\n        log.Println(\"Empty data received\")\n        return errors.New(\"empty data not allowed\")\n    }\n    \n    return process(data)\n}\n\n// Compliant: Proper switch case structure\nfunc handleAction(action string) error {\n    switch action {\n    case \"create\":\n        err := createResource()\n        if err != nil {\n            return err\n        }\n        log.Println(\"Resource created successfully\")\n        return nil\n    case \"delete\":\n        err := deleteResource()\n        if err != nil {\n            return err\n        }\n        fmt.Println(\"Resource deleted successfully\")\n        return nil\n    default:\n        return errors.New(\"unknown action\")\n    }\n}\n\n// Compliant: Worker with proper shutdown mechanism\nfunc worker(ctx context.Context) {\n    for {\n        select {\n        case <-ctx.Done():\n            log.Println(\"Worker shutting down\")\n            return\n        default:\n            processWork()\n        }\n    }\n}\n\n// Compliant: Multiple return paths with all code reachable\nfunc authenticateUser(username, password string) (*User, error) {\n    if username == \"\" {\n        log.Println(\"Empty username provided\")\n        return nil, errors.New(\"username is required\")\n    }\n    \n    if password == \"\" {\n        log.Println(\"Empty password provided\")\n        return nil, errors.New(\"password is required\")\n    }\n    \n    user := findUser(username)\n    if user == nil {\n        log.Printf(\"User not found: %s\", username)\n        return nil, errors.New(\"user not found\")\n    }\n    \n    if !checkPassword(user, password) {\n        log.Printf(\"Invalid password for user: %s\", username)\n        return nil, errors.New(\"invalid password\")\n    }\n    \n    log.Printf(\"User authenticated successfully: %s\", username)\n    return user, nil\n}\n\n// Compliant: Refactored to eliminate unreachable code\nfunc processData(data []byte) ([]byte, error) {\n    if len(data) == 0 {\n        return nil, errors.New(\"no data to process\")\n    }\n    \n    result, err := transform(data)\n    if err != nil {\n        return nil, fmt.Errorf(\"transformation failed: %w\", err)\n    }\n    \n    validated, err := validate(result)\n    if err != nil {\n        return nil, fmt.Errorf(\"validation failed: %w\", err)\n    }\n    \n    return validated, nil\n}",
+        "description": "Organizing code to ensure all statements are reachable improves maintainability and eliminates confusion about execution flow."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1763"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "method_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "return[^\\n]*\\n\\s*fmt\\.",
+          "return[^\\n]*\\n\\s*log\\.",
+          "return[^\\n]*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*:=",
+          "return[^\\n]*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[^=]",
+          "return[^\\n]*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\(",
+          "break\\s*\\n\\s*fmt\\.",
+          "break\\s*\\n\\s*log\\.",
+          "break\\s*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*:=",
+          "break\\s*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\(",
+          "continue\\s*\\n\\s*fmt\\.",
+          "continue\\s*\\n\\s*log\\.",
+          "continue\\s*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*:=",
+          "continue\\s*\\n\\s*[a-zA-Z_][a-zA-Z0-9_]*\\(",
+          "panic\\([^)]*\\)\\s*\\n\\s*[a-zA-Z_]",
+          "goto\\s+\\w+\\s*\\n\\s*[a-zA-Z_]"
+        ],
+        "exclude_patterns": [
+          "return[^\\n]*\\n\\s*\\}",
+          "return[^\\n]*\\n\\s*$",
+          "break\\s*\\n\\s*\\}",
+          "continue\\s*\\n\\s*\\}",
+          "//.*UNREACHABLE.*"
+        ],
+        "message": "Unreachable code detected after control flow statement - remove dead code or fix logic"
+      }
+    ]
+  }
+}

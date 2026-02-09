@@ -1,0 +1,41 @@
+{
+  "filename": "loops_should_avoid_having_more_than_one_break_or_g_metadata.json",
+  "rule_id": "loops_avoid_having_more",
+  "title": "Loops should avoid having more than one break or goto statement",
+  "description": "Loops should not have more than one \"break\" or \"goto\" statementAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misraconfusingWhy is this an issue?More InfoRestricting the number of exits from a loop is done in the interests of good structured programming. Onebreakorgotostatement is acceptable in a loop since this allows, for example, for dual-outcome loops or optimal coding.Noncompliant code exampleWith the default threshold of 1:for (int i = 0; i < 10; i++) { if (...) { break; // Compliant } else if (...) { break; // Non-compliant - second jump from loop } else { ... } } while (...) { if (...) { break; // Compliant } if (...) { break; // Non-compliant - second jump from loop } }Compliant solutionfor (int i = 0; i < 10; i++) { if (...) { break; // Compliant } } while",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Multiple break statements\nfor (int i = 0; i < 10; i++) {\n  if (condition1) {\n    break; // First break\n  } else if (condition2) {\n    break; // Non-compliant - second break\n  }\n  process(i);\n}\n\n// Multiple goto statements\nwhile (running) {\n  if (error1) {\n    goto cleanup; // First goto\n  }\n  if (error2) {\n    goto cleanup; // Non-compliant - second goto\n  }\n  doWork();\n}"
+    ],
+    "compliant": [
+      "// Single exit point\nfor (int i = 0; i < 10; i++) {\n  if (condition1 || condition2) {\n    break; // Single break statement\n  }\n  process(i);\n}\n\n// Restructured logic\nbool shouldContinue = true;\nwhile (running && shouldContinue) {\n  if (error1 || error2) {\n    shouldContinue = false;\n  } else {\n    doWork();\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-924"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "break.*break",
+          "goto.*goto",
+          "break.*goto",
+          "goto.*break"
+        ],
+        "message": "Loops should avoid having more than one break or goto statement. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

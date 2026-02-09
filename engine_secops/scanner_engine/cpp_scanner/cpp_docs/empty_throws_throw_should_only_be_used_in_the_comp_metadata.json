@@ -1,0 +1,37 @@
+{
+  "filename": "empty_throws_throw_should_only_be_used_in_the_comp_metadata.json",
+  "rule_id": "empty_throws_throw_only",
+  "title": "Empty throws (throw;) should only be used in the compound statements of catch handlers",
+  "description": "Empty throws (\"throw;\") should only be used in the compound statements of catch handlersAnalyze your codeintentionality-logicalreliabilityBugbased-on-misraWhy is this an issue?How can I fix it?More InfoCatch blocks define how to deal with exceptions. It is possible to partially handle an exception before passing it on to a higher level for complete handling with the empty throw statementthrow;.However, when an empty throw is called outside of a catch clause, and there is no exception object to re-throw, the program will callstd::terminate. This will cause the program to end, which is unlikely to be the expected behavior.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDe",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badFunction() {\n    // Noncompliant: empty throw outside catch block\n    if (someCondition) {\n        throw;  // Will call std::terminate if no active exception\n    }\n}\n\nvoid anotherBadFunction() {\n    // Noncompliant: empty throw in normal function\n    throw;  // Dangerous - no exception to re-throw\n}"
+    ],
+    "compliant": [
+      "void goodFunction() {\n    try {\n        riskyOperation();\n    } catch (const std::exception& e) {\n        // Compliant: empty throw in catch block\n        log(e.what());\n        throw;  // Re-throws the caught exception\n    }\n}\n\nvoid properErrorHandling() {\n    try {\n        processData();\n    } catch (const CustomError& e) {\n        // Compliant: partial handling then re-throw\n        cleanup();\n        throw;  // Passes exception to higher level\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1039"
+  ],
+  "logic": {
+    "node_types": [
+      "ThrowStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_empty_throw_outside_catch",
+        "message": "Empty throws (throw;) should only be used inside catch blocks to re-throw the current exception."
+      }
+    ]
+  }
+}

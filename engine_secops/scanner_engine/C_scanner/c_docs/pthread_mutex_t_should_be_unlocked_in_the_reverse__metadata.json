@@ -1,0 +1,44 @@
+{
+  "filename": "pthread_mutex_t_should_be_unlocked_in_the_reverse__metadata.json",
+  "rule_id": "pthread_mutex_t_unlocked_reverse_order",
+  "title": "pthread_mutex_t should be unlocked in the reverse order they were locked",
+  "description": "Mutexes are synchronization primitives that allow the managing of concurrency. It is a common situation to have to use multiple mutexes to protect multiple resources with different access patterns. In such a situation, it is crucial to define an order on the set of all mutexes: This order should be strictly followed when locking mutexes.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Inconsistent mutex lock/unlock order\npthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;\npthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;\npthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;\n\nvoid transfer_funds() {\n    pthread_mutex_lock(&mutex1);\n    pthread_mutex_lock(&mutex2);\n    pthread_mutex_lock(&mutex3);\n    \n    // Do work\n    \n    pthread_mutex_unlock(&mutex1);  // Noncompliant: wrong order\n    pthread_mutex_unlock(&mutex3);  // Should unlock in reverse order\n    pthread_mutex_unlock(&mutex2);\n}",
+      "// Different unlock order in different functions\nvoid function_a() {\n    pthread_mutex_lock(&mutex1);\n    pthread_mutex_lock(&mutex2);\n    // work\n    pthread_mutex_unlock(&mutex2);\n    pthread_mutex_unlock(&mutex1);\n}\n\nvoid function_b() {\n    pthread_mutex_lock(&mutex1);\n    pthread_mutex_lock(&mutex2);\n    // work\n    pthread_mutex_unlock(&mutex1);  // Noncompliant: inconsistent order\n    pthread_mutex_unlock(&mutex2);\n}"
+    ],
+    "compliant": [
+      "// Consistent LIFO (Last In, First Out) mutex unlock order\npthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;\npthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;\npthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;\n\nvoid transfer_funds() {\n    pthread_mutex_lock(&mutex1);    // Lock order: 1, 2, 3\n    pthread_mutex_lock(&mutex2);\n    pthread_mutex_lock(&mutex3);\n    \n    // Do work\n    \n    pthread_mutex_unlock(&mutex3);  // Compliant: unlock in reverse order\n    pthread_mutex_unlock(&mutex2);  // (LIFO: 3, 2, 1)\n    pthread_mutex_unlock(&mutex1);\n}",
+      "// Consistent ordering across all functions\nvoid function_a() {\n    pthread_mutex_lock(&mutex1);\n    pthread_mutex_lock(&mutex2);\n    // work\n    pthread_mutex_unlock(&mutex2);  // Compliant: reverse order\n    pthread_mutex_unlock(&mutex1);\n}\n\nvoid function_b() {\n    pthread_mutex_lock(&mutex1);\n    pthread_mutex_lock(&mutex2);\n    // work\n    pthread_mutex_unlock(&mutex2);  // Compliant: same reverse order\n    pthread_mutex_unlock(&mutex1);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5489"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "pthread_mutex_unlock[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "pthread_mutex_unlock[^\\n]*//[^\\n]*VIOLATION"
+        ],
+        "message": "Reverse unlock order violation - mutexes should be unlocked in LIFO order",
+        "severity": "critical"
+      }
+    ]
+  }
+}

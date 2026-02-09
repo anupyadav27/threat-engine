@@ -1,0 +1,93 @@
+{
+  "filename": "weak_ssl_tls_protocols_metadata.json",
+  "rule_id": "crypto_weak_ssl_tls_protocols",
+  "title": "Avoid weak SSL/TLS protocols",
+  "description": "Using weak SSL/TLS protocols like SSLv2, SSLv3, or early TLS versions exposes applications to known cryptographic vulnerabilities. These protocols have security flaws that can be exploited by attackers to intercept or manipulate communications.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use only strong, modern TLS versions (TLS 1.2 or higher) and disable support for weak protocols.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/tls\"\n    \"net/http\"\n)\n\n// Noncompliant: Allowing weak SSL/TLS versions\nfunc createInsecureClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                MinVersion: tls.VersionSSL30, // SSL 3.0 is broken\n                MaxVersion: tls.VersionTLS10, // TLS 1.0 is deprecated\n            },\n        },\n    }\n}\n\n// Noncompliant: Server allowing weak protocols\nfunc startInsecureServer() {\n    server := &http.Server{\n        Addr: \":8443\",\n        TLSConfig: &tls.Config{\n            MinVersion: tls.VersionTLS10, // TLS 1.0 is vulnerable\n            MaxVersion: tls.VersionTLS11, // TLS 1.1 is also deprecated\n        },\n    }\n    \n    server.ListenAndServeTLS(\"cert.pem\", \"key.pem\")\n}\n\n// Noncompliant: No minimum version specified (defaults to weak)\nfunc createDefaultClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                // No MinVersion set - may allow weak protocols\n            },\n        },\n    }\n}\n\n// Noncompliant: Explicitly allowing weak cipher suites\nfunc createWeakCipherClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                CipherSuites: []uint16{\n                    tls.TLS_RSA_WITH_RC4_128_SHA,         // RC4 is broken\n                    tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,    // 3DES is weak\n                    tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,   // RC4 again\n                },\n            },\n        },\n    }\n}\n\n// Noncompliant: Insecure renegotiation settings\nfunc createUnsafeRenegotiationClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                Renegotiation: tls.RenegotiateOnceAsClient, // Can be exploited\n                MinVersion:    tls.VersionSSL30,            // And weak version\n            },\n        },\n    }\n}\n\n// Noncompliant: Server with weak configuration\nfunc setupWeakTLSServer() *tls.Config {\n    return &tls.Config{\n        MinVersion: tls.VersionTLS10,\n        CipherSuites: []uint16{\n            tls.TLS_RSA_WITH_AES_128_CBC_SHA,    // CBC mode vulnerable\n            tls.TLS_RSA_WITH_AES_256_CBC_SHA,    // No perfect forward secrecy\n        },\n        PreferServerCipherSuites: false, // Client chooses weak ciphers\n    }\n}",
+        "description": "Using weak SSL/TLS protocols and cipher suites exposes applications to known cryptographic vulnerabilities and attacks."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/tls\"\n    \"net/http\"\n    \"time\"\n)\n\n// Compliant: Secure TLS client configuration\nfunc createSecureClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                MinVersion: tls.VersionTLS12, // Minimum TLS 1.2\n                // MaxVersion not set = use latest available\n                CipherSuites: []uint16{\n                    tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n                    tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,\n                    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,\n                    tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,\n                    tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,\n                    tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,\n                },\n                CurvePreferences: []tls.CurveID{\n                    tls.X25519,\n                    tls.CurveP256,\n                    tls.CurveP384,\n                },\n                PreferServerCipherSuites: true,\n            },\n            TLSHandshakeTimeout: 10 * time.Second,\n        },\n        Timeout: 30 * time.Second,\n    }\n}\n\n// Compliant: Modern TLS 1.3 preferred client\nfunc createModernTLSClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                MinVersion: tls.VersionTLS13, // TLS 1.3 only\n                // TLS 1.3 automatically uses secure ciphers\n            },\n        },\n    }\n}\n\n// Compliant: Secure server configuration\nfunc startSecureServer() {\n    server := &http.Server{\n        Addr:         \":8443\",\n        TLSConfig:    getSecureTLSConfig(),\n        ReadTimeout:  15 * time.Second,\n        WriteTimeout: 15 * time.Second,\n        IdleTimeout:  60 * time.Second,\n    }\n    \n    server.ListenAndServeTLS(\"cert.pem\", \"key.pem\")\n}\n\nfunc getSecureTLSConfig() *tls.Config {\n    return &tls.Config{\n        MinVersion: tls.VersionTLS12,\n        CipherSuites: []uint16{\n            // AEAD ciphers with forward secrecy\n            tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n            tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,\n            tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,\n            tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,\n            tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,\n            tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,\n        },\n        CurvePreferences: []tls.CurveID{\n            tls.X25519, // Most secure curve\n            tls.CurveP256,\n        },\n        PreferServerCipherSuites: true,\n        NextProtos:              []string{\"h2\", \"http/1.1\"},\n    }\n}\n\n// Compliant: TLS configuration factory with security levels\ntype TLSSecurityLevel int\n\nconst (\n    SecurityLevelModern TLSSecurityLevel = iota\n    SecurityLevelIntermediate\n    SecurityLevelCompatible\n)\n\nfunc CreateTLSConfig(level TLSSecurityLevel) *tls.Config {\n    switch level {\n    case SecurityLevelModern:\n        return &tls.Config{\n            MinVersion: tls.VersionTLS13,\n            // TLS 1.3 handles cipher selection automatically\n            CurvePreferences: []tls.CurveID{\n                tls.X25519,\n            },\n        }\n    case SecurityLevelIntermediate:\n        return &tls.Config{\n            MinVersion: tls.VersionTLS12,\n            CipherSuites: []uint16{\n                tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,\n                tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,\n                tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,\n                tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,\n            },\n            CurvePreferences: []tls.CurveID{\n                tls.X25519,\n                tls.CurveP256,\n                tls.CurveP384,\n            },\n            PreferServerCipherSuites: true,\n        }\n    case SecurityLevelCompatible:\n        return &tls.Config{\n            MinVersion: tls.VersionTLS12, // Still no lower than 1.2\n            CipherSuites: []uint16{\n                // Include some additional ciphers for compatibility\n                tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,\n                tls.TLS_RSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_RSA_WITH_AES_128_GCM_SHA256,\n            },\n            PreferServerCipherSuites: true,\n        }\n    default:\n        // Default to intermediate security\n        return CreateTLSConfig(SecurityLevelIntermediate)\n    }\n}\n\n// Compliant: HTTP client with security validation\nfunc createValidatingClient() *http.Client {\n    return &http.Client{\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                MinVersion: tls.VersionTLS12,\n                CipherSuites: []uint16{\n                    tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n                    tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,\n                },\n                // Certificate validation is enabled by default\n                InsecureSkipVerify: false,\n                VerifyConnection: func(cs tls.ConnectionState) error {\n                    // Additional connection validation\n                    if cs.Version < tls.VersionTLS12 {\n                        return fmt.Errorf(\"TLS version %x is too old\", cs.Version)\n                    }\n                    return nil\n                },\n            },\n        },\n    }\n}\n\n// Compliant: Utility for checking TLS configuration security\nfunc ValidateTLSConfig(config *tls.Config) []string {\n    var warnings []string\n    \n    if config.MinVersion < tls.VersionTLS12 {\n        warnings = append(warnings, \"TLS version below 1.2 is insecure\")\n    }\n    \n    // Check for weak cipher suites\n    weakCiphers := map[uint16]string{\n        tls.TLS_RSA_WITH_RC4_128_SHA:       \"RC4 is broken\",\n        tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA:  \"3DES is weak\",\n        tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA: \"RC4 is broken\",\n    }\n    \n    for _, cipher := range config.CipherSuites {\n        if reason, isWeak := weakCiphers[cipher]; isWeak {\n            warnings = append(warnings, fmt.Sprintf(\"Weak cipher suite detected: %s\", reason))\n        }\n    }\n    \n    return warnings\n}",
+        "description": "Using TLS 1.2 or higher with strong cipher suites ensures secure communication and protects against known cryptographic attacks."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-4423"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "method_declaration", 
+      "call_expression",
+      "composite_literal",
+      "keyed_element"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "MinVersion:\\s*tls\\.VersionSSL30",
+          "MaxVersion:\\s*tls\\.VersionSSL30", 
+          "MinVersion:\\s*tls\\.VersionTLS10",
+          "MaxVersion:\\s*tls\\.VersionTLS10",
+          "MinVersion:\\s*tls\\.VersionTLS11",
+          "MaxVersion:\\s*tls\\.VersionTLS11",
+          "tls\\.VersionSSL30",
+          "tls\\.VersionTLS10", 
+          "tls\\.VersionTLS11",
+          "tls\\.TLS_RSA_WITH_RC4_128_SHA",
+          "tls\\.TLS_ECDHE_RSA_WITH_RC4_128_SHA",
+          "tls\\.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA",
+          "tls\\.TLS_RSA_WITH_RC4_128_MD5",
+          "tls\\.TLS_RSA_WITH_3DES_EDE_CBC_SHA",
+          "tls\\.TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA",
+          "tls\\.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA",
+          "tls\\.TLS_RSA_WITH_AES_128_CBC_SHA",
+          "tls\\.TLS_RSA_WITH_AES_256_CBC_SHA",
+          "tls\\.TLS_DHE_RSA_WITH_AES_128_CBC_SHA", 
+          "tls\\.TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+          "tls\\.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+          "tls\\.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+          "tls\\.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+          "tls\\.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+          "Renegotiation:\\s*tls\\.RenegotiateOnceAsClient",
+          "Renegotiation:\\s*tls\\.RenegotiateFreelyAsClient"
+        ],
+        "exclude_patterns": [
+          "VersionTLS12",
+          "VersionTLS13", 
+          "AES_128_GCM",
+          "AES_256_GCM",
+          "CHACHA20_POLY1305",
+          "RenegotiateNever",
+          "func.*ValidateTLS",
+          "func.*CheckTLS", 
+          "func.*Validate.*TLS",
+          "weakCiphers\\s*:=",
+          "map\\[uint16\\]string\\s*\\{",
+          "TLS_.*:\\s*\".*is broken\"",
+          "TLS_.*:\\s*\".*is weak\"",
+          "TLS_.*:\\s*\".*vulnerable\"",
+          "warnings.*append.*Weak cipher",
+          "//.*validation",
+          "//.*check"
+        ],
+        "message": "Weak SSL/TLS protocol or cipher suite detected. Use TLS 1.2+ with strong AEAD ciphers."
+      }
+    ]
+  }
+}

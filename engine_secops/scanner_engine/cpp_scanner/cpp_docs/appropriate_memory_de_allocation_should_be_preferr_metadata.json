@@ -1,0 +1,77 @@
+{
+  "filename": "appropriate_memory_de_allocation_should_be_preferr_metadata.json",
+  "rule_id": "appropriate_memory_deallocation_preferred",
+  "title": "Appropriate memory de-allocation should be preferred",
+  "description": "The same form that was used to create an object should always be used to delete it. Specifically, deallocation should correspond to allocation as per the table below. Table 1.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int* p1 = new int[10];\ndelete p1; // Noncompliant: should use delete[]",
+      "int* p2 = new int;\ndelete[] p2; // Noncompliant: should use delete",
+      "int* p3 = (int*)malloc(sizeof(int) * 10);\ndelete[] p3; // Noncompliant: should use free()"
+    ],
+    "compliant": [
+      "int* p1 = new int[10];\ndelete[] p1; // Compliant: correct deallocation for array",
+      "int* p2 = new int;\ndelete p2; // Compliant: correct deallocation for single object",
+      "int* p3 = (int*)malloc(sizeof(int) * 10);\nfree(p3); // Compliant: correct deallocation for malloc"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1232"
+  ],
+  "logic": {
+    "node_types": [
+      "expression_statement",
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_memory_deallocation_mismatch",
+        "message": "Inappropriate memory deallocation: {allocation_type} should be paired with {correct_deallocation}"
+      }
+    ],
+    "custom_logic": {
+      "allocation_patterns": {
+        "new[]": {
+          "pattern": "new\\s+\\w+\\[",
+          "correct_deallocation": "delete[]",
+          "incorrect_patterns": ["delete\\s+(?!\\[)", "free\\s*\\("]
+        },
+        "new": {
+          "pattern": "new\\s+\\w+(?!\\[)",
+          "correct_deallocation": "delete",
+          "incorrect_patterns": ["delete\\s*\\[", "free\\s*\\("]
+        },
+        "malloc": {
+          "pattern": "malloc\\s*\\(",
+          "correct_deallocation": "free",
+          "incorrect_patterns": ["delete\\s+", "delete\\s*\\["]
+        },
+        "calloc": {
+          "pattern": "calloc\\s*\\(",
+          "correct_deallocation": "free", 
+          "incorrect_patterns": ["delete\\s+", "delete\\s*\\["]
+        },
+        "realloc": {
+          "pattern": "realloc\\s*\\(",
+          "correct_deallocation": "free",
+          "incorrect_patterns": ["delete\\s+", "delete\\s*\\["]
+        }
+      },
+      "deallocation_patterns": {
+        "delete": "delete\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+        "delete[]": "delete\\s*\\[\\s*\\]\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+        "free": "free\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\)\\s*;"
+      }
+    }
+  }
+}

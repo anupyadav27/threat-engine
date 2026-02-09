@@ -1,0 +1,54 @@
+{
+  "filename": "functions_with_noreturn_attribute_should_not_retur_metadata.json",
+  "rule_id": "functions_noreturn_attribute_return",
+  "title": "Functions with noreturn attribute should not return",
+  "description": "The \"noreturn\" attribute should be used to indicate that a function does not return to its caller: it may terminate the program, enter an infinite loop, or throw an exception. This attribute is typically used for functions that perform critical operations, such as exiting the program or handling an error condition. For example, the \"exit\" function is marked with the \"noreturn\" attribute because it terminates the program and does not return to its caller.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Function with noreturn attribute that returns\n__attribute__((noreturn)) int badFunction(int x) {\n  if (x > 0) {\n    return x;  // This should not happen in a noreturn function\n  }\n  exit(1);\n}"
+    ],
+    "compliant": [
+      "// Compliant: Function with noreturn attribute that never returns\n__attribute__((noreturn)) void goodFunction(int x) {\n  if (x > 0) {\n    exit(x);\n  } else {\n    abort();\n  }\n  // No return statement - function always exits\n}\n\n// Alternative: Function without noreturn that can return\nint returningFunction(int x) {\n  if (x > 0) {\n    return x;\n  }\n  return -1;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5267"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "return\\s+x;",
+          "return;",
+          "return\\s+-1;",
+          "return\\s+NULL;",
+          "return\\s+value;",
+          "return\\s+result;",
+          "return\\s+a\\s*\\*\\s*b;",
+          "return\\s+1;",
+          "return\\s+2;",
+          "return\\s+\\w+;",
+          "return\\s+[^;]+;",
+          "return\\s*;"
+        ],
+        "message": "Functions with noreturn attribute should not return. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

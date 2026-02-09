@@ -1,0 +1,46 @@
+{
+  "filename": "member_variables_should_be_initialized_metadata.json",
+  "rule_id": "member_variables_initialized",
+  "title": "Member variables should be initialized",
+  "description": "Member variables should be initializedAnalyze your codeintentionality-completereliabilityBugsymbolic-executionbad-practicepitfallPartially initialized objects are surprising to theclassusers and might lead to hard-to-catch bugs.classes with constructors are expected to have all members initialized after their constructor finishes.This rule raises an issue when some members are left uninitialized after a constructor finishes.Why is this an issue?How can I fix it?More InfoIn the following example,PartInit::xis left uninitialized after the constructor finishes.struct AutomaticallyInitialized { int x; AutomaticallyInitialized() : x(0) {} }; struct PartInit { AutomaticallyInitialized ai; int x; int y; PartInit(int n) :y(n) { // this->ai is initialized // this->y is initialized // Noncompliant:",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct PartInit {\n  int x; // Noncompliant: left uninitialized\n  int y;\n  PartInit(int n) : y(n) {\n    // x is not initialized\n  }\n};",
+      "class MyClass {\n  int value; // Noncompliant: not initialized\n  std::string name; // Noncompliant: not initialized\npublic:\n  MyClass(int v) : value(v) {\n    // name is not initialized\n  }\n};",
+      "class Configuration {\n  bool enabled; // Noncompliant: not initialized\n  int timeout;\npublic:\n  Configuration(int t) : timeout(t) {}\n};"
+    ],
+    "compliant": [
+      "struct PartInit {\n  int x;\n  int y;\n  PartInit(int n) : x(0), y(n) { // Compliant: all members initialized\n  }\n};",
+      "class MyClass {\n  int value;\n  std::string name;\npublic:\n  MyClass(int v) : value(v), name(\"default\") { // Compliant: all initialized\n  }\n};",
+      "class Configuration {\n  bool enabled = false; // Compliant: in-class initializer\n  int timeout;\npublic:\n  Configuration(int t) : timeout(t) {} // Compliant\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2107"
+  ],
+  "logic": {
+    "node_types": [
+      "StructDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "int\\s+x;.*PartInit\\([^)]*\\)[^:]*:.*y\\([^)]*\\)(?![^}]*x\\()"
+        ],
+        "message": "All member variables should be initialized in constructor initialization list."
+      }
+    ]
+  }
+}

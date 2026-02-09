@@ -1,0 +1,54 @@
+{
+  "filename": "unary_minus_should_not_be_applied_to_an_unsigned_e_metadata.json",
+  "rule_id": "unary_minus_applied_unsigned",
+  "title": "Unary minus should not be applied to an unsigned expression",
+  "description": "Unary minus should not be applied to an unsigned expressionAnalyze your codeintentionality-logicalreliabilityBugbased-on-misraWhy is this an issue?More InfoApplying the unary minus operator to an unsigned variable or expression will always yield another unsigned expression. More plainly, in some cases the operation itself is meaningless, and in some other cases the result will be unexpected. In all cases it is bad practice.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Applying unary minus to unsigned variables\nuint8_t a = 255;\nint32_t b = -a; // Noncompliant; unexpected result\n\nuint32_t c = 1U;\nint64_t d = -c; // Noncompliant; gets large positive value\n\n// Direct unary minus on unsigned literal\nint value = -1U; // Noncompliant"
+    ],
+    "compliant": [
+      "// Use signed variables for negation\nint8_t a = 255; // Use signed type\nint32_t b = -a; // OK with signed\n\n// Cast to signed before negation\nuint32_t c = 1U;\nint64_t d = -(int32_t)c; // Cast to signed first\n\n// Use signed literals\nint value = -1; // Use signed literal"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-876"
+  ],
+  "logic": {
+    "node_types": [
+      "UnaryExpression",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "-\\s*unsigned_\\w+",
+          "-\\s*uint\\d+_\\w+",
+          "-\\s*bad_unsigned_\\w+",
+          "-\\s*problematic_unsigned_\\w+",
+          "-\\s*\\d+U\\b",
+          "-\\s*\\d+UL\\b",
+          "-\\s*\\(\\s*uint\\d+_t\\s*\\)",
+          "-\\s*\\(\\s*unsigned\\s+\\w+\\s*\\)",
+          "-\\s*SIZE_MAX",
+          "-\\s*UINT_MAX"
+        ],
+        "message": "Unary minus should not be applied to an unsigned expression. Review and fix according to the rule guidelines."
+      }
+    ],
+    "analysis_type": "semantic",
+    "precision": "high"
+  }
+}

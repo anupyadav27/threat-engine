@@ -1,0 +1,42 @@
+{
+  "filename": "bool_expressions_should_be_avoided_as_operands_to__metadata.json",
+  "rule_id": "bool_expressions_avoided_as",
+  "title": "bool expressions should be avoided as operands to built-in operators other than =, &&, ||, !, ==, !=, unary &, and the conditional operator",
+  "description": "\"bool\" expressions should not be used as operands to built-in operators other than =, &&, ||, !, ==, !=, unary &, and the conditional operatorAnalyze your codeintentionality-completemaintainabilityCode Smellbased-on-misrasuspiciousWhy is this an issue?More InfoThe use ofbooloperands with other operators is unlikely to be meaningful (or intended). Best case it will be confusing to maintainers, worst case it will not have the intended effect. Either way, it is highly recommended to stick to boolean operators when dealing withbooloperands.This rule allows the detection of such uses, which often occur because the logical operators (&&,||and!) can be easily confused with the bitwise operators (&,|and~).Noncompliant code examplebool b1 = true; bool b2 = false; int8_t s8a; if ( b1 & b2 ) // Nonco",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "bool b1 = true;\nbool b2 = false;\nif (b1 & b2) {  // Noncompliant: using bitwise & instead of logical &&\n    doSomething();\n}\n\nbool result = b1 | b2;  // Noncompliant: using bitwise | instead of logical ||\nint value = b1 + b2;   // Noncompliant: arithmetic operation on bool\nbool shifted = b1 << 1;  // Noncompliant: bit shifting on bool"
+    ],
+    "compliant": [
+      "bool b1 = true;\nbool b2 = false;\nif (b1 && b2) {  // Compliant: using logical &&\n    doSomething();\n}\n\nbool result = b1 || b2;  // Compliant: using logical ||\nbool equal = (b1 == b2);  // Compliant: equality comparison\nbool negated = !b1;      // Compliant: logical negation\nbool conditional = b1 ? b2 : false;  // Compliant: conditional operator"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-872"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement", 
+      "declaration",
+      "BinaryExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(true|false)\\s*[&|+\\-*/<>^%]|\\b[a-zA-Z_]\\w*\\s*[&^]\\s*\\b(true|false|[a-zA-Z_]\\w*)|\\b(true|false|[a-zA-Z_]\\w*)\\s*[+\\-*/%<>]\\s*\\b(true|false|[a-zA-Z_]\\w*)|\\b(true|false|[a-zA-Z_]\\w*)\\s*(<<|>>)\\s*\\d+",
+        "message": "Avoid using boolean expressions with bitwise or arithmetic operators. Use logical operators (&&, ||, !) instead."
+      }
+    ]
+  }
+}

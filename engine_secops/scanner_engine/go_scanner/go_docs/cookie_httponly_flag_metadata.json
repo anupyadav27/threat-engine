@@ -1,0 +1,35 @@
+{
+  "filename": "cookie_httponly_flag_metadata.json",
+  "rule_id": "security_cookie_httponly_flag",
+  "title": "Set HttpOnly flag on cookies",
+  "description": "Cookies created without the HttpOnly flag are accessible via client-side scripts, making them vulnerable to cross-site scripting (XSS) attacks. This is especially critical for session and authentication cookies.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Set the HttpOnly flag on sensitive cookies to prevent client-side script access.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"net/http\"\n    \"time\"\n)\n\n// Noncompliant: Cookie without HttpOnly flag\nfunc setSessionCookie(w http.ResponseWriter, sessionID string) {\n    cookie := &http.Cookie{\n        Name:     \"session_id\",\n        Value:    sessionID,\n        Path:     \"/\",\n        Expires:  time.Now().Add(24 * time.Hour),\n        // BAD: Missing HttpOnly flag - vulnerable to XSS attacks\n    }\n    http.SetCookie(w, cookie)\n}\n\nfunc setAuthCookie(w http.ResponseWriter, token string) {\n    // BAD: Authentication cookie accessible via JavaScript\n    cookie := &http.Cookie{\n        Name:    \"auth_token\",\n        Value:   token,\n        Path:    \"/\",\n        Secure:  true,\n        HttpOnly: false, // Explicitly set to false - BAD\n    }\n    http.SetCookie(w, cookie)\n}",
+        "description": "Cookies without HttpOnly flag can be accessed by client-side scripts, making them vulnerable to XSS attacks."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"net/http\"\n    \"time\"\n)\n\n// Compliant: Cookie with HttpOnly flag\nfunc setSessionCookie(w http.ResponseWriter, sessionID string) {\n    cookie := &http.Cookie{\n        Name:     \"session_id\",\n        Value:    sessionID,\n        Path:     \"/\",\n        Expires:  time.Now().Add(24 * time.Hour),\n        HttpOnly: true, // GOOD: Prevents client-side script access\n        Secure:   true, // Also good practice for HTTPS\n    }\n    http.SetCookie(w, cookie)\n}\n\nfunc setAuthCookie(w http.ResponseWriter, token string) {\n    // GOOD: Authentication cookie protected from XSS\n    cookie := &http.Cookie{\n        Name:     \"auth_token\",\n        Value:    token,\n        Path:     \"/\",\n        Secure:   true,\n        HttpOnly: true, // GOOD: Script access prevented\n        SameSite: http.SameSiteStrictMode,\n    }\n    http.SetCookie(w, cookie)\n}",
+        "description": "Set HttpOnly flag on sensitive cookies to prevent client-side script access."
+      }
+    ]
+  },
+  "references": ["https://rules.sonarsource.com/go/RSPEC-3330"],
+  "logic": {
+    "node_types": ["call_expression", "composite_literal", "variable_declaration", "short_var_declaration"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source_text"],
+      "patterns": ["http\\.Cookie\\s*{[^}]*HttpOnly\\s*:\\s*false", "HttpOnly\\s*:\\s*false"],
+      "message": "Set HttpOnly flag on cookies to prevent client-side script access"
+    }]
+  }
+}

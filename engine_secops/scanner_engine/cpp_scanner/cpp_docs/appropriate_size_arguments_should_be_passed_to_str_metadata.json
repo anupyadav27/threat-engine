@@ -1,0 +1,41 @@
+{
+  "filename": "appropriate_size_arguments_should_be_passed_to_str_metadata.json",
+  "rule_id": "appropriate_size_arguments_passed",
+  "title": "Appropriate size arguments should be passed to strncat and strlcpy",
+  "description": "Appropriate size arguments should be passed to \"strncat\" and \"strlcpy\"Analyze your codeintentionality-completemaintainabilityCode Smellsymbolic-executionsuspiciousSize argument should be based on the size of the destination buffer to to prevent buffer overflows.Why is this an issue?What is the potential impact?How can I fix it?More InfoThe string manipulation functionsstrncat,strlcatandstrlcpyrequire a size argument that describes how many bytes from the source buffer are used at most. In many situations the size of the source buffer is unknown, which is why the size argument for these functions should be based on the size of the destination buffer. This helps to prevent buffer overflows.Note thatstrncatalways adds a terminating null character at the end of the appended characters; therefo",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char dest[20];\nchar src[100];\nstrncat(dest, src, strlen(src)); // Noncompliant: size based on source buffer",
+      "char dest[20];\nchar src[100];\nstrncat(dest, src, sizeof(src)); // Noncompliant: size based on source buffer",
+      "char dest[20];\nstrlcpy(dest, src, strlen(src)); // Noncompliant: size based on source"
+    ],
+    "compliant": [
+      "char dest[20];\nchar src[100];\nstrncat(dest, src, sizeof(dest) - strlen(dest) - 1); // Compliant: size based on destination buffer",
+      "char dest[20];\nchar src[100];\nstrlcpy(dest, src, sizeof(dest)); // Compliant: size based on destination buffer",
+      "char dest[20];\nstrlcat(dest, src, sizeof(dest)); // Compliant: size based on destination buffer"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5273"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_string_function_size_arguments",
+        "message": "Appropriate size arguments should be passed to string functions"
+      }
+    ]
+  }
+}

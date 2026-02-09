@@ -1,0 +1,58 @@
+{
+  "filename": "duplicate_string_literals_metadata.json",
+  "rule_id": "maintainability_duplicate_strings_avoid",
+  "title": "Avoid duplicated string literals",
+  "description": "Duplicated string literals make refactoring complex and error-prone because changes must be applied to multiple locations. This increases maintenance costs and the risk of inconsistencies when only some occurrences are updated.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Extract repeated string literals into named constants or variables.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport \"fmt\"\n\n// Noncompliant: Duplicated string literals\nfunc processUser(user *User) {\n    // BAD: String \"Invalid user data\" repeated multiple times\n    if user.Name == \"\" {\n        fmt.Println(\"Invalid user data\")\n        return\n    }\n    \n    if user.Email == \"\" {\n        fmt.Println(\"Invalid user data\")\n        return\n    }\n    \n    if user.Age < 0 {\n        fmt.Println(\"Invalid user data\")\n        return\n    }\n    \n    // BAD: Database connection string repeated\n    db1 := connectDB(\"postgresql://user:pass@localhost:5432/app\")\n    db2 := connectDB(\"postgresql://user:pass@localhost:5432/app\")\n    \n    // BAD: API endpoints duplicated\n    response1 := callAPI(\"https://api.example.com/v1/users\")\n    response2 := callAPI(\"https://api.example.com/v1/users\")\n    \n    // BAD: Error messages duplicated\n    if response1.Error != nil {\n        log.Error(\"Failed to fetch user data from API\")\n    }\n    if response2.Error != nil {\n        log.Error(\"Failed to fetch user data from API\")\n    }\n}",
+        "description": "Repeated string literals make refactoring difficult and increase the risk of inconsistencies."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"log\"\n)\n\n// Compliant: Extract string literals into constants\nconst (\n    ErrInvalidUserData = \"Invalid user data\"\n    DatabaseURL        = \"postgresql://user:pass@localhost:5432/app\"\n    APIEndpointUsers   = \"https://api.example.com/v1/users\"\n    ErrAPIFetchFailed  = \"Failed to fetch user data from API\"\n)\n\nfunc processUser(user *User) {\n    // GOOD: Using named constants\n    if user.Name == \"\" {\n        fmt.Println(ErrInvalidUserData)\n        return\n    }\n    \n    if user.Email == \"\" {\n        fmt.Println(ErrInvalidUserData)\n        return\n    }\n    \n    if user.Age < 0 {\n        fmt.Println(ErrInvalidUserData)\n        return\n    }\n    \n    // GOOD: Reusable connection string\n    db1 := connectDB(DatabaseURL)\n    db2 := connectDB(DatabaseURL)\n    \n    // GOOD: Consistent API endpoint\n    response1 := callAPI(APIEndpointUsers)\n    response2 := callAPI(APIEndpointUsers)\n    \n    // GOOD: Consistent error messages\n    if response1.Error != nil {\n        log.Error(ErrAPIFetchFailed)\n    }\n    if response2.Error != nil {\n        log.Error(ErrAPIFetchFailed)\n    }\n}\n\n// Alternative approach: Configuration struct\ntype Config struct {\n    DatabaseURL     string\n    APIEndpoint     string\n    ErrorMessages   map[string]string\n}\n\nfunc NewConfig() *Config {\n    return &Config{\n        DatabaseURL: \"postgresql://user:pass@localhost:5432/app\",\n        APIEndpoint: \"https://api.example.com/v1/users\",\n        ErrorMessages: map[string]string{\n            \"invalid_user\": \"Invalid user data\",\n            \"api_failed\":   \"Failed to fetch user data from API\",\n        },\n    }\n}\n\nfunc processUserWithConfig(user *User, config *Config) {\n    // GOOD: Centralized string management\n    invalidMsg := config.ErrorMessages[\"invalid_user\"]\n    \n    if user.Name == \"\" || user.Email == \"\" || user.Age < 0 {\n        fmt.Println(invalidMsg)\n        return\n    }\n    \n    db := connectDB(config.DatabaseURL)\n    response := callAPI(config.APIEndpoint)\n    \n    if response.Error != nil {\n        log.Error(config.ErrorMessages[\"api_failed\"])\n    }\n}",
+        "description": "Extract repeated string literals into named constants or configuration structures for better maintainability."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1192"
+  ],
+  "logic": {
+    "node_types": [
+      "string_literal",
+      "assignment_expression",
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "\"Invalid user data\"[^}]*\"Invalid user data\"",
+          "\"postgresql://[^\"]+\"[^}]*\"postgresql://[^\"]+\"",
+          "\"https://api\\.[^\"]+\"[^}]*\"https://api\\.[^\"]+\"",
+          "\"Processing user request\"[^}]*\"Processing user request\"",
+          "\"/var/log/[^\"]+\"[^}]*\"/var/log/[^\"]+\"",
+          "\"SELECT \\* FROM [^\"]+\"[^}]*\"SELECT \\* FROM [^\"]+\"",
+          "\"Operation completed successfully\"[^}]*\"Operation completed successfully\"",
+          "\"application/json\"[^}]*\"application/json\"",
+          "\"localhost:\\d+\"[^}]*\"localhost:\\d+\"",
+          "\"ERR_[A-Z_]+\"[^}]*\"ERR_[A-Z_]+\"",
+          "\"DATABASE_URL\"[^}]*\"DATABASE_URL\"",
+          "\"[^\"]{10,}\"[\\s\\S]*?\"[^\"]{10,}\"[\\s\\S]*?\"[^\"]{10,}\""
+        ],
+        "message": "Duplicated string literal detected: Extract repeated strings into named constants to improve maintainability"
+      }
+    ]
+  }
+}

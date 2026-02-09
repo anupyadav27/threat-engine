@@ -1,0 +1,42 @@
+{
+  "filename": "blocking_functions_should_not_be_called_inside_cri_metadata.json",
+  "rule_id": "blocking_functions_called_inside",
+  "title": "Blocking functions should not be called inside critical sections",
+  "description": "Concurrent accesses to shared resources are guarded by synchronization primitives such as mutexes to prevent data races. The section of code where a mutex is held is called the critical section. Critical sections are generally designed to be as small as possible, allowing concurrent threads to progress.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cwe",
+    "performance",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <cstdio>    // printf()\n#include <cstdlib>   // atoi()\n#include <mutex>\n#include <unistd.h>  // sleep()\n\nstd::mutex m;\nint load_shared_resource(); // Guarded by mutex 'm'\n\n// Some time-intensive computation.\nvoid do_expensive_work(int value, FILE *fd) {\n  char buf[4] = \"\";\n  std::fgets(buf, sizeof(buf), fd);\n  int sum = value + std::atoi(buf);\n  std::printf(\"value + line: %d\\n\", sum);\n}\n\nvoid worker_thread(FILE *fd) {\n  std::scoped_lock guard(m);\n  int value = load_shared_resource();\n  // Mutex 'm' could have been released here.\n  do_expensive_work(value, fd); // Noncompliant - blocking operation in critical section\n} // Mutex 'm' only released here, after 'do_expensive_work' is returned."
+    ],
+    "compliant": [
+      "#include <cstdio>\n#include <cstdlib>\n#include <mutex>\n#include <unistd.h>\n\nstd::mutex m;\nint load_shared_resource(); // Guarded by mutex 'm'\n\nvoid do_expensive_work(int value, FILE *fd) {\n  char buf[4] = \"\";\n  std::fgets(buf, sizeof(buf), fd);\n  int sum = value + std::atoi(buf);\n  std::printf(\"value + line: %d\\n\", sum);\n}\n\nvoid worker_thread(FILE *fd) {\n  int value;\n  {\n    std::scoped_lock guard(m);\n    value = load_shared_resource(); // Only access shared resource in critical section\n  } // Release mutex before expensive work\n  \n  do_expensive_work(value, fd); // Compliant - expensive work outside critical section\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5314"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\bstd::scoped_lock\\b[^}]*?(do_expensive_work|printf|fprintf|fgets|sleep|usleep|nanosleep|malloc|free|new|delete)\\s*\\(|\\bstd::scoped_lock\\b(?:[^{}]*\\{[^}]*\\})*[^}]*?(do_expensive_work|printf|fprintf|fgets|sleep|usleep|nanosleep|malloc|free|new|delete)\\s*\\(",
+        "message": "Avoid calling blocking functions inside critical sections as they can cause performance issues and deadlocks."
+      }
+    ]
+  }
+}

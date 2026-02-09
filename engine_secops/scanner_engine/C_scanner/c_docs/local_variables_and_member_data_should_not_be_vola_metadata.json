@@ -1,0 +1,55 @@
+{
+  "filename": "local_variables_and_member_data_should_not_be_vola_metadata.json",
+  "rule_id": "local_variables_member_data",
+  "title": "Local variables and member data should not be volatile",
+  "description": "The main intended use-case for volatile in C and C++ is to access data that can be modified by something external to the program, typically some hardware register. In contrast with some other languages with a volatile keyword, it does not provide any useful guarantees related to atomicity, memory ordering, or inter-thread synchronization. It is only really needed for the kind of low-level code found in kernels or embedded software, i.e.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void function() {\n  volatile int local_var = 0; // Noncompliant: volatile on local variable\n}",
+      "struct Config {\n  volatile int member_data; // Noncompliant: volatile member data\n};",
+      "volatile int counter = 0; // Noncompliant: unnecessary volatile"
+    ],
+    "compliant": [
+      "void function() {\n  int local_var = 0; // Compliant: no volatile on local variable\n}",
+      "struct Config {\n  int member_data; // Compliant: no volatile member data\n};",
+      "volatile uint32_t *hardware_register = (volatile uint32_t*)0x12345678; // Compliant: hardware access"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3687"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "volatile\\s+int\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+char\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;\\[]",
+          "volatile\\s+float\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+double\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+long\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+short\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+unsigned\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+size_t\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+bool\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "volatile\\s+[a-zA-Z_][a-zA-Z0-9_]*_t\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*[=;]",
+          "struct\\s+[^{]*\\{[^}]*volatile\\s+[a-zA-Z_]",
+          "typedef\\s+struct[^{]*\\{[^}]*volatile\\s+[a-zA-Z_]",
+          "union\\s+[^{]*\\{[^}]*volatile\\s+[a-zA-Z_]"
+        ],
+        "message": "Local variables and member data should not be volatile - remove volatile keyword unless accessing hardware registers"
+      }
+    ]
+  }
+}

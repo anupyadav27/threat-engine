@@ -1,0 +1,44 @@
+{
+  "filename": "function_like_macros_should_be_avoided_metadata.json",
+  "rule_id": "functionlike_macros_avoided",
+  "title": "Function-like macros should be avoided",
+  "description": "Function-like macros should not be usedAnalyze your codeintentionality-clearmaintainabilityCode Smellcppcoreguidelinesbased-on-misrapreprocessorbad-practicecertWhy is this an issue?More InfoEven if function-like macros may look similar to functions, they work differently. For example, functions provide parameter type-checking, whereas macros do not. Furthermore, since macros result in textual replacements, the code within a macro argument may be evaluated multiple times or in unexpected ways.Generally, functions provide a more secure and reliable mechanism than function-like macros.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#define CUBE(X) ((X) * (X) * (X)) // Noncompliant\n\nvoid func(void) {\n  int i = 2;\n  int a = CUBE(++i); // Noncompliant. Expands to: int a = ((++i) * (++i) * (++i))\n  // ...\n}",
+      "#define MAX(a, b) ((a) > (b) ? (a) : (b)) // Noncompliant\nint x = 1, y = 2;\nint result = MAX(++x, ++y); // Unpredictable behavior"
+    ],
+    "compliant": [
+      "inline int cube(int i) {\n  return i * i * i;\n}\n\nvoid func(void) {\n  int i = 2;\n  int a = cube(++i); // yields 27\n  // ...\n}",
+      "template<typename T>\nconstexpr T max(const T& a, const T& b) {\n  return (a > b) ? a : b;\n}\nint x = 1, y = 2;\nint result = max(++x, ++y); // Predictable behavior"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-960"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#define\\s+[A-Z_][A-Z0-9_]*\\([^)]*\\)"
+        ],
+        "message": "Function-like macros should be avoided"
+      }
+    ]
+  }
+}

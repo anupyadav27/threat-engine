@@ -1,0 +1,62 @@
+{
+  "filename": "cyclomatic_complexity_of_coroutines_should_not_be__metadata.json",
+  "rule_id": "cyclomatic_complexity_coroutines_too",
+  "title": "Cyclomatic Complexity of coroutines should not be too high",
+  "description": "Cyclomatic Complexity of coroutines should not be too highAnalyze your codeadaptability-focusedmaintainabilityCode Smellsince-c++20brain-overloadWhy is this an issue?The Cyclomatic Complexity of coroutines should not exceed a defined threshold. Complex code may perform poorly and can be difficult to test thoroughly.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.3©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - coroutine with high cyclomatic complexity\n#include <coroutine>\n#include <optional>\n\nstruct Task {\n    struct promise_type {\n        Task get_return_object() { return {}; }\n        std::suspend_never initial_suspend() { return {}; }\n        std::suspend_never final_suspend() noexcept { return {}; }\n        void return_void() {}\n        void unhandled_exception() {}\n    };\n};\n\nTask processComplexData(int type, int value, bool flag) {\n    if (type == 1) {\n        if (value > 100) {\n            if (flag) {\n                co_await std::suspend_always{};\n                if (value > 200) {\n                    // more complex logic\n                    co_return;\n                } else {\n                    co_await std::suspend_always{};\n                }\n            } else {\n                for (int i = 0; i < value; ++i) {\n                    if (i % 2 == 0) {\n                        co_await std::suspend_always{};\n                    }\n                }\n            }\n        } else if (value > 50) {\n            while (value > 0) {\n                co_await std::suspend_always{};\n                --value;\n            }\n        }\n    }\n    co_return;\n}"
+    ],
+    "compliant": [
+      "// Compliant - simple coroutines with low complexity\n#include <coroutine>\n\nstruct Task {\n    struct promise_type {\n        Task get_return_object() { return {}; }\n        std::suspend_never initial_suspend() { return {}; }\n        std::suspend_never final_suspend() noexcept { return {}; }\n        void return_void() {}\n        void unhandled_exception() {}\n    };\n};\n\nTask processSimpleData(int value) {\n    co_await std::suspend_always{};\n    // simple processing\n    co_return;\n}\n\nTask processType1(int value, bool flag) {\n    if (flag) {\n        co_await std::suspend_always{};\n    }\n    co_return;\n}\n\nTask processType2(int value) {\n    for (int i = 0; i < value; ++i) {\n        co_await std::suspend_always{};\n    }\n    co_return;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6192"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "coroutine_complexity_check",
+        "property_path": [
+          "source"
+        ],
+        "coroutine_indicators": [
+          "co_await",
+          "co_return",
+          "co_yield"
+        ],
+        "complexity_patterns": [
+          "\\bif\\s*\\(",
+          "\\belse\\s+if\\b",
+          "\\belse\\b",
+          "\\bwhile\\s*\\(",
+          "\\bfor\\s*\\(",
+          "\\bdo\\s+",
+          "\\bswitch\\s*\\(",
+          "\\bcase\\s+",
+          "\\bdefault\\s*:",
+          "\\btry\\s*\\{",
+          "\\bcatch\\s*\\(",
+          "\\&\\&",
+          "\\|\\|",
+          "\\?\\s*[^:]*\\s*:"
+        ],
+        "complexity_threshold": 8,
+        "message": "Cyclomatic complexity of this coroutine is too high. Consider breaking it down into smaller functions."
+      }
+    ]
+  }
+}

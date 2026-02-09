@@ -1,0 +1,45 @@
+{
+  "filename": "floating_point_numbers_should_not_be_tested_for_eq_metadata.json",
+  "rule_id": "floating_point_numbers_tested",
+  "title": "Floating point numbers should not be tested for equality",
+  "description": "Floating point math is imprecise because of the challenges of storing such values in a binary representation. Even worse, floating point math is not associative; push a float or a double through a series of simple mathematical operations and the answer will be different based on the order of those operation because of the rounding that takes place at each step. Even simple floating point assignments are not simple: float f = 0.1; // 0.100000001490116119384765625 double d = 0.1; // 0.1000000000000000055511151231257827021181583404541015625 (Results will vary based on compiler and compiler settings.) Therefore, the use of the equality (==) and inequality (!=) operators on float or double values is very often an error.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "float a = 0.1f;\nfloat b = 0.2f;\nfloat c = 0.3f;\n\nif (a + b == c) { // Noncompliant - direct equality comparison\n  // This may fail due to floating point precision\n}\n\ndouble x = 1.0/3.0;\ndouble y = 1.0/3.0;\nif (x == y) { // Noncompliant - equality on doubles\n  // May not work as expected\n}"
+    ],
+    "compliant": [
+      "#include <cmath>\n\nfloat a = 0.1f;\nfloat b = 0.2f;\nfloat c = 0.3f;\nfloat epsilon = 1e-5f;\n\nif (std::abs(a + b - c) < epsilon) { // Compliant - use epsilon comparison\n  // Safe floating point comparison\n}\n\ndouble x = 1.0/3.0;\ndouble y = 1.0/3.0;\ndouble tolerance = 1e-9;\nif (std::abs(x - y) < tolerance) { // Compliant - tolerance-based comparison\n  // Safe comparison with tolerance\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1244"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(float|double)\\b[^;]*==",
+          "==\\s*[^;]*\\b(float|double)\\b",
+          "\\b(\\w+\\s*\\+\\s*\\w+)\\s*==\\s*\\w+",
+          "\\b\\w+\\s*==\\s*\\w+\\s*[^;]*\\b(float|double|\\d+\\.\\d+)"
+        ],
+        "message": "Floating point numbers should not be tested for equality. Use epsilon-based comparison instead."
+      }
+    ]
+  }
+}

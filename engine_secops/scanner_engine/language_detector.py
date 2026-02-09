@@ -31,6 +31,10 @@ class LanguageType(Enum):
     JAVA = "java"
     CSHARP = "csharp"
     JAVASCRIPT = "javascript"
+    C = "c"
+    CPP = "cpp"
+    GO = "go"
+    RUBY = "ruby"
 
 
 @dataclass
@@ -278,6 +282,14 @@ class LanguageDetector:
             candidates.append(LanguageType.JAVASCRIPT)
         elif ext == '.tf':
             candidates.append(LanguageType.TERRAFORM)
+        elif ext in ['.c', '.h']:
+            candidates.append(LanguageType.C)
+        elif ext in ['.cpp', '.cxx', '.cc', '.hpp', '.hxx', '.hh']:
+            candidates.append(LanguageType.CPP)
+        elif ext == '.go':
+            candidates.append(LanguageType.GO)
+        elif ext == '.rb':
+            candidates.append(LanguageType.RUBY)
         elif ext == '.json':
             candidates.extend([LanguageType.CLOUDFORMATION, LanguageType.AZURE_ARM])
         elif ext in ['.yml', '.yaml']:
@@ -297,7 +309,8 @@ class LanguageDetector:
         if not candidates or len(candidates) > 1:
             candidates.extend([
                 LanguageType.PYTHON, LanguageType.JAVA, LanguageType.CSHARP, 
-                LanguageType.JAVASCRIPT, LanguageType.TERRAFORM, LanguageType.DOCKER
+                LanguageType.JAVASCRIPT, LanguageType.TERRAFORM, LanguageType.DOCKER,
+                LanguageType.C, LanguageType.CPP, LanguageType.GO, LanguageType.RUBY
             ])
         
         return list(set(candidates))  # Remove duplicates
@@ -368,6 +381,14 @@ class LanguageDetector:
             return self._analyze_csharp(content, file_path)
         elif lang_type == LanguageType.JAVASCRIPT:
             return self._analyze_javascript(content, file_path)
+        elif lang_type == LanguageType.C:
+            return self._analyze_c(content, file_path)
+        elif lang_type == LanguageType.CPP:
+            return self._analyze_cpp(content, file_path)
+        elif lang_type == LanguageType.GO:
+            return self._analyze_go(content, file_path)
+        elif lang_type == LanguageType.RUBY:
+            return self._analyze_ruby(content, file_path)
         
         return None
     
@@ -855,6 +876,187 @@ class LanguageDetector:
             reasoning = f"Found JavaScript markers: {found_markers[:5]}"
             return DetectionResult(
                 language=LanguageType.JAVASCRIPT,
+                confidence=confidence,
+                structural_markers=found_markers,
+                semantic_validation=False,
+                reasoning=reasoning
+            )
+        
+        return None
+
+    def _analyze_c(self, content: str, file_path: str) -> Optional[DetectionResult]:
+        """Analyze C structural fingerprints."""
+        ext = os.path.splitext(file_path)[1].lower()
+        confidence = 0.0
+        found_markers = []
+        
+        # File extension check
+        if ext in ['.c', '.h']:
+            confidence += 0.8
+            found_markers.append('c_extension')
+        
+        # C syntax patterns
+        c_patterns = [
+            (r'#include\s*<[^>]+>', 'include_system', 0.2),
+            (r'#include\s*"[^"]+"', 'include_local', 0.1),
+            (r'int\s+main\s*\(', 'main_function', 0.3),
+            (r'void\s+\w+\s*\(', 'void_function', 0.1),
+            (r'int\s+\w+\s*\(', 'int_function', 0.1),
+            (r'printf\s*\(', 'printf_call', 0.2),
+            (r'malloc\s*\(', 'malloc_call', 0.15),
+            (r'free\s*\(', 'free_call', 0.15),
+            (r'struct\s+\w+', 'struct_definition', 0.1),
+            (r'typedef\s+', 'typedef_statement', 0.1)
+        ]
+        
+        for pattern, name, score in c_patterns:
+            if re.search(pattern, content, re.MULTILINE):
+                found_markers.append(name)
+                confidence += score
+        
+        confidence = max(0.0, min(confidence, 1.0))
+        
+        if confidence > 0.3:
+            reasoning = f"Found C markers: {found_markers[:5]}"
+            return DetectionResult(
+                language=LanguageType.C,
+                confidence=confidence,
+                structural_markers=found_markers,
+                semantic_validation=False,
+                reasoning=reasoning
+            )
+        
+        return None
+
+    def _analyze_cpp(self, content: str, file_path: str) -> Optional[DetectionResult]:
+        """Analyze C++ structural fingerprints."""
+        ext = os.path.splitext(file_path)[1].lower()
+        confidence = 0.0
+        found_markers = []
+        
+        # File extension check
+        if ext in ['.cpp', '.cxx', '.cc', '.hpp', '.hxx', '.hh']:
+            confidence += 0.8
+            found_markers.append('cpp_extension')
+        
+        # C++ syntax patterns
+        cpp_patterns = [
+            (r'#include\s*<iostream>', 'iostream_include', 0.3),
+            (r'using\s+namespace\s+std', 'using_namespace_std', 0.3),
+            (r'std::', 'std_namespace', 0.2),
+            (r'cout\s*<<', 'cout_statement', 0.2),
+            (r'cin\s*>>', 'cin_statement', 0.2),
+            (r'class\s+\w+', 'class_definition', 0.2),
+            (r'public:', 'public_access', 0.1),
+            (r'private:', 'private_access', 0.1),
+            (r'protected:', 'protected_access', 0.1),
+            (r'template\s*<', 'template_declaration', 0.15),
+            (r'new\s+\w+', 'new_operator', 0.1),
+            (r'delete\s+', 'delete_operator', 0.1)
+        ]
+        
+        for pattern, name, score in cpp_patterns:
+            if re.search(pattern, content, re.MULTILINE):
+                found_markers.append(name)
+                confidence += score
+        
+        confidence = max(0.0, min(confidence, 1.0))
+        
+        if confidence > 0.3:
+            reasoning = f"Found C++ markers: {found_markers[:5]}"
+            return DetectionResult(
+                language=LanguageType.CPP,
+                confidence=confidence,
+                structural_markers=found_markers,
+                semantic_validation=False,
+                reasoning=reasoning
+            )
+        
+        return None
+
+    def _analyze_go(self, content: str, file_path: str) -> Optional[DetectionResult]:
+        """Analyze Go structural fingerprints."""
+        ext = os.path.splitext(file_path)[1].lower()
+        confidence = 0.0
+        found_markers = []
+        
+        # File extension check
+        if ext == '.go':
+            confidence += 0.8
+            found_markers.append('go_extension')
+        
+        # Go syntax patterns
+        go_patterns = [
+            (r'package\s+\w+', 'package_declaration', 0.3),
+            (r'import\s*\(', 'import_block', 0.2),
+            (r'import\s+"[^"]+"', 'import_statement', 0.2),
+            (r'func\s+\w+\s*\(', 'function_declaration', 0.2),
+            (r'func\s+main\s*\(', 'main_function', 0.3),
+            (r':=', 'short_assignment', 0.2),
+            (r'go\s+\w+\s*\(', 'go_routine', 0.2),
+            (r'chan\s+\w+', 'channel_declaration', 0.15),
+            (r'make\s*\(', 'make_call', 0.15),
+            (r'fmt\.Print', 'fmt_print', 0.1),
+            (r'defer\s+', 'defer_statement', 0.1)
+        ]
+        
+        for pattern, name, score in go_patterns:
+            if re.search(pattern, content, re.MULTILINE):
+                found_markers.append(name)
+                confidence += score
+        
+        confidence = max(0.0, min(confidence, 1.0))
+        
+        if confidence > 0.3:
+            reasoning = f"Found Go markers: {found_markers[:5]}"
+            return DetectionResult(
+                language=LanguageType.GO,
+                confidence=confidence,
+                structural_markers=found_markers,
+                semantic_validation=False,
+                reasoning=reasoning
+            )
+        
+        return None
+
+    def _analyze_ruby(self, content: str, file_path: str) -> Optional[DetectionResult]:
+        """Analyze Ruby structural fingerprints."""
+        ext = os.path.splitext(file_path)[1].lower()
+        confidence = 0.0
+        found_markers = []
+        
+        # File extension check
+        if ext == '.rb':
+            confidence += 0.8
+            found_markers.append('ruby_extension')
+        
+        # Ruby syntax patterns
+        ruby_patterns = [
+            (r'def\s+\w+', 'method_definition', 0.2),
+            (r'class\s+\w+', 'class_definition', 0.2),
+            (r'module\s+\w+', 'module_definition', 0.2),
+            (r'require\s+["\']', 'require_statement', 0.15),
+            (r'puts\s+', 'puts_statement', 0.1),
+            (r'p\s+', 'p_statement', 0.1),
+            (r'end\s*$', 'end_statement', 0.05),
+            (r'@\w+', 'instance_variable', 0.1),
+            (r'@@\w+', 'class_variable', 0.1),
+            (r'\$\w+', 'global_variable', 0.1),
+            (r'=>', 'hash_rocket', 0.05),
+            (r':\w+', 'symbol', 0.05)
+        ]
+        
+        for pattern, name, score in ruby_patterns:
+            if re.search(pattern, content, re.MULTILINE):
+                found_markers.append(name)
+                confidence += score
+        
+        confidence = max(0.0, min(confidence, 1.0))
+        
+        if confidence > 0.3:
+            reasoning = f"Found Ruby markers: {found_markers[:5]}"
+            return DetectionResult(
+                language=LanguageType.RUBY,
                 confidence=confidence,
                 structural_markers=found_markers,
                 semantic_validation=False,

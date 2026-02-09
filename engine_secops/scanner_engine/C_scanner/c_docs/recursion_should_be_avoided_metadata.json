@@ -1,0 +1,115 @@
+{
+  "filename": "recursion_should_be_avoided_metadata.json",
+  "rule_id": "recursion_avoided",
+  "title": "Recursion should be avoided",
+  "description": "Recursion should not be usedAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrabad-practicepitfallWhy is this an issue?More InfoRecursion is a powerful tool, but it can be tricky to get right. Getting it wrong can lead to stack overflow errors and cause system problems. Even when you do get it right, recursive code can be difficult to understand, perhaps leading to maintenance problems in the future.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int pow(int num, int exponent) {\n  if (exponent > 1) {\n    num = num * pow(num, exponent-1);  // Noncompliant; direct recursion\n  }\n  return num;\n}"
+    ],
+    "compliant": [
+      "int pow(int num, int exponent) {\n  int val = num;\n  while (exponent > 0) {\n    val *= num;\n    --exponent;\n  }\n  return val;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-925"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "int\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "void\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "float\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "double\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "char\\*\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "long\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\)",
+          "\\w+\\s+(\\w+)\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\1\\s*\\([^)]*\\).*//.*[Nn]oncompliant"
+        ],
+        "message": "Direct recursion detected - function calls itself",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "factorial.*factorial\\s*\\([^)]*\\)",
+          "fibonacci.*fibonacci\\s*\\([^)]*\\)",
+          "power.*power\\s*\\([^)]*\\)",
+          "pow.*pow\\s*\\([^)]*\\)",
+          "calculate.*calculate\\s*\\([^)]*\\)",
+          "sum.*sum\\s*\\([^)]*\\)",
+          "count.*count\\s*\\([^)]*\\)",
+          "search.*search\\s*\\([^)]*\\)",
+          "traverse.*traverse\\s*\\([^)]*\\)",
+          "sort.*sort\\s*\\([^)]*\\)",
+          "merge.*merge\\s*\\([^)]*\\)",
+          "quick.*quick\\s*\\([^)]*\\)",
+          "binary.*binary\\s*\\([^)]*\\)",
+          "recursive.*recursive\\s*\\([^)]*\\)"
+        ],
+        "message": "Recursive function detected by name pattern",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "return\\s+[^;]*\\w+\\s*\\([^)]*\\)",
+          "\\w+\\s*\\([^)]*\\);[\\s\\S]*return",
+          "if\\s*\\([^)]*\\)[^{}]*\\{[^{}]*return[^{}]*\\w+\\s*\\([^)]*\\)",
+          "while\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\w+\\s*\\([^)]*\\)",
+          "for\\s*\\([^)]*\\)[^{}]*\\{[^{}]*\\w+\\s*\\([^)]*\\)"
+        ],
+        "message": "Potential recursive call pattern detected",
+        "severity": "minor"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//.*[Nn]oncompliant.*recursion",
+          "//.*[Nn]oncompliant.*recursive",
+          "//.*[Nn]oncompliant.*direct.*recursion",
+          "//.*[Rr]ecursion.*should.*be.*avoided",
+          "//.*[Rr]ecursive.*implementation",
+          "//.*[Rr]ecursive.*call",
+          "//.*[Rr]ecursive.*function",
+          "num\\s*=\\s*num\\s*\\*\\s*pow\\([^)]*\\);.*//.*[Nn]oncompliant"
+        ],
+        "message": "Recursion flagged in comments - should be refactored to iterative approach",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "function_a.*function_b",
+          "function_b.*function_a",
+          "method_x.*method_y",  
+          "method_y.*method_x",
+          "helper_a.*helper_b",
+          "helper_b.*helper_a",
+          "\\w+_recursive\\s*\\([^)]*\\)",
+          "\\w+_recurse\\s*\\([^)]*\\)",
+          "do_\\w+_recursive\\s*\\([^)]*\\)"
+        ],
+        "message": "Mutual recursion or recursive naming pattern detected",
+        "severity": "major"
+      }
+    ]
+  }
+}

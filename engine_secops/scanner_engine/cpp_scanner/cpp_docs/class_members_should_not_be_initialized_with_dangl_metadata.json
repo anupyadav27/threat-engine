@@ -1,0 +1,46 @@
+{
+  "filename": "class_members_should_not_be_initialized_with_dangl_metadata.json",
+  "rule_id": "class_members_initialized_dangling",
+  "title": "Class members should not be initialized with dangling references",
+  "description": "Class members should not be initialized with dangling referencesAnalyze your codeintentionality-logicalreliabilityBugpitfallWhy is this an issue?Special attention should be paid when initializing class members: it is easy to get it wrong and initialize them with references that are going to be invalidated at the end of the constructor, known as dangling references.Noncompliant code examplestruct S { int *x; int &y; S(int i, int j) : x(&i), // Noncompliant, initializing x to the stack address of i y(j) // Noncompliant, y is bound to variable j which has a shorter lifetime {} };Compliant solutionstruct S { int *x; int &y; S(int *i, int &j) : x(i), y(j) {} };Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositorie",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct S {\n  int *x;\n  int &y;\n  S(int i, int j) :\n    x(&i),  // Noncompliant, initializing x to the stack address of i\n    y(j)  // Noncompliant, y is bound to variable j which has a shorter lifetime\n  {}\n};"
+    ],
+    "compliant": [
+      "struct S {\n  int *x;\n  int &y;\n  S(int *i, int &j) : x(i), y(j) {}\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5269"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration",
+      "StructDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          ":\\s*\\w+\\(&[a-z][a-zA-Z0-9]*\\)",
+          "\\s\\w+\\(&[a-z][a-zA-Z0-9]*\\)",
+          ":\\s*\\w+\\([a-z][a-zA-Z0-9]*\\)\\s*(?:,|\\})",
+          "\\s\\w+\\([a-z][a-zA-Z0-9]*\\)\\s*(?:,|\\})"
+        ],
+        "message": "Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}
