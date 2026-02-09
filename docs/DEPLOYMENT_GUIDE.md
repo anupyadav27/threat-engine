@@ -9,7 +9,6 @@
 | Method | Use Case | Complexity |
 |--------|----------|------------|
 | Docker Compose (local) | Development, testing | Low |
-| Docker Compose (hybrid) | Multi-CSP development | Medium |
 | AWS EKS | Production | High |
 
 ---
@@ -24,18 +23,6 @@ cp ../config.env.template .env
 # Edit .env with your credentials
 docker-compose up -d
 ```
-
-### Services Started
-
-| Service | Port | Image |
-|---------|------|-------|
-| PostgreSQL | 5432 | postgres:15 |
-| Redis | 6379 | redis:7-alpine |
-| API Gateway | 8000 | threat-engine/api-gateway |
-| Core Engine | 8001 | threat-engine/core-engine |
-| ConfigScan | 8002 | threat-engine/configscan |
-| Platform | 8003 | threat-engine/platform |
-| Data SecOps | 8004 | threat-engine/data-secops |
 
 ### Verify
 
@@ -52,51 +39,90 @@ docker-compose logs -f threat-engine
 
 ---
 
-## 2. Docker Hub Deployment
+## 2. Docker Hub Images
 
-### Build and Push Images
+All images are published under `yadavanup84/` on Docker Hub.
+
+| Image | Engine | Used By |
+|-------|--------|---------|
+| `yadavanup84/threat-engine-api-gateway` | API Gateway | `api-gateway` deployment |
+| `yadavanup84/engine-discoveries-aws` | Discovery Engine | `engine-discoveries` deployment |
+| `yadavanup84/engine-check-aws` | Check Engine | `engine-check` deployment |
+| `yadavanup84/threat-engine` | Threat Engine | `engine-threat` deployment |
+| `yadavanup84/threat-engine-compliance-engine` | Compliance Engine | `engine-compliance` deployment |
+| `yadavanup84/threat-engine-iam` | IAM Security Engine | `engine-iam` deployment |
+| `yadavanup84/threat-engine-datasec` | DataSec Engine | `engine-datasec` deployment |
+| `yadavanup84/inventory-engine` | Inventory Engine | `engine-inventory` deployment |
+| `yadavanup84/threat-engine-onboarding-api` | Onboarding Engine | `engine-onboarding` deployment |
+| `yadavanup84/threat-engine-yaml-rule-builder` | Rule Builder | `engine-rule` deployment |
+| `yadavanup84/secops-scanner` | SecOps Scanner | `engine-secops` deployment |
+| `yadavanup84/cspm-ui` | CSPM Frontend | `cspm-ui` deployment |
+| `yadavanup84/cspm-django-backend` | CSPM Backend | `django-backend` deployment |
+
+### Build and Push
 
 ```bash
 # Login to Docker Hub
 docker login -u yadavanup84
 
-# Build all images (from repo root)
+# Build and push (example: threat engine)
 docker build -f engine_threat/Dockerfile -t yadavanup84/threat-engine:latest .
-docker build -f engine_check/Dockerfile -t yadavanup84/check-engine:latest .
-docker build -f engine_inventory/Dockerfile -t yadavanup84/inventory-engine:latest .
-docker build -f engine_compliance/Dockerfile -t yadavanup84/compliance-engine:latest .
-docker build -f engine_rule/Dockerfile -t yadavanup84/rule-engine:latest .
-docker build -f api_gateway/Dockerfile -t yadavanup84/api-gateway:latest .
-
-# Push all
 docker push yadavanup84/threat-engine:latest
-docker push yadavanup84/check-engine:latest
-docker push yadavanup84/inventory-engine:latest
-docker push yadavanup84/compliance-engine:latest
-docker push yadavanup84/rule-engine:latest
-docker push yadavanup84/api-gateway:latest
-```
-
-### Using Makefile
-
-```bash
-cd deployment
-make build-all    # Build all images
-make push-all     # Push all images
-make deploy        # Deploy to K8s
 ```
 
 ---
 
 ## 3. AWS EKS Production Deployment
 
-### Prerequisites
+### Infrastructure
 
-- AWS CLI configured with appropriate permissions
-- kubectl configured for EKS cluster
-- Docker Hub credentials (or ECR setup)
-- RDS PostgreSQL instance running
-- Neo4j Aura instance (optional)
+| Component | Details |
+|-----------|---------|
+| **EKS Cluster** | `vulnerability-eks-cluster` in `ap-south-1` (Mumbai) |
+| **Node Group** | `vulnerability-nodegroup` — 2x `t3.medium` |
+| **RDS** | PostgreSQL 15, single instance hosting 9 databases |
+| **Load Balancer** | Single NLB via nginx ingress controller |
+| **Namespaces** | `threat-engine-engines`, `cspm`, `cspm-ui`, `secops-engine`, `ingress-nginx` |
+
+### Networking — Single NLB with Nginx Ingress
+
+All traffic routes through one Network Load Balancer via nginx ingress controller. No Classic ELBs.
+
+```
+Internet → NLB (nginx ingress) → Ingress Rules → ClusterIP Services → Pods
+```
+
+| Ingress Path | Namespace | Service | Port |
+|-------------|-----------|---------|------|
+| `/gateway/*` | threat-engine-engines | api-gateway | 80 |
+| `/discoveries/*` | threat-engine-engines | discoveries-api | 8001 |
+| `/check/*` | threat-engine-engines | check-api | 8002 |
+| `/compliance/*` | threat-engine-engines | compliance-api | 8003 |
+| `/threat/*` | threat-engine-engines | threat-api | 8004 |
+| `/iam/*` | threat-engine-engines | iam-api | 8005 |
+| `/datasec/*` | threat-engine-engines | datasec-api | 8006 |
+| `/inventory/*` | threat-engine-engines | inventory-api | 8007 |
+| `/onboarding/*` | threat-engine-engines | onboarding-api | 8008 |
+| `/ui/*` | cspm-ui | cspm-ui | 80 |
+| `/cspm/*` | cspm | django-backend | 8000 |
+| `/secops/*` | secops-engine | secops-scanner | 8000 |
+
+### Databases (Single RDS Instance)
+
+| Database | Engine | Size |
+|----------|--------|------|
+| `threat_engine_discoveries` | Discovery | 136 MB |
+| `threat_engine_check` | Check | 337 MB |
+| `threat_engine_threat` | Threat | 114 MB |
+| `threat_engine_compliance` | Compliance | 132 MB |
+| `threat_engine_iam` | IAM | 29 MB |
+| `threat_engine_datasec` | DataSec | 11 MB |
+| `threat_engine_inventory` | Inventory | 14 MB |
+| `threat_engine_onboarding` | Onboarding | 8.5 KB |
+| `threat_engine_pythonsdk` | PythonSDK (metadata) | 75 MB |
+| `threat_engine_shared` | Shared (orchestration) | 8.8 KB |
+| `vulnerability_db` | Vulnerability Scanner | 1.8 GB |
+| `cspm` | CSPM Django Backend | 9 MB |
 
 ### Step 1: Configure EKS Cluster
 
@@ -120,98 +146,64 @@ kubectl config set-context --current --namespace=threat-engine-engines
 ```bash
 # Database credentials
 kubectl create secret generic database-credentials \
-  --from-literal=DB_HOST=postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com \
+  --from-literal=DB_HOST=<rds-endpoint> \
   --from-literal=DB_PORT=5432 \
   --from-literal=DB_USER=postgres \
-  --from-literal=DB_PASSWORD=your_password
+  --from-literal=DB_PASSWORD=<password>
 
 # Neo4j credentials
 kubectl create secret generic neo4j-credentials \
-  --from-literal=NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io \
+  --from-literal=NEO4J_URI=neo4j+s://<instance>.databases.neo4j.io \
   --from-literal=NEO4J_USER=neo4j \
-  --from-literal=NEO4J_PASSWORD=your_password
-
-# Or apply from YAML
-kubectl apply -f kubernetes/database-credentials.yaml
-kubectl apply -f kubernetes/encryption-keys.yaml
+  --from-literal=NEO4J_PASSWORD=<password>
 ```
 
-### Step 4: Apply ConfigMaps
+### Step 4: Install Nginx Ingress Controller
 
 ```bash
-kubectl apply -f kubernetes/platform-config.yaml
+# Install via Helm
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer
 ```
 
-### Step 5: Create Service Account (IRSA)
+### Step 5: Deploy All Engines
 
 ```bash
-# Single service account for ALL engines with IRSA
-kubectl apply -f deployment/aws/eks/01-service-account.yaml
-```
-
-**IRSA Role:** `threat-engine-platform-role` with policies:
-- `ThreatEngineSecretsManager` — access to `threat-engine/*` secrets
-- `threat-engine-s3-cspm-lgtech-access` — S3 bucket access
-- `ThreatEngineAssumeCustomerRoles` — STS AssumeRole for customer scans
-- `ThreatEngineDynamoDB` — DynamoDB access (onboarding)
-
-### Step 6: Deploy All Engines (One Command)
-
-```bash
-# Deploy everything using the deploy script
+# Deploy everything
 cd deployment/aws/eks
 ./deploy.sh
 
-# Or deploy individually with uniform naming:
+# Or deploy individually:
 kubectl apply -f deployment/aws/eks/api-gateway.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-threat.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-discoveries.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-check.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-inventory.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-onboarding.yaml
-
-# Scale-to-0 engines (deploy manifests, scale up when ready)
 kubectl apply -f deployment/aws/eks/engines/engine-compliance.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-iam.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-datasec.yaml
 kubectl apply -f deployment/aws/eks/engines/engine-rule.yaml
 ```
 
-### Engine Naming Convention
-
-| Deployment | Service (ClusterIP) | Port | Image |
-|------------|-------------------|------|-------|
-| `api-gateway` | `api-gateway` + `api-gateway-lb` | 8000 | `yadavanup84/threat-engine-api-gateway:latest` |
-| `engine-threat` | `engine-threat` | 8020 | `yadavanup84/threat-engine:latest` |
-| `engine-discoveries` | `engine-discoveries` | 8001 | `yadavanup84/engine-discoveries-aws:latest` |
-| `engine-check` | `engine-check` | 8002 | `yadavanup84/engine-check-aws:latest` |
-| `engine-inventory` | `engine-inventory` | 8022 | `yadavanup84/inventory-engine:latest` |
-| `engine-onboarding` | `engine-onboarding` | 8008 | `yadavanup84/threat-engine-onboarding-api:latest` |
-| `engine-compliance` | `engine-compliance` | 8010 | `yadavanup84/threat-engine-compliance-engine:latest` |
-| `engine-iam` | `engine-iam` | 8003 | `yadavanup84/threat-engine-iam:latest` |
-| `engine-datasec` | `engine-datasec` | 8004 | `yadavanup84/threat-engine-datasec:latest` |
-| `engine-rule` | `engine-rule` | 8000 | `yadavanup84/threat-engine-yaml-rule-builder:latest` |
-
-### Step 7: Verify Deployment
+### Step 6: Verify Deployment
 
 ```bash
-# Check all pods are running
+# Check all pods
 kubectl get pods -n threat-engine-engines -o wide
 
 # Check services
 kubectl get svc -n threat-engine-engines
 
-# Check deployments
-kubectl get deployments -n threat-engine-engines
+# Check ingress
+kubectl get ingress --all-namespaces
 
-# Port forward for testing
-kubectl port-forward svc/api-gateway 8000:80 -n threat-engine-engines
-
-# Test
-curl http://localhost:8000/gateway/health
-
-# Scale up an engine when ready
-kubectl scale deployment engine-compliance --replicas=1 -n threat-engine-engines
+# Test via NLB
+NLB=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+curl http://$NLB/gateway/health
+curl http://$NLB/ui/
 ```
 
 ---
@@ -233,36 +225,6 @@ kubectl scale deployment engine-compliance --replicas=1 -n threat-engine-engines
 
 ---
 
-## Scaling
-
-### Horizontal Pod Autoscaler
-
-```bash
-# Apply HPA
-kubectl apply -f - <<EOF
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: engine-threat-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: engine-threat
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-EOF
-```
-
----
-
 ## Rolling Updates
 
 ```bash
@@ -281,23 +243,15 @@ kubectl rollout undo deployment/engine-threat
 
 ## Monitoring
 
-### Pod Health
-
 ```bash
+# Pod status
 kubectl get pods -n threat-engine-engines
 kubectl describe pod <pod-name> -n threat-engine-engines
 kubectl logs <pod-name> -f -n threat-engine-engines
 kubectl top pods -n threat-engine-engines
-```
 
-### Service Health
-
-```bash
-# Port forward and check health endpoints
-kubectl port-forward svc/engine-threat 8020:80 -n threat-engine-engines
-curl http://localhost:8020/health
-
-# Or via API Gateway
-kubectl port-forward svc/api-gateway 8000:80 -n threat-engine-engines
-curl http://localhost:8000/gateway/health
+# Service health via NLB
+curl http://<nlb-hostname>/gateway/health
+curl http://<nlb-hostname>/ui/
+curl http://<nlb-hostname>/secops/
 ```

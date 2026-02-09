@@ -7,39 +7,48 @@ Cloud Security Posture Management (CSPM) platform built as a microservices archi
 ## Architecture
 
 ```
-                        api-gateway (:8000)
-                              |
-        +---------+-----------+-----------+---------+----------+
-        |         |           |           |         |          |
-   engine-    engine-    engine-     engine-     engine-     ...
-   threat     check      inventory   compliance  rule
-   (:8020)    (:8002)     (:8022)     (:8010)    (:8000)
-        |         |           |           |         |
-   PostgreSQL  PostgreSQL  PostgreSQL  PostgreSQL PostgreSQL
-   + Neo4j     (check DB)  (inv DB)   (comp DB)  (check DB)
+                     NLB (nginx ingress)
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+   /gateway/*         /ui/*  /cspm/*     /secops/*
+        │                  │                  │
+   api-gateway        cspm-ui           secops-scanner
+        │             django-backend
+        │
+   ┌────┴────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+   │         │      │      │      │      │      │      │      │
+ /discovery /check /threat /compliance /iam /datasec /inventory /onboarding
+   :8001    :8002   :8004   :8003      :8005  :8006   :8007     :8008
+   │         │      │      │      │      │      │      │
+   PostgreSQL (9 databases on single RDS) + Neo4j (graph)
 ```
 
 ### Engines
 
-| Engine | K8s Name | Port | Purpose |
-|--------|----------|------|---------|
-| **engine_discoveries** | `engine-discoveries` | 8001 | Discover cloud resources via AWS/Azure/GCP APIs |
-| **engine_check** | `engine-check` | 8002 | Evaluate YAML security rules against discoveries |
-| **engine_inventory** | `engine-inventory` | 8022 | Normalize assets, build relationships, detect drift |
-| **engine_threat** | `engine-threat` | 8020 | Detect threats, risk scoring, attack paths (Neo4j), MITRE mapping |
-| **engine_compliance** | `engine-compliance` | 8010 | Map findings to compliance frameworks (CIS, NIST, SOC2, etc.) |
-| **engine_rule** | `engine-rule` | 8000 | YAML rule builder for 7 cloud providers |
-| **engine_onboarding** | `engine-onboarding` | 8008 | Account onboarding, credential management, scan scheduling |
-| **engine_datasec** | `engine-datasec` | 8004 | Data classification, lineage, residency, governance |
-| **engine_iam** | `engine-iam` | 8003 | IAM posture analysis, privilege escalation detection |
-| **engine_secops** | - | - | IaC/code scanning (Terraform, CloudFormation, Docker, K8s) |
-| **api_gateway** | `api-gateway` | 8000 | Unified entry point, service routing, scan orchestration |
+| Engine | K8s Name | Ingress Path | Port | Purpose |
+|--------|----------|-------------|------|---------|
+| **api_gateway** | `api-gateway` | `/gateway/*` | 80 | Unified entry point, service routing, scan orchestration |
+| **engine_discoveries** | `engine-discoveries` | `/discoveries/*` | 8001 | Discover cloud resources via AWS/Azure/GCP APIs |
+| **engine_check** | `engine-check` | `/check/*` | 8002 | Evaluate YAML security rules against discoveries |
+| **engine_compliance** | `engine-compliance` | `/compliance/*` | 8003 | Map findings to 13 compliance frameworks (CIS, NIST, SOC2, etc.) |
+| **engine_threat** | `engine-threat` | `/threat/*` | 8004 | Detect threats, risk scoring, attack paths (Neo4j), MITRE mapping |
+| **engine_iam** | `engine-iam` | `/iam/*` | 8005 | IAM posture analysis, privilege escalation detection |
+| **engine_datasec** | `engine-datasec` | `/datasec/*` | 8006 | Data classification, lineage, residency, governance |
+| **engine_inventory** | `engine-inventory` | `/inventory/*` | 8007 | Normalize assets, build relationships, detect drift |
+| **engine_onboarding** | `engine-onboarding` | `/onboarding/*` | 8008 | Account onboarding, credential management, scan scheduling |
+| **engine_rule** | `engine-rule` | - | 8000 | YAML rule builder for 7 cloud providers |
+| **engine_secops** | `engine-secops` | `/secops/*` | 8000 | IaC/code scanning (Terraform, CloudFormation, Docker, K8s) |
 
 ### Scan Pipeline
 
 ```
-Discovery → Check → Inventory → Threat Detection → Compliance → Graph Build
-   (AWS)    (rules)  (assets)   (MITRE, risk)     (frameworks)   (Neo4j)
+Discovery → Check ─┬─→ Threat ─┬─→ IAM Security
+  (AWS)    (rules)  │  (MITRE)  └─→ DataSec
+                    │
+                    ├─→ Compliance (13 frameworks)
+                    │
+                    └─→ Inventory (assets, relationships, graph)
 ```
 
 ---
@@ -180,7 +189,10 @@ threat-engine/
 - **Threat Detection** — Group findings into threats with risk scoring (0-100)
 - **Security Graph** — Neo4j-powered attack paths, blast radius, toxic combinations
 - **Threat Hunting** — Ad-hoc and predefined Cypher queries against security graph
-- **Compliance Reporting** — Map to CIS, NIST, SOC2, ISO 27001, PCI DSS, HIPAA, GDPR
+- **13-Framework Compliance** — CIS, NIST 800-53, SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR, NIST CSF, FFIEC, ACSC, MAS-TRM, NYDFS, RBI
+- **IAM Security Analysis** — Privilege escalation detection, MFA audit, password policy, root account, SSO posture
+- **Data Security** — Classification, lineage tracking, residency mapping, activity monitoring
 - **Drift Detection** — Track configuration changes between scans
 - **Scheduled Scanning** — CRON-based scan scheduling with orchestration
 - **200+ API Endpoints** — Full REST API for UI integration
+- **Single NLB Entry Point** — All traffic routes through nginx ingress on one Network Load Balancer
