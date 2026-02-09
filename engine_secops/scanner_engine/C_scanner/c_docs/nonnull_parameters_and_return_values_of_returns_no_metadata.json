@@ -1,0 +1,64 @@
+{
+  "filename": "nonnull_parameters_and_return_values_of_returns_no_metadata.json",
+  "rule_id": "nonnull_parameters_return_values",
+  "title": "nonnull parameters and return values of returns_nonnull functions should not be null",
+  "description": "What is the potential impact? A function’s return value and parameters may be decorated with attributes to convey additional information to the compiler and/or other developers. A commonly used attribute is nonnull which can be used to mark a function’s return value and parameters as shown in the following: __attribute__((returns_nonnull)) int * make_array_copy(int *src, size_t len) __attribute__((nonnull(1))); int *make_array_copy(int *src, size_t len) { int *dst = (int *)malloc(len * sizeof(int)); perror(\"malloc failed\"); memcpy(dst, src, len); The nonnull attribute is meant for other developers and as a hint for compilers. Values marked as nonnull are assumed to have non-null values.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "__attribute__((returns_nonnull)) int* func() {\n  return NULL; // Noncompliant: returning null from returns_nonnull function\n}",
+      "void process(__attribute__((nonnull)) char* str) {\n  // Noncompliant: not checking if str is null\n  printf(\"%s\", str);\n}\nvoid caller() {\n  process(NULL); // Noncompliant: passing null to nonnull parameter\n}"
+    ],
+    "compliant": [
+      "__attribute__((returns_nonnull)) int* make_array(size_t len) {\n  int* arr = malloc(len * sizeof(int));\n  if (arr == NULL) {\n    exit(1); // Compliant: ensure non-null return\n  }\n  return arr;\n}",
+      "void process(__attribute__((nonnull)) char* str) {\n  // Compliant: function assumes str is not null\n  printf(\"%s\", str);\n}\nvoid caller() {\n  char* valid_str = \"hello\";\n  process(valid_str); // Compliant: passing valid non-null pointer\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2637"
+  ],
+  "logic": {
+    "node_types": [
+      "ReturnStatement",
+      "CallExpression", 
+      "FunctionDefinition",
+      "Declaration",
+      "ArithmeticExpression",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "return\\s+(NULL|0|nullptr)\\s*;",
+          "\\bprintf\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bstrlen\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bstrcpy\\s*\\([^,)]*,\\s*(NULL|0|nullptr)",
+          "\\bstrcmp\\s*\\([^,)]*,\\s*(NULL|0|nullptr)",
+          "\\bmemcpy\\s*\\([^,)]*,\\s*(NULL|0|nullptr)",
+          "\\bprocess_string\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bprocess_buffer\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bcopy_data\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bcopy_data\\s*\\([^,)]*,\\s*(NULL|0|nullptr)",
+          "\\bmulti_param\\s*\\(\\s*(NULL|0|nullptr)",
+          "\\bmulti_param\\s*\\([^,)]*,\\s*[^,)]*,\\s*(NULL|0|nullptr)",
+          "\\w+\\s*\\(\\s*(NULL|0|nullptr)\\s*\\)",
+          "\\w+\\s*\\([^,)]*\\b(NULL|0|nullptr)\\b[^)]*\\)"
+        ],
+        "message": "Nonnull parameters and return values of returns_nonnull functions should not be null. Remove the problematic code and refactor as needed."
+      }
+    ]
+  }
+}

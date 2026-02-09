@@ -1,0 +1,47 @@
+{
+  "filename": "calls_to_c_str_should_not_implicitly_recreate_stri_metadata.json",
+  "rule_id": "calls_c_str_implicitly_recreate",
+  "title": "Calls to c_str() should not implicitly recreate strings or string_views",
+  "description": "Calls to c_str() should not implicitly recreate strings or string_viewsAnalyze your codeintentionality-efficientmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEUnnecessary calls toc_str()ordata()reduce readability and performance.Why is this an issue?More InfoIn the process of refactoring code from C to C++, it can easily happen that redundant calls toc_str()ordata()on standard strings get introduced when the original object could be used directly.void takeString(std::string const& dest); void takeStringView(std::string_view dest); void func(std::string const& src) { takeString(src.c_str()); // Noncompliant: redundant copy takeStringView(src.c_str()); // Noncompliant: redundant crossing of the content takeStringView(src.data()); // Noncompliant: redundant",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void takeString(const std::string& dest);\nvoid takeStringView(std::string_view dest);\n\nvoid func(const std::string& src) {\n    takeString(src.c_str()); // Noncompliant: redundant copy\n    takeStringView(src.c_str()); // Noncompliant: redundant conversion\n    takeStringView(src.data()); // Noncompliant: redundant conversion\n}"
+    ],
+    "compliant": [
+      "void takeString(const std::string& dest);\nvoid takeStringView(std::string_view dest);\n\nvoid func(const std::string& src) {\n    takeString(src); // Compliant: direct usage\n    takeStringView(src); // Compliant: implicit conversion\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-7121"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "patterns": [
+          "takeString\\s*\\(\\s*\\w+\\.c_str\\(\\)\\s*\\)",
+          "takeStringView\\s*\\(\\s*\\w+\\.c_str\\(\\)\\s*\\)",
+          "takeStringView\\s*\\(\\s*\\w+\\.data\\(\\)\\s*\\)",
+          "takeString\\s*\\(\\s*\\w+\\[\\w+\\]\\.c_str\\(\\)\\s*\\)",
+          "takeStringView\\s*\\(\\s*\\w+\\[\\w+\\]\\.data\\(\\)\\s*\\)",
+          "takeString\\s*\\(\\s*\\([^)]+\\)\\.c_str\\(\\)\\s*\\)",
+          "takeStringView\\s*\\(\\s*\\([^)]+\\)\\.data\\(\\)\\s*\\)",
+          "\\bstd::(string|string_view)\\s+\\w+\\s*=\\s*\\w+\\.c_str\\(\\)"
+        ],
+        "property_path": ["source"],
+        "message": "Remove redundant calls to c_str() or data() when the original string object can be used directly."
+      }
+    ]
+  }
+}

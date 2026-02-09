@@ -1,0 +1,67 @@
+{
+  "filename": "increment_should_be_avoided_to_set_boolean_variabl_metadata.json",
+  "rule_id": "increment_avoided_set_boolean",
+  "title": "Increment should be avoided to set boolean variables to 'true'",
+  "description": "Increment should not be used to set boolean variables to 'true'Analyze your codeintentionality-clearmaintainabilityCode SmellobsoleteconfusingWhy is this an issue?More InfoIt is possible to use the increment operator++, to set the value of abool(C++) or_Bool(C) variable totrue. But this feature has been deprecated in C++ since the 1998 version of the standard, removed in C++17, and even where allowed, is simply confusing.Noncompliant code examplebool alive; ... alive++;Compliant solutionbool alive; ..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "deprecated",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "bool alive;\nalive++;  // Noncompliant",
+      "_Bool flag = false;\nflag++;  // Noncompliant"
+    ],
+    "compliant": [
+      "bool alive;\nalive = true;  // Compliant",
+      "_Bool flag = false;\nflag = true;  // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2668"
+  ],
+  "logic": {
+    "node_types": [
+      "ArithmeticExpression",
+      "AssignmentExpression", 
+      "UnaryExpression",
+      "PostfixExpression",
+      "PrefixExpression",
+      "UpdateExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\b(?:bool|_Bool)\\s+\\w+\\s*[;=][^}]*?\\w+\\s*\\+\\+",
+          "\\b(?:bool|_Bool)\\s+\\w+\\s*[;=][^}]*?\\+\\+\\s*\\w+",
+          "\\+\\+\\s*\\w+\\s*;\\s*//.*(?:bool|boolean|flag|state)",
+          "\\w+\\s*\\+\\+\\s*;\\s*//.*(?:bool|boolean|flag|state)",
+          "(?:alive|active|enabled|valid|ready|done|finished|complete|success|flag|state|toggle|switch)\\s*\\+\\+",
+          "\\+\\+\\s*(?:alive|active|enabled|valid|ready|done|finished|complete|success|flag|state|toggle|switch)\\b",
+          "\\w+\\s*\\+\\+\\s*;.*//.*(?:[Ss]et.*true|[Mm]ake.*true|[Tt]urn.*on)",
+          "\\w+\\s*\\+\\+\\s*;.*//.*(?:boolean|bool|flag)"
+        ],
+        "message": "Increment operator should not be used to set boolean variables to 'true'. Use direct assignment (var = true)."
+      },
+      {
+        "type": "context_pattern_match",
+        "property_path": ["source"],
+        "conditions": [
+          {
+            "pattern": "\\b(?:bool|_Bool)\\s+(\\w+)",
+            "capture_group": 1,
+            "context_search": "\\1\\s*\\+\\+|\\+\\+\\s*\\1",
+            "message": "Boolean variable '{captured}' should be set to true using direct assignment, not increment operator."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "filename": "assignment_operators_should_return_non_const_refer_metadata.json",
+  "rule_id": "assignment_operators_return_nonconst",
+  "title": "Assignment operators should return non-const reference to the assigned object",
+  "description": "Assignment operators should return non-\"const\" reference to the assigned objectAnalyze your codeconsistency-conventionalmaintainabilityCode Smellconventioncppcoreguidelinesuser-experienceWhy is this an issue?More InfoCopy assignment operators and move assignment operators can return anything, includingvoid.However, if you decide to declare them yourself (don’t forget the \"Rule-of-Zero\" described inS3624), it is a recommended practice to return a non-const reference to the assigned object (left-operand). It allows the developer to chain the assignment operations, increasing consistency with what other types do and, in some cases, enabling the writing of concise code.This rule will raise for assignment operators that deviate from the above expectation.Using an unconventional return typeThis",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class MyClass {\npublic:\n    const MyClass& operator=(const MyClass& other); // Noncompliant: const reference\n};",
+      "class MyClass {\npublic:\n    MyClass operator=(const MyClass& other); // Noncompliant: returns by value\n};",
+      "class MyClass {\npublic:\n    void operator=(const MyClass& other); // Noncompliant: returns void\n};"
+    ],
+    "compliant": [
+      "class MyClass {\npublic:\n    MyClass& operator=(const MyClass& other); // Compliant: non-const reference\n        return *this;\n    }\n};",
+      "class MyClass {\npublic:\n    MyClass& operator=(MyClass&& other) noexcept; // Compliant: move assignment\n        return *this;\n    }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1236"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "const\\s+\\w+\\s*&\\s*operator\\s*[=+\\-*/%&|^]+=?",
+        "message": "Assignment operators should return non-const reference to support chaining."
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bvoid\\s+operator\\s*[=+\\-*/%&|^]+=?",
+        "message": "Assignment operators should return reference, not void."
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(?!const\\s|void\\s|\\w+&)\\w+\\s+operator\\s*[=+\\-*/%&|^]+=?\\s*\\(",
+        "message": "Assignment operators should return reference, not by value."
+      }
+    ]
+  }
+}

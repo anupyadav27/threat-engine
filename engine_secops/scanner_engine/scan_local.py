@@ -53,7 +53,7 @@ def scan_path(input_path):
         scan_targets = []
         for root, dirs, files in os.walk(input_path):
             for fname in files:
-                if fname.endswith(('.py', '.tf', '.java', '.cs', '.js', '.mjs', '.jsx', '.yml', '.yaml', '.json', '.dockerfile')) or \
+                if fname.endswith(('.py', '.tf', '.java', '.cs', '.js', '.mjs', '.jsx', '.yml', '.yaml', '.json', '.dockerfile', '.c', '.h', '.cpp', '.cxx', '.cc', '.hpp', '.hxx', '.hh', '.go', '.rb')) or \
                    fname.lower() == 'dockerfile' or fname.lower().startswith('dockerfile.'):
                     scan_targets.append(os.path.join(root, fname))
         for file in scan_targets:

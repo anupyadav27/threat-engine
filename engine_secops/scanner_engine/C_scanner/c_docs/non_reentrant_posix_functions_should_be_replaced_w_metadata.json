@@ -1,0 +1,66 @@
+{
+  "filename": "non_reentrant_posix_functions_should_be_replaced_w_metadata.json",
+  "rule_id": "nonreentrant_posix_functions_replaced",
+  "title": "Non-reentrant POSIX functions should be replaced with their reentrant versions",
+  "description": "A function is called reentrant if it can be interrupted in the middle of its execution and then safely called again (\"re-entered\") before its previous invocations complete execution. It is especially important that multi-threaded applications do not call the same non-reentrant function from different threads. This rule will trigger an issue each time a function in the configurable list is invoked.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <time.h>\nvoid thread_function() {\n  struct tm* time_info = localtime(&time_val); // Noncompliant: localtime is not reentrant\n}",
+      "#include <stdlib.h>\nvoid parse_function() {\n  char* token = strtok(buffer, \" \"); // Noncompliant: strtok is not reentrant\n}",
+      "#include <stdio.h>\nvoid error_function() {\n  char* error_msg = strerror(errno); // Noncompliant: strerror is not reentrant\n}"
+    ],
+    "compliant": [
+      "#include <time.h>\nvoid thread_function() {\n  struct tm time_info;\n  localtime_r(&time_val, &time_info); // Compliant: localtime_r is reentrant\n}",
+      "#include <stdlib.h>\nvoid parse_function() {\n  char* saveptr;\n  char* token = strtok_r(buffer, \" \", &saveptr); // Compliant: strtok_r is reentrant\n}",
+      "#include <string.h>\nvoid error_function() {\n  char error_buffer[256];\n  strerror_r(errno, error_buffer, sizeof(error_buffer)); // Compliant: strerror_r is reentrant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1912"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "FunctionCall"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "name"
+        ],
+        "patterns": [
+          "\\b(localtime|asctime|ctime|gmtime|strtok|strerror|rand|basename|dirname|getgrent|getgrnam|getgrgid|getpwent|getpwnam|getpwuid|readdir|gethostbyname|gethostbyaddr|getnetbyname|getnetbyaddr|getprotobyname|getprotobynumber|getservbyname|getservbyport|inet_ntoa|tmpnam|tempnam)\\b"
+        ],
+        "message": "Non-reentrant POSIX function detected. Replace with reentrant alternative (e.g., localtime_r, strtok_r, etc.)"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(localtime|asctime|ctime|gmtime)\\s*\\(",
+          "\\bstrtok\\s*\\(",
+          "\\bstrerror\\s*\\(",
+          "\\brand\\s*\\(",
+          "\\b(basename|dirname)\\s*\\(",
+          "\\bget(grent|grnam|grgid|pwent|pwnam|pwuid)\\s*\\(",
+          "\\breaddir\\s*\\(",
+          "\\bget(hostbyname|hostbyaddr|netbyname|netbyaddr|protobyname|protobynumber|servbyname|servbyport)\\s*\\(",
+          "\\binet_ntoa\\s*\\(",
+          "\\b(tmpnam|tempnam)\\s*\\("
+        ],
+        "message": "Non-reentrant POSIX function detected. Replace with reentrant alternative (e.g., localtime_r, strtok_r, etc.)"
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "filename": "condition_specific_catch_handlers_should_be_avoide_metadata.json",
+  "rule_id": "conditionspecific_catch_handlers_avoided",
+  "title": "Condition-specific catch handlers should be avoided after the ellipsis (catch-all) handler",
+  "description": "Condition-specific \"catch\" handlers should not be used after the ellipsis (catch-all) handlerAnalyze your codeintentionality-logicalreliabilityBugunusedmisra-c++2008Why is this an issue?How can I fix it?More InfoThe catch-all handler, writtencatch(...)in C++, or@catch(...)in Objective-C, catches every type of exception. If there is another catch statement for a specific exception after the catch-all handler, it will not be executed because the catch-all handler will already have handled the exception.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void incorrectExceptionHandling() {\n    try {\n        riskyOperation();\n    }\n    catch (...) {          // Catch-all handler first\n        handleGeneral();\n    }\n    catch (std::runtime_error& e) { // Noncompliant - unreachable\n        handleRuntimeError(e);\n    }\n    catch (std::exception& e) {     // Noncompliant - unreachable\n        handleException(e);\n    }\n}"
+    ],
+    "compliant": [
+      "void correctExceptionHandling() {\n    try {\n        riskyOperation();\n    }\n    catch (std::runtime_error& e) { // Compliant - specific first\n        handleRuntimeError(e);\n    }\n    catch (std::exception& e) {     // Compliant - more general second\n        handleException(e);\n    }\n    catch (...) {                   // Compliant - catch-all last\n        handleGeneral();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1046"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "catch\\s*\\(\\.\\.\\.\\)[^}]*}[^c]*catch\\s*\\([^)]+\\)",
+        "message": "Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

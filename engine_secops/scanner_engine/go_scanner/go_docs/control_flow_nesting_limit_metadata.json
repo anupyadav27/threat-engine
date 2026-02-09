@@ -1,0 +1,37 @@
+{
+  "filename": "control_flow_nesting_limit_metadata.json",
+  "rule_id": "complexity_nesting_limit",
+  "title": "Avoid deeply nested control flow",
+  "description": "Deeply nested control structures create \"spaghetti code\" that is difficult to understand, test, and maintain. Excessive nesting reduces readability and increases the cognitive load required to comprehend program logic.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Reduce nesting by using early returns, extracting methods, or simplifying conditional logic.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Deeply nested control flow\nfunc processOrder(order Order) error {\n    if order != nil {\n        if order.IsValid() {\n            if order.Customer != nil {\n                if order.Customer.IsActive() {\n                    if order.Items != nil && len(order.Items) > 0 {\n                        for _, item := range order.Items {\n                            if item.IsAvailable() {\n                                if item.Price > 0 {\n                                    if order.PaymentMethod != nil {\n                                        if order.PaymentMethod.IsValid() {\n                                            // Process the item\n                                            return processItem(item, order)\n                                        } else {\n                                            return errors.New(\"invalid payment method\")\n                                        }\n                                    } else {\n                                        return errors.New(\"no payment method\")\n                                    }\n                                } else {\n                                    return errors.New(\"invalid price\")\n                                }\n                            } else {\n                                return errors.New(\"item not available\")\n                            }\n                        }\n                    } else {\n                        return errors.New(\"no items in order\")\n                    }\n                } else {\n                    return errors.New(\"inactive customer\")\n                }\n            } else {\n                return errors.New(\"no customer\")\n            }\n        } else {\n            return errors.New(\"invalid order\")\n        }\n    } else {\n        return errors.New(\"order is nil\")\n    }\n    return nil\n}",
+        "description": "Deep nesting makes the code difficult to read and understand."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport \"errors\"\n\n// Compliant: Using early returns to reduce nesting\nfunc processOrder(order Order) error {\n    if order == nil {\n        return errors.New(\"order is nil\")\n    }\n    \n    if !order.IsValid() {\n        return errors.New(\"invalid order\")\n    }\n    \n    if err := validateCustomer(order.Customer); err != nil {\n        return err\n    }\n    \n    if err := validateItems(order.Items); err != nil {\n        return err\n    }\n    \n    if err := validatePayment(order.PaymentMethod); err != nil {\n        return err\n    }\n    \n    return processOrderItems(order)\n}\n\nfunc validateCustomer(customer *Customer) error {\n    if customer == nil {\n        return errors.New(\"no customer\")\n    }\n    if !customer.IsActive() {\n        return errors.New(\"inactive customer\")\n    }\n    return nil\n}\n\nfunc validateItems(items []Item) error {\n    if items == nil || len(items) == 0 {\n        return errors.New(\"no items in order\")\n    }\n    return nil\n}\n\nfunc validatePayment(payment *PaymentMethod) error {\n    if payment == nil {\n        return errors.New(\"no payment method\")\n    }\n    if !payment.IsValid() {\n        return errors.New(\"invalid payment method\")\n    }\n    return nil\n}\n\nfunc processOrderItems(order Order) error {\n    for _, item := range order.Items {\n        if err := processOrderItem(item, order); err != nil {\n            return err\n        }\n    }\n    return nil\n}\n\nfunc processOrderItem(item Item, order Order) error {\n    if !item.IsAvailable() {\n        return errors.New(\"item not available\")\n    }\n    if item.Price <= 0 {\n        return errors.New(\"invalid price\")\n    }\n    return processItem(item, order)\n}",
+        "description": "Use early returns and extract helper functions to reduce nesting levels."
+      }
+    ]
+  },
+  "references": ["https://rules.sonarsource.com/go/RSPEC-134"],
+  "logic": {
+    "node_types": ["function_declaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source_text"],
+        "patterns": ["if\\s+.*\\{.*if\\s+.*\\{.*if\\s+.*\\{", "for\\s+.*\\{.*for\\s+.*\\{.*for\\s+.*\\{"],
+        "message": "Avoid deeply nested control flow"
+      }
+    ]
+  }
+}

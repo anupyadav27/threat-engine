@@ -1,0 +1,39 @@
+{
+  "filename": "all_branches_in_a_conditional_structure_should_avo_metadata.json",
+  "rule_id": "all_branches_conditional_structure",
+  "title": "All branches in a conditional structure should avoid having exactly the same implementation",
+  "description": "All branches in a conditional structure should not have exactly the same implementationAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?Having all branches of acaseorifchain with the same implementation indicates a problem.In the following code:if b == 0 # Noncompliant doOneMoreThing() else doOneMoreThing() end b = a > 12 ? 4 : 4; # Noncompliant case i # Noncompliant when 1 doSomething() when 2 doSomething() when 3 doSomething() else doSomething() endEither there is a copy-paste error that needs fixing or an unnecessarycaseorifchain that needs removing.ExceptionsThis rule does not apply toifchains norcasewithoutelse.if b == 0 # no issue, this could have been done on purpose to make the code more readable doSomething() elsif b == 1 doSomething() endAvailable In:Catch",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "# Noncompliant: All branches have the same implementation\nif b == 0\n  doOneMoreThing()\nelse\n  doOneMoreThing()\nend",
+      "# Noncompliant: Case with identical implementations\ncase status\nwhen 'active'\n  send_notification()\nwhen 'inactive'\n  send_notification()\nwhen 'pending'\n  send_notification()\nelse\n  send_notification()\nend"
+    ],
+    "compliant": [
+      "# Compliant: Different implementations\nif user.admin?\n  render_admin_dashboard\nelse\n  render_user_dashboard\nend",
+      "# Compliant: Case with different implementations\ncase status\nwhen 'active'\n  enable_user_account\nwhen 'inactive'\n  disable_user_account\nwhen 'pending'\n  send_verification_email\nelse\n  log_unknown_status\nend"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/ruby/RSPEC-3923"
+  ],
+  "logic": {
+    "node_types": [
+      "CallNode"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_duplicate_conditional_branches",
+        "message": "All branches in conditional structure have the same implementation"
+      }
+    ]
+  }
+}

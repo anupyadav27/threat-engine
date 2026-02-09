@@ -1,0 +1,38 @@
+{
+  "filename": "bind_should_be_avoided_metadata.json",
+  "rule_id": "bind_avoided",
+  "title": "bind should be avoided",
+  "description": "Using std::bind or boost::bind allows to create a wrapper to a function where some arguments are bound to fixed values, or the order of arguments is changed. However, this way of wrapping a function comes with some issues: The code is not really clear, the usage of placeholders makes it difficult to follow, The complexity of the implementation of std::bind often results in sub-optimal code, The possibilities offered by bind are limited, for instance, it’s not possible to bind a function with variable arguments, bind allows to silently discard some arguments, which is often not what was expected, Fixed arguments are evaluated when bind is called, not when the bound function is called, which might be surprising in some cases, bind requires to take the address of a function, which can be difficult (if the function is overloaded) or not recommended (for standard library functions, see S5180). To create such a wrapper, it is usually better to: either write a simple lambda that just calls the wrapped function with the full power of the language concerning how the arguments are going to be tinkered with.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <functional>\n\nint add(int a, int b, int c) {\n  return a + b + c;\n}\n\nvoid example() {\n  auto bound_func = std::bind(add, std::placeholders::_1, 10, std::placeholders::_2);\n  int result = bound_func(5, 15); // Hard to understand\n}\n\n// Using boost::bind is also discouraged\nauto boost_bound = boost::bind(add, _1, 10, _2);"
+    ],
+    "compliant": [
+      "#include <functional>\n\nint add(int a, int b, int c) {\n  return a + b + c;\n}\n\nvoid example() {\n  // Use lambda instead of bind - clearer and more flexible\n  auto lambda_func = [](int a, int c) { return add(a, 10, c); };\n  int result = lambda_func(5, 15); // Much clearer\n}\n\n// Or capture specific values\nvoid example2() {\n  int middle_value = 10;\n  auto captured_lambda = [middle_value](int a, int c) {\n    return add(a, middle_value, c);\n  };\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5995"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(std::bind|boost::bind)\\s*\\(",
+        "message": "Avoid using std::bind or boost::bind. Consider using lambda expressions instead for better readability and performance."
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "filename": "generic_exceptions_should_never_be_thrown_metadata.json",
+  "rule_id": "generic_exceptions_never_thrown",
+  "title": "Generic exceptions should never be thrown",
+  "description": "This rule raises an issue when a generic exception (such as std::exception, std::logic_error or std::runtime_error) is thrown. Throwing generic exceptions such as std::exception, std::logic_error and std::runtime_error will have a negative impact on any code trying to catch these exceptions. From a consumer perspective, it is generally a best practice to only catch exceptions you intend to handle.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "cwe",
+    "error-handling"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdexcept>\n\n// Noncompliant: Throwing generic exception\nvoid processFile(const std::string& filename) {\n    if (filename.empty()) {\n        throw std::exception();  // Too generic\n    }\n    // Process file\n}",
+      "// Another noncompliant example\nvoid validateInput(int value) {\n    if (value < 0) {\n        throw std::runtime_error(\"Invalid input\");  // Too generic\n    }\n}",
+      "// Noncompliant: Throwing base logic_error\nvoid divide(int a, int b) {\n    if (b == 0) {\n        throw std::logic_error(\"Division error\");  // Too generic\n    }\n}"
+    ],
+    "compliant": [
+      "#include <stdexcept>\n\n// Custom specific exception\nclass InvalidFilenameException : public std::invalid_argument {\npublic:\n    InvalidFilenameException(const std::string& msg) : std::invalid_argument(msg) {}\n};\n\n// Compliant: Throwing specific exception\nvoid processFile(const std::string& filename) {\n    if (filename.empty()) {\n        throw InvalidFilenameException(\"Filename cannot be empty\");\n    }\n    // Process file\n}",
+      "// Another compliant example using standard specific exception\nvoid validateInput(int value) {\n    if (value < 0) {\n        throw std::invalid_argument(\"Value must be non-negative\");\n    }\n}",
+      "// Compliant: Using specific domain_error for mathematical operations\nvoid divide(int a, int b) {\n    if (b == 0) {\n        throw std::domain_error(\"Division by zero is undefined\");\n    }\n}",
+      "// Custom exception hierarchy\nclass FileOperationException : public std::runtime_error {\npublic:\n    FileOperationException(const std::string& msg) : std::runtime_error(msg) {}\n};\n\nclass FileNotFoundException : public FileOperationException {\npublic:\n    FileNotFoundException(const std::string& filename) \n        : FileOperationException(\"File not found: \" + filename) {}\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-112"
+  ],
+  "logic": {
+    "node_types": [
+      "ThrowStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_generic_exceptions_thrown",
+        "message": "This rule raises an issue when a generic exception (such as std::exception, std::logic_error or std:"
+      }
+    ]
+  }
+}

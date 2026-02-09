@@ -1,0 +1,39 @@
+{
+  "filename": "final_classes_should_avoid_having_protected_member_metadata.json",
+  "rule_id": "final_classes_avoid_having",
+  "title": "final classes should avoid having protected members",
+  "description": "\"final\" classes should not have \"protected\" membersAnalyze your codeintentionality-clearmaintainabilityCode Smellconfusingsince-c++11Why is this an issue?More InfoThe difference betweenprivateandprotectedvisibility is that child classes can see and useprotectedmembers but cannot seeprivateones. Since afinalclass will have no children, marking the members of afinalclassprotectedis confusingly pointless.Noncompliant code exampleclass C final { protected: // Noncompliant void fun(); };Compliant solutionclass C final { private: void fun(); };ExceptionsWhen overriding a base class function, keeping the same visibility as for the base class is standard practice. This rule ignoresprotectedfunctions in afinalclass that override base classprotectedfunctions.Available In:Catch issues on the fly,in y",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class C final {\nprotected: // Noncompliant: protected is pointless in final class\n    void fun();\n    int value;\n};",
+      "class Database final {\nprotected: // Noncompliant: no derived classes possible\n    void connect();\n    std::string connectionString;\n};"
+    ],
+    "compliant": [
+      "class C final {\nprivate: // Compliant: use private instead\n    void fun();\n    int value;\n};",
+      "class Database final {\nprivate: // Compliant: clear access control\n    void connect();\n    std::string connectionString;\npublic:\n    void initialize(); // public interface\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2156"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_final_class_protected_members",
+        "message": "final classes should avoid having protected members - protected access is pointless in final classes"
+      }
+    ]
+  }
+}

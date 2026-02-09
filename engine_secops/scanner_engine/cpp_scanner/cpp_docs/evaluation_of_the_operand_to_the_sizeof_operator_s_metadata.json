@@ -1,0 +1,45 @@
+{
+  "filename": "evaluation_of_the_operand_to_the_sizeof_operator_s_metadata.json",
+  "rule_id": "evaluation_operand_sizeof_operator",
+  "title": "Evaluation of the operand to the sizeof operator shall not contain side effects",
+  "description": "Evaluation of the operand to the sizeof operator shall not contain side effectsAnalyze your codeintentionality-logicalreliabilityBugmisra-c++2008Why is this an issue?More InfoThis rule is a strict implementation of a MISRA (Motor Industry Software Reliability Association) rule. MISRA defines best practices for developing safety-critical software. You can learn more about this rule in the MISRA documents referenced below.If you are not concerned with MISRA compliance or with safety-critical software, you might consider using ruleS3135instead ; it targets the same kind of issue for general-purpose software.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionA",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int counter = 0;\n\n// Noncompliant: sizeof with side effects (increment)\nsize_t size1 = sizeof(++counter);\n\n// Noncompliant: function call with side effects\nint getValue() {\n    static int value = 0;\n    return ++value;  // Side effect: modifies static variable\n}\nsize_t size2 = sizeof(getValue());\n\n// Noncompliant: assignment within sizeof\nint x, y;\nsize_t size3 = sizeof(x = y);\n\n// Noncompliant: compound assignment\nint array[10];\nsize_t size4 = sizeof(array[counter++]);"
+    ],
+    "compliant": [
+      "int counter = 0;\nint array[10];\n\n// Compliant: sizeof with type names\nsize_t size1 = sizeof(int);\nsize_t size2 = sizeof(double);\n\n// Compliant: sizeof with variable names (no evaluation)\nsize_t size3 = sizeof(counter);\nsize_t size4 = sizeof(array);\n\n// Compliant: sizeof with expressions without side effects\nsize_t size5 = sizeof(counter + 1);\nsize_t size6 = sizeof(array[0]);\n\n// Compliant: using variables for side effects outside sizeof\ncounter++;\nsize_t size7 = sizeof(counter);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-922"
+  ],
+  "logic": {
+    "node_types": [
+      "sizeof_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "sizeof\\s*\\([^)]*\\+\\+[^)]*\\)",
+          "sizeof\\s*\\([^)]*--[^)]*\\)",
+          "sizeof\\s*\\([^)]*=[^=][^)]*\\)",
+          "sizeof\\s*\\([^)]*\\([^)]*\\)[^)]*\\)"
+        ],
+        "message": "The operand to the sizeof operator should not contain side effects (assignments, increments, decrements, or function calls)."
+      }
+    ]
+  }
+}

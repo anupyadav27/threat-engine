@@ -1,0 +1,39 @@
+{
+  "filename": "incomplete_types_should_not_be_deleted_metadata.json",
+  "rule_id": "incomplete_types_deleted",
+  "title": "Incomplete types should not be deleted",
+  "description": "Incomplete types should not be deletedAnalyze your codeintentionality-logicalmaintainabilityCode SmellunpredictableWhy is this an issue?When callingdeleteon an object of incomplete type, the calling code does not have enough information to do the action properly (it does not know if this object has a trivial or a nontrivial destructor, if it has overloaded thedeleteoperator…​). Therefore, deleting a pointer to such an object can lead to undefined behavior.Noncompliant code exampleclass Body; class Handle { public: Handle(); ~Handle() { delete impl; // Noncompliant, Body is incomplete } private: Body * impl; };Compliant solution// In header file class Body; class Handle { public: Handle(); ~Handle(); // Add other special member functions to respect the rule of five private: Body * impl; };",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Forward declaration only\nclass Body;\n\nclass Handle {\npublic:\n    Handle();\n    ~Handle() {\n        delete impl; // Noncompliant - Body is incomplete\n    }\nprivate:\n    Body* impl;\n};",
+      "// Another example with incomplete type\nclass ForwardDeclared;\n\nvoid cleanup(ForwardDeclared* ptr) {\n    delete ptr; // Noncompliant - ForwardDeclared is incomplete\n}"
+    ],
+    "compliant": [
+      "// Complete definition available\nclass Body {\npublic:\n    ~Body() {}\n    // class implementation\n};\n\nclass Handle {\npublic:\n    Handle();\n    ~Handle() {\n        delete impl; // Compliant - Body is complete\n    }\nprivate:\n    Body* impl;\n};",
+      "// Use smart pointers for automatic cleanup\n#include <memory>\n\nclass Body; // Forward declaration\n\nclass Handle {\npublic:\n    Handle();\n    ~Handle() = default; // Compliant - no explicit delete\nprivate:\n    std::unique_ptr<Body> impl; // Smart pointer handles deletion\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5265"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_incomplete_types_deleted",
+        "message": "Avoid deleting pointers to incomplete types. Ensure complete type definition is available."
+      }
+    ]
+  }
+}

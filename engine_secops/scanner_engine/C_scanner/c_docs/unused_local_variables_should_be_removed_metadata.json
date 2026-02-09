@@ -1,0 +1,54 @@
+{
+  "filename": "unused_local_variables_should_be_removed_metadata.json",
+  "rule_id": "unused_local_variables_removed",
+  "title": "Unused local variables should be removed",
+  "description": "An unused local variable is a variable that has been declared but is not used anywhere in the block of code where it is defined. It is dead code, contributing to unnecessary complexity and leading to confusion when reading the code. Therefore, it should be removed from your code to maintain clarity and efficiency.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "confusing",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void function() {\n  int unusedVar = 42; // Noncompliant: variable is declared but never used\n  int result = calculateSomething();\n  printf(\"Result: %d\\n\", result);\n}"
+    ],
+    "compliant": [
+      "void function() {\n  int result = calculateSomething(); // Compliant: variable is used\n  printf(\"Result: %d\\n\", result);\n}\n\n// Or if variable must exist for debugging:\nvoid function() {\n  [[maybe_unused]] int debugVar = 42; // Compliant: explicitly marked as potentially unused\n  int result = calculateSomething();\n  printf(\"Result: %d\\n\", result);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1481"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(?:int|char|float|double|long|short|unsigned|signed)\\s+unused_\\w+\\s*[=;]",
+          "\\b(?:int|char|float|double|long|short|unsigned|signed)\\s*\\*\\s*unused_\\w+\\s*[=;]",
+          "\\bstruct\\s+\\w+\\s+unused_\\w+\\s*[=;]",
+          "\\bunion\\s+\\w+\\s+unused_\\w+\\s*[=;]",
+          "\\benum\\s+\\w+\\s+unused_\\w+\\s*[=;]",
+          "\\b(?:const|volatile)\\s+(?:int|char|float|double)\\s+unused_\\w+\\s*[=;]",
+          "\\b(?:static|auto|register)\\s+(?:int|char|float|double)\\s+unused_\\w+\\s*[=;]",
+          "\\btypedef\\s+\\w+\\s+unused_\\w+\\s*[=;]"
+        ],
+        "message": "Unused local variables should be removed. Remove the problematic code and refactor as needed."
+      }
+    ],
+    "analysis_type": "semantic",
+    "precision": "high"
+  }
+}

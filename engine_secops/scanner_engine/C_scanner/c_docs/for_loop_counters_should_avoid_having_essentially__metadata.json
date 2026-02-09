@@ -1,0 +1,47 @@
+{
+  "filename": "for_loop_counters_should_avoid_having_essentially__metadata.json",
+  "rule_id": "loop_counters_avoid_having",
+  "title": "for loop counters should avoid having essentially floating type",
+  "description": "\"for\" loop counters should not have essentially floating typeAnalyze your codeintentionality-logicalreliabilityBugbased-on-misracertWhy is this an issue?More InfoWhen using a floating-pointforloop counter, an accumulation of rounding errors may result in a mismatch between the expected and actual number of iterations.Even if floating-point loop counters appears to behave correctly on one implementation, it may give a different number of iterations on another implementation.Noncompliant code examplefor (float counter = 0.0f; counter < 1.0f; counter += 0.001f) { ... }Compliant solutionfor (int counter = 0; counter < 1000; ++counter) { ... }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in y",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "for (float counter = 0.0f; counter < 1.0f; counter += 0.001f) { // Noncompliant - floating point counter\n    /* Rounding errors may cause unexpected iteration count */\n}",
+      "double step = 0.1;\nfor (double i = 0.0; i <= 10.0; i += step) { // Noncompliant - floating point loop variable\n    printf(\"%f\\n\", i);\n}",
+      "for (float x = 0.0f; x != 1.0f; x += 0.1f) { // Noncompliant - may never terminate\n    /* Dangerous: x may never equal exactly 1.0 */\n}"
+    ],
+    "compliant": [
+      "for (int counter = 0; counter < 1000; ++counter) { // Compliant - integer counter\n    float value = counter * 0.001f; // Calculate float value when needed\n    /* Process value */\n}",
+      "int steps = 100;\nfor (int i = 0; i <= steps; ++i) { // Compliant - integer loop variable\n    double value = i * 0.1;\n    printf(\"%f\\n\", value);\n}",
+      "#define ITERATIONS 10\nfor (int i = 0; i < ITERATIONS; ++i) { // Compliant - integer with defined limit\n    float x = i * 0.1f;\n    /* Process x */\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2193"
+  ],
+  "logic": {
+    "node_types": ["Statement", "FunctionDefinition"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": [
+        "for\\s*\\(\\s*float\\s+\\w+",
+        "for\\s*\\(\\s*double\\s+\\w+",
+        "\\d+\\.\\d+f?\\s*;",
+        "counter\\s*\\+=",
+        "\\w+\\s*\\+=\\s*\\d+\\.\\d+f?",
+        "\\w+\\s*\\*=\\s*\\d+\\.\\d+f?",
+        "\\w+\\s*-=\\s*\\d+\\.\\d+f?"
+      ],
+      "message": "For loop counters should not have essentially floating type - use integer counters instead"
+    }]
+  }
+}

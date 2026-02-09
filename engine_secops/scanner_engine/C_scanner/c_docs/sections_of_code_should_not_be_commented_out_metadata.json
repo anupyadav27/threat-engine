@@ -1,0 +1,124 @@
+{
+  "filename": "sections_of_code_should_not_be_commented_out_metadata.json",
+  "rule_id": "sections_code_commented_out",
+  "title": "Sections of code should not be commented out",
+  "description": "Sections of code should not be commented outAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEbased-on-misraunusedWhy is this an issue?More InfoCommented-out code distracts the focus from the actual executed code. It creates a noise that increases maintenance code. And because it is never executed, it quickly becomes out of date and invalid.Commented-out code should be deleted and can be retrieved from source control history if required.ExceptionsThis rule does not apply to code documentation using Doxygen, QDoc, markdown, or HTML tags.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAv",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int calculate(int x, int y) {\n    int result = x + y;\n    // int old_result = x * y;  // Noncompliant: commented out code\n    // return old_result + 10;  // Noncompliant: dead code\n    return result;\n}"
+    ],
+    "compliant": [
+      "int calculate(int x, int y) {\n    int result = x + y;\n    // Calculate sum of x and y - this is documentation\n    return result;\n}\n\n/* This is proper documentation comment */\nint multiply(int a, int b) {\n    return a * b;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-125"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*(int|char|float|double|long|short|unsigned|signed|void|struct|enum|typedef)\\s+\\w+",
+          "//\\s*(return\\s+[^;]+;)",
+          "//\\s*(if\\s*\\([^)]+\\))",
+          "//\\s*(for\\s*\\([^)]*;[^)]*;[^)]*\\))",
+          "//\\s*(while\\s*\\([^)]+\\))"
+        ],
+        "message": "Single-line commented-out code detected. Remove dead code - use version control for code history.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*(\\w+\\s*\\([^)]*\\)\\s*;)",
+          "//\\s*(\\w+\\s*=\\s*[^;]+;)",
+          "//\\s*(\\w+\\s*[+\\-*/]?=\\s*[^;]+;)",
+          "//\\s*(\\+\\+\\w+|\\w+\\+\\+|\\-\\-\\w+|\\w+\\-\\-)"
+        ],
+        "message": "Commented-out function calls, assignments, or operations detected. Remove unused code.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*(else\\s*\\{|else\\s+if\\s*\\([^)]+\\))",
+          "//\\s*(switch\\s*\\([^)]+\\))",
+          "//\\s*(case\\s+[^:]+:|default\\s*:)",
+          "//\\s*(break\\s*;|continue\\s*;)"
+        ],
+        "message": "Commented-out control flow statements detected. Remove dead code sections.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*(#include\\s*[<\"][^>\"]+[>\"])",
+          "//\\s*(#define\\s+\\w+)",
+          "//\\s*(#ifdef\\s+\\w+|#ifndef\\s+\\w+|#if\\s+)",
+          "//\\s*(#endif|#else)"
+        ],
+        "message": "Commented-out preprocessor directives detected. Clean up unused includes and macros.",
+        "severity": "minor"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*(\\{[^}]*\\})",
+          "//\\s*(malloc\\s*\\([^)]+\\)|calloc\\s*\\([^)]+\\)|free\\s*\\([^)]+\\))",
+          "//\\s*(printf\\s*\\([^)]+\\)|scanf\\s*\\([^)]+\\))",
+          "//\\s*(sizeof\\s*\\([^)]+\\))"
+        ],
+        "message": "Commented-out code blocks or function calls detected. Remove unused implementations.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/(?=.*(?:int\\s+\\w+|return\\s+[^;]+;|\\w+\\s*\\([^)]*\\)|if\\s*\\([^)]+\\)))",
+          "/\\*.*?(?:int|char|float|double|return|if|for|while)\\s+[^*]*\\*/"
+        ],
+        "message": "Multi-line commented-out code sections detected. Remove dead code blocks.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "/\\*.*?(?:\\w+\\s*=\\s*[^;]+;|\\w+\\s*\\([^)]*\\)\\s*;).*?\\*/",
+          "/\\*.*?(?:#include|#define|#ifdef|#ifndef).*?\\*/"
+        ],
+        "message": "Multi-line commented code with assignments or directives detected. Clean up unused sections.",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "//\\s*TODO:(?=.*(?:int\\s+\\w+|return\\s+|\\w+\\s*\\(|if\\s*\\())",
+          "//\\s*FIXME:(?=.*(?:int\\s+\\w+|return\\s+|\\w+\\s*\\(|if\\s*\\())",
+          "//\\s*DEBUG:(?=.*(?:int\\s+\\w+|return\\s+|\\w+\\s*\\(|if\\s*\\())(?!.*[Dd]ocument|[Dd]escri)"
+        ],
+        "message": "TODO/FIXME comments containing code patterns detected. Remove or implement the code.",
+        "severity": "minor"
+      }
+    ]
+  }
+}

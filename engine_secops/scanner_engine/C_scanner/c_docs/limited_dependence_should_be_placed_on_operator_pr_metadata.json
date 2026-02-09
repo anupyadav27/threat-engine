@@ -1,0 +1,75 @@
+{
+  "filename": "limited_dependence_should_be_placed_on_operator_pr_metadata.json",
+  "rule_id": "limited_dependence_placed_operator",
+  "title": "Limited dependence should be placed on operator precedence",
+  "description": "Limited dependence should be placed on operator precedenceAnalyze your codeintentionality-clearmaintainabilityCode SmellcwecertWhy is this an issue?More InfoThe rules of operator precedence are complicated and can lead to errors. For this reason, parentheses should be used for clarification in complex statements. However, this does not mean that parentheses should be gratuitously added around every operation.Parentheses are not needed:with a unary operator, except when!is used as left operand in comparison expressionswhen all the operators in an expression are the samewhen only a single operator is involvedaround the right-hand side of an assignment operator unless the right-hand side itself contains an assignmentParentheses are needed:in the condition of a ternary operator if it uses oper",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cert",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (!flag == true)  // Noncompliant - unclear precedence",
+      "result = a + b * c - d;  // Noncompliant - complex precedence",
+      "value = x << 2 + 1;  // Noncompliant - bitshift vs addition"
+    ],
+    "compliant": [
+      "if ((!flag) == true)  // Compliant - explicit parentheses",
+      "result = a + (b * c) - d;  // Compliant - clear precedence",
+      "value = x << (2 + 1);  // Compliant - explicit grouping"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-864"
+  ],
+  "logic": {
+    "node_types": [
+      "BinaryExpression",
+      "IfStatement",
+      "ArithmeticExpression",
+      "ConditionalExpression",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "!\\w+\\s*[=!]=",
+          "!\\w+\\s*[<>]=?",
+          "\\w+\\s*[+\\-]\\s*\\w+\\s*[*/]",
+          "\\w+\\s*[*/]\\s*\\w+\\s*[+\\-]",
+          "\\w+\\s*<<\\s*\\w+\\s*[+\\-*/]",
+          "\\w+\\s*>>\\s*\\w+\\s*[+\\-*/]",
+          "\\w+\\s*[+\\-*/]\\s*\\w+\\s*[<>]=?",
+          "\\w+\\s*&\\s*\\w+\\s*[|^]",
+          "\\w+\\s*[|^]\\s*\\w+\\s*&",
+          "\\w+\\s*&&\\s*\\w+\\s*\\|\\|",
+          "\\w+\\s*\\|\\|\\s*\\w+\\s*&&",
+          "\\?\\s*[^:()]+\\s*[+\\-*/&|^]\\s*[^:]+:",
+          "=\\s*\\w+\\s*[+\\-*/&|^<<>>]\\s*\\w+\\s*="
+        ],
+        "message": "Complex expression relies on operator precedence. Use parentheses for clarity."
+      },
+      {
+        "type": "complex_precedence_check",
+        "property_path": ["source"],
+        "conditions": [
+          "unary_with_comparison",
+          "mixed_arithmetic_operators",
+          "shift_with_arithmetic",
+          "mixed_bitwise_operators",
+          "mixed_logical_operators",
+          "ternary_condition_with_operators",
+          "assignment_chain_without_parentheses"
+        ],
+        "message": "Expression mixes operators with different precedence levels. Add parentheses to clarify intent."
+      }
+    ]
+  }
+}

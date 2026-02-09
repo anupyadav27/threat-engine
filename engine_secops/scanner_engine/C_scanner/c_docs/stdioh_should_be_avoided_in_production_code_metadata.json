@@ -1,0 +1,81 @@
+{
+  "filename": "stdioh_should_be_avoided_in_production_code_metadata.json",
+  "rule_id": "stdioh_avoided_production_code",
+  "title": "<stdio.h> should be avoided in production code",
+  "description": "\"<stdio.h>\" should not be used in production codeAnalyze your codeconsistency-conventionalmaintainabilityCode Smellbased-on-misralock-inWhy is this an issue?More InfoThis includes file and I/O functionsfgetpos,fopen,ftell,gets,perror,remove,renameandungetc.Streams and file I/O have a large number of unspecified, undefined and implementation-defined behaviors associated with them. It is assumed within MISRA C that they will not normally be needed in production code in embedded systems.If any of the features ofstdio.hneed to be used in production code, then the issues associated with the features need to be understood.Noncompliant code example#include <stdio.h> /* Noncompliant */Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Clo",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdio.h>  // Noncompliant\n\nvoid read_file() {\n  FILE *fp = fopen(\"file.txt\", \"r\");  // Noncompliant\n  char buffer[256];\n  fgets(buffer, sizeof(buffer), fp);  // Noncompliant\n  fclose(fp);\n}",
+      "#include <stdio.h>\nchar *gets(char *s);  // Noncompliant\nint remove(const char *filename);  // Noncompliant"
+    ],
+    "compliant": [
+      "// Use custom I/O functions or POSIX alternatives\n#include <unistd.h>\n#include <fcntl.h>\n\nvoid read_file() {\n  int fd = open(\"file.txt\", O_RDONLY);  // Compliant\n  char buffer[256];\n  read(fd, buffer, sizeof(buffer));  // Compliant\n  close(fd);\n}",
+      "// Use embedded-specific I/O or custom implementations\nvoid custom_print(const char *msg);  // Compliant\nint custom_file_read(const char *filename, char *buffer, size_t size);  // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-988"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective",
+      "FunctionDefinition",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#\\s*include\\s*<stdio\\.h>",
+          "#\\s*include\\s*\"stdio\\.h\"",
+          "\\bprintf\\s*\\(",
+          "\\bfprintf\\s*\\(",
+          "\\bsprintf\\s*\\(",
+          "\\bsnprintf\\s*\\(",
+          "\\bscanf\\s*\\(",
+          "\\bfscanf\\s*\\(",
+          "\\bsscanf\\s*\\(",
+          "\\bfopen\\s*\\(",
+          "\\bfclose\\s*\\(",
+          "\\bfgets\\s*\\(",
+          "\\bfputs\\s*\\(",
+          "\\bfread\\s*\\(",
+          "\\bfwrite\\s*\\(",
+          "\\bfseek\\s*\\(",
+          "\\bftell\\s*\\(",
+          "\\brewind\\s*\\(",
+          "\\bfgetpos\\s*\\(",
+          "\\bfsetpos\\s*\\(",
+          "\\bgetchar\\s*\\(",
+          "\\bputchar\\s*\\(",
+          "\\bgets\\s*\\(",
+          "\\bputs\\s*\\(",
+          "\\bungetc\\s*\\(",
+          "\\bremove\\s*\\(",
+          "\\brename\\s*\\(",
+          "\\bperror\\s*\\("
+        ],
+        "exclude_patterns": [
+          "//.*#\\s*include\\s*<stdio\\.h>",
+          "//.*#\\s*include\\s*\"stdio\\.h\"",
+          "/\\*.*#\\s*include\\s*<stdio\\.h>.*\\*/",
+          "/\\*.*#\\s*include\\s*\"stdio\\.h\".*\\*/",
+          "\"[^\"]*<stdio\\.h>[^\"]*\"",
+          "\"[^\"]*stdio\\.h[^\"]*\""
+        ],
+        "message": "<stdio.h> should be avoided in production code"
+      }
+    ]
+  }
+}

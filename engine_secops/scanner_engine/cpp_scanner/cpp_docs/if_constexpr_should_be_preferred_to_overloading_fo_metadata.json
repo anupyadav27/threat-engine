@@ -1,0 +1,45 @@
+{
+  "filename": "if_constexpr_should_be_preferred_to_overloading_fo_metadata.json",
+  "rule_id": "if_constexpr_preferred_overloading",
+  "title": "if constexpr should be preferred to overloading for metaprogramming",
+  "description": "\"if constexpr\" should be preferred to overloading for metaprogrammingAnalyze your codeintentionality-clearmaintainabilityCode Smellsince-c++17Why is this an issue?C++17 version of the standards introducesif constexpr. If theconstexprkeyword follows theifkeyword in an if statement, then theifcondition must be a constant and thethenorelseblock is discarded at compile time, depending on the value of the constant.More precisely,if constexprbranches that are discarded are not going to be instantiated. This behavior enables us to write some overloaded function templates in a more readable way: you don’t need to use complex patterns (eg: by usingstd::enable_if) to make code compile.This rule points out where a complex overloaded functions template could simply be replaced byif constexpr.Noncompli",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Complex overloading instead of if constexpr\ntemplate<typename T>\ntypename std::enable_if<std::is_integral_v<T>, T>::type\nprocess(T value) {\n    return value * 2;\n}\n\ntemplate<typename T>\ntypename std::enable_if<std::is_floating_point_v<T>, T>::type\nprocess(T value) {\n    return value / 2.0;\n}",
+      "// Noncompliant: Multiple function template specializations\ntemplate<bool is_signed>\nstruct Helper {\n    template<typename T>\n    static T process(T value);\n};\n\ntemplate<>\ntemplate<typename T>\nT Helper<true>::process(T value) { return -value; }\n\ntemplate<>\ntemplate<typename T>\nT Helper<false>::process(T value) { return value; }"
+    ],
+    "compliant": [
+      "// Compliant: Using if constexpr for cleaner metaprogramming\ntemplate<typename T>\nT process(T value) {\n    if constexpr (std::is_integral_v<T>) {\n        return value * 2;\n    } else if constexpr (std::is_floating_point_v<T>) {\n        return value / 2.0;\n    }\n}",
+      "// Compliant: Single function with if constexpr\ntemplate<typename T>\nT helper(T value) {\n    if constexpr (std::is_signed_v<T>) {\n        return -value;\n    } else {\n        return value;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6017"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "std::enable_if\\s*<",
+          "typename\\s+std::enable_if"
+        ],
+        "message": "Consider using 'if constexpr' instead of complex template overloading"
+      }
+    ]
+  }
+}

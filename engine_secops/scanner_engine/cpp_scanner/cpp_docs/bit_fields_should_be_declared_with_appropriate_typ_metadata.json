@@ -1,0 +1,40 @@
+{
+  "filename": "bit_fields_should_be_declared_with_appropriate_typ_metadata.json",
+  "rule_id": "bit_fields_declared_appropriate",
+  "title": "Bit fields should be declared with appropriate types",
+  "description": "Bit fields should be declared with appropriate typesAnalyze your codeintentionality-completemaintainabilityCode Smellbased-on-misralock-incertWhy is this an issue?More InfoSome types are not very well suited for use in a bit-field, because their behavior is implementation-defined. When defining a bit-field, you should stick to the following safe and portable types:In C:signed short,unsigned short,signed char,unsigned char,signed int,unsigned intor_BoolIn C++ before C++14: all enumerated types, as well assigned short,unsigned short,signed char,unsigned char,signed int,unsigned int,signed long,unsigned long,signed long long,unsigned long longor boolIn C++ starting at C++14: all enumerated and integral typesNoncompliant code example// Assuming we are in C int b:3; // Noncompliant - may have t",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// In C - using inappropriate types\nstruct BitField {\n  int b1 : 3;          // Noncompliant - may have implementation-dependent behavior\n  float b2 : 2;        // Noncompliant - float not suitable for bit fields\n  double b3 : 1;       // Noncompliant - double not suitable\n  char* b4 : 4;        // Noncompliant - pointer type not suitable\n};"
+    ],
+    "compliant": [
+      "// In C - using appropriate types\nstruct BitField {\n  signed short b1 : 3;     // Compliant\n  unsigned short b2 : 2;   // Compliant\n  signed char b3 : 1;      // Compliant\n  unsigned char b4 : 4;    // Compliant\n  signed int b5 : 5;       // Compliant\n  unsigned int b6 : 6;     // Compliant\n  _Bool b7 : 1;            // Compliant\n};\n\n// In C++14 and later - additional safe types\nenum class Status : char { ACTIVE, INACTIVE };\nstruct CppBitField {\n  bool flag : 1;           // Compliant\n  Status status : 2;       // Compliant (enumerated type)\n  signed long long val : 8; // Compliant (C++14+)\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-814"
+  ],
+  "logic": {
+    "node_types": [
+      "StructDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(float|double)\\s+\\w+\\s*:\\s*\\d+|\\w+\\s*\\*\\s+\\w+\\s*:\\s*\\d+",
+        "message": "Use 'unsigned' types for bit fields to ensure consistent behavior across platforms."
+      }
+    ]
+  }
+}

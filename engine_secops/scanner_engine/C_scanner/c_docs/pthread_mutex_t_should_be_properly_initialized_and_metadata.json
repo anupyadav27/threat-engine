@@ -1,0 +1,48 @@
+{
+  "filename": "pthread_mutex_t_should_be_properly_initialized_and_metadata.json",
+  "rule_id": "pthread_mutex_t_properly_initialized_destroyed",
+  "title": "pthread_mutex_t should be properly initialized and destroyed",
+  "description": "Mutexes are synchronization primitives that allow managing concurrency. Their use requires following a well-defined life cycle: Mutexes need to be initialized (using pthread_mutex_init) before being used. Once it is initialized, a mutex is in an unlocked state.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using mutex without proper initialization\npthread_mutex_t mutex;\nint shared_data = 0;\n\nvoid* thread_function(void* arg) {\n    pthread_mutex_lock(&mutex);  // Noncompliant: mutex not initialized\n    shared_data++;\n    pthread_mutex_unlock(&mutex);\n    return NULL;\n}",
+      "// Missing destruction\npthread_mutex_t mutex;\nvoid initialize() {\n    pthread_mutex_init(&mutex, NULL);\n    // ... use mutex\n    // Noncompliant: missing pthread_mutex_destroy(&mutex)\n}"
+    ],
+    "compliant": [
+      "// Proper mutex initialization and destruction\npthread_mutex_t mutex;\nint shared_data = 0;\n\nvoid initialize_mutex() {\n    pthread_mutex_init(&mutex, NULL);  // Compliant: proper initialization\n}\n\nvoid* thread_function(void* arg) {\n    pthread_mutex_lock(&mutex);\n    shared_data++;\n    pthread_mutex_unlock(&mutex);\n    return NULL;\n}\n\nvoid cleanup_mutex() {\n    pthread_mutex_destroy(&mutex);  // Compliant: proper cleanup\n}",
+      "// Using static initialization\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;  // Compliant\nint shared_data = 0;\n\nvoid* thread_function(void* arg) {\n    pthread_mutex_lock(&mutex);\n    shared_data++;\n    pthread_mutex_unlock(&mutex);\n    return NULL;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5487"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "pthread_mutex_lock[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "pthread_mutex_lock[^\\n]*//[^\\n]*VIOLATION",
+          "//[^\\n]*[Nn]oncompliant[^\\n]*missing",
+          "//[^\\n]*VIOLATION[^\\n]*missing",
+          "//\\s*VIOLATION\\s*-\\s*mutex\\s*lifecycle\\s*violation",
+          "return;[^\\n]*//[^\\n]*[Nn]oncompliant"
+        ],
+        "message": "Mutex lifecycle violation - improper initialization or missing destruction",
+        "severity": "critical"
+      }
+    ]
+  }
+}

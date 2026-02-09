@@ -1,0 +1,39 @@
+{
+  "filename": "generic_iterator_based_algorithms_should_be_constr_metadata.json",
+  "rule_id": "generic_iteratorbased_algorithms_constrained",
+  "title": "Generic iterator-based algorithms should be constrained",
+  "description": "Each template requires certain operations to be provided by the types it is instantiated with. Before C++20, the only way to describe those requirements was through documentation. Concepts, introduced in C++20, provide a way to express requirements in a way that can be checked by the compiler.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cert",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "template<typename Iter, typename Func>\nvoid adjacent_for_each(Iter first, Iter last, Func func) {\n  auto prev = first;\n  for (++first; first != last; ++first) {\n    func(*prev, *first);\n    prev = first;\n  }\n}"
+    ],
+    "compliant": [
+      "template<std::forward_iterator Iter, typename Func>\n// Compliant, even though this template needs additional operations, for instance:\n//   requires std::invocable<Func&, std::iter_reference_t<Iter>, std::iter_reference_t<Iter>>\nvoid adjacent_for_each(Iter first, Iter last, Func func) {\n  auto prev = first;\n  for (++first; first != last; ++first) {\n    func(*prev, *first);\n    prev = first;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6462"
+  ],
+  "logic": {
+    "node_types": [
+      "TemplateDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unconstrained_iterator_algorithms",
+        "message": "Iterator algorithms should be properly constrained to prevent buffer overruns and improve type safety."
+      }
+    ]
+  }
+}

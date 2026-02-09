@@ -1,0 +1,42 @@
+{
+  "filename": "changing_working_directories_without_verifying_the_metadata.json",
+  "rule_id": "changing_working_directories_without",
+  "title": "Changing working directories without verifying the success is security-sensitive",
+  "description": "Changing working directories without verifying the success is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweThe purpose of changing the current working directory is to modify the base path when the process performs relative path resolutions. When the working directory cannot be changed, the process keeps the directory previously defined as the active working directory. Thus, verifying the success of chdir() type of functions is important to prevent unintended relative paths and unauthorized access.Ask Yourself WhetherThe success of changing the working directory is relevant for the application.Changing the working directory is required by chroot to make the new root effective.Subsequent disk operations are using relative paths.There is a risk if you a",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "owasp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const char* any_dir = \"/any/\";\nchdir(any_dir); // Noncompliant: missing check of return value",
+      "int fd = open(\"/tmp\", O_RDONLY | O_DIRECTORY);\nfchdir(fd); // Noncompliant: missing check of return value",
+      "chdir(\"/home/user\");\n// Noncompliant: no verification if directory change succeeded\nopen(\"relative/file.txt\", O_RDONLY);"
+    ],
+    "compliant": [
+      "const char* any_dir = \"/any/\";\nif (chdir(any_dir) != 0) {\n  perror(\"chdir failed\");\n  exit(1);\n}",
+      "int fd = open(\"/tmp\", O_RDONLY | O_DIRECTORY);\nif (fd != -1) {\n  if (fchdir(fd) != 0) {\n    perror(\"fchdir failed\");\n    close(fd);\n    exit(1);\n  }\n  close(fd);\n}",
+      "if (chdir(\"/home/user\") == 0) {\n  // Compliant: verified directory change succeeded\n  int fd = open(\"relative/file.txt\", O_RDONLY);\n} else {\n  fprintf(stderr, \"Failed to change directory\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5982"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration", "CallExpression", "FunctionDefinition", "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_changing_working_directories_without"
+      }
+    ]
+  }
+}

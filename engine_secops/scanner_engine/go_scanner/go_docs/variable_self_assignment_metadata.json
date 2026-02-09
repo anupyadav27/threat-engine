@@ -1,0 +1,65 @@
+{
+  "filename": "variable_self_assignment_metadata.json",
+  "rule_id": "logic_variable_self_assignment",
+  "title": "Avoid variable self-assignment",
+  "description": "Self-assigning a variable to itself serves no purpose and is either redundant code or indicates a logic error. Such statements suggest a copy-paste mistake or misunderstanding of the intended operation.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Remove redundant self-assignments or correct the logic to assign the intended value.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Direct self-assignment\nfunc updateUser(user User) User {\n    user.Name = user.Name // Redundant self-assignment\n    user.Email = user.Email // No-op\n    \n    // Update timestamp\n    user.UpdatedAt = time.Now()\n    \n    return user\n}\n\n// Noncompliant: Self-assignment in loops\nfunc processItems(items []Item) {\n    for i, item := range items {\n        item = item // Self-assignment serves no purpose\n        \n        if item.IsValid() {\n            items[i] = item // This might be intended\n        }\n    }\n}\n\n// Noncompliant: Accidental self-assignment in struct updates\nfunc mergeUserData(existing User, updates User) User {\n    if updates.Name != \"\" {\n        existing.Name = updates.Name\n    }\n    if updates.Email != \"\" {\n        existing.Email = existing.Email // Copy-paste error\n    }\n    if updates.Phone != \"\" {\n        existing.Phone = updates.Phone\n    }\n    \n    return existing\n}\n\n// Noncompliant: Self-assignment in variable swapping attempt\nfunc attemptSwap(a, b *int) {\n    *a = *a // This doesn't swap anything\n    *b = *b // Redundant operations\n}\n\n// Noncompliant: Self-assignment in conditional logic\nfunc validateAndUpdate(user *User) error {\n    if user.Name == \"\" {\n        user.Name = user.Name // Does nothing\n        return errors.New(\"name is required\")\n    }\n    \n    // Intended to normalize email, but self-assigns\n    if user.Email != \"\" {\n        user.Email = user.Email // Should be strings.ToLower(user.Email)\n    }\n    \n    return nil\n}\n\n// Noncompliant: Self-assignment in error handling\nfunc parseConfig(data []byte) (Config, error) {\n    var config Config\n    \n    err := json.Unmarshal(data, &config)\n    if err != nil {\n        err = err // Redundant assignment\n        return Config{}, err\n    }\n    \n    return config, nil\n}",
+        "description": "Self-assigning variables serves no purpose and often indicates copy-paste errors or misunderstood logic."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Remove redundant self-assignments\nfunc updateUser(user User) User {\n    // Only update what actually changes\n    user.UpdatedAt = time.Now()\n    \n    return user\n}\n\n// Compliant: Proper item processing\nfunc processItems(items []Item) {\n    for i, item := range items {\n        if item.IsValid() {\n            // Process and update the item\n            processedItem := processItem(item)\n            items[i] = processedItem\n        }\n    }\n}\n\n// Compliant: Correct struct field updates\nfunc mergeUserData(existing User, updates User) User {\n    if updates.Name != \"\" {\n        existing.Name = updates.Name\n    }\n    if updates.Email != \"\" {\n        existing.Email = updates.Email // Fixed: assign from updates\n    }\n    if updates.Phone != \"\" {\n        existing.Phone = updates.Phone\n    }\n    \n    return existing\n}\n\n// Compliant: Proper variable swapping\nfunc swap(a, b *int) {\n    *a, *b = *b, *a // Go's multiple assignment for swapping\n}\n\n// Alternative swapping with temporary variable\nfunc swapWithTemp(a, b *int) {\n    temp := *a\n    *a = *b\n    *b = temp\n}\n\n// Compliant: Meaningful data transformations\nfunc validateAndUpdate(user *User) error {\n    if user.Name == \"\" {\n        return errors.New(\"name is required\")\n    }\n    \n    // Properly normalize email\n    if user.Email != \"\" {\n        user.Email = strings.ToLower(user.Email)\n        user.Email = strings.TrimSpace(user.Email)\n    }\n    \n    return nil\n}\n\n// Compliant: Clear error handling\nfunc parseConfig(data []byte) (Config, error) {\n    var config Config\n    \n    err := json.Unmarshal(data, &config)\n    if err != nil {\n        return Config{}, fmt.Errorf(\"config parsing failed: %w\", err)\n    }\n    \n    return config, nil\n}\n\n// Compliant: When you need to explicitly maintain a value\nfunc sanitizeUserInput(user *User) {\n    // Sanitize name but preserve original in audit field\n    originalName := user.Name\n    user.Name = strings.TrimSpace(user.Name)\n    user.Name = strings.Title(user.Name)\n    \n    // Keep audit trail of changes\n    if user.Name != originalName {\n        user.AuditLog = append(user.AuditLog, fmt.Sprintf(\"Name changed from '%s' to '%s'\", originalName, user.Name))\n    }\n}\n\n// Compliant: Defensive copying when needed\nfunc processUserSafely(user User) User {\n    // Create a copy to avoid modifying the original\n    userCopy := user\n    userCopy.ProcessedAt = time.Now()\n    userCopy.Status = \"processed\"\n    \n    return userCopy\n}\n\n// Compliant: Builder pattern avoiding self-assignment\ntype UserBuilder struct {\n    user User\n}\n\nfunc NewUserBuilder() *UserBuilder {\n    return &UserBuilder{user: User{}}\n}\n\nfunc (ub *UserBuilder) SetName(name string) *UserBuilder {\n    ub.user.Name = name\n    return ub\n}\n\nfunc (ub *UserBuilder) SetEmail(email string) *UserBuilder {\n    ub.user.Email = strings.ToLower(email)\n    return ub\n}\n\nfunc (ub *UserBuilder) Build() User {\n    return ub.user\n}",
+        "description": "Removing self-assignments and implementing proper logic ensures code behaves as intended and eliminates redundant operations."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1656"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "method_declaration",
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*\\1\\b",
+          "\\b([a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*\\1\\b",
+          "\\*([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*\\*\\1\\b",
+          "([a-zA-Z_][a-zA-Z0-9_]*)\\[([^\\]]+)\\]\\s*=\\s*\\1\\[\\2\\]",
+          "\\berr\\s*=\\s*err\\b",
+          "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*\\1\\s*$"
+        ],
+        "exclude_patterns": [
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\([^)]*\\)",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*strings\\.",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*time\\.",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*fmt\\.",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*/]",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*&",
+          "\\*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*\\*[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*\\*[a-zA-Z_][a-zA-Z0-9_]*\\s*,\\s*\\*[a-zA-Z_][a-zA-Z0-9_]*",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*Copy\\s*:=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*:=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*[!=<>]",
+          "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z_][a-zA-Z0-9_]*\\[[^\\]]+\\]\\s*$"
+        ],
+        "message": "Rule: Avoid variable self-assignment"
+      }
+    ]
+  }
+}

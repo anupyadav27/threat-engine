@@ -1,0 +1,80 @@
+{
+  "filename": "if_statements_should_be_preferred_over_switch_when_metadata.json",
+  "rule_id": "if_statements_preferred_over",
+  "title": "if statements should be preferred over switch when simpler",
+  "description": "\"if\" statements should be preferred over \"switch\" when simplerAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrabad-practiceWhy is this an issue?More Infoswitchstatements are useful when there are many different cases depending on the value of the same expression. For just one or two cases, however, the code will be more readable withifstatements.In particular,ifstatements are more suitable when the condition of theswitchis boolean.This rule detects statements that could be simplified with a simpleif / else. That is when there is at most onecase, not counting those that fall through to adefault.The following code:switch (variable) { case 0: doSomething(); break; case 1: case 2: default: doSomethingElse(); break; }Would be more readable that way:if (variable == 0)",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Simple switch with only 2 cases\nint processGrade(char grade) {\n    switch (grade) {\n        case 'A': return 90;\n        case 'B': return 80;\n        default: return 0;\n    }\n}"
+    ],
+    "compliant": [
+      "// Compliant: Simple if statement is clearer\nint processGrade(char grade) {\n    if (grade == 'A') {\n        return 90;\n    } else if (grade == 'B') {\n        return 80;\n    } else {\n        return 0;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1301"
+  ],
+  "logic": {
+    "node_types": ["SwitchStatement"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*case\\s+[^:]+:[^}]*default\\s*:[^}]*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*case\\s+[^:]+:[^}]*case\\s+[^:]+:[^}]*default\\s*:[^}]*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*case\\s+[^:]+:[^}]*\\}",
+          "switch\\s*\\(\\s*(true|false|[01])\\s*\\)",
+          "switch\\s*\\([^)]*\\?[^)]*\\)",
+          "switch\\s*\\(\\s*!\\w+\\s*\\)",
+          "switch\\s*\\(\\s*\\w+\\s*[<>=!]+\\s*\\w+\\s*\\)",
+          "switch\\s*\\([^)]+\\)\\s*\\{\\s*case\\s+[^:]+:[^}]+break;\\s*default:[^}]+break;\\s*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{\\s*case\\s+[^:]+:[^}]+break;\\s*case\\s+[^:]+:[^}]+break;\\s*default:[^}]+break;\\s*\\}"
+        ],
+        "message": "if statements should be preferred over switch when simpler. Consider using if/else for simple conditions with few cases."
+      },
+      {
+        "type": "simple_switch_check",
+        "property_path": ["source"],
+        "patterns": [
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*\\bcase\\b[^}]*\\bdefault\\b[^}]*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*\\bcase\\b[^}]*\\bcase\\b[^}]*\\bdefault\\b[^}]*\\}",
+          "switch\\s*\\(\\s*[a-zA-Z_]\\w*\\s*[<>=!]+",
+          "switch\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\?",
+          "switch\\s*\\(\\s*![a-zA-Z_]\\w*\\s*\\)"
+        ],
+        "message": "Simple switch statement detected. An if/else structure would be more readable and maintainable for this simple condition."
+      },
+      {
+        "type": "boolean_switch_check",
+        "property_path": ["source"],
+        "patterns": [
+          "switch\\s*\\(\\s*(true|false)\\s*\\)",
+          "switch\\s*\\(\\s*[a-zA-Z_]\\w*\\s*[<>=!]=?\\s*[a-zA-Z0-9_]+\\s*\\)",
+          "switch\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\?[^)]*:[^)]*\\)",
+          "switch\\s*\\(\\s*![a-zA-Z_]\\w*\\s*\\)",
+          "switch\\s*\\(\\s*\\w+\\s*[&|]{2}\\s*\\w+\\s*\\)"
+        ],
+        "message": "Boolean condition in switch statement. Use if/else instead of switch for boolean expressions."
+      },
+      {
+        "type": "minimal_case_check", 
+        "property_path": ["source"],
+        "patterns": [
+          "switch\\s*\\([^)]+\\)\\s*\\{\\s*case[^}]*default[^}]*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{\\s*case[^}]*case[^}]*default[^}]*\\}",
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*\\bcase\\b[^}]*\\bbreak;[^}]*\\bdefault\\b[^}]*\\}"
+        ],
+        "message": "Switch statement with minimal cases detected. For 1-2 cases, if/else statements are more appropriate and readable."
+      }
+    ]
+  }
+}

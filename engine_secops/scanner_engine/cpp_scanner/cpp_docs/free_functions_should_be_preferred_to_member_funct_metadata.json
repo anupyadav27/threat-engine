@@ -1,0 +1,47 @@
+{
+  "filename": "free_functions_should_be_preferred_to_member_funct_metadata.json",
+  "rule_id": "free_functions_preferred_member",
+  "title": "Free functions should be preferred to member functions when accessing a container in a generic context",
+  "description": "It is often considered a better style to access objects in generic code with free functions than with member functions because it allows one to adapt an object to a template without modifying it just by adding the right overload of the free function. This is especially true with containers, which can come in a wide variety (and some of them can’t even have member functions, for instance, C-style arrays). Therefore, the C++ standard library provides free functions that can be applied on any standard container and that can be adapted for user-defined containers.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "template<typename Container>\nvoid process(Container& c) {\n  auto it = c.begin(); // Noncompliant: using member function\n  auto end = c.end();  // Noncompliant: using member function\n  // ... process elements\n}"
+    ],
+    "compliant": [
+      "template<typename Container>\nvoid process(Container& c) {\n  auto it = std::begin(c); // Compliant: using free function\n  auto end = std::end(c);  // Compliant: using free function\n  // ... process elements\n}",
+      "#include <algorithm>\ntemplate<typename Container>\nvoid processSize(Container& c) {\n  auto sz = std::size(c); // Compliant: works with C arrays too\n  // ... process based on size\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6024"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "template\\s*<[^>]*>[^{]*{[^}]*\\w+\\.(begin|end|size|empty)\\s*\\(\\)"
+        ],
+        "exclude_patterns": [
+          "std::(begin|end|size|empty)\\s*\\(",
+          "void\\s+processSpecificVector"
+        ],
+        "message": "Free functions should be preferred to member functions in generic contexts"
+      }
+    ]
+  }
+}

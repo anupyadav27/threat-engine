@@ -1,0 +1,41 @@
+{
+  "filename": "freed_memory_should_be_avoided_metadata.json",
+  "rule_id": "freed_memory_avoided",
+  "title": "Freed memory should be avoided",
+  "description": "Freed memory should not be usedAnalyze your codeintentionality-logicalreliabilityBugcwesymbolic-executioncertAccessing a memory block that was already freed is undefined behavior. This rule flags access via a pointer or a reference to released heap memory.Why is this an issue?How can I fix it?More InfoA program may allocate an additional memory block using themallocfunction. When no longer needed, such memory blocks are released using thefreefunction.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char* p = (char*)malloc(100);\nfree(p);\n*p = 'a'; // Noncompliant: accessing freed memory",
+      "int* ptr = new int(42);\ndelete ptr;\nint value = *ptr; // Noncompliant: dereferencing freed memory"
+    ],
+    "compliant": [
+      "char* p = (char*)malloc(100);\n*p = 'a'; // Use before freeing\nfree(p);\np = nullptr; // Set to null after freeing",
+      "int* ptr = new int(42);\nint value = *ptr; // Use before deleting\ndelete ptr;\nptr = nullptr; // Set to null after deleting"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3529"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_freed_memory_access",
+        "message": "Accessing freed memory is undefined behavior"
+      }
+    ]
+  }
+}

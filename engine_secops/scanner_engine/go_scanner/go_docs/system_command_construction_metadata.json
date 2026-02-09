@@ -1,0 +1,63 @@
+{
+  "filename": "system_command_construction_metadata.json",
+  "rule_id": "security_system_command_construction",
+  "title": "Secure system command construction",
+  "description": "Constructing system command arguments from user input without proper validation creates command injection vulnerabilities. Attackers can manipulate command arguments to execute arbitrary commands or access unauthorized system resources.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Validate and sanitize all user inputs used in system commands, or use parameterized command execution.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"os/exec\"\n    \"strings\"\n)\n\n// Noncompliant: Directly using user input in command arguments\nfunc compressFile(filename string) error {\n    // Dangerous: User can inject shell commands\n    // Example: filename = \"test.txt; rm -rf /\"\n    cmd := exec.Command(\"tar\", \"-czf\", filename+\".tar.gz\", filename)\n    return cmd.Run()\n}\n\n// Noncompliant: String concatenation with user input\nfunc searchFiles(searchTerm string) ([]byte, error) {\n    // Vulnerable to command injection\n    // Example: searchTerm = \"test; cat /etc/passwd\"\n    cmdStr := \"grep -r \" + searchTerm + \" /var/log\"\n    cmd := exec.Command(\"sh\", \"-c\", cmdStr)\n    return cmd.Output()\n}\n\n// Noncompliant: Building command with fmt.Sprintf\nfunc backupDatabase(dbName, outputPath string) error {\n    // Multiple injection points\n    cmdStr := fmt.Sprintf(\"mysqldump -u root -p %s > %s\", dbName, outputPath)\n    cmd := exec.Command(\"bash\", \"-c\", cmdStr)\n    return cmd.Run()\n}\n\n// Noncompliant: User-controlled command options\nfunc listFiles(directory string, options string) ([]byte, error) {\n    // Options parameter can contain malicious flags\n    // Example: options = \"-la; rm important.txt\"\n    args := []string{options, directory}\n    cmd := exec.Command(\"ls\", args...)\n    return cmd.Output()\n}\n\n// Noncompliant: Dynamic command construction\nfunc processImage(imagePath string, operation string) error {\n    // Both parameters are user-controlled\n    cmdArgs := []string{\"-resize\", operation, imagePath}\n    cmd := exec.Command(\"convert\", cmdArgs...)\n    return cmd.Run()\n}\n\n// Noncompliant: Shell execution with user data\nfunc runUserScript(scriptName string, args []string) error {\n    // Dangerous: Executes arbitrary commands\n    fullCommand := scriptName + \" \" + strings.Join(args, \" \")\n    cmd := exec.Command(\"sh\", \"-c\", fullCommand)\n    return cmd.Run()\n}",
+        "description": "Using unsanitized user input in system commands allows attackers to inject malicious commands and execute arbitrary code."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"errors\"\n    \"fmt\"\n    \"os\"\n    \"os/exec\"\n    \"path/filepath\"\n    \"regexp\"\n    \"strings\"\n)\n\n// Compliant: Validate and sanitize inputs\nfunc compressFileSecure(filename string) error {\n    // Validate filename\n    if !isValidFilename(filename) {\n        return errors.New(\"invalid filename\")\n    }\n    \n    // Use absolute paths to prevent path traversal\n    absPath, err := filepath.Abs(filename)\n    if err != nil {\n        return err\n    }\n    \n    // Ensure file exists and is within allowed directory\n    if !isAllowedPath(absPath) {\n        return errors.New(\"file path not allowed\")\n    }\n    \n    outputPath := absPath + \".tar.gz\"\n    \n    // Use separate arguments instead of shell interpolation\n    cmd := exec.Command(\"tar\", \"-czf\", outputPath, absPath)\n    return cmd.Run()\n}\n\nfunc isValidFilename(filename string) bool {\n    // Only allow alphanumeric, dots, hyphens, and underscores\n    matched, _ := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, filename)\n    return matched && !strings.Contains(filename, \"..\")\n}\n\nfunc isAllowedPath(path string) bool {\n    allowedDir := \"/var/app/data\"\n    absAllowedDir, _ := filepath.Abs(allowedDir)\n    return strings.HasPrefix(path, absAllowedDir)\n}\n\n// Compliant: Use allowlists for search terms\nvar allowedSearchTerms = map[string]bool{\n    \"error\": true,\n    \"warning\": true,\n    \"info\": true,\n    \"debug\": true,\n}\n\nfunc searchFilesSecure(searchTerm string) ([]byte, error) {\n    // Validate against allowlist\n    if !allowedSearchTerms[searchTerm] {\n        return nil, errors.New(\"search term not allowed\")\n    }\n    \n    // Use fixed log directory\n    logDir := \"/var/log/myapp\"\n    \n    // Use separate arguments, not shell execution\n    cmd := exec.Command(\"grep\", \"-r\", searchTerm, logDir)\n    return cmd.Output()\n}\n\n// Compliant: Parameterized execution with validation\nfunc backupDatabaseSecure(dbName string) error {\n    // Validate database name\n    if !isValidDatabaseName(dbName) {\n        return errors.New(\"invalid database name\")\n    }\n    \n    // Create secure output path\n    outputPath := filepath.Join(\"/var/backups\", dbName+\".sql\")\n    \n    // Use separate arguments\n    cmd := exec.Command(\"mysqldump\", \"-u\", \"backup_user\", dbName)\n    \n    // Redirect output to file securely\n    outputFile, err := os.Create(outputPath)\n    if err != nil {\n        return err\n    }\n    defer outputFile.Close()\n    \n    cmd.Stdout = outputFile\n    return cmd.Run()\n}\n\nfunc isValidDatabaseName(name string) bool {\n    // Only allow alphanumeric and underscore\n    matched, _ := regexp.MatchString(`^[a-zA-Z][a-zA-Z0-9_]*$`, name)\n    return matched && len(name) <= 64\n}\n\n// Compliant: Use predefined command options\nvar allowedListOptions = map[string][]string{\n    \"detailed\": {\"-la\"},\n    \"simple\":   {\"-l\"},\n    \"hidden\":   {\"-a\"},\n}\n\nfunc listFilesSecure(directory string, optionKey string) ([]byte, error) {\n    // Validate directory\n    if !isAllowedPath(directory) {\n        return nil, errors.New(\"directory not allowed\")\n    }\n    \n    // Get predefined options\n    options, exists := allowedListOptions[optionKey]\n    if !exists {\n        return nil, errors.New(\"invalid option\")\n    }\n    \n    // Build command with validated inputs\n    args := append(options, directory)\n    cmd := exec.Command(\"ls\", args...)\n    return cmd.Output()\n}\n\n// Compliant: Avoid shell execution entirely\ntype ImageProcessor struct {\n    allowedOperations map[string][]string\n}\n\nfunc NewImageProcessor() *ImageProcessor {\n    return &ImageProcessor{\n        allowedOperations: map[string][]string{\n            \"resize_small\": {\"-resize\", \"200x200\"},\n            \"resize_large\": {\"-resize\", \"800x600\"},\n            \"grayscale\":    {\"-colorspace\", \"Gray\"},\n        },\n    }\n}\n\nfunc (ip *ImageProcessor) ProcessImage(imagePath string, operationKey string) error {\n    // Validate image path\n    if !isValidImagePath(imagePath) {\n        return errors.New(\"invalid image path\")\n    }\n    \n    // Get predefined operation\n    operation, exists := ip.allowedOperations[operationKey]\n    if !exists {\n        return errors.New(\"operation not allowed\")\n    }\n    \n    outputPath := imagePath + \"_processed.jpg\"\n    \n    // Build command with validated parameters\n    args := append(operation, imagePath, outputPath)\n    cmd := exec.Command(\"convert\", args...)\n    return cmd.Run()\n}\n\nfunc isValidImagePath(path string) bool {\n    // Check file extension\n    ext := filepath.Ext(path)\n    validExts := map[string]bool{\".jpg\": true, \".jpeg\": true, \".png\": true, \".gif\": true}\n    \n    if !validExts[ext] {\n        return false\n    }\n    \n    // Ensure path is in allowed directory\n    return isAllowedPath(path)\n}",
+        "description": "Validating, sanitizing, and using allowlists for command parameters prevents command injection attacks while maintaining functionality."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-6350"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression",
+      "assignment_statement",
+      "variable_declaration",
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "exec\\.Command.*\\+",
+          "exec\\.Command\\([^,)]*,\\s*[^,)]*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\)",
+          "exec\\.Command\\([^,)]*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\.\\.\\.\\)",
+          "fmt\\.Sprintf.*exec\\.Command",
+          "strings\\.Join.*exec\\.Command",
+          "\"sh\".*\"-c\".*exec\\.Command",
+          "\"bash\".*\"-c\".*exec\\.Command",
+          "cmdStr.*=.*\\+.*exec\\.Command",
+          "fullCommand.*=.*\\+.*exec\\.Command"
+        ],
+        "exclude_patterns": [
+          "exec\\.Command\\(\"[^\"]+\"\\)\\s*$",
+          "exec\\.Command\\(\"[^\"]+\",\\s*\"[^\"]+\"\\)\\s*$",
+          "filepath\\.Join",
+          "isValid",
+          "isAllowed"
+        ],
+        "message": "Potential command injection vulnerability - avoid constructing system commands with user input"
+      }
+    ]
+  }
+}

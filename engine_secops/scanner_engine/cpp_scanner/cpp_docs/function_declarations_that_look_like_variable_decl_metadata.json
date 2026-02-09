@@ -1,0 +1,41 @@
+{
+  "filename": "function_declarations_that_look_like_variable_decl_metadata.json",
+  "rule_id": "function_declarations_that_look",
+  "title": "Function declarations that look like variable declarations should be avoided",
+  "description": "Function declarations that look like variable declarations should not be usedAnalyze your codeintentionality-clearreliabilityBugcertWhy is this an issue?More InfoLike a clever insect posing as a leaf, there are constructs in C++ which look like variable declarations, but which are actually interpreted by the compiler as function or function pointer declarations. Beyond the problem of confusing maintainers, it’s highly likely in such cases that what the coder intended is not what the compiler will do.Noncompliant code examplevoid doWork(Status status) { Lock lock(); // Noncompliant; declares function named \"lock\" ... Form form(ProgressBar(status)); // Noncompliant; declares function named \"form\" with \"status\" parameter ..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void doWork(Status status) {\n  Lock lock();  // Noncompliant; declares function named \"lock\"\n  ...\n  Form form(ProgressBar(status)); // Noncompliant; declares function named \"form\" with \"status\" parameter\n  ...\n}",
+      "Widget widget(); // Noncompliant: declares a function, not a variable"
+    ],
+    "compliant": [
+      "void doWork(Status status) {\n  Lock lock;  // Compliant: declares a variable\n  ...\n  Form form((ProgressBar(status))); // Compliant: extra parentheses force variable declaration\n  ...\n}",
+      "Widget widget{}; // Compliant: declares a variable using brace initialization"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3468"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_function_declarations_like_variables",
+        "message": "Function declarations that look like variable declarations should be avoided"
+      }
+    ]
+  }
+}

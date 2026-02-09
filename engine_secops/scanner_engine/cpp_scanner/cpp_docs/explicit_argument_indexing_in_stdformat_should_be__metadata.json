@@ -1,0 +1,40 @@
+{
+  "filename": "explicit_argument_indexing_in_stdformat_should_be__metadata.json",
+  "rule_id": "explicit_argument_indexing_stdformat",
+  "title": "Explicit argument indexing in std::format should be preferred only for non-trivial ordering",
+  "description": "Explicit argument indexing in \"std::format\" should be used only for non-trivial orderingAnalyze your codeintentionality-clearmaintainabilityCode Smellclumsysince-c++20Why is this an issue?Calls tostd::formatandstd::vformatcan receive either format strings whose replacement fields are fully indexed or fully non-indexed.Explicitly indexing replacement fields is useful when arguments are not used in order or are used multiple times. Implicit indexing has the advantage of being terse and simple.Using explicit indexing in a context where implicit indexing would have the same behavior is more verbose and error-prone. It might confuse the reader, who might expect the arguments not to be used in order.This rule raises an issue on explicit indexing that should be replaced by implicit indexing.Nonco",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "std::string message = std::format(\"{0} {1} {2}\", name, age, city); // Noncompliant: sequential indexing",
+      "std::string info = std::format(\"Hello {0}!\", username); // Noncompliant: single argument with index",
+      "std::string result = std::format(\"{0}: {1}, {2}: {3}\", \"Name\", name, \"Age\", age); // Noncompliant: sequential"
+    ],
+    "compliant": [
+      "std::string message = std::format(\"{} {} {}\", name, age, city); // Compliant: implicit indexing",
+      "std::string info = std::format(\"Hello {}!\", username); // Compliant: implicit for single arg",
+      "std::string repeated = std::format(\"{0} and {0} again\", value); // Compliant: argument used multiple times",
+      "std::string reordered = std::format(\"{1} comes before {0}\", first, second); // Compliant: non-sequential order",
+      "std::string mixed = std::format(\"{}: {}, {}: {}\", \"Name\", name, \"Age\", age); // Compliant: implicit sequential"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6482"
+  ],
+  "logic": {
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_explicit_argument_indexing_stdformat",
+        "message": "Explicit argument indexing in std::format should be preferred only for non-trivial ordering."
+      }
+    ]
+  }
+}

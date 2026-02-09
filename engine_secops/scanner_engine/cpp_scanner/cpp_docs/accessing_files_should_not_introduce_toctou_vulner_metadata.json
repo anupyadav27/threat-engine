@@ -1,0 +1,46 @@
+{
+  "filename": "accessing_files_should_not_introduce_toctou_vulner_metadata.json",
+  "rule_id": "accessing_files_introduce_toctou",
+  "title": "Accessing files should not introduce TOCTOU vulnerabilities",
+  "description": "Race conditions can happen when file operations and their associated pre-checks are disconnected. Indeed, while the application assumes that the checked file property will not change before performing the operation, there is a chance that changes are applied to the file. Especially, a concurrent process, which an attacker can control, could modify a file right after a check is performed and before the actual use.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <unistd.h>\n#include <fstream>\n\nvoid readFile(const char* filename) {\n    // Noncompliant - check and use are separated (TOCTOU vulnerability)\n    if (access(filename, R_OK) == 0) {  // Check if file is readable\n        // Time gap where file permissions could change\n        std::ifstream file(filename);     // Use the file\n        // ... process file\n    }\n}\n\nvoid writeFile(const char* filename) {\n    // Noncompliant - checking existence then opening\n    if (access(filename, F_OK) != 0) {   // Check if file doesn't exist\n        std::ofstream file(filename);     // Create and open file\n        // ... write to file\n    }\n}"
+    ],
+    "compliant": [
+      "#include <fstream>\n#include <cerrno>\n\nvoid readFile(const char* filename) {\n    // Compliant - directly attempt the operation\n    std::ifstream file(filename);\n    if (!file) {\n        // Handle error appropriately\n        perror(\"Failed to open file\");\n        return;\n    }\n    // ... process file\n}\n\nvoid writeFile(const char* filename) {\n    // Compliant - use appropriate file opening mode\n    std::ofstream file(filename, std::ios::out | std::ios::excl);  // Fail if exists\n    if (!file) {\n        // Handle error appropriately\n        perror(\"Failed to create file\");\n        return;\n    }\n    // ... write to file\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5847"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?<!not )\\baccess\\s*\\("
+        ],
+        "message": "Potential TOCTOU vulnerability: avoid using access() before file operations",
+        "details": "Using access() followed by file operations creates a race condition. Use direct file operations with proper error handling instead."
+      }
+    ]
+  }
+}

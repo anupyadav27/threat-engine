@@ -1,0 +1,43 @@
+{
+  "filename": "switch_labels_should_not_be_nested_inside_non_swit_metadata.json",
+  "rule_id": "switch_labels_nested_inside",
+  "title": "Switch labels should not be nested inside non-switch blocks",
+  "description": "Switch labels should not be nested inside non-switch blocksAnalyze your codeintentionality-clearmaintainabilityCode Smellmisra-c++2008misra-c2004confusingmisra-c2012Why is this an issue?More InfoA switch-label can be placed anywhere within the statements that form the body of a switch statement, potentially leading to unstructured code. To prevent this from happening, the scope of a case-label or default-label shall be the statement forming the body of a switch statement. All case-clauses and the default-clause shall be at the same scope.Noncompliant code exampleswitch (x) { case 1: // Compliant if (foo) { case 2: // Noncompliant break; default: // Noncompliant break; } break; default: // Compliant break; }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "switch (x) {\n  case 1: // Compliant\n    if (foo) {\n      case 2: // Noncompliant: nested in if block\n        break;\n      default: // Noncompliant: nested in if block\n        break;\n    }\n    break;\n  default: // Compliant\n    break;\n}",
+      "switch (state) {\n  case ACTIVE:\n    while (running) {\n      case PAUSED:  // Noncompliant: nested in while\n        handle_pause();\n        break;\n    }\n    break;\n}"
+    ],
+    "compliant": [
+      "switch (x) {\n  case 1:\n    if (foo) {\n      handle_foo();\n    }\n    break;\n  case 2:\n    handle_case_two();\n    break;\n  default:\n    handle_default();\n    break;\n}",
+      "switch (state) {\n  case ACTIVE:\n    while (running) {\n      process_data();\n    }\n    break;\n  case PAUSED:\n    handle_pause();\n    break;\n  default:\n    break;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-916"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "switch\\s*\\([^)]*\\)\\s*\\{[^}]*(?:if|while|for|do)\\s*\\([^)]*\\)\\s*\\{[^}]*\\bcase\\s+[^:]+:",
+          "switch\\s*\\([^)]*\\)\\s*\\{[^}]*(?:if|while|for|do)\\s*\\([^)]*\\)\\s*\\{[^}]*\\bdefault\\s*:",
+          "switch\\s*\\([^)]*\\)\\s*\\{[^}]*\\{[^}]*\\bcase\\s+[^:]+:",
+          "switch\\s*\\([^)]*\\)\\s*\\{[^}]*\\{[^}]*\\bdefault\\s*:"
+        ],
+        "message": "Switch labels should not be nested inside non-switch blocks"
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "filename": "handlers_in_a_single_try_catch_or_function_try_blo_metadata.json",
+  "rule_id": "handlers_single_trycatch_functiontryblock",
+  "title": "Handlers in a single try-catch or function-try-block for a derived class and some or all of its bases should be ordered most-derived-first",
+  "description": "Handlers in a single try-catch or function-try-block for a derived class and some or all of its bases should be ordered most-derived-firstAnalyze your codeintentionality-logicalreliabilityBugQuick FixIDE quick fixes available with SonarQube for IDEcertmisra-c++2008Why is this an issue?More InfoExceptions handlers (catch ()) are evaluated in the order they are written. Once a match is found, the evaluation stops. If there is a handler for a base class followed by a handler for class derived from that base class, the second handler will never trigger: The handler for the base class will match the derived class, and will be the only executed handler.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Base class handler before derived class\nclass BaseException { };\nclass DerivedException : public BaseException { };\n\nvoid function() {\n    try {\n        // some code that may throw\n    }\n    catch (BaseException &b) {  // Noncompliant: catches derived too\n        // handle base exception\n    }\n    catch (DerivedException &d) {  // Will never be reached\n        // handle derived exception\n    }\n}",
+      "// Another noncompliant example\nclass A { };\nclass B : public A { };\nclass C : public B { };\n\nvoid test() {\n    try {\n        // code\n    }\n    catch (A& a) {  // Catches everything\n        // handle A\n    }\n    catch (B& b) {  // Never reached\n        // handle B\n    }\n    catch (C& c) {  // Never reached\n        // handle C\n    }\n}"
+    ],
+    "compliant": [
+      "// Compliant: Most derived class handler first\nclass BaseException { };\nclass DerivedException : public BaseException { };\n\nvoid function() {\n    try {\n        // some code that may throw\n    }\n    catch (DerivedException &d) {  // Most derived first\n        // handle derived exception\n    }\n    catch (BaseException &b) {  // Base class after derived\n        // handle base exception\n    }\n}",
+      "// Another compliant example\nclass A { };\nclass B : public A { };\nclass C : public B { };\n\nvoid test() {\n    try {\n        // code\n    }\n    catch (C& c) {  // Most derived first\n        // handle C\n    }\n    catch (B& b) {  // Then intermediate\n        // handle B\n    }\n    catch (A& a) {  // Base class last\n        // handle A\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1045"
+  ],
+  "logic": {
+    "node_types": [
+      "TryStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "catch\\s*\\(\\s*BaseException\\s*&[^)]*\\)[^}]*}[^}]*catch\\s*\\(\\s*DerivedException",
+          "catch\\s*\\(\\s*std::exception\\s*&[^)]*\\)[^}]*}[^}]*catch\\s*\\(\\s*std::runtime_error"
+        ],
+        "message": "Handlers in a single try-catch should be ordered most-derived-first"
+      }
+    ]
+  }
+}

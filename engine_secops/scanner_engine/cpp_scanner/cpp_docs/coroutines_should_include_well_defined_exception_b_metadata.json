@@ -1,0 +1,44 @@
+{
+  "filename": "coroutines_should_include_well_defined_exception_b_metadata.json",
+  "rule_id": "coroutines_include_welldefined_exception",
+  "title": "Coroutines should include well-defined exception behavior",
+  "description": "When a regular function throws an exception, stack unwinding occurs. This applies to exceptions thrown within the function body or from an inner function call. C++20 introduced coroutines, a stackless method to invoke functions that can be suspended and resumed.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: No exception handling in promise\nstruct BadPromise {\n    // Missing unhandled_exception() method\n    auto initial_suspend() { return std::suspend_never{}; }\n    auto final_suspend() noexcept { return std::suspend_never{}; }\n    auto return_void() {}\n    auto get_return_object() { return Task{*this}; }\n};\n\n// Noncompliant: Poor exception handling\ncppcoro::task<int> riskyOperation() {\n    // No try-catch around potentially throwing operations\n    auto result = co_await dangerousAsyncCall();\n    co_return result.getValue(); // May throw\n}"
+    ],
+    "compliant": [
+      "// Compliant: Promise with proper exception handling\nstruct GoodPromise {\n    auto initial_suspend() { return std::suspend_never{}; }\n    auto final_suspend() noexcept { return std::suspend_never{}; }\n    auto return_void() {}\n    auto get_return_object() { return Task{*this}; }\n    \n    void unhandled_exception() {\n        exception_ = std::current_exception();\n    }\n    \nprivate:\n    std::exception_ptr exception_;\n};\n\n// Compliant: Proper exception handling\ncppcoro::task<int> safeOperation() {\n    try {\n        auto result = co_await dangerousAsyncCall();\n        co_return result.getValue();\n    } catch (const std::exception& e) {\n        logError(e.what());\n        co_return -1; // Safe fallback\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6636"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration", "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "struct\\s+\\w*[Pp]romise\\s*\\{(?:(?!unhandled_exception)[\\s\\S])*\\}",
+          "class\\s+\\w*[Pp]romise\\s*\\{(?:(?!unhandled_exception)[\\s\\S])*\\}",
+          "(task|generator|Task|Generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*co_await(?:(?!try)[\\s\\S])*\\}",
+          "(task|generator|Task|Generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\)\\s*\\{(?:(?!try)(?!catch)[\\s\\S])*co_await[\\s\\S]*\\}",
+          "\\b(task|generator)\\s*<[^>]*>\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*co_await[^}]*(?<!try\\s*\\{[^}]*co_await[^}]*)(?<!catch[^}]*\\}[^}]*)\\}"
+        ],
+        "message": "Coroutines should include well-defined exception behavior (try/catch or unhandled_exception)"
+      }
+    ]
+  }
+}

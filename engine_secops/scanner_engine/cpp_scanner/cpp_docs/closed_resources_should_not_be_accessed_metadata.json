@@ -1,0 +1,45 @@
+{
+  "filename": "closed_resources_should_not_be_accessed_metadata.json",
+  "rule_id": "closed_resources_accessed",
+  "title": "Closed resources should not be accessed",
+  "description": "Closed resources should not be accessedAnalyze your codeintentionality-logicalreliabilityBugsymbolic-executioncertUsing the value of a pointer to aFILEobject after the associated file is closed is undefined behavior.Why is this an issue?What is the potential impact?How can I fix it?More InfoOnce a file has been closed, its correspondingFILE*typed variable becomes invalid and the stream may no longer be accessed through this variable. In particular, a pointer to aFILEobject may not be passed tofclosemore than once.Using the value of a pointer to aFILEobject after the associated file is closed results in undefined behavior.#include <stdio.h> #include <stdlib.h> int process_file(int print) { FILE *f = fopen(\"example.txt\", \"r\"); if (!f) { perror(\"fopen() failed\"); return 1; } if (print) { char",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdio.h>\n\nvoid badFileHandling() {\n    FILE* file = fopen(\"data.txt\", \"r\");\n    if (file) {\n        fclose(file);\n        // Noncompliant - accessing closed file\n        fprintf(file, \"Hello\"); \n        fclose(file); // Noncompliant - double close\n    }\n}\n\nvoid anotherBadExample() {\n    FILE* file = fopen(\"data.txt\", \"r\");\n    fclose(file);\n    if (ftell(file) != -1) { // Noncompliant - using closed file\n        // Do something\n    }\n}"
+    ],
+    "compliant": [
+      "#include <stdio.h>\n\nvoid goodFileHandling() {\n    FILE* file = fopen(\"data.txt\", \"r\");\n    if (file) {\n        fprintf(file, \"Hello\"); // Use before closing\n        fclose(file);\n        file = nullptr; // Prevent accidental reuse\n    }\n}\n\n// Better: Use RAII\n#include <fstream>\nvoid modernFileHandling() {\n    std::ofstream file(\"data.txt\");\n    if (file.is_open()) {\n        file << \"Hello\"; // Automatically closed when out of scope\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3588"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "fclose\\(file\\);(?![\\s\\S]*?file\\s*=\\s*fopen)[\\s\\S]*?fprintf\\(file",
+          "fclose\\(file\\);(?![\\s\\S]*?file\\s*=\\s*fopen)[\\s\\S]*?ftell\\(file\\)",
+          "fclose\\(file\\);(?![\\s\\S]*?file\\s*=\\s*fopen)[\\s\\S]*?fclose\\(file\\)"
+        ],
+        "message": "Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

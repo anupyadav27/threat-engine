@@ -1,0 +1,50 @@
+{
+  "filename": "file_permissions_security_metadata.json",
+  "rule_id": "security_file_permissions",
+  "title": "Set secure file permissions",
+  "description": "Setting loose POSIX file permissions can expose sensitive files to unauthorized access. Overly permissive file permissions allow unintended users to read, modify, or execute critical application files and data.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use restrictive file permissions that grant access only to necessary users and processes.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"io/ioutil\"\n    \"os\"\n)\n\n// Noncompliant: Overly permissive file permissions\nfunc createConfigFile() error {\n    // BAD: 0777 allows read/write/execute for everyone\n    return ioutil.WriteFile(\"config.txt\", []byte(\"secret\"), 0777)\n}\n\nfunc createLogDirectory() error {\n    // BAD: 0755 allows read/execute for all users\n    return os.Mkdir(\"/var/log/app\", 0755)\n}\n\nfunc createPrivateKeyFile(keyData []byte) error {\n    // BAD: Private key file readable by group and others\n    return ioutil.WriteFile(\"/etc/ssl/private/app.key\", keyData, 0644)\n}\n\nfunc createTempFile(data []byte) error {\n    // BAD: Temporary files with world-readable permissions\n    file, err := ioutil.TempFile(\"/tmp\", \"app-temp\")\n    if err != nil {\n        return err\n    }\n    defer file.Close()\n    \n    // File created with default permissions (often too permissive)\n    _, err = file.Write(data)\n    return err\n}\n\nfunc saveCredentials(username, password string) error {\n    // BAD: Credentials file with group/world readable permissions\n    creds := username + \":\" + password\n    return ioutil.WriteFile(\"/home/user/.credentials\", []byte(creds), 0644)\n}",
+        "description": "Overly permissive file permissions expose sensitive data to unauthorized access."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"io/ioutil\"\n    \"os\"\n)\n\n// Compliant: Secure file permissions\nfunc createConfigFile() error {\n    // GOOD: 0600 allows read/write only for owner\n    return ioutil.WriteFile(\"config.txt\", []byte(\"secret\"), 0600)\n}\n\nfunc createLogDirectory() error {\n    // GOOD: 0750 allows read/write/execute for owner, read/execute for group only\n    return os.Mkdir(\"/var/log/app\", 0750)\n}\n\nfunc createPrivateKeyFile(keyData []byte) error {\n    // GOOD: Private key file readable only by owner\n    return ioutil.WriteFile(\"/etc/ssl/private/app.key\", keyData, 0600)\n}\n\nfunc createSecureTempFile(data []byte) error {\n    // GOOD: Create temp file with secure permissions\n    file, err := ioutil.TempFile(\"/tmp\", \"app-temp\")\n    if err != nil {\n        return err\n    }\n    defer file.Close()\n    \n    // GOOD: Explicitly set secure permissions\n    if err := file.Chmod(0600); err != nil {\n        return err\n    }\n    \n    _, err = file.Write(data)\n    return err\n}\n\nfunc saveCredentials(username, password string) error {\n    // GOOD: Credentials file with owner-only permissions\n    creds := username + \":\" + password\n    return ioutil.WriteFile(\"/home/user/.credentials\", []byte(creds), 0600)\n}\n\n// GOOD: Helper function to create files with secure permissions\nfunc writeSecureFile(filename string, data []byte) error {\n    // Create file with owner-only read/write permissions\n    file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)\n    if err != nil {\n        return err\n    }\n    defer file.Close()\n    \n    _, err = file.Write(data)\n    return err\n}\n\n// GOOD: Create directory with appropriate permissions\nfunc createSecureDirectory(path string) error {\n    // 0700 - owner has full access, no access for group or others\n    return os.MkdirAll(path, 0700)\n}\n\n// GOOD: Function to check and fix file permissions\nfunc ensureSecurePermissions(filename string) error {\n    info, err := os.Stat(filename)\n    if err != nil {\n        return err\n    }\n    \n    // Check if permissions are too permissive\n    mode := info.Mode()\n    if mode.Perm() & 0077 != 0 {\n        // Fix permissions to be owner-only\n        return os.Chmod(filename, 0600)\n    }\n    \n    return nil\n}",
+        "description": "Use restrictive file permissions that grant access only to necessary users and processes."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-2612"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "os\\.OpenFile",
+          "os\\.Create",
+          "ioutil\\.WriteFile",
+          "0777",
+          "0755"
+        ],
+        "message": "Use restrictive file permissions that grant access only to necessary users and processes."
+      }
+    ],
+    "custom_function": "check_file_permissions_security"
+  }
+}

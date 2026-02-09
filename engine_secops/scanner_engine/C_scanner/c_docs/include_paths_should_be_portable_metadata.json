@@ -1,0 +1,90 @@
+{
+  "filename": "include_paths_should_be_portable_metadata.json",
+  "rule_id": "include_paths_portable",
+  "title": "#include paths should be portable",
+  "description": "\"#include\" paths should be portableAnalyze your codeintentionality-completemaintainabilityCode SmellpitfallWhy is this an issue?The way an#includedirective finds an actual file is implementation-defined, and in practice, it slightly differs in different systems.Therefore, a good practice is to identify the files to include in the most straightforward way possible to reduce the risk of inconsistent behaviors.This rule raises an issue when:The case of the file in the#includedirective does not match the case of the file on the disk (the inclusion would not work on a case-sensitive OS),The file name in the#includedirective contains trailing spaces (they would be ignored on Windows but considered on Unix).Noncompliant code example#include \"Foo.h\" // Noncompliant if the actual file name is \"foo.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include \"Foo.h\"  // Noncompliant if actual file name is \"foo.h\"",
+      "#include \"config.h \"  // Noncompliant - trailing space",
+      "#include \"Config.H\"  // Noncompliant - case mismatch"
+    ],
+    "compliant": [
+      "#include \"foo.h\"  // Compliant - exact case match",
+      "#include \"config.h\"  // Compliant - no trailing space",
+      "#include <stdio.h>  // Compliant - standard library"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3806"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#include\\s*\"[^\"]*\\s+\"",
+          "#include\\s*\"\\s+[^\"]*\"",
+          "#include\\s*\"[^\"]*[A-Z][^\"]*\\.(h|hpp|hxx|H)\"",
+          "#include\\s*\"[^\"]*\\.[A-Z]+\"",
+          "#include\\s*\"[A-Z][^\"]*\"",
+          "#include\\s*\"[^\"]*[A-Z][^\"]*\"",
+          "#include\\s*\"[^\"]*\\s{2,}[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\/[^\"]*\\/[^\"]*\"",
+          "#include\\s*\"[^\"]*[^a-z0-9_\\.\\/\\\\-][^\"]*\"",
+          "#include\\s*\".*[A-Z].*\\.(H|HPP|HXX|C|CPP|CXX)\"",
+          "#include\\s*\"[^\"]+\\s*$",
+          "#include\\s*<[^>]*[A-Z][^>]*\\.(h|hpp|hxx)>",
+          "#include\\s*\"[^\"]*\\.H$\"",
+          "#include\\s*\"[^\"]*\\.HPP$\"",
+          "#include\\s*\"[^\"]*\\.HXX$\"",
+          "#include\\s*\"[^\"]*\\.(h|hpp|hxx)\\s+\"",
+          "#include\\s*\"[^\"]*\\.\\s*[^\"]*\"",
+          "#include\\s*\"[^\"]*[^a-z0-9_\\/\\\\\\.-][^\"]*\\.(h|hpp|hxx|c|cpp|cxx)\"",
+          "#include\\s*\"[^\"]*\\s+[^\"]*\\.(h|hpp|hxx|c|cpp|cxx)\"",
+          "#include\\s*\"[^\"]*[A-Z]{2,}[^\"]*\"",
+          "#include\\s*\"[^\"]*\\s*\\t[^\"]*\"",
+          "#include\\s*\"[^\"]*[^\\w\\.\\/\\\\-][^\"]*\"",
+          "#include\\s*\"\\.[^\"].*\"",
+          "#include\\s*\"\\.\\.[^\"].*\""
+        ],
+        "message": "Non-portable include path detected. Check case sensitivity, whitespace, and path format for cross-platform compatibility."
+      },
+      {
+        "type": "whitespace_check",
+        "property_path": ["source"],
+        "conditions": [
+          "trailing_spaces_in_quotes",
+          "leading_spaces_in_quotes", 
+          "multiple_consecutive_spaces",
+          "tab_characters_in_path"
+        ],
+        "message": "Include path contains problematic whitespace that may cause portability issues across different operating systems."
+      },
+      {
+        "type": "case_sensitivity_check", 
+        "property_path": ["source"],
+        "conditions": [
+          "uppercase_letters_in_filename",
+          "uppercase_file_extension",
+          "mixed_case_pattern",
+          "all_caps_segments"
+        ],
+        "message": "Include path uses case that may not be portable between case-sensitive and case-insensitive file systems."
+      }
+    ]
+  }
+}

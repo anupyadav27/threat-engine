@@ -1,0 +1,90 @@
+{
+  "filename": "each_operand_of_the_operator_the_logical_or_the_lo_metadata.json",
+  "rule_id": "each_operand_operator_logical",
+  "title": "Each operand of the ! operator, the logical && or the logical || operators shall have type bool",
+  "description": "Each operand of the ! operator, the logical && or the logical || operators shall have type boolAnalyze your codeintentionality-clearreliabilityBugmisra-c++2008Why is this an issue?More InfoThis rule is a strict implementation of a MISRA (Motor Industry Software Reliability Association) rule. MISRA defines best practices for developing safety-critical software. You can learn more about this rule in the MISRA documents referenced below.If you are not concerned with MISRA compliance or with safety-critical software, you might consider using ruleS867instead ; it targets the same kind of issue for general-purpose software.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDevel",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badLogicalOperations() {\n    int x = 5;\n    char* ptr = nullptr;\n    std::vector<int> vec;\n    \n    // Noncompliant: using non-bool with logical operators\n    if (x && ptr) {  // int and char* instead of bool\n        process();\n    }\n    \n    // Noncompliant: mixing types with logical OR\n    if (x || vec.size()) {  // int and size_t\n        handle();\n    }\n    \n    // Noncompliant: using non-bool with logical NOT\n    bool result = !x;  // int instead of bool\n    \n    // Noncompliant: complex expression without bool\n    if ((x + 1) && (ptr != nullptr)) {  // arithmetic result\n        execute();\n    }\n}"
+    ],
+    "compliant": [
+      "void goodLogicalOperations() {\n    int x = 5;\n    char* ptr = nullptr;\n    std::vector<int> vec;\n    \n    // Compliant: explicit bool conversions\n    if ((x != 0) && (ptr != nullptr)) {\n        process();\n    }\n    \n    // Compliant: proper bool expressions\n    if ((x != 0) || !vec.empty()) {\n        handle();\n    }\n    \n    // Compliant: bool operand with logical NOT\n    bool result = !(x == 0);\n    \n    // Compliant: all operands are bool expressions\n    if ((x + 1 > 0) && (ptr != nullptr)) {\n        execute();\n    }\n}\n\nvoid betterApproach() {\n    int value = 42;\n    std::string text;\n    \n    // Compliant: using explicit comparisons\n    bool hasValue = (value > 0);\n    bool hasText = !text.empty();\n    \n    if (hasValue && hasText) {\n        processData();\n    }\n    \n    // Compliant: proper bool logic\n    bool isValid = (value >= 0) && (value <= 100);\n    if (!isValid) {\n        reportError();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5359"
+  ],
+  "logic": {
+    "node_types": [
+      "BinaryOperatorExpression",
+      "UnaryOperatorExpression",
+      "ConditionalStatement",
+      "WhileStatement",
+      "ForStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "each_operand_operator_logical_enhanced",
+        "message": "Each operand of logical operators (!, &&, ||) should have type bool."
+      }
+    ],
+    "custom_logic": {
+      "logical_operators": {
+        "logical_and": {
+          "pattern": "([^&])&&([^&])",
+          "operator": "&&",
+          "binary": true
+        },
+        "logical_or": {
+          "pattern": "([^|])\\|\\|([^|])",
+          "operator": "||", 
+          "binary": true
+        },
+        "logical_not": {
+          "pattern": "!\\s*([^=!<>])",
+          "operator": "!",
+          "binary": false
+        }
+      },
+      "bool_expressions": {
+        "comparison_operators": [
+          "==", "!=", "<", ">", "<=", ">=", "<=>", "<=>"
+        ],
+        "bool_functions": [
+          "\\.empty\\(\\)",
+          "\\.good\\(\\)",
+          "\\.bad\\(\\)",
+          "\\.fail\\(\\)",
+          "\\.eof\\(\\)",
+          "is[A-Z][a-zA-Z]*\\(\\)",
+          "has[A-Z][a-zA-Z]*\\(\\)",
+          "can[A-Z][a-zA-Z]*\\(\\)"
+        ],
+        "bool_literals": ["true", "false"],
+        "bool_variables": "bool\\s+[a-zA-Z_][a-zA-Z0-9_]*",
+        "parenthesized_bool": "\\([^)]*(?:==|!=|<|>|<=|>=)[^)]*\\)"
+      },
+      "non_bool_patterns": {
+        "numeric_literals": "\\b\\d+\\b(?!\\.)",
+        "pointer_variables": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*(?:\\*|->)",
+        "arithmetic_expressions": "[a-zA-Z_][a-zA-Z0-9_]*\\s*[+\\-*/%]\\s*[a-zA-Z0-9_]+",
+        "function_calls": "[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*\\(\\)(?!\\s*(?:==|!=|<|>|<=|>=))",
+        "array_access": "[a-zA-Z_][a-zA-Z0-9_]*\\[[^]]+\\]",
+        "member_access": "[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z_][a-zA-Z0-9_]*(?!\\(\\))",
+        "simple_variables": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b(?!\\s*(?:[=!<>]=?|<=>|\\(|\\)|\\.|->))"
+      },
+      "analysis_scope": "expression",
+      "strict_mode": true,
+      "misra_compliance": true
+    }
+  }
+}

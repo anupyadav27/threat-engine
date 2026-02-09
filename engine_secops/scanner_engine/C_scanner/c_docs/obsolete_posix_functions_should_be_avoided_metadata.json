@@ -1,0 +1,48 @@
+{
+  "filename": "obsolete_posix_functions_should_be_avoided_metadata.json",
+  "rule_id": "obsolete_posix_functions_avoided",
+  "title": "Obsolete POSIX functions should be avoided",
+  "description": "Obsolete POSIX functions should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode SmellobsoletecertWhy is this an issue?To ensure future code portability, obsolete POSIX functions should be removed. Those functions, with their replacements are listed below:ObsoleteUse Insteadasctimestrftimeasctime_rstrftimebcmpmemcmpbcopymemmove memcpybsd_signalsigactionbzeromemsetctimestrftimeecvtsprintffcvtsprintfftimeno replacement functiongcvtsprintfgetcontextRewrite to use POSIX threads.gethostbyaddrgetnameinfogethostbynamegetaddrinfogetwdgetcwdindexstrchrmakecontextRewrite to use POSIX threads.mktempmkstemppthread_attr_getstackaddrpthread_attr_getstackpthread_attr_setstackaddrpthread_attr_setstackrand_rrandrindexstrrchrscalbscalbln', 'scalblnf' or 'scalblnl' instead of this func",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char* timeStr = asctime(timeInfo); // Noncompliant: asctime is obsolete",
+      "char* host = gethostbyname(\"example.com\"); // Noncompliant: gethostbyname is obsolete",
+      "bcopy(src, dest, size); // Noncompliant: bcopy is obsolete",
+      "bzero(buffer, size); // Noncompliant: bzero is obsolete"
+    ],
+    "compliant": [
+      "strftime(buffer, size, format, timeInfo); // Compliant: use strftime instead of asctime",
+      "getaddrinfo(\"example.com\", NULL, &hints, &result); // Compliant: use getaddrinfo",
+      "memmove(dest, src, size); // Compliant: use memmove instead of bcopy",
+      "memset(buffer, 0, size); // Compliant: use memset instead of bzero"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1911"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "FunctionDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\b(?:asctime|asctime_r|bcmp|bcopy|bsd_signal|bzero|ctime|ecvt|fcvt|gcvt|ftime|gethostbyaddr|gethostbyname|getwd|index|makecontext|getcontext|mktemp|pthread_attr_getstackaddr|pthread_attr_setstackaddr|rand_r|rindex|scalb)\\s*\\("
+        ],
+        "message": "Obsolete POSIX functions should be avoided. Use modern alternatives: strftime, memcmp/memmove/memset, sigaction, getaddrinfo/getnameinfo, getcwd, strchr/strrchr, mkstemp, pthread_attr_getstack/setstack, etc."
+      }
+    ]
+  }
+}

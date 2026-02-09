@@ -1,0 +1,55 @@
+{
+  "filename": "duplicate_conditions_metadata.json",
+  "rule_id": "logic_duplicate_conditions_if_else",
+  "title": "Avoid duplicate conditions in if-else chains",
+  "description": "Duplicate conditions in if-else chains lead to dead code since only the first occurrence will ever be executed. This is usually caused by copy-paste errors and can hide intended logic or create unexpected behavior.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Remove duplicate conditions or correct the logic to use the intended condition.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Duplicate conditions in if-else chain\nfunc processUser(user *User) string {\n    if user.Age >= 18 && user.IsActive {\n        return \"adult_active\"\n    } else if user.Age < 18 {\n        return \"minor\"\n    } else if user.Age >= 18 && user.IsActive {\n        // BAD: This condition is identical to the first one\n        // This code will never be reached\n        return \"duplicate_case\"\n    } else {\n        return \"adult_inactive\"\n    }\n}\n\nfunc calculateFee(amount float64, userType string) float64 {\n    if amount > 1000 && userType == \"premium\" {\n        return amount * 0.01\n    } else if amount > 500 {\n        return amount * 0.02\n    } else if amount > 1000 && userType == \"premium\" {\n        // BAD: Duplicate condition - unreachable code\n        return amount * 0.005\n    } else {\n        return amount * 0.03\n    }\n}",
+        "description": "Duplicate conditions create unreachable code and indicate logic errors."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\n// Compliant: Unique, properly ordered conditions\nfunc processUser(user *User) string {\n    // GOOD: Each condition is unique and reachable\n    if user.Age >= 18 && user.IsActive {\n        return \"adult_active\"\n    } else if user.Age >= 18 && !user.IsActive {\n        return \"adult_inactive\"\n    } else if user.Age < 18 {\n        return \"minor\"\n    } else {\n        return \"unknown\"\n    }\n}\n\n// Alternative approach using early returns\nfunc processUserEarlyReturn(user *User) string {\n    // GOOD: Clear, non-overlapping logic\n    if user.Age < 18 {\n        return \"minor\"\n    }\n    \n    if user.IsActive {\n        return \"adult_active\"\n    }\n    \n    return \"adult_inactive\"\n}\n\nfunc calculateFee(amount float64, userType string) float64 {\n    // GOOD: Conditions ordered from most specific to least specific\n    if amount > 1000 && userType == \"premium\" {\n        return amount * 0.01\n    } else if amount > 1000 && userType == \"standard\" {\n        return amount * 0.015\n    } else if amount > 500 {\n        return amount * 0.02\n    } else {\n        return amount * 0.03\n    }\n}\n\n// Alternative approach with switch for cleaner logic\nfunc calculateFeeSwitch(amount float64, userType string) float64 {\n    // GOOD: Use switch to avoid complex conditions\n    switch {\n    case amount > 1000 && userType == \"premium\":\n        return amount * 0.01\n    case amount > 1000:\n        return amount * 0.015\n    case amount > 500:\n        return amount * 0.02\n    default:\n        return amount * 0.03\n    }\n}",
+        "description": "Ensure each condition is unique and arrange them logically to avoid unreachable code."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1862"
+  ],
+  "logic": {
+    "node_types": [
+      "if_statement",
+      "binary_expression",
+      "parenthesized_expression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "if\\s+([^{]+)\\s*\\{[^}]*\\}\\s*else\\s+if\\s+\\1\\s*\\{",
+          "if\\s+\\(([^)]+)\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s+\\(\\1\\)\\s*\\{",
+          "if\\s+([^&|]+)\\s*&&\\s*([^{]+)\\s*\\{[^}]*\\}[^}]*else\\s+if\\s+\\2\\s*&&\\s*\\1\\s*\\{",
+          "if\\s+([^&|]+)\\s*\\|\\|\\s*([^{]+)\\s*\\{[^}]*\\}[^}]*else\\s+if\\s+\\2\\s*\\|\\|\\s*\\1\\s*\\{",
+          "if\\s+([^{]+==\\s*[\"'][^\"']*[\"'][^{]*)\\{[^}]*\\}[^}]*else\\s+if\\s+\\1\\s*\\{",
+          "if\\s+([^{]+>=?\\s*\\d+[^{]*)\\{[^}]*\\}[^}]*else\\s+if\\s+\\1\\s*\\{",
+          "if\\s+(\\w+\\.\\w+\\s*[>=<]+\\s*\\d+[^{]*)\\{[^}]*\\}[^}]*else\\s+if\\s+\\1\\s*\\{",
+          "if\\s+(\\w+\\s*&&\\s*\\w+\\s*&&\\s*\\w+[^{]*)\\{[^}]*\\}[^}]*else\\s+if\\s+\\1\\s*\\{",
+          "strings\\.HasSuffix\\([^)]+\\)\\s*&&\\s*[^{]+\\{[^}]*\\}[^}]*else\\s+if[^{]*strings\\.HasSuffix\\([^)]+\\)\\s*&&\\s*[^{]+\\{"
+        ],
+        "message": "Duplicate condition detected in if-else chain: This condition will never be reached as it's identical to a previous condition"
+      }
+    ]
+  }
+}

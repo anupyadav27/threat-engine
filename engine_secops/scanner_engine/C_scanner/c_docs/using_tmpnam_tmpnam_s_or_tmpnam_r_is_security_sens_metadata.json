@@ -1,0 +1,66 @@
+{
+  "filename": "using_tmpnam_tmpnam_s_or_tmpnam_r_is_security_sens_metadata.json",
+  "rule_id": "using_tmpnam_tmpnam_s_tmpnam_r",
+  "title": "Using tmpnam, tmpnam_s or tmpnam_r is security-sensitive",
+  "description": "Using \"tmpnam\", \"tmpnam_s\" or \"tmpnam_r\" is security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotcwecertThe functions \"tmpnam\", \"tmpnam_s\" and \"tmpnam_r\" are all used to return a file name that does not match an existing file, in order for the application to create a temporary file. However, even if the file did not exist at the time those functions were called, it might exist by the time the application tries to use the file name to create the files. This has been used by hackers to gain access to files that the application believed were trustworthy.There are alternative functions that, in addition to creating a suitable file name, create and open the file and return the file handler.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "owasp",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdio.h>\n\nFILE *create_temp_file() {\n    char filename[L_tmpnam];\n    tmpnam(filename); // Noncompliant: race condition vulnerability\n    return fopen(filename, \"w\");\n}\n\n// Also noncompliant:\nchar *get_temp_name() {\n    return tmpnam(NULL); // Noncompliant: same security issue\n}"
+    ],
+    "compliant": [
+      "#include <stdio.h>\n#include <stdlib.h>\n\nFILE *create_secure_temp() {\n    char template[] = \"/tmp/myapp_XXXXXX\";\n    int fd = mkstemp(template); // Compliant: atomically creates and opens\n    return fdopen(fd, \"w+\");\n}\n\n// Alternative using tmpfile():\nFILE *create_anonymous_temp() {\n    return tmpfile(); // Compliant: creates anonymous temp file\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5824"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "name"
+        ],
+        "forbidden_values": [
+          "tmpnam",
+          "tmpnam_s", 
+          "tmpnam_r",
+          "tempnam",
+          "_tmpnam",
+          "_tmpnam_s",
+          "_tempnam"
+        ],
+        "message": "Using tmpnam, tmpnam_s, tmpnam_r or related functions is security-sensitive. Review and fix according to the rule guidelines."
+      },
+      {
+        "type": "regex_pattern",
+        "property_path": [
+          "_source"
+        ],
+        "patterns": [
+          "\\btmpnam\\s*\\(",
+          "\\btmpnam_[sr]\\s*\\(",
+          "\\btempnam\\s*\\(",
+          "\\b_tmpnam\\s*\\(",
+          "\\b_tempnam\\s*\\("
+        ],
+        "message": "Using tmpnam, tmpnam_s, tmpnam_r or related functions is security-sensitive. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

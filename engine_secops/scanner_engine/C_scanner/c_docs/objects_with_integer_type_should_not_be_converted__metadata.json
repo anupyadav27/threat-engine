@@ -1,0 +1,53 @@
+{
+  "filename": "objects_with_integer_type_should_not_be_converted__metadata.json",
+  "rule_id": "objects_integer_type_converted",
+  "title": "Objects with integer type should not be converted to objects with pointer type",
+  "description": "Objects with integer type should not be converted to objects with pointer typeAnalyze your codeintentionality-logicalreliabilityBugbased-on-misracertWhy is this an issue?More InfoConverting an integer type to a pointer generally leads to unspecified behavior. There are several cases where it might be legitimate:Converting the integral literal0to the null pointer (but you should usenullptrinstead, seeS4962),Converting back to a pointer a pointer value that was converted to a large enough integer (seeS1767),On embedded devices, device drivers…​ converting a hard-coded address to a pointer to read some specific memory (this often goes together with the use ofvolatile, since such memory values can change from the outside of the program).Since even legitimate cases are corner cases that require",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int* ptr = (int*)42; // Noncompliant: converting integer literal to pointer",
+      "void* p = (void*)0x1000; // Noncompliant: converting hardcoded address",
+      "char* str = (char*)100; // Noncompliant: converting integer to pointer"
+    ],
+    "compliant": [
+      "int* ptr = NULL; // Compliant: using NULL for null pointer",
+      "void* p = nullptr; // Compliant: using nullptr (C++)",
+      "char* str = malloc(100); // Compliant: proper memory allocation"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-860"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "AssignmentExpression",
+      "ExpressionStatement",
+      "ReturnStatement",
+      "CastExpression",
+      "FunctionCall"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\(\\s*\\w+\\s*\\*\\s*\\)\\s*[1-9][0-9]*\\b",
+          "\\(\\s*\\w+\\s*\\*\\s*\\)\\s*0x[0-9a-fA-F]+\\b",
+          "\\(\\s*void\\s*\\*\\s*\\)\\s*[1-9][0-9]*\\b",
+          "\\(\\s*void\\s*\\*\\s*\\)\\s*0x[0-9a-fA-F]+\\b"
+        ],
+        "message": "Objects with integer type should not be converted to objects with pointer type. Use proper memory allocation, NULL/nullptr for null pointers, or ensure legitimate embedded programming needs."
+      }
+    ]
+  }
+}

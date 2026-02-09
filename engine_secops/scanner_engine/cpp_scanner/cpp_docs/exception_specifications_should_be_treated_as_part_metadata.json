@@ -1,0 +1,41 @@
+{
+  "filename": "exception_specifications_should_be_treated_as_part_metadata.json",
+  "rule_id": "exception_specifications_treated_as",
+  "title": "Exception specifications should be treated as part of the type",
+  "description": "Exception specifications should be treated as part of the typeAnalyze your codeintentionality-completemaintainabilityCode Smellsince-c++11clumsypitfallWhy is this an issue?Since C++17, exception specifications have become a part of a function type. This implies that these two functions, for example, have different types:void first() noexcept; void second();Making exception specifications part of the type will, for the right reason, break code where a function that throws an exception is provided in a context wherenoexceptfunction is expected.It is important to note that, like it is not allowed to overload based on the return type, it is also not allowed to overload based on the exception specifications.This rule will trigger on code that will stop compiling starting C++17, and on explicit",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void func1() noexcept;\nvoid func1(); // Noncompliant: redeclaration with different exception spec",
+      "template<typename T>\nvoid process(T callback) noexcept {\n  callback(); // Noncompliant: callback may throw, violating noexcept\n}",
+      "class Base {\npublic:\n  virtual void method() noexcept = 0;\n};\n\nclass Derived : public Base {\npublic:\n  void method() override; // Noncompliant: missing noexcept in override\n};"
+    ],
+    "compliant": [
+      "void func1() noexcept; // Compliant: consistent exception specification\nvoid func2(); // Compliant: different function",
+      "template<typename T>\nvoid process(T callback) noexcept(noexcept(callback())) {\n  callback(); // Compliant: conditional noexcept based on callback\n}",
+      "class Base {\npublic:\n  virtual void method() noexcept = 0;\n};\n\nclass Derived : public Base {\npublic:\n  void method() noexcept override; // Compliant: consistent exception spec\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6029"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_inconsistent_exception_specs",
+        "message": "Exception specifications should be treated as part of the type."
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "filename": "macros_should_be_avoided_as_replacements_for_typed_metadata.json",
+  "rule_id": "macros_avoided_as_replacements",
+  "title": "Macros should be avoided as replacements for typedef and using",
+  "description": "Macros should not be used as replacements for \"typedef\" and \"using\"Analyze your codeconsistency-conventionalmaintainabilityCode Smellbad-practicecertpitfallWhy is this an issue?More InfoC provides a way of defining or aliasing a type throughtypedef. On top of it, C++ addsusingthat can do the same and more.Using a macro to define a type is inferior to the previous ways for two reasons:macros cannot be enclosed into scopes. Or at least, doing so is cumbersome and error-prone, as in that case, the macro needs to be defined and undefined manually.macros are handled by the preprocessor and are not understood by the compiler.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#define INT_PTR int* // Noncompliant: using macro for type definition",
+      "#define CALLBACK_TYPE void(*)(int) // Noncompliant: macro instead of typedef/using",
+      "#define MyVector std::vector<int> // Noncompliant: should use type alias"
+    ],
+    "compliant": [
+      "typedef int* IntPtr; // Compliant: using typedef for type alias",
+      "using CallbackType = void(*)(int); // Compliant: using declaration for type alias",
+      "using MyVector = std::vector<int>; // Compliant: modern C++ type alias"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5825"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#define\\s+\\w+\\s+\\w+\\*?\\s*//.*[Tt]ype",
+          "#define\\s+\\w+\\s+\\w+\\s*$"
+        ],
+        "message": "Avoid using macros as replacements for typedef or using declarations. Use typedef or using instead."
+      }
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "filename": "pragma_pack_should_be_preferred_correctly_metadata.json",
+  "rule_id": "pragma_pack_preferred_correctly",
+  "title": "#pragma pack should be preferred correctly",
+  "description": "#pragma pack is a non-standard extension that specifies the packing alignment for structure, union, and class members. remove padding and decrease the size of objects align members to better fit optimal cpu alignment However, the pragma pack directives need to be correctly defined to work properly. This rule raises an issue if: the specified packing value is incorrect: it can only be 1, 2, 4, 8, or 16 a parameter is ill-formed the pop variant of this #pragma is called with both arguments identifier and value: such a call is undefined behavior a #pragma pack(push...) is performed but there is not corresponding use of #pragma pack(pop...) a #pragma pack(pop...) is performed but there is not corresponding use of #pragma pack(push...) a #pragma pack is in effect across several files: this becomes too complex and could easily lead to undefined behavior, the same structure having a different layout when seen from different translation units",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#pragma pack(3) // Noncompliant: 3 is not a valid packing value\nstruct MyStruct { int a; char b; };",
+      "#pragma pack(push, 1)\nstruct A { int x; };\n// Noncompliant: missing corresponding pop",
+      "#pragma pack(pop, myid, 2) // Noncompliant: pop with both identifier and value"
+    ],
+    "compliant": [
+      "#pragma pack(push, 1) // Compliant: valid packing value\nstruct MyStruct { int a; char b; };\n#pragma pack(pop) // Compliant: corresponding pop",
+      "#pragma pack(2) // Compliant: 2 is a valid packing value\nstruct A { int x; };\n#pragma pack() // Compliant: reset to default"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5501"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#pragma\\s+pack\\s*\\(\\s*[03567912]\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*0\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*-[0-9]+\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*(?:32|64|128|[3567912]|0)\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*[^,)]+\\s*,\\s*(?:[03567912]|32|64|128)\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*(?:[03567912]|32|64|128)\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push[^)]*\\)(?:[^\\n]*//[^\\n]*push without|.*//[^\\n]*VIOLATION[^\\n]*push)",
+          "#pragma\\s+pack\\s*\\(\\s*pop[^)]*\\)(?:[^\\n]*//[^\\n]*pop without|.*//[^\\n]*VIOLATION[^\\n]*pop)",
+          "#pragma\\s+pack\\s*\\(\\s*pop\\s*,\\s*[^,)]+\\s*,\\s*[^)]+\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*,\\s*[^)]+\\s*\\).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*(?:3|5|6|7|9|12|32|0|-1|64|128)\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*[^,)]+\\s*,\\s*(?:3|5|6|7|9|12|32|0|-1|64|128)\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*(?:3|5|6|7|9|12|32|0|-1|64|128)\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*,\\s*[^)]+\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*pop\\s*,\\s*[^,)]+\\s*,\\s*[^)]+\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*inner\\s*,\\s*[0-9]+\\s*\\)",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*[0-9]+\\s*\\)\\s*//.*Start packing",
+          "#pragma\\s+pack\\s*\\(\\s*1\\s*\\)\\s*//.*end",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*1\\s*\\)\\s*//.*Start.*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*1\\s*\\)(?=\\s*//.*directive.*end).*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*1\\s*\\)\\s*//.*Start packing.*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*1\\s*\\)\\s*//.*pack directive.*end.*//[^\\n]*VIOLATION",
+          "#pragma\\s+pack\\s*\\(\\s*push\\s*,\\s*1\\s*\\)\\s*//\\s*Start\\s*packing",
+          "#pragma\\s+pack\\s*\\(\\s*1\\s*\\)\\s*//\\s*VIOLATION.*directive.*end"
+        ],
+        "message": "#pragma pack should be preferred correctly. Invalid packing values, mismatched push/pop, or ill-formed parameters detected.",
+        "severity": "major"
+      }
+    ]
+  }
+}

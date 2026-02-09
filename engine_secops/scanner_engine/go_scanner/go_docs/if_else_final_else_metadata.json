@@ -1,0 +1,40 @@
+{
+  "filename": "if_else_final_else_metadata.json",
+  "rule_id": "logic_if_else_final_else_required",
+  "title": "End if-else chains with else clause",
+  "description": "If-else if constructs without a final else clause can lead to unhandled cases and defensive programming issues. A final else clause ensures all possible conditions are explicitly addressed or documented.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Add a final else clause that handles the default case or contains appropriate comments.",
+  "impact": "Potential bug",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Missing final else clause\nfunc GetUserStatus(user User) string {\n    if user.IsActive {\n        return \"active\"\n    } else if user.IsPending {\n        return \"pending\"\n    } else if user.IsSuspended {\n        return \"suspended\"\n    }\n    // What if none of the conditions are true?\n    // This could lead to unexpected behavior\n}\n\n// Noncompliant: Chain without handling all cases\nfunc CalculateDiscount(amount float64) float64 {\n    if amount > 1000 {\n        return amount * 0.1\n    } else if amount > 500 {\n        return amount * 0.05\n    } else if amount > 100 {\n        return amount * 0.02\n    }\n    // Missing handling for amount <= 100\n}",
+        "description": "If-else chains without final else clauses can leave cases unhandled, leading to undefined behavior."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Final else clause handles default case\nfunc GetUserStatus(user User) string {\n    if user.IsActive {\n        return \"active\"\n    } else if user.IsPending {\n        return \"pending\"\n    } else if user.IsSuspended {\n        return \"suspended\"\n    } else {\n        return \"inactive\" // Default case\n    }\n}\n\n// Compliant: All cases explicitly handled\nfunc CalculateDiscount(amount float64) float64 {\n    if amount > 1000 {\n        return amount * 0.1\n    } else if amount > 500 {\n        return amount * 0.05\n    } else if amount > 100 {\n        return amount * 0.02\n    } else {\n        return 0 // No discount for small amounts\n    }\n}\n\n// Compliant: Alternative with explicit comment\nfunc ProcessRequest(requestType string) {\n    if requestType == \"create\" {\n        handleCreate()\n    } else if requestType == \"update\" {\n        handleUpdate()\n    } else if requestType == \"delete\" {\n        handleDelete()\n    } else {\n        // All valid request types handled above\n        handleInvalidRequest()\n    }\n}",
+        "description": "Final else clauses ensure all cases are handled, providing predictable behavior and better error handling."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-126"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_logic_if_else_final_else_required",
+        "message": "Rule: End if-else chains with else clause"
+      }
+    ]
+  }
+}

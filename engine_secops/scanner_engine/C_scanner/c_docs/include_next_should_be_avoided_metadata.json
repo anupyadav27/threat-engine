@@ -1,0 +1,88 @@
+{
+  "filename": "include_next_should_be_avoided_metadata.json",
+  "rule_id": "include_next_avoided",
+  "title": "#include_next should be avoided",
+  "description": "\"#include_next\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode Smelllock-inconfusingWhy is this an issue?#include_nextis a gcc-specific language extension that alters the search path for the specified header file by starting the search from the header file directoryafterthe one in which the directive was encountered. It also ignores the distinction between\"file\"and<file>. It is typically used when you have two (probably related) header files with the same name, although there is nothing in the extension to enforce or limit the use to same-name files.Use of this extension can be tricky to get right, and is almost never justified.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include_next <stdio.h>",
+      "#include_next \"config.h\""
+    ],
+    "compliant": [
+      "#include <stdio.h>",
+      "#include \"config.h\""
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3730"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "^\\s*#\\s*include_next\\b",
+          "#include_next\\s*<[^>]*>",
+          "#include_next\\s*\"[^\"]*\"",
+          "#include_next\\s*<[^>]*>\\s*",
+          "#include_next\\s*\"[^\"]*\"\\s*",
+          "#\\s+include_next\\b",
+          "#include_next\\s*<\\s*[^>]*\\s*>",
+          "#include_next\\s*\"\\s*[^\"]*\\s*\"",
+          "#include_next\\s*<[^>]+\\.h>",
+          "#include_next\\s*<[^>]+\\.hpp>",
+          "#include_next\\s*\"[^\"]+\\.h\"",
+          "#include_next\\s*\"[^\"]+\\.hpp\"",
+          "#include_next\\s*<[^>]+\\.hxx>",
+          "#include_next\\s*\"[^\"]+\\.hxx\"",
+          "#include_next\\s*<[a-zA-Z_][a-zA-Z0-9_]*>",
+          "#include_next\\s*\"[a-zA-Z_][a-zA-Z0-9_]*\"",
+          "#include_next\\s*<[a-zA-Z_][a-zA-Z0-9_]*\\.h>",
+          "#include_next\\s*\"[a-zA-Z_][a-zA-Z0-9_]*\\.h\"",
+          "#include_next\\s*/\\*.*\\*/",
+          "#include_next\\s*//.*",
+          "#\\s*include_next\\s*<.*>",
+          "#\\s*include_next\\s*\".*\"",
+          "^[\\s]*#[\\s]*include_next[\\s]*<.*>$",
+          "^[\\s]*#[\\s]*include_next[\\s]*\".*\"$",
+          "#include_next\\s*<[^>]*[/\\\\][^>]*>"
+        ],
+        "message": "#include_next is a GCC-specific extension that should be avoided. Use standard #include for better portability across compilers."
+      },
+      {
+        "type": "gcc_extension_check",
+        "property_path": ["source"],
+        "conditions": [
+          "contains_include_next_directive",
+          "contains_include_next_with_angle_brackets",
+          "contains_include_next_with_quotes",
+          "contains_include_next_with_whitespace"
+        ],
+        "message": "GCC-specific #include_next directive detected. This breaks portability and should be replaced with standard #include directives."
+      },
+      {
+        "type": "portability_check",
+        "property_path": ["source"], 
+        "conditions": [
+          "non_standard_preprocessor_directive",
+          "compiler_specific_extension",
+          "gcc_only_feature"
+        ],
+        "message": "Non-portable preprocessor directive #include_next detected. Consider restructuring headers to avoid need for GCC-specific extensions."
+      }
+    ]
+  }
+}

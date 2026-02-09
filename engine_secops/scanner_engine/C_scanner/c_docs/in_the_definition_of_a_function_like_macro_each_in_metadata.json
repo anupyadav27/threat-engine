@@ -1,0 +1,56 @@
+{
+  "filename": "in_the_definition_of_a_function_like_macro_each_in_metadata.json",
+  "rule_id": "definition_functionlike_macro_each",
+  "title": "In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of # or ##",
+  "description": "In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of # or ##Analyze your codeintentionality-completemaintainabilityCode Smellcertmisra-c++2008misra-c2004Why is this an issue?More InfoThis rule is a strict implementation of a MISRA (Motor Industry Software Reliability Association) rule. MISRA defines best practices for developing safety-critical software. You can learn more about this rule in the MISRA documents referenced below.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Macro parameters not properly parenthesized\n#define SQUARE(x) x * x\n#define MAX(a, b) a > b ? a : b\n\n// Problems:\nint result1 = SQUARE(2 + 3);  // Expands to: 2 + 3 * 2 + 3 = 11 (not 25)\nint result2 = MAX(x++, y++);  // Side effects evaluated multiple times"
+    ],
+    "compliant": [
+      "// Compliant: Macro parameters properly parenthesized\n#define SQUARE(x) ((x) * (x))\n#define MAX(a, b) (((a) > (b)) ? (a) : (b))\n\n// Correct behavior:\nint result1 = SQUARE(2 + 3);  // Expands to: ((2 + 3) * (2 + 3)) = 25\n// Note: Still avoid side effects in macro arguments"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-963"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#define\\s+\\w+\\(\\w+\\)\\s+\\w+\\s*\\*\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+\\)\\s+\\w+\\s*\\+\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+\\)\\s+\\w+\\s*-\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+\\)\\s+\\w+\\s*/\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+\\)\\s+\\w+\\s*%\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*\\*\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*\\+\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*-\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*/\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*%\\s*\\w+",
+          "#define\\s+\\w+\\(\\w+,\\s*\\w+\\)\\s+\\w+\\s*>\\s*\\w+\\s*\\?\\s*\\w+\\s*:\\s*\\w+",
+          "#define\\s+\\w+\\([^)]+\\)\\s+\\w+\\s*[<>=!]\\s*\\w+",
+          "#define\\s+\\w+\\([^)]+\\)\\s+\\w+\\s*&&\\s*\\w+",
+          "#define\\s+\\w+\\([^)]+\\)\\s+\\w+\\s*\\|\\|\\s*\\w+",
+          "#define\\s+\\w+\\([^)]+\\)\\s+-\\s*\\w+"
+        ],
+        "message": "In the definition of a function-like macro, each instance of a parameter shall be enclosed in parentheses, unless it is used as the operand of # or ##. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

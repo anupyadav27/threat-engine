@@ -1,0 +1,37 @@
+{
+  "filename": "emplacement_should_be_preferred_when_insertion_cre_metadata.json",
+  "rule_id": "emplacement_preferred_when_insertion",
+  "title": "Emplacement should be preferred when insertion creates a temporary with sequence containers",
+  "description": "Emplacement should be preferred when insertion creates a temporary with sequence containersAnalyze your codeintentionality-efficientmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEperformancesince-c++11clumsyWhy is this an issue?More InfoSometimes,emplace_backis more efficient and less verbose thanpush_back. It is expected to be faster when the object is constructed into the container instead of being constructed and assigned. This also happens when the pushed object has a different type from the one held by the container.This rule supports standard sequence containers:std::vector,std::list,std::deque,std::forward_list,std::stack,std::queueandstd::priority_queue.The rule raises an issue when an insertion function on a supported container leads to construct",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badInsertion() {\n    std::vector<std::string> vec;\n    std::vector<std::pair<int, std::string>> pairs;\n    \n    // Noncompliant: creating temporary object for push_back\n    vec.push_back(std::string(\"hello\"));\n    \n    // Noncompliant: constructing temporary pair\n    pairs.push_back(std::pair<int, std::string>(1, \"first\"));\n    \n    // Noncompliant: using push_back with constructor call\n    std::vector<Person> people;\n    people.push_back(Person(\"John\", 25));\n}\n\nclass Person {\npublic:\n    Person(const std::string& name, int age) : name_(name), age_(age) {}\nprivate:\n    std::string name_;\n    int age_;\n};"
+    ],
+    "compliant": [
+      "void goodInsertion() {\n    std::vector<std::string> vec;\n    std::vector<std::pair<int, std::string>> pairs;\n    \n    // Compliant: using emplace_back to construct in-place\n    vec.emplace_back(\"hello\");\n    \n    // Compliant: constructing pair directly in container\n    pairs.emplace_back(1, \"first\");\n    \n    // Compliant: constructing Person object in-place\n    std::vector<Person> people;\n    people.emplace_back(\"John\", 25);\n}\n\nvoid efficientQueueUsage() {\n    std::queue<std::string> q;\n    std::stack<std::pair<int, double>> stk;\n    \n    // Compliant: emplace for queue\n    q.emplace(\"efficient\");\n    \n    // Compliant: emplace for stack\n    stk.emplace(42, 3.14);\n}\n\nclass Person {\npublic:\n    Person(const std::string& name, int age) : name_(name), age_(age) {}\nprivate:\n    std::string name_;\n    int age_;\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6003"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_emplacement_over_insertion",
+        "message": "Use emplace_back() instead of push_back() with temporary objects for better performance"
+      }
+    ]
+  }
+}

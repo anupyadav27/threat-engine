@@ -1,0 +1,41 @@
+{
+  "filename": "general_catch_clauses_should_be_avoided_metadata.json",
+  "rule_id": "general_catch_clauses_avoided",
+  "title": "General catch clauses should be avoided",
+  "description": "General \"catch\" clauses should not be usedAnalyze your codeintentionality-completemaintainabilityCode Smellerror-handlingWhy is this an issue?A generalcatchblock seems like an efficient way to handle multiple possible exceptions. Unfortunately, it traps all exception types, casting too broad a net, and perhaps mishandling extraordinary cases. Instead, specific exception sub-types should be caught.Noncompliant code exampletry { file.open(\"test.txt\"); } catch (...) { // Noncompliant // ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "error-handling"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <fstream>\n#include <iostream>\n\n// Noncompliant: General catch clause\nvoid readFile() {\n    try {\n        std::ifstream file(\"test.txt\");\n        // File operations\n    } catch (...) {  // Too general\n        std::cout << \"An error occurred\" << std::endl;\n    }\n}",
+      "// Another noncompliant example\nvoid processData() {\n    try {\n        // Complex operation that might throw various exceptions\n        performCalculation();\n        writeToDatabase();\n        sendNetworkRequest();\n    } catch (...) {  // Catches everything indiscriminately\n        handleError();\n    }\n}"
+    ],
+    "compliant": [
+      "#include <fstream>\n#include <iostream>\n#include <stdexcept>\n\n// Compliant: Specific exception handling\nvoid readFile() {\n    try {\n        std::ifstream file(\"test.txt\");\n        if (!file.is_open()) {\n            throw std::ios_base::failure(\"Failed to open file\");\n        }\n        // File operations\n    } catch (const std::ios_base::failure& e) {\n        std::cerr << \"File operation failed: \" << e.what() << std::endl;\n    } catch (const std::bad_alloc& e) {\n        std::cerr << \"Memory allocation failed: \" << e.what() << std::endl;\n    }\n}",
+      "// Another compliant example with multiple specific catches\nvoid processData() {\n    try {\n        performCalculation();\n        writeToDatabase();\n        sendNetworkRequest();\n    } catch (const std::invalid_argument& e) {\n        handleCalculationError(e);\n    } catch (const DatabaseException& e) {\n        handleDatabaseError(e);\n    } catch (const NetworkException& e) {\n        handleNetworkError(e);\n    }\n}",
+      "// Acceptable use of general catch as last resort\nvoid safeOperation() {\n    try {\n        riskyOperation();\n    } catch (const SpecificException1& e) {\n        handleSpecific1(e);\n    } catch (const SpecificException2& e) {\n        handleSpecific2(e);\n    } catch (...) {\n        // Only as last resort after specific handlers\n        logUnexpectedException();\n        throw;  // Re-throw to maintain exception propagation\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2738"
+  ],
+  "logic": {
+    "node_types": [
+      "TryStatement",
+      "CatchStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_general_catch_clauses",
+        "message": "General \"catch\" clauses should not be usedAnalyze your codeintentionality-completemaintainabilityCod"
+      }
+    ]
+  }
+}

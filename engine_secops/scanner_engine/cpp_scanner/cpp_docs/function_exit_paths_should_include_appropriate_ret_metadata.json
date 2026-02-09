@@ -1,0 +1,46 @@
+{
+  "filename": "function_exit_paths_should_include_appropriate_ret_metadata.json",
+  "rule_id": "function_exit_paths_include",
+  "title": "Function exit paths should include appropriate return values",
+  "description": "Function exit paths should have appropriate return valuesAnalyze your codeintentionality-logicalreliabilityBugcwebased-on-misracertWhy is this an issue?How can I fix it?More InfoWhen a function does not return an appropriate value, it causes the program to have an undefined behavior. For example, if a function is supposed to return a value indicating whether a file was successfully opened but does not return any value, the program may continue to execute as if the file was opened successfully, even though it was not. This can lead to data corruption or other issues that are difficult to diagnose.Functions with a void return type are not expected to return any value.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int divide(int a, int b) {\n  if (b == 0) {\n    return; // Noncompliant: missing return value\n  }\n  return a / b;\n}",
+      "bool openFile(const char* filename) {\n  FILE* file = fopen(filename, \"r\");\n  if (!file) {\n    return; // Noncompliant: missing return value\n  }\n  fclose(file);\n  return true;\n}"
+    ],
+    "compliant": [
+      "int divide(int a, int b) {\n  if (b == 0) {\n    return -1; // Compliant: returns appropriate error value\n  }\n  return a / b;\n}",
+      "bool openFile(const char* filename) {\n  FILE* file = fopen(filename, \"r\");\n  if (!file) {\n    return false; // Compliant: returns appropriate boolean value\n  }\n  fclose(file);\n  return true;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-935"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(int|float|double|char|bool|std::\\w+)\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*\\breturn\\s*;[^}]*\\}"
+        ],
+        "message": "Function exit paths should include appropriate return values"
+      }
+    ]
+  }
+}

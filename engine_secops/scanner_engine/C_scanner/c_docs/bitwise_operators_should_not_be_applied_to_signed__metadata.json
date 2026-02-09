@@ -1,0 +1,47 @@
+{
+  "filename": "bitwise_operators_should_not_be_applied_to_signed__metadata.json",
+  "rule_id": "bitwise_operators_applied_signed",
+  "title": "Bitwise operators should not be applied to signed operands",
+  "description": "Bitwise operators should not be applied to signed operandsAnalyze your codeintentionality-logicalreliabilityBugcwebased-on-misralock-inbad-practicecertWhy is this an issue?More InfoMost built-in bitwise operators (~,>>,>>=,&,&=,^,^=,|, and|=) have implementation-dependent results when performed on signed operands, and bitwise left shift (<<and<<=) has unspecified or undefined behavior when performed on negative operands.Therefore, bitwise operations should not be performed on signed operands.Starting with C++20, the behaviors have been defined more accurately (negative values have to be represented using two’s complement), and therefore this rule will only report an issue when the second operand of a shift operator is signed (shifting by a negative value is still undefined behavior).Noncom",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int signed_var = -5;\nint result = ~signed_var;        // Noncompliant: bitwise NOT on signed operand",
+      "int a = -10, b = 3;\nint result = a << b;             // Noncompliant: left shift with signed operand",
+      "int x = -7;\nx >>= 2;                         // Noncompliant: signed right shift assignment",
+      "int val = -15;\nval &= 0xFF;                  // Noncompliant: bitwise AND assignment with signed operand",
+      "signed int mask = 0x0F;\nint data = value | mask;      // Noncompliant: bitwise OR with signed operand",
+      "int a = -1, b = 5;\nint result = a ^ b;              // Noncompliant: XOR with signed first operand"
+    ],
+    "compliant": [
+      "unsigned int unsigned_var = 5;\nint result = ~unsigned_var;      // Compliant: bitwise NOT on unsigned operand",
+      "unsigned int a = 10, b = 3;\nint result = a << b;             // Compliant: left shift with unsigned operands",
+      "unsigned int x = 7;\nx >>= 2;                         // Compliant: unsigned right shift assignment",
+      "unsigned int val = 15;\nval &= 0xFF;                  // Compliant: bitwise AND assignment with unsigned operand",
+      "unsigned int mask = 0x0F;\nint data = value | mask;      // Compliant: bitwise OR with unsigned operand",
+      "unsigned int a = 1, b = 5;\nint result = a ^ b;              // Compliant: XOR with unsigned operands",
+      "int a = 10;\nint result = a + 5;             // Compliant: arithmetic operation, not bitwise"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-874"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "Expression", "BinaryOperation", "UnaryOperation", "CompoundAssignment"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_bitwise_operators_on_signed"
+      }
+    ]
+  }
+}

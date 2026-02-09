@@ -1,0 +1,66 @@
+{
+  "filename": "if_else_if_constructs_should_have_else_clauses_metadata.json",
+  "rule_id": "if_else_if_constructs",
+  "title": "if ... else if constructs should have else clauses",
+  "description": "\"if ... else if\" constructs should end with \"else\" clausesAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misracertWhy is this an issue?More InfoThis rule applies whenever anifstatement is followed by one or moreelse ifstatements; the finalelse ifshould be followed by anelsestatement.The requirement for a finalelsestatement is defensive programming.Theelsestatement should either take appropriate action or contain a suitable comment as to why no action is taken. This is consistent with the requirement to have a finaldefaultclause in aswitchstatement.Noncompliant code exampleif (x == 0) { doSomething(); } else if (x == 1) { doSomethingElse(); }Compliant solutionif (x == 0) { doSomething(); } else if (x == 1) { doSomethingElse(); } else { error(); }ExceptionsWhen all br",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: if-else if without final else clause\nint processValue(int value) {\n    if (value > 100) {\n        return 1;\n    } else if (value > 50) {\n        return 2;\n    }\n    // Missing else clause - what happens if value <= 50?\n}"
+    ],
+    "compliant": [
+      "// Compliant: if-else if with final else clause\nint processValue(int value) {\n    if (value > 100) {\n        return 1;\n    } else if (value > 50) {\n        return 2;\n    } else {\n        return 0;  // All cases handled\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-126"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition", "VariableDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}(?!\\s*else\\s*\\{)",
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}(?!\\s*else\\s*\\{)",
+          "if\\s*\\([^)]+\\)[^{]*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)[^{]*\\{[^}]*\\}(?!\\s*else\\s*[^i])",
+          "if\\s*\\([^)]+\\)\\s*\\{(?:[^{}]|\\{[^}]*\\})*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{(?:[^{}]|\\{[^}]*\\})*\\}(?!\\s*else(?!\\s+if))",
+          "\\bif\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*(?:else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*)*(?!else\\s*\\{)",
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}(?:\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\})+(?!\\s*else\\s*\\{)",
+          "if\\s*\\([^{}()]+\\)\\s*\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}\\s*else\\s+if\\s*\\([^{}()]+\\)\\s*\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}(?!\\s*else(?!\\s+if)\\s*\\{)"
+        ],
+        "message": "if ... else if constructs should have else clauses. Add a final else clause for defensive programming."
+      },
+      {
+        "type": "incomplete_if_else_chain",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\([^)]+\\)\\s*[^{]*\\{[^}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*[^{]*\\{[^}]*\\}[^e]*(?:$|\\n|;|\\})",
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*(?:else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}\\s*)+[^e]",
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]+\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]+\\}\\s*(?!else\\s*\\{)",
+          "\\bif\\s*\\([^)]+\\)[^{]*\\{[^{}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)[^{]*\\{[^{}]*\\}\\s*(?!else\\s*[^i])",
+          "if\\s*\\([^)]+\\)\\s*\\{[^{}]*\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^{}]*\\}\\s*$"
+        ],
+        "message": "Incomplete if-else if chain detected. Add a final else clause to handle all possible cases."
+      },
+      {
+        "type": "missing_final_else",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\([^)]+\\)\\s*\\{(?:[^{}]++|\\{(?:[^{}]++|\\{[^{}]*+\\})*+\\})*+\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{(?:[^{}]++|\\{(?:[^{}]++|\\{[^{}]*+\\})*+\\})*+\\}(?!\\s*else(?!\\s+if))",
+          "if\\s*\\([^)]+\\)\\s*\\{[^}]*\\}(?:\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{[^}]*\\})+(?:\\s*return\\s*[^;]*;)?\\s*(?:\\}|$)",
+          "if\\s*\\(\\s*[^)]+\\s*\\)\\s*\\{[^}]*\\}\\s*else\\s+if\\s*\\(\\s*[^)]+\\s*\\)\\s*\\{[^}]*\\}\\s*(?![e]lse\\s*\\{)"
+        ],
+        "message": "Missing final else clause in if-else if construct. Consider adding an else block for complete case coverage."
+      }
+    ]
+  }
+}

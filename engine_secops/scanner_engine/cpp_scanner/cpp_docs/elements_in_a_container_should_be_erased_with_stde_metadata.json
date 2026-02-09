@@ -1,0 +1,76 @@
+{
+  "filename": "elements_in_a_container_should_be_erased_with_stde_metadata.json",
+  "rule_id": "elements_container_erased_stderase",
+  "title": "Elements in a container should be erased with std::erase or std::erase_if",
+  "description": "Removing elements with a specific value or that follow a given predicate from a container is a common task. Before C++20, this was not straightforward. The way to do it had to depend on the type of your container.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badRemoval() {\n    // Noncompliant: using remove-erase idiom instead of std::erase\n    std::vector<int> vec = {1, 2, 3, 2, 4, 2, 5};\n    \n    // Remove all elements with value 2\n    vec.erase(std::remove(vec.begin(), vec.end(), 2), vec.end());\n}\n\nvoid badConditionalRemoval() {\n    // Noncompliant: using remove_if-erase idiom\n    std::vector<int> vec = {1, 2, 3, 4, 5, 6};\n    \n    // Remove all even numbers\n    vec.erase(std::remove_if(vec.begin(), vec.end(), [](int n) {\n        return n % 2 == 0;\n    }), vec.end());\n}"
+    ],
+    "compliant": [
+      "void goodRemoval() {\n    // Compliant: using std::erase (C++20)\n    std::vector<int> vec = {1, 2, 3, 2, 4, 2, 5};\n    \n    // Remove all elements with value 2\n    std::erase(vec, 2);\n}\n\nvoid goodConditionalRemoval() {\n    // Compliant: using std::erase_if (C++20)\n    std::vector<int> vec = {1, 2, 3, 4, 5, 6};\n    \n    // Remove all even numbers\n    std::erase_if(vec, [](int n) {\n        return n % 2 == 0;\n    });\n}\n\nvoid goodListRemoval() {\n    // Compliant: using std::erase with std::list\n    std::list<std::string> lst = {\"apple\", \"banana\", \"cherry\", \"banana\"};\n    \n    // Remove all \"banana\" elements\n    std::erase(lst, \"banana\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6165"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionCall",
+      "MemberExpression",
+      "ExpressionStatement",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "elements_container_erased_stderase_enhanced",
+        "message": "Use std::erase or std::erase_if instead of erase-remove idiom."
+      }
+    ],
+    "custom_logic": {
+      "erase_remove_patterns": {
+        "remove_value": {
+          "pattern": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\.\\s*erase\\s*\\(\\s*std\\s*::\\s*remove\\s*\\(\\s*\\1\\s*\\.\\s*begin\\s*\\(\\s*\\)\\s*,\\s*\\1\\s*\\.\\s*end\\s*\\(\\s*\\)\\s*,\\s*([^)]+)\\s*\\)\\s*,\\s*\\1\\s*\\.\\s*end\\s*\\(\\s*\\)\\s*\\)",
+          "replacement": "std::erase({container}, {value})",
+          "description": "Remove elements by value using erase-remove idiom"
+        },
+        "remove_if_predicate": {
+          "pattern": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\.\\s*erase\\s*\\(\\s*std\\s*::\\s*remove_if\\s*\\(\\s*\\1\\s*\\.\\s*begin\\s*\\(\\s*\\)\\s*,\\s*\\1\\s*\\.\\s*end\\s*\\(\\s*\\)\\s*,\\s*([^)]+(?:\\([^)]*\\))?)\\s*\\)\\s*,\\s*\\1\\s*\\.\\s*end\\s*\\(\\s*\\)\\s*\\)",
+          "replacement": "std::erase_if({container}, {predicate})",
+          "description": "Remove elements by predicate using erase-remove_if idiom"
+        },
+        "remove_variable_iterator": {
+          "pattern": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\.\\s*erase\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*\\1\\s*\\.\\s*end\\s*\\(\\s*\\)\\s*\\)",
+          "context_pattern": "\\2\\s*=\\s*std\\s*::\\s*remove(?:_if)?\\s*\\(",
+          "replacement": "std::erase or std::erase_if",
+          "description": "Two-step erase-remove using intermediate variable"
+        }
+      },
+      "container_types": [
+        "std::vector",
+        "std::deque", 
+        "std::list",
+        "std::forward_list",
+        "std::string",
+        "vector",
+        "deque",
+        "list",
+        "forward_list",
+        "string"
+      ],
+      "cpp_version": "cpp20_required",
+      "modernization": true,
+      "performance_improvement": true,
+      "readability_improvement": true
+    }
+  }
+}

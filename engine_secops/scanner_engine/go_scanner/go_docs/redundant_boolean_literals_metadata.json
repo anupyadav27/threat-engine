@@ -1,0 +1,40 @@
+{
+  "filename": "redundant_boolean_literals_metadata.json",
+  "rule_id": "logic_redundant_boolean_remove",
+  "title": "Avoid redundant boolean literals",
+  "description": "Comparing boolean values to true or false literals is unnecessary and makes code more complex. These redundant comparisons reduce readability and can introduce confusion about the code's intent.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Use boolean expressions directly without comparing to true/false literals.",
+  "impact": "Code readability problem",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Redundant comparisons with boolean literals\nfunc processUser(user User) {\n    if user.IsActive == true {\n        fmt.Println(\"User is active\")\n    }\n    \n    if user.IsVerified != false {\n        sendWelcomeEmail(user)\n    }\n    \n    enabled := (user.IsEnabled == true)\n    verified := (user.IsVerified != false)\n    \n    // More redundant patterns\n    if (user.HasPermission() == true) && (user.IsBlocked() == false) {\n        grantAccess()\n    }\n    \n    // In return statements\n    return user.IsAdmin == true\n}\n\n// Noncompliant: Boolean operations with literals\nfunc validateSettings(config Config) bool {\n    // Redundant boolean operations\n    result := (config.IsValid == true) && (config.IsEnabled != false)\n    \n    if config.Debug == true {\n        log.Println(\"Debug mode enabled\")\n    }\n    \n    // Ternary-like pattern with boolean literals\n    var status string\n    if config.IsProduction == true {\n        status = \"prod\"\n    } else {\n        status = \"dev\"\n    }\n    \n    return result == true // Double redundancy!\n}",
+        "description": "Comparing boolean values to true or false literals adds unnecessary complexity and reduces readability."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Direct use of boolean expressions\nfunc processUser(user User) {\n    if user.IsActive {\n        fmt.Println(\"User is active\")\n    }\n    \n    if user.IsVerified {\n        sendWelcomeEmail(user)\n    }\n    \n    enabled := user.IsEnabled\n    verified := user.IsVerified\n    \n    // Clean boolean logic\n    if user.HasPermission() && !user.IsBlocked() {\n        grantAccess()\n    }\n    \n    // Direct return\n    return user.IsAdmin\n}\n\n// Compliant: Clean boolean operations\nfunc validateSettings(config Config) bool {\n    // Direct boolean logic\n    result := config.IsValid && config.IsEnabled\n    \n    if config.Debug {\n        log.Println(\"Debug mode enabled\")\n    }\n    \n    // Simple conditional\n    var status string\n    if config.IsProduction {\n        status = \"prod\"\n    } else {\n        status = \"dev\"\n    }\n    \n    return result\n}\n\n// Compliant: When negation is needed, use it clearly\nfunc checkUserStatus(user User) {\n    if !user.IsActive {\n        fmt.Println(\"User is inactive\")\n        return\n    }\n    \n    if !user.IsVerified {\n        sendVerificationEmail(user)\n        return\n    }\n    \n    // Complex boolean expressions remain readable\n    canAccess := user.IsActive && user.IsVerified && user.HasPermission() && !user.IsBlocked()\n    \n    if canAccess {\n        processUserRequest(user)\n    }\n}",
+        "description": "Using boolean expressions directly without redundant comparisons makes code cleaner and more readable."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1125"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_redundant_boolean_literals",
+        "message": "Avoid redundant boolean literals - use boolean expressions directly"
+      }
+    ]
+  }
+}

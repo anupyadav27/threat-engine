@@ -1,0 +1,40 @@
+{
+  "filename": "constants_of_unsigned_type_should_include_a_u_suff_metadata.json",
+  "rule_id": "constants_unsigned_type_include",
+  "title": "Constants of unsigned type should include a U suffix",
+  "description": "The type of an integer is dependent on a complex combination of factors including: The magnitude of the constant; The implemented sizes of the integer types; The presence of any suffixes; The number base in which the value is expressed (i.e. decimal, octal or hexadecimal). For example, the value 0x8000 is of type unsigned int in a 16-bit environment, but of type (signed) int in a 32-bit environment.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void ambiguousConstants() {\n    // These constants may be signed or unsigned depending on platform\n    unsigned int mask = 0x80000000;     // Noncompliant - ambiguous in 32-bit\n    unsigned long flags = 0xFFFFFFFF;    // Noncompliant - missing U suffix\n    unsigned short port = 65535;        // Noncompliant - could overflow\n    \n    // Hexadecimal constants are particularly problematic\n    unsigned int addr = 0xDEADBEEF;     // Noncompliant\n}"
+    ],
+    "compliant": [
+      "void clearConstants() {\n    // Use U suffix for unsigned constants\n    unsigned int mask = 0x80000000U;     // Compliant - clearly unsigned\n    unsigned long flags = 0xFFFFFFFFU;   // Compliant - U suffix\n    unsigned short port = 65535U;        // Compliant - U suffix\n    \n    // Or use UL for unsigned long\n    unsigned long addr = 0xDEADBEEFUL;   // Compliant\n    \n    // For very large numbers, use ULL\n    unsigned long long bigNum = 0x123456789ABCDEFULL; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-854"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "unsigned\\s+(int|long|short|char)\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*(0x[0-9A-Fa-f]+|[0-9]+)(?!U)\\s*;",
+        "message": "Add 'U' suffix to unsigned integer constants."
+      }
+    ]
+  }
+}

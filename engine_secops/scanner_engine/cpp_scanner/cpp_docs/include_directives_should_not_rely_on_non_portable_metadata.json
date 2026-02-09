@@ -1,0 +1,40 @@
+{
+  "filename": "include_directives_should_not_rely_on_non_portable_metadata.json",
+  "rule_id": "include_directives_rely_nonportable",
+  "title": "Include directives should not rely on non-portable search strategy",
+  "description": "Include directives should not rely on non-portable search strategyAnalyze your codeintentionality-completemaintainabilityCode SmellpitfallWhy is this an issue?More InfoMicrosoft’s MSVC has a search strategy which differs from other compilers when resolving quoted include directives#include \"file.h\". Relying on such a strategy is not portable and may lead to compilation failure when trying to build with a different compiler.This rule raises an issue whenever the file specified in a#includedirective can only be found using the MSVC search strategy.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include \"..\\..\\utils\\helper.h\"  // Relies on MSVC-specific search",
+      "#include \"subfolder/file.h\"  // May only work with MSVC search strategy"
+    ],
+    "compliant": [
+      "#include \"utils/helper.h\"  // Portable relative path",
+      "#include <standard_library.h>  // Standard library headers",
+      "#include \"./local_file.h\"  // Explicit relative path"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-4263"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_non_portable_includes",
+        "message": "Include directives should not rely on non-portable search strategy"
+      }
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "filename": "likely_and_unlikely_should_be_preferred_instead_of_metadata.json",
+  "rule_id": "likely_unlikely_preferred_instead",
+  "title": "[[likely]] and [[unlikely]] should be preferred instead of compiler built-ins",
+  "description": "\"[[likely]]\" and \"[[unlikely]]\" should be used instead of compiler built-insAnalyze your codeintentionality-completemaintainabilityCode Smellsince-c++20bad-practiceWhy is this an issue?More InfoC++20 introduces two standard attributes to indicate the likelihood of a branch:[[likely]]and[[unlikely]].These attributes replace the non-standard built-in__builtin_expectsupported by Clang and GCC that was mostly used as part oflikely()andunlikely()macros.The standard annotations should always be preferred because they make the code portable and future-proof.This rule reports the direct use of__builtin_expectbuilt-in and its indirect use throughlikely()andunlikely()macros.Noncompliant code exampleif (likely(!v.empty())) { // Noncompliant std::cout <<v[0] <<'\\n'; } if (unlikely(nullptr == ptr)) { /",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <vector>\n#include <iostream>\n\n#define likely(x) __builtin_expect(!!(x), 1)\n#define unlikely(x) __builtin_expect(!!(x), 0)\n\nvoid process(const std::vector<int>& v) {\n  if (likely(!v.empty())) { // Noncompliant\n    std::cout << v[0] << '\\n';\n  }\n  if (unlikely(v.size() > 1000)) { // Noncompliant\n    std::cout << \"Large vector\\n\";\n  }\n}",
+      "void checkPointer(int* ptr) {\n  if (__builtin_expect(ptr != nullptr, 1)) { // Noncompliant\n    *ptr = 42;\n  }\n}"
+    ],
+    "compliant": [
+      "#include <vector>\n#include <iostream>\n\nvoid process(const std::vector<int>& v) {\n  if (!v.empty()) [[likely]] { // Compliant - C++20 attribute\n    std::cout << v[0] << '\\n';\n  }\n  if (v.size() > 1000) [[unlikely]] { // Compliant\n    std::cout << \"Large vector\\n\";\n  }\n}",
+      "void checkPointer(int* ptr) {\n  if (ptr != nullptr) [[likely]] { // Compliant\n    *ptr = 42;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6180"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "__builtin_expect",
+        "message": "Use [[likely]] and [[unlikely]] attributes instead of __builtin_expect"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "#define\\s+(likely|unlikely)\\s*\\(.*?\\)\\s+__builtin_expect",
+        "message": "Replace likely/unlikely macros with C++20 [[likely]]/[[unlikely]] attributes"
+      }
+    ]
+  }
+}
