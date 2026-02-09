@@ -1,0 +1,54 @@
+{
+  "filename": "comparison_operators_should_not_be_virtual_metadata.json",
+  "rule_id": "comparison_operators_virtual",
+  "title": "Comparison operators should not be virtual",
+  "description": "Comparison operators should not be virtualAnalyze your codeintentionality-clearmaintainabilityCode SmellcppcoreguidelinespitfallWhy is this an issue?More InfoMaking a comparison operatorvirtualimplies that you want to compare objects of different types by overridingoperator==, for instance, in a subclass to compare instances of the base class with instances of the subclass. But polymorphic comparison operators are very difficult to get right, and are actually questionable in concept. After all, can two objects with only a few common members really be equal?This rule raises issues onvirtualcomparison operators.Noncompliant code examplestruct Foo { virtual bool operator==(const Foo &other) const; // Noncompliant virtual bool operator!=(const Foo &other) const; // Noncompliant };Compliant sol",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Virtual comparison operators are problematic and error-prone\nstruct Base {\n    virtual bool operator==(const Base& other) const; // Noncompliant\n    virtual bool operator!=(const Base& other) const; // Noncompliant\n    virtual bool operator<(const Base& other) const;  // Noncompliant\n};\n\nclass Shape {\npublic:\n    virtual bool operator==(const Shape& other) const { // Noncompliant\n        return typeid(*this) == typeid(other);\n    }\n};"
+    ],
+    "compliant": [
+      "// Use non-virtual comparison operators\nstruct Point {\n    int x, y;\n    \n    bool operator==(const Point& other) const { // Compliant\n        return x == other.x && y == other.y;\n    }\n    \n    bool operator!=(const Point& other) const { // Compliant\n        return !(*this == other);\n    }\n};\n\n// For polymorphic comparison, use a separate virtual method\nclass Shape {\npublic:\n    virtual bool equals(const Shape& other) const = 0; // Compliant\n    virtual ~Shape() = default;\n};\n\nclass Circle : public Shape {\n    double radius;\npublic:\n    bool equals(const Shape& other) const override {\n        const Circle* circle = dynamic_cast<const Circle*>(&other);\n        return circle && radius == circle->radius;\n    }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3692"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "virtual\\s+bool\\s+operator\\s*==",
+          "virtual\\s+bool\\s+operator\\s*!=",
+          "virtual\\s+bool\\s+operator\\s*<[^=]",
+          "virtual\\s+bool\\s+operator\\s*>[^=]",
+          "virtual\\s+bool\\s+operator\\s*<=",
+          "virtual\\s+bool\\s+operator\\s*>=",
+          "virtual\\s+[^}]*operator\\s*==",
+          "virtual\\s+[^}]*operator\\s*!=",
+          "virtual\\s+[^}]*operator\\s*<[^=]",
+          "virtual\\s+[^}]*operator\\s*>[^=]",
+          "virtual\\s+[^}]*operator\\s*<=",
+          "virtual\\s+[^}]*operator\\s*>="
+        ],
+        "message": "Comparison operators should not be virtual."
+      }
+    ]
+  }
+}

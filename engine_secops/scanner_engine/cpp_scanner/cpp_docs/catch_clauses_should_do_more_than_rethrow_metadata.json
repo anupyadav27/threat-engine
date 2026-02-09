@@ -1,0 +1,46 @@
+{
+  "filename": "catch_clauses_should_do_more_than_rethrow_metadata.json",
+  "rule_id": "catch_clauses_do_more",
+  "title": "catch clauses should do more than rethrow",
+  "description": "\"catch\" clauses should do more than rethrowAnalyze your codeintentionality-clearmaintainabilityCode Smellerror-handlingunusedfindingclumsyWhy is this an issue?Acatchclause that only rethrows the caught exception has the same effect as omitting thecatchaltogether and letting it bubble up automatically.try { saveDocument(); } catch (const std::exception& e) { // Noncompliant throw; }Such clauses should either be removed or populated with the appropriate logic.saveDocument();ortry { saveDocument(); } catch (const std::exception& e) { log << e.what(); throw; }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "error-handling",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <iostream>\n#include <stdexcept>\n\nvoid save_document() {\n    try {\n        // some operation that might throw\n        throw std::runtime_error(\"File not found\");\n    }\n    catch (const std::exception& e) {\n        // Noncompliant: only rethrowing\n        throw;\n    }\n}"
+    ],
+    "compliant": [
+      "#include <iostream>\n#include <stdexcept>\n\nvoid save_document() {\n    try {\n        // some operation that might throw\n        throw std::runtime_error(\"File not found\");\n    }\n    catch (const std::exception& e) {\n        // Compliant: doing logging before rethrowing\n        std::cerr << \"Error occurred: \" << e.what() << std::endl;\n        throw;\n    }\n}\n\n// Or even better, just let it propagate naturally:\nvoid save_document_better() {\n    // Let exceptions propagate naturally\n    // some operation that might throw\n    throw std::runtime_error(\"File not found\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2737"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "patterns": [
+          "catch\\s*\\([^)]+\\)\\s*\\{\\s*throw\\s*;\\s*\\}",
+          "catch\\s*\\([^)]+\\)\\s*\\{\\s*//[^\\n]*\\n\\s*throw\\s*;\\s*\\}",
+          "catch\\s*\\([^)]+\\)\\s*\\{\\s*(?://[^\\n]*\\n|/\\*[^*]*\\*/)*\\s*throw\\s*;\\s*(?://[^\\n]*\\n|/\\*[^*]*\\*/)*\\s*\\}",
+          "catch\\s*\\([^)]+\\)\\s*\\{(?:\\s|//[^\\n]*\\n|/\\*[^*]*\\*/)*throw\\s*;(?:\\s|//[^\\n]*\\n|/\\*[^*]*\\*/)*\\}",
+          "catch\\s*\\([^)]+\\)\\s*\\{\\s*(?://[^\\n]*|/\\*[^*]*\\*/|\\s)*\\n\\s*throw\\s*;\\s*\\}",
+          "catch\\s*\\([^)]+\\)\\s*\\{\\s*(?://.*?\\n|/\\*.*?\\*/)*\\s*(?://.*?\\n|/\\*.*?\\*/)*\\s*throw\\s*;\\s*(?://.*?\\n|/\\*.*?\\*/)*\\s*\\}"
+        ],
+        "property_path": ["source"],
+        "message": "Remove catch clauses that only rethrow, or add meaningful logic (like logging) before rethrowing."
+      }
+    ]
+  }
+}

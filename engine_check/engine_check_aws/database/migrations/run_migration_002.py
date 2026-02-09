@@ -11,12 +11,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Database connection from environment or defaults
-DB_HOST = os.getenv("CONFIGSCAN_DB_HOST", "localhost")
-DB_PORT = int(os.getenv("CONFIGSCAN_DB_PORT", "5432"))
-DB_NAME = os.getenv("CONFIGSCAN_DB_NAME", "threat_engine_configscan")
-# Try to use table owner (apple) or fallback to configscan_user
-DB_USER = os.getenv("CONFIGSCAN_DB_USER", os.getenv("USER", "configscan_user"))
-DB_PASSWORD = os.getenv("CONFIGSCAN_DB_PASSWORD", "")
+DB_HOST = os.getenv("CHECK_DB_HOST", "localhost")
+DB_PORT = int(os.getenv("CHECK_DB_PORT", "5432"))
+DB_NAME = os.getenv("CHECK_DB_NAME", "threat_engine_check")
+# Try to use table owner (apple) or fallback to check_user
+DB_USER = os.getenv("CHECK_DB_USER", os.getenv("USER", "check_user"))
+DB_PASSWORD = os.getenv("CHECK_DB_PASSWORD", "")
 
 # Try DATABASE_URL if available
 DATABASE_URL = os.getenv("DATABASE_URL")

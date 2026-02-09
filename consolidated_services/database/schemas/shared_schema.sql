@@ -29,25 +29,96 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 -- Cross-Engine Scan Orchestration
+-- Tracks the full pipeline: orchestration_id ties all per-engine scan IDs together.
+-- Each engine generates its own UUID scan ID; the orchestrator records them here.
+-- PLANNED: not yet deployed to RDS — all columns below are planned
 CREATE TABLE IF NOT EXISTS scan_orchestration (
-    orchestration_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id VARCHAR(255) NOT NULL,
-    scan_name VARCHAR(255),
-    scan_type VARCHAR(50) NOT NULL,  -- 'full', 'incremental', 'targeted'
-    trigger_type VARCHAR(50) NOT NULL,  -- 'manual', 'scheduled', 'event_driven'
-    engines_requested JSONB NOT NULL,  -- ['configscan', 'compliance', 'inventory', 'threat']
-    engines_completed JSONB DEFAULT '[]',
-    overall_status VARCHAR(50) NOT NULL DEFAULT 'pending',  -- 'pending', 'running', 'completed', 'failed'
-    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE,
-    total_resources INTEGER DEFAULT 0,
-    total_findings INTEGER DEFAULT 0,
-    scan_config JSONB DEFAULT '{}',
-    results_summary JSONB DEFAULT '{}',
-    error_details JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+    orchestration_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),  -- PLANNED: not yet deployed to RDS
+    tenant_id VARCHAR(255) NOT NULL,                                -- PLANNED: not yet deployed to RDS
+    customer_id VARCHAR(255),                                       -- PLANNED: not yet deployed to RDS
+    provider VARCHAR(50),                                           -- PLANNED: not yet deployed to RDS
+    hierarchy_id VARCHAR(255),                                      -- PLANNED: not yet deployed to RDS
+    scan_name VARCHAR(255),                                         -- PLANNED: not yet deployed to RDS
+    scan_type VARCHAR(50) NOT NULL,                                 -- PLANNED: not yet deployed to RDS
+    trigger_type VARCHAR(50) NOT NULL,                              -- PLANNED: not yet deployed to RDS
+    -- Per-engine scan IDs (UUID, set as each engine completes)
+    discovery_scan_id VARCHAR(255),                                 -- PLANNED: not yet deployed to RDS
+    check_scan_id VARCHAR(255),                                     -- PLANNED: not yet deployed to RDS
+    inventory_scan_id VARCHAR(255),                                 -- PLANNED: not yet deployed to RDS
+    threat_scan_id VARCHAR(255),                                    -- PLANNED: not yet deployed to RDS
+    compliance_scan_id VARCHAR(255),                                -- PLANNED: not yet deployed to RDS
+    iam_scan_id VARCHAR(255),                                       -- PLANNED: not yet deployed to RDS
+    datasec_scan_id VARCHAR(255),                                   -- PLANNED: not yet deployed to RDS
+    engines_requested JSONB NOT NULL,                               -- PLANNED: not yet deployed to RDS
+    engines_completed JSONB DEFAULT '[]',                           -- PLANNED: not yet deployed to RDS
+    overall_status VARCHAR(50) NOT NULL DEFAULT 'pending',          -- PLANNED: not yet deployed to RDS
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),     -- PLANNED: not yet deployed to RDS
+    completed_at TIMESTAMP WITH TIME ZONE,                          -- PLANNED: not yet deployed to RDS
+    total_resources INTEGER DEFAULT 0,                              -- PLANNED: not yet deployed to RDS
+    total_findings INTEGER DEFAULT 0,                               -- PLANNED: not yet deployed to RDS
+    scan_config JSONB DEFAULT '{}',                                 -- PLANNED: not yet deployed to RDS
+    results_summary JSONB DEFAULT '{}',                             -- PLANNED: not yet deployed to RDS
+    error_details JSONB DEFAULT '{}',                               -- PLANNED: not yet deployed to RDS
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),              -- PLANNED: not yet deployed to RDS
+
     CONSTRAINT fk_tenant_orchestration FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+);
+
+-- ============================================================================
+-- ACCOUNTS, SCHEDULES, EXECUTIONS (exist in shared DB on RDS)
+-- ============================================================================
+
+-- Cloud accounts registered for scanning
+CREATE TABLE IF NOT EXISTS accounts (
+    account_id VARCHAR(255) PRIMARY KEY,
+    provider VARCHAR(50) NOT NULL,
+    account_name VARCHAR(255),
+    account_email VARCHAR(255),
+    account_number VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'active',
+    credentials_encrypted TEXT,
+    last_validated TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+-- Scan schedules
+CREATE TABLE IF NOT EXISTS schedules (
+    schedule_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_id VARCHAR(255) NOT NULL,
+    schedule_name VARCHAR(255) NOT NULL,
+    cron_expression VARCHAR(100) NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    scan_type VARCHAR(50) DEFAULT 'full',
+    engines JSONB DEFAULT '["discoveries", "check", "compliance", "threat"]'::jsonb,
+    last_run TIMESTAMP WITH TIME ZONE,
+    next_run TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb,
+
+    CONSTRAINT schedules_account_id_fkey FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+);
+
+-- Scan execution tracking
+CREATE TABLE IF NOT EXISTS executions (
+    execution_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    schedule_id UUID,
+    account_id VARCHAR(255) NOT NULL,
+    scan_id VARCHAR(255),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(50) DEFAULT 'pending',
+    triggered_by VARCHAR(50) DEFAULT 'scheduler',
+    total_checks INTEGER DEFAULT 0,
+    passed_checks INTEGER DEFAULT 0,
+    failed_checks INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    CONSTRAINT executions_schedule_id_fkey FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id) ON DELETE SET NULL,
+    CONSTRAINT executions_account_id_fkey FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
 );
 
 -- Engine Status and Health Monitoring
@@ -63,7 +134,7 @@ CREATE TABLE IF NOT EXISTS engine_status (
     uptime_seconds INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     CONSTRAINT fk_tenant_engine FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
@@ -88,7 +159,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     resolved_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     CONSTRAINT fk_tenant_notification FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
@@ -110,7 +181,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     error_message TEXT,
     execution_time_ms INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     CONSTRAINT fk_tenant_audit FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
@@ -138,7 +209,7 @@ CREATE TABLE IF NOT EXISTS tenant_config (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_by VARCHAR(255),
-    
+
     PRIMARY KEY (tenant_id, config_key),
     CONSTRAINT fk_tenant_config FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -156,9 +227,13 @@ CREATE TABLE IF NOT EXISTS data_lineage (
     relationship_type VARCHAR(50) NOT NULL,  -- 'generated_from', 'enriched_by', 'triggered_by'
     relationship_data JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     CONSTRAINT fk_tenant_lineage FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
+
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
 
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
@@ -168,6 +243,20 @@ CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(customer_type);
 CREATE INDEX IF NOT EXISTS idx_orchestration_tenant ON scan_orchestration(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_orchestration_status ON scan_orchestration(overall_status, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orchestration_type ON scan_orchestration(scan_type, trigger_type);
+CREATE INDEX IF NOT EXISTS idx_orchestration_discovery ON scan_orchestration(discovery_scan_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_check ON scan_orchestration(check_scan_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_inventory ON scan_orchestration(inventory_scan_id);
+
+-- Accounts indexes
+CREATE INDEX IF NOT EXISTS idx_accounts_provider ON accounts(provider);
+
+-- Schedules indexes
+CREATE INDEX IF NOT EXISTS idx_schedules_account ON schedules(account_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run) WHERE enabled = true;
+
+-- Executions indexes
+CREATE INDEX IF NOT EXISTS idx_executions_account ON executions(account_id);
+CREATE INDEX IF NOT EXISTS idx_executions_status ON executions(status);
 
 CREATE INDEX IF NOT EXISTS idx_engine_status_engine ON engine_status(engine_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_engine_status_health ON engine_status(status, last_heartbeat DESC);
@@ -226,7 +315,7 @@ CREATE TRIGGER update_tenant_config_updated_at BEFORE UPDATE ON tenant_config
     FOR EACH ROW EXECUTE FUNCTION update_shared_updated_at_column();
 
 -- Insert default global configurations
-INSERT INTO global_config (config_key, config_value, config_type, description) VALUES 
+INSERT INTO global_config (config_key, config_value, config_type, description) VALUES
 ('scan.default_timeout', '"3600"', 'system', 'Default scan timeout in seconds'),
 ('scan.max_parallel_engines', '"4"', 'system', 'Maximum number of engines that can run in parallel'),
 ('notifications.default_retention_days', '"90"', 'system', 'Default retention period for notifications'),
@@ -235,7 +324,7 @@ INSERT INTO global_config (config_key, config_value, config_type, description) V
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Insert default engine status records
-INSERT INTO engine_status (engine_id, status, version) VALUES 
+INSERT INTO engine_status (engine_id, status, version) VALUES
 ('configscan', 'healthy', '1.0.0'),
 ('compliance', 'healthy', '1.0.0'),
 ('inventory', 'healthy', '1.0.0'),

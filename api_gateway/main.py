@@ -73,33 +73,66 @@ SERVICE_ROUTES = {
         "csp": "oci"
     },
     
-    # Core Business Logic Engines
-    "onboarding": {
-        "url": os.getenv("ONBOARDING_ENGINE_URL", "http://localhost:8010"),
-        "prefix": "/api/v1/onboarding",
-        "health_endpoint": "/health"
+    # Core Business Logic Engines (uniform naming: engine-{name})
+    "discoveries": {
+        "url": os.getenv("DISCOVERIES_ENGINE_URL", "http://engine-discoveries:8001"),
+        "prefix": "/api/v1/discovery",
+        "prefixes": ["/api/v1/discovery"],
+        "health_endpoint": "/api/v1/health"
     },
-    "rule": {
-        "url": os.getenv("RULE_ENGINE_URL", "http://localhost:8011"),
-        "prefix": "/api/v1/rule",
-        "health_endpoint": "/health"
+    "check": {
+        "url": os.getenv("CHECK_ENGINE_URL", "http://engine-check:8002"),
+        "prefix": "/api/v1/check",
+        "prefixes": ["/api/v1/check"],
+        "health_endpoint": "/api/v1/health"
     },
-    
-    # Legacy/Placeholder engines (to be implemented)
     "threat": {
-        "url": os.getenv("THREAT_ENGINE_URL", "http://localhost:8020"),
+        "url": os.getenv("THREAT_ENGINE_URL", "http://engine-threat:8020"),
         "prefix": "/api/v1/threat",
-        "health_endpoint": "/health"
-    },
-    "compliance": {
-        "url": os.getenv("COMPLIANCE_ENGINE_URL", "http://localhost:8021"),
-        "prefix": "/api/v1/compliance", 
+        "prefixes": ["/api/v1/threat", "/api/v1/graph", "/api/v1/intel", "/api/v1/hunt"],
         "health_endpoint": "/health"
     },
     "inventory": {
-        "url": os.getenv("INVENTORY_ENGINE_URL", "http://localhost:8022"),
+        "url": os.getenv("INVENTORY_ENGINE_URL", "http://engine-inventory:8022"),
         "prefix": "/api/v1/inventory",
-        "health_endpoint": "/health" 
+        "prefixes": ["/api/v1/inventory"],
+        "health_endpoint": "/health"
+    },
+    "onboarding": {
+        "url": os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008"),
+        "prefix": "/api/v1/onboarding",
+        "prefixes": ["/api/v1/onboarding", "/api/v1/schedules", "/api/v1/accounts"],
+        "health_endpoint": "/api/v1/health"
+    },
+    "compliance": {
+        "url": os.getenv("COMPLIANCE_ENGINE_URL", "http://engine-compliance:8010"),
+        "prefix": "/api/v1/compliance",
+        "prefixes": ["/api/v1/compliance"],
+        "health_endpoint": "/api/v1/health"
+    },
+    "rule": {
+        "url": os.getenv("RULE_ENGINE_URL", "http://engine-rule:8000"),
+        "prefix": "/api/v1/rules",
+        "prefixes": ["/api/v1/rules", "/api/v1/providers"],
+        "health_endpoint": "/api/v1/health"
+    },
+    "iam": {
+        "url": os.getenv("IAM_ENGINE_URL", "http://engine-iam:8003"),
+        "prefix": "/api/v1/iam-security",
+        "prefixes": ["/api/v1/iam-security"],
+        "health_endpoint": "/health"
+    },
+    "datasec": {
+        "url": os.getenv("DATASEC_ENGINE_URL", "http://engine-datasec:8004"),
+        "prefix": "/api/v1/data-security",
+        "prefixes": ["/api/v1/data-security"],
+        "health_endpoint": "/health"
+    },
+    "secops": {
+        "url": os.getenv("SECOPS_ENGINE_URL", "http://engine-secops:8000"),
+        "prefix": "/api/v1/secops",
+        "prefixes": ["/api/v1/secops"],
+        "health_endpoint": "/health"
     },
 }
 
@@ -183,9 +216,21 @@ app.add_middleware(
 def get_target_service(path: str) -> Optional[str]:
     """Determine which service should handle this request"""
     for service_name, config in SERVICE_ROUTES.items():
-        if path.startswith(config["prefix"]):
-            return service_name
+        # Use multi-prefix matching if available, fallback to single prefix
+        prefixes = config.get("prefixes", [config["prefix"]])
+        for prefix in prefixes:
+            if path.startswith(prefix):
+                return service_name
     return None
+
+def get_matched_prefix(path: str, service_name: str) -> str:
+    """Get the specific prefix that matched for a given service"""
+    config = SERVICE_ROUTES.get(service_name, {})
+    prefixes = config.get("prefixes", [config.get("prefix", "")])
+    for prefix in prefixes:
+        if path.startswith(prefix):
+            return prefix
+    return config.get("prefix", "")
 
 def get_configscan_service_by_csp(csp: str) -> Optional[str]:
     """Get the appropriate ConfigScan service for a given CSP"""
@@ -312,11 +357,9 @@ async def route_requests(request: Request, call_next):
                     if not internal_path.startswith("/"):
                         internal_path = "/" + internal_path
                 else:
-                    # Direct service routing - remove service prefix from path
-                    service_prefix = SERVICE_ROUTES[target_service]["prefix"]
+                    # Direct service routing - pass full path to backend engine
+                    # Engines handle their own /api/v1/... routing internally
                     internal_path = request.url.path
-                    if internal_path.startswith(service_prefix):
-                        internal_path = internal_path[len(service_prefix):]
                 
                 # Build target URL
                 target_url = f"{service_url}{internal_path}"

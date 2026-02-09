@@ -1,0 +1,51 @@
+{
+  "filename": "dynamic_heap_memory_allocation_should_be_avoided_metadata.json",
+  "rule_id": "dynamic_heap_memory_allocation",
+  "title": "Dynamic heap memory allocation should be avoided",
+  "description": "Dynamic heap memory allocation should not be usedAnalyze your codeconsistency-conventionalreliabilityBugbased-on-misrapitfallWhy is this an issue?More InfoThe use of dynamic memory can lead to out-of-storage run-time failures, which are undesirable.The built-innewanddeleteoperators, other than the placement versions, use dynamic heap memory. The functionscalloc,malloc,reallocandfreealso use dynamic heap memory.There is a range of unspecified, undefined and implementation-defined behaviour associated with dynamic memory allocation, as well as a number of other potential pitfalls. Dynamic heap memory allocation may lead to memory leaks, data inconsistency, memory exhaustion, non-deterministic behaviour, etc.Note that some implementations may use dynamic heap memory allocation to implement ot",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int* ptr = new int(42); // Noncompliant - dynamic allocation\ndelete ptr;",
+      "void* buffer = malloc(1024); // Noncompliant - dynamic allocation\nfree(buffer);",
+      "int* arr = (int*)calloc(10, sizeof(int)); // Noncompliant - dynamic allocation\nfree(arr);",
+      "char* str = (char*)realloc(nullptr, 100); // Noncompliant - dynamic allocation\nfree(str);"
+    ],
+    "compliant": [
+      "int value = 42; // Compliant - stack allocation\nint* ptr = &value;",
+      "int array[10]; // Compliant - static array on stack",
+      "static int global_array[1024]; // Compliant - static allocation",
+      "void function() {\n  char buffer[256]; // Compliant - automatic storage\n  // use buffer\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-984"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(malloc|calloc|realloc|free)\\s*\\(",
+          "\\bnew\\s+",
+          "\\bdelete\\s+"
+        ],
+        "message": "Dynamic heap memory allocation should be avoided. Refactor to eliminate the flagged pattern."
+      }
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "filename": "statements_should_be_on_separate_lines_metadata.json",
+  "rule_id": "statements_separate_lines",
+  "title": "Statements should be on separate lines",
+  "description": "Statements should be on separate linesAnalyze your codeconsistency-formattedmaintainabilityCode SmellconventionWhy is this an issue?Putting multiple statements on a single line lowers the code readability and makes debugging the code more complex.foo(); bar(); // NoncompliantWrite one statement per line to improve readability.foo(); bar();ExceptionsThe rule ignores:control flow statements with a single nested statementif (condition) doSomething(); // Compliant by exception while (condition) doSomething(); // Compliant by exceptioncaseordefaultstatements containing a single statement followed bybreakswitch (foo) { case 0: doSomething(); break; // Compliant by exception default: doSomething(); break; // Compliant by exception }statements enclosed in curly braces on the same lineauto lambda =",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "x = 1; y = 2; z = 3;  // Noncompliant: multiple statements on one line",
+      "if (condition) doSomething(); cleanup();  // Noncompliant: two statements",
+      "for (int i = 0; i < 10; i++) process(i); printf(\"Done\");  // Noncompliant"
+    ],
+    "compliant": [
+      "x = 1;\ny = 2;\nz = 3;  // Compliant: each statement on separate line",
+      "if (condition) doSomething();  // Compliant: single statement exception\ncleanup();  // Compliant: on separate line",
+      "for (int i = 0; i < 10; i++) process(i);  // Compliant: control flow exception\nprintf(\"Done\");  // Compliant: on separate line",
+      "switch (value) {\n  case 1: action1(); break;  // Compliant: case exception\n  case 2: action2(); break;  // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-122"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "AssignmentExpression", 
+      "CallExpression",
+      "BinaryExpression",
+      "ArithmeticExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          ";\\s*[^\\s{}\\n/]+[^;]*;",
+          "\\)\\s*[^{;\\s][^;]*;\\s*[^\\s/]"
+        ],
+        "exclude_patterns": [
+          "if\\s*\\([^)]*\\)\\s*[^;{]*;\\s*$",
+          "while\\s*\\([^)]*\\)\\s*[^;{]*;\\s*$",
+          "for\\s*\\([^)]*\\)\\s*[^;{]*;\\s*$",
+          "do\\s*[^;]*;\\s*while",
+          "case\\s+[^:]*:\\s*[^;]*;\\s*break;",
+          "default\\s*:\\s*[^;]*;\\s*break;",
+          "//",
+          "/\\*",
+          "\"[^\"]*;[^\"]*\"",
+          "'[^']*;[^']*'",
+          "for\\s*\\([^;]*;[^;]*;[^)]*\\)",
+          ";\\s*//",
+          ";\\s*/\\*",
+          "};\\s*$",
+          "}\\s*;\\s*$"
+        ],
+        "message": "Statements should be on separate lines"
+      }
+    ]
+  }
+}

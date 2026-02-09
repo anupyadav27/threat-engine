@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: threat-engine
+  namespace: threat-engine-engines
+  labels:
+    app: threat-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: threat-engine
+  template:
+    metadata:
+      labels:
+        app: threat-engine
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/threat-engine-role
+    spec:
+      serviceAccountName: threat-engine-sa
+      containers:
+      - name: threat-engine
+        image: yadavanup84/threat-engine:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: USE_S3
+          value: "true"
+        - name: SCAN_RESULTS_DIR
+          value: "/data"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: AWS_REGION
+          value: "ap-south-1"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: threat-engine
+  namespace: threat-engine-engines
+  labels:
+    app: threat-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: threat-engine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: threat-engine-lb
+  namespace: threat-engine-engines
+  labels:
+    app: threat-engine
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: threat-engine
+

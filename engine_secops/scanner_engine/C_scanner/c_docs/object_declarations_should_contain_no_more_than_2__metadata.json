@@ -1,0 +1,52 @@
+{
+  "filename": "object_declarations_should_contain_no_more_than_2__metadata.json",
+  "rule_id": "object_declarations_contain_no",
+  "title": "Object declarations should contain no more than 2 levels of pointer indirection",
+  "description": "Object declarations should contain no more than 2 levels of pointer indirectionAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrabrain-overloadpitfallWhy is this an issue?More InfoWhile they are extraordinarily useful, pointers are not the most intuitive concept in the world. Pointers to pointers are even harder to understand and use correctly. And with each additional level of indirection, pointer variables become more difficult to use correctly.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "typedef int * INTPTR;\nstruct s {\n int ** s1;\n int *** s2; // Noncompliant\n};\n\nstruct s ** ps1;\nstruct s *** ps2; // Noncompliant\n\nint ** ( *pfunc1)();\nint ** ( **pfunc2)();\nint ** (***pfunc3)(); // Noncompliant\nint *** ( **pfunc4)(); // Noncompliant\n\nvoid function( int ** par1,\n               int *** par2, // Noncompliant\n               INTPTR * par3,\n               int * par4[],\n               int ** par5[]) // Noncompliant\n{\n  int ** ptr1;\n  int *** ptr2; // Noncompliant\n  INTPTR * ptr3;\n  int * ptr4[ 10 ];\n  int ** ptr5[ 10 ]; //Noncompliant\n}"
+    ],
+    "compliant": [
+      "typedef int * INTPTR;\nstruct s {\n int ** s1;\n int ** s2;\n};\n\nstruct s ** ps1;\nstruct s ** ps2;\n\nint ** (*pfunc1)();\nint ** (**pfunc2)();\nint ** (**pfunc3)();\nint ** (**pfunc4)();\n\nvoid function( int ** par1,\n               int ** par2,\n               INTPTR * par3,\n               int * par4[],\n               int * par5[])\n{\n  int ** ptr1;\n  int ** ptr2;\n  INTPTR * ptr3;\n  int * ptr4[ 10 ];\n  int * ptr5[ 10 ];\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-943"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "FunctionDeclaration",
+      "ParameterDeclaration", 
+      "StructMember",
+      "FunctionDefinition",
+      "TypedefDeclaration",
+      "ArithmeticExpression",
+      "PointerDereference",
+      "AssignmentExpression",
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\*\\s*\\*\\s*\\*+",
+          "\\w+\\s*\\*\\s*\\*\\s*\\*+",
+          "\\*\\s*\\*\\s*\\*+\\s*\\w+",
+          "\\*\\s*\\*\\s*\\*+\\s*[\\w\\[\\(;,)]"
+        ],
+        "message": "Object declarations should contain no more than 2 levels of pointer indirection. Refactor to use structs, typedefs, or alternative approaches to improve code readability."
+      }
+    ]
+  }
+}

@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+    tier: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: gateway
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: api-gateway
+        image: yadavanup84/threat-engine-api-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        # Engine URLs (uniform naming)
+        - name: THREAT_ENGINE_URL
+          value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://engine-compliance.threat-engine-engines.svc.cluster.local"
+        - name: INVENTORY_ENGINE_URL
+          value: "http://engine-inventory.threat-engine-engines.svc.cluster.local"
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local"
+        - name: RULE_ENGINE_URL
+          value: "http://engine-rule.threat-engine-engines.svc.cluster.local"
+        - name: DISCOVERIES_ENGINE_URL
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+        - name: CHECK_ENGINE_URL
+          value: "http://engine-check.threat-engine-engines.svc.cluster.local"
+        - name: IAM_ENGINE_URL
+          value: "http://engine-iam.threat-engine-engines.svc.cluster.local"
+        - name: DATASEC_ENGINE_URL
+          value: "http://engine-datasec.threat-engine-engines.svc.cluster.local"
+        - name: SECOPS_ENGINE_URL
+          value: "http://engine-secops.threat-engine-engines.svc.cluster.local"
+        # CSP ConfigScan Engine URLs
+        - name: CONFIGSCAN_AWS_URL
+          value: "http://engine-configscan-aws.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_AZURE_URL
+          value: "http://engine-configscan-azure.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_GCP_URL
+          value: "http://engine-configscan-gcp.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_ALICLOUD_URL
+          value: "http://engine-configscan-alicloud.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_OCI_URL
+          value: "http://engine-configscan-oci.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_IBM_URL
+          value: "http://engine-configscan-ibm.threat-engine-engines.svc.cluster.local"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-lb
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+    service-type: loadbalancer
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-gateway

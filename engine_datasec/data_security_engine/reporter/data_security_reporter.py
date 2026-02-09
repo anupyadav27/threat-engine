@@ -64,41 +64,36 @@ class DataSecurityReporter:
         Returns:
             Complete data security report
         """
-        # Get data security rule IDs FIRST (efficient pre-filtering)
-        logger.info("Loading data security rule IDs from rule_db")
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
-        data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
-        
-        # Load misconfig findings from Threat DB - filtered by rule_id for efficiency
-        logger.info(f"Loading misconfig findings from Threat DB (scan_id={scan_id}, filtered by {len(data_security_rule_ids)} data security rule IDs)")
-        data_findings = self.threat_db_reader.get_misconfig_findings(
+        # Load ALL findings from threat_findings table
+        logger.info(f"Loading all threat findings from DB (scan_id={scan_id})")
+        all_findings = self.threat_db_reader.get_misconfig_findings(
             tenant_id=tenant_id,
-            scan_run_id=scan_id,
-            data_security_rule_ids=data_security_rule_ids
+            scan_run_id=scan_id
         )
-        if max_findings and len(data_findings) > max_findings:
-            data_findings = data_findings[:max_findings]
-        
-        # Extract data stores from findings (for classification/lineage/residency/activity)
-        logger.info("Extracting data stores from findings")
-        data_stores = self._extract_data_stores_from_findings(data_findings)
-        
-        # Enrich findings with data security context
+        logger.info(f"Loaded {len(all_findings)} total findings")
+
+        # Enrich findings — mark is_data_security_relevant using pattern matching
         logger.info("Enriching findings with data security context")
-        enriched_findings = self.enricher.enrich_findings(data_findings)
-        
-        # Filter to ONLY data security relevant findings (remove irrelevant ones)
-        # Since we pre-filtered by rule_id, all should be relevant, but double-check
+        enriched_findings = self.enricher.enrich_findings(all_findings)
+
+        # Filter to ONLY data security relevant findings
         data_security_relevant_findings = [
-            f for f in enriched_findings 
+            f for f in enriched_findings
             if f.get("is_data_security_relevant", False)
         ]
-        
-        if len(data_security_relevant_findings) < len(enriched_findings):
-            logger.warning(f"Filtered out {len(enriched_findings) - len(data_security_relevant_findings)} findings that are not data security relevant")
-        
+
+        logger.info(f"Found {len(data_security_relevant_findings)} data security relevant findings from {len(all_findings)} total")
         enriched_findings = data_security_relevant_findings
+
+        if max_findings and len(enriched_findings) > max_findings:
+            enriched_findings = enriched_findings[:max_findings]
+
+        # Extract data stores from threat_findings table (by resource_type)
+        logger.info("Extracting data stores from threat_findings")
+        data_stores = self.threat_db_reader.filter_data_stores(
+            tenant_id=tenant_id,
+            scan_run_id=scan_id
+        )
         
         # Get enrichment summary
         enrichment_summary = self.enricher.get_enrichment_summary(enriched_findings)

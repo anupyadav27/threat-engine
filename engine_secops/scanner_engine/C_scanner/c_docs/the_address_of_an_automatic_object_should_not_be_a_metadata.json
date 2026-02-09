@@ -1,0 +1,58 @@
+{
+  "filename": "the_address_of_an_automatic_object_should_not_be_a_metadata.json",
+  "rule_id": "address_automatic_object_assigned",
+  "title": "The address of an automatic object should not be assigned to another object that may persist after the first object has ceased to exist",
+  "description": "What is the potential impact? An automatic object is an object whose lifetime is automatically managed. The storage for an automatic object, e.g. a local variable, is allocated at the beginning of the enclosing code block and is deallocated at the end.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int *global_ptr;\n\nint* bad_function(int **out) {\n  int local = 42;\n  global_ptr = &local;  // Noncompliant: address of local variable assigned to global\n  *out = &local;        // Noncompliant: returning address via output parameter\n  return &local;        // Noncompliant: returning address of local variable\n}",
+      "int* get_pointer() {\n  int local_array[10];\n  return local_array;  // Noncompliant: returning address of local array\n}"
+    ],
+    "compliant": [
+      "int* good_function(int **out) {\n  int *heap_ptr = malloc(sizeof(int));\n  *heap_ptr = 42;\n  *out = heap_ptr;     // Compliant: returning heap-allocated memory\n  return heap_ptr;\n}",
+      "static int static_var = 42;\n\nint* get_static_pointer() {\n  return &static_var;  // Compliant: returning address of static variable\n}",
+      "void safe_function(int value) {\n  int local = value;\n  process_value(local);  // Compliant: passing by value\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-946"
+  ],
+  "logic": {
+    "node_types": [
+      "ReturnStatement",
+      "AssignmentExpression", 
+      "UnaryExpression",
+      "VariableDeclaration",
+      "CallExpression",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "return\\s+&\\w+(?!\\[)",
+          "return\\s+\\w+(?!\\[|\\(|\\.|->)(?=\\s*;)",
+          "=\\s*&\\w+(?!\\[)",
+          "\\*\\w+\\s*=\\s*&\\w+",
+          "global_\\w+\\s*=\\s*&\\w+",
+          "\\w+_ptr\\s*=\\s*&\\w+",
+          "&[a-zA-Z_]\\w*(?!\\[|\\.|->)(?=\\s*[;,)])",
+          "return\\s+&\\([a-zA-Z_]\\w*\\)",
+          "\\*[a-zA-Z_]\\w*\\s*=\\s*[a-zA-Z_]\\w*(?!\\[|\\()",
+          "return\\s+[a-zA-Z_]\\w*(?!\\[|\\(|\\.|->|\\+|\\-|\\*|\\/|%|==|!=|<|>)(?=\\s*;)"
+        ],
+        "message": "The address of an automatic object should not be assigned to another object that may persist after the first object has ceased to exist"
+      }
+    ]
+  }
+}

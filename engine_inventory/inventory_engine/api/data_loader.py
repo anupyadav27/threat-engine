@@ -2,6 +2,17 @@
 Data Loader Utility
 
 Loads assets, relationships, and drift records from NDJSON files.
+
+=== DATABASE & TABLE MAP ===
+Database: None — file-based loader (legacy; see InventoryDBLoader for DB equivalent).
+
+Reads from local filesystem:
+  Path: INVENTORY_OUTPUT_DIR or engine_output/engine_inventory/output/{tenant_id}/{scan_run_id}/normalized/
+  Files: assets.ndjson, relationships.ndjson, drift.ndjson, summary.json
+
+Tables READ:  None (reads NDJSON files only)
+Tables WRITTEN: None (read-only loader for API queries)
+===
 """
 
 import os

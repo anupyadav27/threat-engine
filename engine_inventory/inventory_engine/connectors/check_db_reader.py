@@ -1,8 +1,27 @@
 """
 Check DB Reader (Inventory)
 
-Reads check results from the Check DB (threat_engine_check.check_results) so Inventory
+Reads check results from the Check DB (threat_engine_check.check_findings) so Inventory
 can enrich assets with posture summaries without calling cloud APIs.
+
+=== DATABASE & TABLE MAP ===
+Database: threat_engine_check (CHECK DB)
+Env: CHECK_DB_HOST / CHECK_DB_PORT / CHECK_DB_NAME / CHECK_DB_USER / CHECK_DB_PASSWORD
+
+Tables READ:
+  - check_findings : get_posture_by_resource(scan_id, tenant_id)
+                     — SELECT COALESCE(resource_uid, resource_arn) AS resource_uid,
+                              COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE status = 'PASS') AS passed,
+                              COUNT(*) FILTER (WHERE status = 'FAIL') AS failed,
+                              COUNT(*) FILTER (WHERE status = 'ERROR') AS errors
+                       FROM check_findings
+                       WHERE check_scan_id = %s AND tenant_id = %s
+                       GROUP BY COALESCE(resource_uid, resource_arn)
+                     Filters: check_scan_id, tenant_id, hierarchy_id (optional)
+
+Tables WRITTEN: None (read-only connector)
+===
 """
 
 from __future__ import annotations
@@ -25,7 +44,7 @@ def _db_url_with_search_path(url: str) -> str:
 
 
 class CheckDBReader:
-    """Reads check results from PostgreSQL check_results table."""
+    """Reads check results from PostgreSQL check_findings table."""
 
     def __init__(self, db_url: Optional[str] = None):
         if db_url is None:
@@ -66,8 +85,8 @@ class CheckDBReader:
                 COUNT(*) FILTER (WHERE status = 'PASS') AS passed,
                 COUNT(*) FILTER (WHERE status = 'FAIL') AS failed,
                 COUNT(*) FILTER (WHERE status = 'ERROR') AS errors
-            FROM check_results
-            WHERE scan_id = %s AND tenant_id = %s
+            FROM check_findings
+            WHERE check_scan_id = %s AND tenant_id = %s
         """
         params = [scan_id, tenant_id]
         if hierarchy_id:

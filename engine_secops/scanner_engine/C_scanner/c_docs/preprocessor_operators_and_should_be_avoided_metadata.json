@@ -1,0 +1,57 @@
+{
+  "filename": "preprocessor_operators_and_should_be_avoided_metadata.json",
+  "rule_id": "preprocessor_operators_avoided",
+  "title": "Preprocessor operators # and ## should be avoided",
+  "description": "Preprocessor operators \"#\" and \"##\" should not be usedAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misralock-inWhy is this an issue?More InfoThe evaluation order of both the#and##preprocessor operators is unspecified. Compilers have been known to implement these operators inconsistently, therefore, to avoid these problems, do not use them.Noncompliant code example#define A(Y) #Y /* Noncompliant */ #define A(X,Y) X##Y /* Noncompliant */Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using # (stringification) operator\n#define STRINGIFY(x) #x     // Noncompliant: # operator\n#define DEBUG_PRINT(var) printf(#var \" = %d\\n\", var)  // Noncompliant\n\nvoid example_usage() {\n    int count = 10;\n    DEBUG_PRINT(count);  // Expands to: printf(\"count\" \" = %d\\n\", count);\n}",
+      "// Using ## (token concatenation) operator\n#define CONCAT(a, b) a##b   // Noncompliant: ## operator\n#define MAKE_FUNCTION(name) void func_##name() { /* ... */ }  // Noncompliant\n\n// Usage\nMAKE_FUNCTION(init)     // Creates: void func_init() { /* ... */ }\nMAKE_FUNCTION(cleanup)  // Creates: void func_cleanup() { /* ... */ }",
+      "// Complex macro using both operators\n#define LOG_FUNCTION(level, name) \\\n    void log_##level##_##name() { \\\n        printf(\"Function: \" #name \" at level \" #level \"\\n\"); \\\n    }  // Noncompliant: uses both # and ##\n\nLOG_FUNCTION(error, database)  // Creates complex function name"
+    ],
+    "compliant": [
+      "// Alternative to stringification: explicit strings\n#define DEBUG_PRINT(var, name) printf(name \" = %d\\n\", var)  // Compliant\n\nvoid example_usage() {\n    int count = 10;\n    DEBUG_PRINT(count, \"count\");  // Explicit string instead of #\n}\n\n// Simple macro without operators\n#define MAX_SIZE 1024       // Compliant: simple definition",
+      "// Alternative to token concatenation: separate functions\n// Instead of generating functions with ##, define them explicitly\nvoid func_init() {      // Compliant: explicit function\n    // initialization code\n}\n\nvoid func_cleanup() {   // Compliant: explicit function\n    // cleanup code\n}\n\n// Use function pointers for dynamic selection\ntypedef void (*func_ptr)();\nfunc_ptr get_function(const char* name) {\n    if (strcmp(name, \"init\") == 0) return func_init;\n    if (strcmp(name, \"cleanup\") == 0) return func_cleanup;\n    return NULL;\n}",
+      "// Using const variables instead of complex macros\nconst char* const LOG_LEVELS[] = {\"debug\", \"info\", \"error\"};  // Compliant\n\nvoid log_message(int level, const char* function_name, const char* message) {\n    printf(\"[%s] %s: %s\\n\", LOG_LEVELS[level], function_name, message);\n}\n\n// Usage\nvoid database_function() {\n    log_message(2, \"database_function\", \"Error occurred\");  // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-968"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#define[^\\n]*##[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "#define[^\\n]*##[^\\n]*//[^\\n]*VIOLATION",
+          "#define[^\\n]*#(?!#)[^\\n]*//[^\\n]*[Nn]oncompliant", 
+          "#define[^\\n]*#(?!#)[^\\n]*//[^\\n]*VIOLATION",
+          "##[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "##[^\\n]*//[^\\n]*VIOLATION",
+          "#(?!#)[^\\n]*//[^\\n]*[Nn]oncompliant.*multi-line",
+          "#(?!#)[^\\n]*//[^\\n]*VIOLATION.*multi-line",
+          "#define[^\\n]*CONCAT[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "#define[^\\n]*STRING[^\\n]*//[^\\n]*[Nn]oncompliant",
+          "_value = [^;]*;\\s*//[^\\n]*[Nn]oncompliant.*continuation",
+          "printf\\([^)]*#(?!#)[^)]*\\);\\s*//[^\\n]*[Nn]oncompliant",
+          "printf\\([^)]*#(?!#)[^)]*\\);\\s*//[^\\n]*VIOLATION"
+        ],
+        "message": "Preprocessor operators # and ## should be avoided - use explicit alternatives",
+        "severity": "major"
+      }
+    ]
+  }
+}

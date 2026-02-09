@@ -61,11 +61,11 @@ class CheckDBReader:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT scan_id FROM scans 
-                    WHERE tenant_id = %s 
+                    SELECT check_scan_id FROM check_report
+                    WHERE tenant_id = %s
                       AND status = 'completed'
                       AND scan_type IN ('check', 'full')
-                    ORDER BY scan_timestamp DESC 
+                    ORDER BY scan_timestamp DESC
                     LIMIT 1
                 """, (tenant_id,))
                 result = cur.fetchone()
@@ -110,13 +110,13 @@ class CheckDBReader:
         
         # Build query with filters
         query = """
-            SELECT 
-                scan_id, customer_id, tenant_id, provider,
+            SELECT
+                check_scan_id, customer_id, tenant_id, provider,
                 hierarchy_id, hierarchy_type, rule_id,
                 resource_uid, resource_arn, resource_id, resource_type,
                 status, checked_fields, finding_data, created_at
-            FROM check_results
-            WHERE scan_id = %s AND tenant_id = %s
+            FROM check_findings
+            WHERE check_scan_id = %s AND tenant_id = %s
         """
         params = [scan_id, tenant_id]
         
@@ -187,25 +187,25 @@ class CheckDBReader:
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT 
-                        scan_id,
+                    SELECT
+                        check_scan_id,
                         scan_timestamp,
                         status,
                         scan_type,
                         provider,
                         metadata,
-                        (SELECT COUNT(*) FROM check_results WHERE check_results.scan_id = scans.scan_id) as total_results
-                    FROM scans
+                        (SELECT COUNT(*) FROM check_findings WHERE check_findings.check_scan_id = check_report.check_scan_id) as total_results
+                    FROM check_report
                     WHERE tenant_id = %s
                     ORDER BY scan_timestamp DESC
                     LIMIT 50
                 """, (tenant_id,))
-                
+
                 scans = []
                 for row in cur.fetchall():
                     scan_dict = dict(row)
                     scans.append({
-                        "scan_id": scan_dict["scan_id"],
+                        "scan_id": scan_dict["check_scan_id"],
                         "scan_timestamp": scan_dict["scan_timestamp"].isoformat() if scan_dict["scan_timestamp"] else None,
                         "status": scan_dict["status"],
                         "metadata": scan_dict.get("metadata", {}),

@@ -1,0 +1,37 @@
+{
+  "filename": "function_names_should_be_preferred_either_as_a_cal_metadata.json",
+  "rule_id": "function_names_preferred_either",
+  "title": "Function names should be preferred either as a call with a parameter list or with the & operator",
+  "description": "Function names should be used either as a call with a parameter list or with the \"&\" operatorAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrasuspiciousWhy is this an issue?More InfoUsing a \"bald\" function name is likely a bug. Rather than testing the return value of a function with avoidparameter list, it implicitly retrieves the address of that function in memory. If that’s truly what’s intended, then it should be made explicit with the use of the&(address-of) operator.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void checkStatus();\nif (checkStatus) {  // Noncompliant: using function name without call or &\n  // This tests function address, not return value\n}",
+      "bool isReady();\nint status = isReady;  // Noncompliant: assigns function address instead of calling"
+    ],
+    "compliant": [
+      "void checkStatus();\nif (checkStatus()) {  // Compliant: function call with parameters\n  // This tests the return value\n}",
+      "bool isReady();\nvoid (*funcPtr)() = &isReady;  // Compliant: explicit address-of operator\nint status = isReady();  // Compliant: function call"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-936"
+  ],
+  "logic": {
+    "node_types": ["all"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_bare_function_names",
+        "message": "Function name used without parentheses or & operator - use function() or &function"
+      }
+    ]
+  }
+}

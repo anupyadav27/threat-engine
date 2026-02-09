@@ -1,0 +1,62 @@
+{
+  "filename": "loops_with_at_most_one_iteration_should_be_refacto_metadata.json",
+  "rule_id": "loops_most_one_iteration",
+  "title": "Loops with at most one iteration should be refactored",
+  "description": "Loops with at most one iteration should be refactoredAnalyze your codeintentionality-clearreliabilityBugconfusingbad-practiceWhy is this an issue?A loop with at most one iteration is equivalent to the use of anifstatement to conditionally execute one piece of code. No developer expects to find such a use of a loop statement. If the initial intention of the author was really to conditionally execute one piece of code, anifstatement should be used instead.At worst that was not the initial intention of the author and so the body of the loop should be fixed to use the nestedreturn,breakorthrowstatements in a more appropriate way.Noncompliant code examplefor (int i = 0; i < 10; i++) { // noncompliant, loop only executes once printf(\"i is %d\", i); break; } ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "for (int i = 0; i < 10; i++) { // Noncompliant: loop only executes once\n    printf(\"i is %d\", i);\n    break;\n}",
+      "while (condition) { // Noncompliant: loop designed to run only once\n    doSomething();\n    return; // Always exits on first iteration\n}",
+      "do {\n    processData();\n    break; // Noncompliant: break ensures only one iteration\n} while (true);"
+    ],
+    "compliant": [
+      "if (0 < 10) { // Compliant: using if instead of loop\n    printf(\"i is %d\", 0);\n}",
+      "if (condition) { // Compliant: conditional execution\n    doSomething();\n    return;\n}",
+      "// Compliant: proper loop or conditional\nif (needsProcessing) {\n    processData();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1751"
+  ],
+  "logic": {
+    "node_types": [
+      "ForStatement",
+      "WhileStatement",
+      "DoWhileStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "for\\s*\\([^)]*\\)\\s*\\{\\s*break;\\s*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{\\s*break;\\s*\\}",
+          "do\\s*\\{\\s*break;\\s*\\}\\s*while",
+          "for\\s*\\([^)]*\\)\\s*\\{\\s*return[^;]*;\\s*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{\\s*return[^;]*;\\s*\\}",
+          "do\\s*\\{\\s*return[^;]*;\\s*\\}\\s*while",
+          "for\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*break;\\s*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*break;\\s*\\}",
+          "do\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*break;\\s*\\}\\s*while",
+          "for\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*return[^;]*;\\s*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*return[^;]*;\\s*\\}",
+          "do\\s*\\{(?![^}]*if\\s*\\()[^}]*printf\\s*\\([^)]*\\)\\s*;\\s*return[^;]*;\\s*\\}\\s*while",
+          "for\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*int\\s+\\w+\\s*=[^;]*;\\s*break;\\s*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{(?![^}]*if\\s*\\()[^}]*int\\s+\\w+\\s*=[^;]*;\\s*break;\\s*\\}"
+        ],
+        "message": "Loop executes at most once due to unconditional break or return. Consider using if statement instead."
+      }
+    ]
+  }
+}

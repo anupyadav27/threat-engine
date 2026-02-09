@@ -1,0 +1,66 @@
+{
+  "filename": "import_should_be_avoided_metadata.json",
+  "rule_id": "import_avoided",
+  "title": "#import should be avoided",
+  "description": "\"#import\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?#importcomes from Objective-C and is a variant of#include. GCC does support it, but it requires the users of a header file to know that it should only be included once. It is much better for the header file’s implementor to write the file so that users don’t need to know this.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Using #import directive\n#import <stdio.h>\n#import \"myheader.h\"\n\nint main() {\n    printf(\"Hello World\");\n    return 0;\n}"
+    ],
+    "compliant": [
+      "// Compliant: Using standard #include directive\n#include <stdio.h>\n#include \"myheader.h\"\n\nint main() {\n    printf(\"Hello World\");\n    return 0;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3805"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "^\\s*#import\\b",
+          "#import\\s*<[^>]*>",
+          "#import\\s*\"[^\"]*\"",
+          "#import\\s+[a-zA-Z_][a-zA-Z0-9_]*",
+          "#import\\s*[<\"][^>\"]*[>\"]\\s*$",
+          "#import\\s*['\"][^'\"]*['\"]",
+          "(?m)^\\s*#\\s*import\\b"
+        ],
+        "message": "#import should be avoided. Use #include instead for better portability and standard compliance. Review and fix according to the rule guidelines."
+      },
+      {
+        "type": "objective_c_import_check",
+        "property_path": ["source"],
+        "patterns": [
+          "#import\\s*<.*\\.h>",
+          "#import\\s*\".*\\.h\"",
+          "#import\\s*<Foundation/.*>",
+          "#import\\s*<Cocoa/.*>"
+        ],
+        "message": "Objective-C style #import detected. This is not standard C and should be replaced with #include for better portability."
+      },
+      {
+        "type": "gcc_import_extension",
+        "property_path": ["source"],
+        "patterns": [
+          "#import\\s*[^\\n]*",
+          "(?i)#import\\s+"
+        ],
+        "message": "GCC #import extension detected. While supported by GCC, #import is not portable and should be replaced with #include plus proper header guards."
+      }
+    ]
+  }
+}

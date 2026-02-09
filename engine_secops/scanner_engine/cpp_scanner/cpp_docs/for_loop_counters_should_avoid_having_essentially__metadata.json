@@ -1,0 +1,45 @@
+{
+  "filename": "for_loop_counters_should_avoid_having_essentially__metadata.json",
+  "rule_id": "loop_counters_avoid_having",
+  "title": "for loop counters should avoid having essentially floating type",
+  "description": "\"for\" loop counters should not have essentially floating typeAnalyze your codeintentionality-logicalreliabilityBugbased-on-misracertWhy is this an issue?More InfoWhen using a floating-pointforloop counter, an accumulation of rounding errors may result in a mismatch between the expected and actual number of iterations.Even if floating-point loop counters appears to behave correctly on one implementation, it may give a different number of iterations on another implementation.Noncompliant code examplefor (float counter = 0.0f; counter < 1.0f; counter += 0.001f) { ... }Compliant solutionfor (int counter = 0; counter < 1000; ++counter) { ... }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in y",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badLoop() {\n  for (float counter = 0.0f; counter < 1.0f; counter += 0.001f) {\n    // Noncompliant - floating point loop counter\n    // May not iterate expected number of times due to rounding errors\n  }\n  \n  for (double d = 0.1; d <= 1.0; d += 0.1) {\n    // Noncompliant - double loop counter with precision issues\n  }\n}"
+    ],
+    "compliant": [
+      "void goodLoop() {\n  for (int counter = 0; counter < 1000; ++counter) {\n    // Compliant - integer counter, predictable iterations\n    float value = counter * 0.001f; // Use integer counter, convert as needed\n  }\n  \n  // Alternative with range-based for\n  for (int i = 1; i <= 10; ++i) {\n    // Compliant - integer-based iteration\n    double value = i * 0.1;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2193"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "for\\s*\\(\\s*(float|double)\\s+\\w+",
+          "for\\s*\\([^;]*\\w+\\s*<\\s*[0-9]*\\.[0-9]+[fd]?",
+          "counter\\s*\\+=\\s*0\\.[0-9]+[fd]?"
+        ],
+        "message": "For loop counters should avoid having essentially floating type. Use integer counters instead."
+      }
+    ]
+  }
+}

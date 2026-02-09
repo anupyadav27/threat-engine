@@ -1,0 +1,36 @@
+{
+  "filename": "blocking_functions_should_not_be_called_inside_cri_metadata.json",
+  "rule_id": "blocking_functions_called_inside",
+  "title": "Blocking functions should not be called inside critical sections",
+  "description": "Concurrent accesses to shared resources are guarded by synchronization primitives such as mutexes to prevent data races. The section of code where a mutex is held is called the critical section. Critical sections are generally designed to be as small as possible, allowing concurrent threads to progress.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cwe",
+    "performance",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <cstdio>    // printf()\n#include <cstdlib>   // atoi()\n#include <mutex>\n#include <unistd.h>  // sleep()\n\nstd::mutex m;\nint load_shared_resource(); // Guarded by mutex 'm'\n\n// Some time-intensive computation.\nvoid do_expensive_work(int value, FILE *fd) {\n  char buf[4] = \"\";\n  std::fgets(buf, sizeof(buf), fd);\n  int sum = value + std::atoi(buf);\n  std::printf(\"value + line: %d\\n\", sum);\n}\n\nvoid worker_thread(FILE *fd) {\n  std::scoped_lock guard(m);\n  int value = load_shared_resource();\n  // Mutex 'm' could have been released here.\n  do_expensive_work(value, fd);\n} // Mutex 'm' only released here, after 'do_expensive_work' is returned."
+    ],
+    "compliant": [
+      "#include <pthread.h>\n#include <stdio.h>\n\npthread_mutex_t m;\nint shared_resource;\n\n// COMPLIANT: No blocking functions in critical section\nvoid compliant_no_blocking() {\n    int temp_value;\n    pthread_mutex_lock(&m);\n    temp_value = shared_resource;\n    shared_resource = temp_value + 1;\n    pthread_mutex_unlock(&m);\n    // Blocking functions called after unlock - this is OK\n    printf(\"Updated value: %d\\n\", temp_value + 1);\n}\n\n// COMPLIANT: Minimal critical section\nvoid compliant_minimal_critical(FILE* fp) {\n    int local_value;\n    pthread_mutex_lock(&m);\n    local_value = shared_resource;\n    pthread_mutex_unlock(&m);\n    \n    // Expensive work done outside critical section\n    printf(\"Processing value: %d\\n\", local_value);\n    char buffer[256];\n    fgets(buffer, sizeof(buffer), fp);\n    int converted = atoi(buffer);\n    \n    // Update with new value\n    pthread_mutex_lock(&m);\n    shared_resource = local_value + converted;\n    pthread_mutex_unlock(&m);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5314"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_blocking_functions_called_inside"
+      }
+    ]
+  }
+}

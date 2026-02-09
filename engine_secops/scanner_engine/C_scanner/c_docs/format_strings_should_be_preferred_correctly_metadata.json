@@ -1,0 +1,80 @@
+{
+  "filename": "format_strings_should_be_preferred_correctly_metadata.json",
+  "rule_id": "format_strings_preferred_correctly",
+  "title": "Format strings should be preferred correctly",
+  "description": "printf format strings contain placeholders, represented by special characters such as %s. These placeholders are interpreted at runtime rather than validated by the compiler. Using incorrect placeholders or with inappropriate arguments can result in the wrong string being created or undefined behavior.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "confusing",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "printf(\"%d\", str_value);  // Noncompliant: %d expects int but str_value is string",
+      "printf(\"%s\", int_value);  // Noncompliant: %s expects string but int_value is integer",
+      "printf(\"%c %s\", char_val);  // Noncompliant: Missing argument for %s placeholder"
+    ],
+    "compliant": [
+      "printf(\"%d\", int_value);   // Compliant: %d with integer argument",
+      "printf(\"%s\", str_value);   // Compliant: %s with string argument",
+      "printf(\"%c %s\", char_val, str_val);  // Compliant: All placeholders have matching arguments"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3457"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "void\\s+test_wrong_specifier_int_as_string\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_wrong_specifier_string_as_int\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_wrong_specifier_float_as_int\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_wrong_specifier_int_as_float\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_wrong_specifier_pointer_as_int\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_multiple_wrong_specifiers\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_missing_arguments_single\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_missing_arguments_multiple\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_partial_missing_arguments\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_extra_arguments_single\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_extra_arguments_multiple\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_partial_extra_arguments\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_mixed_violations\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_long_format_string_violations\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_scanf_wrong_specifiers\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_sprintf_violations\\s*\\(\\s*\\)\\s*\\{",
+          "void\\s+test_fprintf_violations\\s*\\(\\s*\\)\\s*\\{",
+          "(?s)printf\\s*\\(\\s*\"%s\"\\s*,\\s*\\w+\\s*\\).*int\\s+\\w+\\s*=",
+          "(?s)printf\\s*\\(\\s*\"%d\"\\s*,\\s*\\w+\\s*\\).*char\\s*\\*\\s*\\w+\\s*=",
+          "(?s)printf\\s*\\(\\s*\"%f\"\\s*,\\s*\\w+\\s*\\).*int\\s+\\w+\\s*=",
+          "(?s)printf\\s*\\(\\s*\"%d\"\\s*,\\s*\\w+\\s*\\).*float\\s+\\w+\\s*=",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*%d[^\"]*\"\\s*\\)\\s*;",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*%s[^\"]*\"\\s*\\)\\s*;",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*%f[^\"]*\"\\s*\\)\\s*;",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*%[sdf][^\"]*%[sdf][^\"]*\"\\s*\\)\\s*;",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*%[sdf][^\"]*%[sdf][^\"]*%[sdf][^\"]*\"\\s*\\)\\s*;",
+          "(?s)printf\\s*\\(\\s*\"[^\"]*\"\\s*,\\s*\\w+(?:\\s*,\\s*\\w+)*\\s*\\)\\s*;(?![^%]*%)",
+          "(?s)scanf\\s*\\(\\s*\"%s\"\\s*,\\s*&\\w+\\s*\\).*int\\s+\\w+",
+          "(?s)scanf\\s*\\(\\s*\"%d\"\\s*,\\s*\\w+\\s*\\)(?!.*&)",
+          "(?s)sprintf\\s*\\(\\s*\\w+\\s*,\\s*\"%[ds]\"[^,]*,\\s*\\w+\\s*,\\s*\\w+\\s*\\)",
+          "(?s)fprintf\\s*\\(\\s*\\w+\\s*,\\s*\"%s\"\\s*,\\s*\\w+\\s*\\).*int\\s+\\w+\\s*=",
+          "//\\s*Violation:[^}]*format",
+          "//\\s*Wrong:[^}]*%[sdf]\\s*with\\s*(?:int|string|float|pointer)"
+        ],
+        "message": "Format string specifier does not match argument type. Ensure format specifiers (%d, %s, %f, etc.) match their corresponding arguments."
+      }
+    ]
+  }
+}

@@ -25,6 +25,7 @@ def _project_root() -> Path:
 from engine.service_scanner import extract_value, evaluate_condition, resolve_template
 from engine.database_manager import DatabaseManager
 from engine.discovery_reader import DiscoveryReader
+from engine.rule_reader import RuleReader
 from utils.phase_logger import PhaseLogger
 
 logger = logging.getLogger(__name__)
@@ -45,11 +46,24 @@ class CheckEngine:
         self.discovery_reader = DiscoveryReader()  # For reading discoveries from discoveries DB
         self.use_ndjson = self._determine_mode(use_ndjson)
         self.phase_logger = None
-        
+
+        # Initialize RuleReader for loading rules from database
+        self.rule_reader = None
+        try:
+            self.rule_reader = RuleReader()
+            if self.rule_reader.check_connection():
+                logger.info("RuleReader initialized — will load rules from rule_checks table")
+            else:
+                logger.warning("RuleReader connection failed, will use YAML rules only")
+                self.rule_reader = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize RuleReader: {e}")
+            self.rule_reader = None
+
         if not self.use_ndjson and not self.db:
             raise ValueError("DatabaseManager required when not using NDJSON mode")
-        
-        logger.info(f"CheckEngine initialized: mode={'NDJSON' if self.use_ndjson else 'DATABASE'}")
+
+        logger.info(f"CheckEngine initialized: mode={'NDJSON' if self.use_ndjson else 'DATABASE'}, rule_reader={'yes' if self.rule_reader else 'no'}")
     
     def _determine_mode(self, use_ndjson: Optional[bool]) -> bool:
         """Determine whether to use NDJSON or database mode"""
@@ -63,18 +77,17 @@ class CheckEngine:
         elif env_mode in ('database', 'db', 'production'):
             return False
         
-        # Default: Use NDJSON if no database connection, else database
+        # Default: Use database if connection available, else NDJSON
         if self.db:
             try:
-                # Test database connection
                 conn = self.db._get_connection()
                 self.db._return_connection(conn)
                 return False  # Database available, use it
             except Exception:
                 logger.warning("Database connection failed, falling back to NDJSON mode")
                 return True
-        
-        return True  # Default to NDJSON for local development
+
+        return False  # Default to database mode
     
     def _load_discoveries_from_ndjson(self, scan_id: str, discovery_id: str, 
                                      service: str, hierarchy_id: str) -> List[Dict]:
@@ -194,27 +207,14 @@ class CheckEngine:
             scan_id=scan_id,
             service=service
         )
-        
-        # Convert to format expected by check engine
-        # DiscoveryReader returns items with 'emitted_fields', which is what we need
-        result = []
-        for item in items:
-            # emitted_fields contains the discovery data
-            emitted = item.get('emitted_fields', {})
-            if isinstance(emitted, str):
-                import json
-                emitted = json.loads(emitted)
-            
-            # Add resource identifiers
-            emitted['resource_uid'] = item.get('resource_uid')
-            emitted['resource_arn'] = item.get('resource_arn')
-            emitted['resource_id'] = item.get('resource_id')
-            emitted['service'] = item.get('service')
-            emitted['region'] = item.get('region')
-            
-            result.append(emitted)
-        
-        return result
+
+        # Return items in the format the check evaluator expects:
+        # Each item must have 'emitted_fields' key (dict) plus resource identifiers at top level.
+        # DiscoveryReader already returns items with 'emitted_fields' as a dict (parsed JSONB).
+        # We just need to ensure resource identifiers are at the top level.
+        if items:
+            logger.info(f"[DB] Loaded {len(items)} discovery records for {discovery_id}")
+        return items
     
     def _load_discoveries(self, discovery_id: str, tenant_id: str, hierarchy_id: str,
                          scan_id: str, service: str) -> List[Dict]:
@@ -506,15 +506,17 @@ class CheckEngine:
                 fields.append(var.replace('item.', ''))
         return list(set(fields))  # Remove duplicates
     
-    def run_check_scan(self, scan_id: str, customer_id: str, tenant_id: str,
+    def run_check_scan(self, discovery_scan_id: str, customer_id: str, tenant_id: str,
                       provider: str, hierarchy_id: str, hierarchy_type: str,
                       services: List[str], check_source: str = 'default',
-                      use_ndjson: Optional[bool] = None) -> Dict[str, Any]:
+                      use_ndjson: Optional[bool] = None,
+                      check_scan_id: str = None,
+                      scan_id: str = None) -> Dict[str, Any]:
         """
         Run checks against discoveries (hybrid: NDJSON or database)
-        
+
         Args:
-            scan_id: Discovery scan ID to use
+            discovery_scan_id: Discovery scan ID to check against
             customer_id: Customer ID
             tenant_id: Tenant ID
             provider: CSP provider
@@ -523,30 +525,37 @@ class CheckEngine:
             services: List of services to check
             check_source: 'default' or 'custom' (loads from different folders)
             use_ndjson: Override mode (None = use instance default)
-        
+            check_scan_id: UUID from API server (if None, generates one)
+            scan_id: Deprecated alias for discovery_scan_id
+
         Returns:
             Dict with scan results summary
         """
+        # Support legacy 'scan_id' parameter
+        if discovery_scan_id is None and scan_id is not None:
+            discovery_scan_id = scan_id
+
         # Override mode if specified
         use_ndjson_mode = use_ndjson if use_ndjson is not None else self.use_ndjson
-        
+
+        # Use API-provided check_scan_id or generate one
+        import uuid as _uuid
+        if not check_scan_id:
+            check_scan_id = str(_uuid.uuid4())
+
         # Setup phase logger
-        check_scan_id = f"check_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        # Use OUTPUT_DIR env var if set (for Kubernetes), otherwise use project root
         output_base = os.getenv("OUTPUT_DIR")
         if output_base:
-            # OUTPUT_DIR points to discoveries folder, go up one level for base
             base_output_dir = Path(output_base).parent
         else:
             base_output_dir = _project_root() / "engine_output" / "engine_configscan_aws" / "output"
-        discoveries_dir = base_output_dir / "discoveries" / scan_id
         output_dir = base_output_dir / "checks" / check_scan_id
         self.phase_logger = PhaseLogger(check_scan_id, 'checks', output_dir)
-        
+
         mode_str = "NDJSON" if use_ndjson_mode else "DATABASE"
-        self.phase_logger.info(f"Starting check scan (mode: {mode_str}) against discovery scan: {scan_id}")
+        self.phase_logger.info(f"Starting check scan (mode: {mode_str}) against discovery scan: {discovery_scan_id}")
         self.phase_logger.info(f"  Services: {len(services)}, Check source: {check_source}")
-        
+
         # Create check scan record (only if database available)
         if not use_ndjson_mode and self.db:
             self.db.create_scan(
@@ -558,11 +567,12 @@ class CheckEngine:
                 hierarchy_type=hierarchy_type,
                 scan_type='check',
                 metadata={
-                    'discovery_scan_id': scan_id,
+                    'discovery_scan_id': discovery_scan_id,
                     'services': services,
                     'check_source': check_source,
                     'mode': mode_str
-                }
+                },
+                discovery_scan_id=discovery_scan_id
             )
         
         # Store results in memory for NDJSON mode
@@ -579,46 +589,85 @@ class CheckEngine:
             self.phase_logger.progress(service, None, 'started', {})
             
             try:
-                # Load checks YAML - use absolute path
+                # Load checks from YAML and/or database, merge by rule_id
+                checks_by_id = {}
+
+                # 1. Load from YAML file (base checks — lowest priority)
                 engine_dir = _project_root() / "engine_check" / "engine_check_aws"
                 checks_file = engine_dir / "services" / service / "checks" / check_source / f"{service}.checks.yaml"
-                
-                if not checks_file.exists():
-                    self.phase_logger.warning(f"  ⚠️  Checks file not found: {checks_file}")
+
+                if checks_file.exists():
+                    with open(checks_file) as f:
+                        checks_config = yaml.safe_load(f)
+                    yaml_checks = checks_config.get('checks', [])
+                    for c in yaml_checks:
+                        rid = c.get('rule_id')
+                        if rid:
+                            checks_by_id[rid] = c
+                    self.phase_logger.info(f"  [{service}] Loaded {len(yaml_checks)} checks from YAML")
+
+                # 2. Load from rule_checks DB table (overrides YAML for same rule_id)
+                if self.rule_reader:
+                    try:
+                        db_checks = self.rule_reader.read_checks_for_service(service, provider)
+                        for c in db_checks:
+                            rid = c.get('rule_id')
+                            if rid:
+                                checks_by_id[rid] = c
+                        if db_checks:
+                            self.phase_logger.info(f"  [{service}] Loaded {len(db_checks)} checks from database (rule_checks)")
+                    except Exception as e:
+                        self.phase_logger.warning(f"  [{service}] Failed to load DB rules: {e}")
+
+                checks = list(checks_by_id.values())
+
+                if not checks:
+                    self.phase_logger.warning(f"  ⚠️  No checks found for {service} (checked YAML and DB)")
                     continue
-                
-                with open(checks_file) as f:
-                    checks_config = yaml.safe_load(f)
-                
-                checks = checks_config.get('checks', [])
-                self.phase_logger.info(f"  Found {len(checks)} checks")
-                
+
+                self.phase_logger.info(f"  Found {len(checks)} total checks (merged)")
+
+                # Pre-load discovery data: cache by discovery_id to avoid re-querying
+                discovery_ids_needed = set()
+                for check in checks:
+                    fe = check.get('for_each')
+                    if fe:
+                        discovery_ids_needed.add(fe)
+
+                discovery_cache = {}
+                for did in discovery_ids_needed:
+                    items = self._load_discoveries(
+                        discovery_id=did,
+                        tenant_id=tenant_id,
+                        hierarchy_id=hierarchy_id,
+                        scan_id=discovery_scan_id,
+                        service=service
+                    )
+                    discovery_cache[did] = items
+
+                cached_with_data = sum(1 for v in discovery_cache.values() if v)
+                self.phase_logger.info(f"  Pre-loaded {cached_with_data}/{len(discovery_cache)} discovery types with data")
+
                 # Run each check
                 for check in checks:
                     rule_id = check.get('rule_id')
                     if not rule_id:
                         continue
-                    
+
                     for_each = check.get('for_each')  # Discovery ID
                     conditions = check.get('conditions')
-                    
+
                     if not for_each or not conditions:
                         self.phase_logger.warning(f"  ⚠️  Check {rule_id} missing for_each or conditions")
                         continue
-                    
-                    # Load discoveries (hybrid: NDJSON or database)
-                    discovery_items = self._load_discoveries(
-                        discovery_id=for_each,
-                        tenant_id=tenant_id,
-                        hierarchy_id=hierarchy_id,
-                        scan_id=scan_id,
-                        service=service
-                    )
-                    
+
+                    # Use cached discovery data
+                    discovery_items = discovery_cache.get(for_each, [])
+
                     if not discovery_items:
                         self.phase_logger.debug(f"  No discoveries found for {for_each}")
                         continue
-                    
+
                     self.phase_logger.debug(f"  Evaluating {rule_id} against {len(discovery_items)} items")
                     
                     # Evaluate check for each item
@@ -691,8 +740,8 @@ class CheckEngine:
                             if use_ndjson_mode:
                                 # Store in memory for later file export
                                 check_results.append({
-                                    'scan_id': check_scan_id,
-                                    'discovery_scan_id': scan_id,
+                                    'check_scan_id': check_scan_id,
+                                    'discovery_scan_id': discovery_scan_id,
                                     'customer_id': customer_id,
                                     'tenant_id': tenant_id,
                                     'provider': provider,
@@ -758,8 +807,8 @@ class CheckEngine:
                                     error_resource_id = item_record.get('resource_id')
                                 
                                 check_results.append({
-                                    'scan_id': check_scan_id,
-                                    'discovery_scan_id': scan_id,
+                                    'check_scan_id': check_scan_id,
+                                    'discovery_scan_id': discovery_scan_id,
                                     'customer_id': customer_id,
                                     'tenant_id': tenant_id,
                                     'provider': provider,
@@ -806,7 +855,7 @@ class CheckEngine:
         # Export check results to local files
         output_path = self._export_check_results_to_file(
             check_scan_id=check_scan_id,
-            discovery_scan_id=scan_id,
+            discovery_scan_id=discovery_scan_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
             provider=provider,
@@ -824,7 +873,7 @@ class CheckEngine:
         
         return {
             'check_scan_id': check_scan_id,
-            'discovery_scan_id': scan_id,
+            'discovery_scan_id': discovery_scan_id,
             'mode': mode_str,
             'total_checks': total_checks,
             'passed': total_passed,
@@ -974,7 +1023,7 @@ class CheckEngine:
         logger.info(f"Found {len(services)} services with checks")
         
         return self.run_check_scan(
-            scan_id=scan_id,
+            discovery_scan_id=scan_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
             provider=provider,

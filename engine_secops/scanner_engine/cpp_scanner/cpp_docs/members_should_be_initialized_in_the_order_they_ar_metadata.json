@@ -1,0 +1,42 @@
+{
+  "filename": "members_should_be_initialized_in_the_order_they_ar_metadata.json",
+  "rule_id": "members_initialized_order_they",
+  "title": "Members should be initialized in the order they are declared",
+  "description": "Class members are initialized in the order in which they are declared in the class, not the order in which they appear in the class initializer list. To avoid errors caused by order-dependent initialization, the order of members in the initialization list should match the order in which members are declared in a class. The initialization order, as described here, is: If the constructor is for the most-derived class, virtual bases are initialized in the order in which they appear in depth-first left-to-right traversal of the base class declarations (left-to-right refers to the appearance in base-specifier lists) Then, direct bases are initialized in left-to-right order as they appear in this class’s base-specifier list Then, non-static data members are initialized in order of declaration in the class definition.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <iostream>\n\nstruct A {\n  A(int num) {\n    std::cout << \"A(num = \" << num << \")\" << std::endl;\n  }\n};\n\nstruct B {\n  int b;\n};\n\nclass C : public A, B {\npublic:\n  int x;\n  int y;\n\n  C(int i) : B{i}, A{b}, y(i), x(y + 1) { }  // Noncompliant\n};\n\nint main() {\n  C c(1); // Undefined behavior, might print \"A(num = 0)\"\n  std::cout << c.x << \" \" << c.y << std::endl;  // might print \"1 1\"\n}"
+    ],
+    "compliant": [
+      "#include <iostream>\n\nstruct A {\n  A(int num) {\n    std::cout << \"A(num = \" << num << \")\" << std::endl;\n  }\n};\n\nstruct B {\n  int b;\n};\n\nclass C : public A, B {\npublic:\n  int x;\n  int y;\n\n  C(int i) : A{i}, B{i}, x(i + 1), y(i) { }\n};\n\nint main() {\n  C c(1); // prints \"A(num = 1)\"\n  std::cout << c.x << \" \" << c.y << std::endl;  // prints \"2 1\"\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3229"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "y\\(i\\),\\s*x\\(y\\s*\\+"
+        ],
+        "message": "Member variables should be initialized in the same order they are declared in the class."
+      }
+    ]
+  }
+}

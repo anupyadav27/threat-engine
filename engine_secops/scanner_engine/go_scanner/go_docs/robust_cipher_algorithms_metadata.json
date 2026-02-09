@@ -1,0 +1,51 @@
+{
+  "filename": "robust_cipher_algorithms_metadata.json",
+  "rule_id": "crypto_robust_cipher_algorithms",
+  "title": "Use robust cipher algorithms",
+  "description": "Weak or deprecated cipher algorithms like DES, 3DES, or RC4 have known vulnerabilities and should not be used for protecting sensitive data. Modern applications require strong, contemporary cipher algorithms.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use strong, modern cipher algorithms like AES-256 and avoid deprecated or weak ciphers.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/des\"\n    \"crypto/cipher\"\n    \"crypto/md5\"\n    \"crypto/rc4\"\n)\n\n// Noncompliant: Using DES (weak 56-bit key)\nfunc encryptDES(data, key []byte) ([]byte, error) {\n    block, err := des.NewCipher(key) // DES is cryptographically broken\n    if err != nil {\n        return nil, err\n    }\n    \n    ciphertext := make([]byte, len(data))\n    block.Encrypt(ciphertext, data)\n    return ciphertext, nil\n}\n\n// Noncompliant: Using 3DES (deprecated)\nfunc encryptTripleDES(data, key []byte) ([]byte, error) {\n    block, err := des.NewTripleDESCipher(key) // 3DES is deprecated\n    if err != nil {\n        return nil, err\n    }\n    \n    ciphertext := make([]byte, len(data))\n    block.Encrypt(ciphertext, data)\n    return ciphertext, nil\n}\n\n// Noncompliant: Using RC4 stream cipher\nfunc encryptRC4(data, key []byte) ([]byte, error) {\n    cipher, err := rc4.NewCipher(key) // RC4 has known vulnerabilities\n    if err != nil {\n        return nil, err\n    }\n    \n    ciphertext := make([]byte, len(data))\n    cipher.XORKeyStream(ciphertext, data)\n    return ciphertext, nil\n}\n\n// Noncompliant: Using MD5 for key derivation\nfunc deriveKeyMD5(password []byte) []byte {\n    hash := md5.Sum(password) // MD5 is cryptographically broken\n    return hash[:]\n}\n\n// Noncompliant: Weak AES key size\nfunc encryptAES128ECB(data, key []byte) ([]byte, error) {\n    // AES-128 in ECB mode - both key size and mode are weak\n    block, err := aes.NewCipher(key[:16]) // Only 128 bits\n    if err != nil {\n        return nil, err\n    }\n    \n    ciphertext := make([]byte, len(data))\n    // ECB mode is insecure - patterns are preserved\n    for i := 0; i < len(data); i += aes.BlockSize {\n        block.Encrypt(ciphertext[i:i+aes.BlockSize], data[i:i+aes.BlockSize])\n    }\n    return ciphertext, nil\n}",
+        "description": "Using deprecated or weak cipher algorithms like DES, 3DES, RC4, or weak modes like ECB makes encrypted data vulnerable to attacks."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/aes\"\n    \"crypto/cipher\"\n    \"crypto/rand\"\n    \"crypto/sha256\"\n    \"golang.org/x/crypto/argon2\"\n    \"golang.org/x/crypto/chacha20poly1305\"\n    \"errors\"\n)\n\n// Compliant: Using AES-256 with GCM mode\nfunc encryptAES256GCM(data, password []byte) ([]byte, error) {\n    // Derive a strong 256-bit key using Argon2\n    salt := make([]byte, 16)\n    if _, err := rand.Read(salt); err != nil {\n        return nil, err\n    }\n    \n    key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32) // 256-bit key\n    \n    block, err := aes.NewCipher(key)\n    if err != nil {\n        return nil, err\n    }\n    \n    // Use GCM mode for authenticated encryption\n    gcm, err := cipher.NewGCM(block)\n    if err != nil {\n        return nil, err\n    }\n    \n    // Generate random nonce\n    nonce := make([]byte, gcm.NonceSize())\n    if _, err := rand.Read(nonce); err != nil {\n        return nil, err\n    }\n    \n    // Encrypt and authenticate\n    ciphertext := gcm.Seal(nil, nonce, data, nil)\n    \n    // Prepend salt and nonce to ciphertext\n    result := append(salt, nonce...)\n    result = append(result, ciphertext...)\n    \n    return result, nil\n}\n\nfunc decryptAES256GCM(encryptedData, password []byte) ([]byte, error) {\n    if len(encryptedData) < 28 { // salt(16) + nonce(12) minimum\n        return nil, errors.New(\"encrypted data too short\")\n    }\n    \n    // Extract salt and nonce\n    salt := encryptedData[:16]\n    nonce := encryptedData[16:28]\n    ciphertext := encryptedData[28:]\n    \n    // Derive key using the same parameters\n    key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)\n    \n    block, err := aes.NewCipher(key)\n    if err != nil {\n        return nil, err\n    }\n    \n    gcm, err := cipher.NewGCM(block)\n    if err != nil {\n        return nil, err\n    }\n    \n    // Decrypt and verify authentication\n    plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)\n    if err != nil {\n        return nil, err\n    }\n    \n    return plaintext, nil\n}\n\n// Compliant: Using ChaCha20-Poly1305 (modern AEAD cipher)\nfunc encryptChaCha20(data, password []byte) ([]byte, error) {\n    // Derive key using SHA-256 (for simplicity; Argon2 is better)\n    hash := sha256.Sum256(password)\n    key := hash[:]\n    \n    aead, err := chacha20poly1305.New(key)\n    if err != nil {\n        return nil, err\n    }\n    \n    // Generate random nonce\n    nonce := make([]byte, aead.NonceSize())\n    if _, err := rand.Read(nonce); err != nil {\n        return nil, err\n    }\n    \n    // Encrypt with authenticated encryption\n    ciphertext := aead.Seal(nil, nonce, data, nil)\n    \n    // Prepend nonce\n    result := append(nonce, ciphertext...)\n    return result, nil\n}\n\n// Compliant: Proper key derivation function\nfunc deriveKeySecure(password, salt []byte) []byte {\n    // Use Argon2id - current best practice for password hashing\n    // Parameters: time=1, memory=64MB, threads=4, keyLen=32\n    return argon2.IDKey(password, salt, 1, 64*1024, 4, 32)\n}\n\n// Compliant: Secure random salt generation\nfunc generateSalt() ([]byte, error) {\n    salt := make([]byte, 16)\n    _, err := rand.Read(salt)\n    return salt, err\n}\n\n// Compliant: Complete encryption utility\ntype SecureEncryption struct {\n    password []byte\n}\n\nfunc NewSecureEncryption(password []byte) *SecureEncryption {\n    return &SecureEncryption{password: password}\n}\n\nfunc (se *SecureEncryption) Encrypt(data []byte) ([]byte, error) {\n    return encryptAES256GCM(data, se.password)\n}\n\nfunc (se *SecureEncryption) Decrypt(encryptedData []byte) ([]byte, error) {\n    return decryptAES256GCM(encryptedData, se.password)\n}",
+        "description": "Using strong, modern cipher algorithms like AES-256 with secure modes (GCM) or ChaCha20-Poly1305 with proper key derivation provides robust encryption."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-5547"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression",
+      "short_var_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "des\\.NewCipher\\(",
+          "des\\.NewTripleDESCipher\\(",
+          "rc4\\.NewCipher\\(",
+          "md5\\.Sum\\(",
+          "crypto/des",
+          "crypto/rc4"
+        ],
+        "message": "Use strong, modern cipher algorithms like AES-256 and avoid deprecated or weak ciphers."
+      }
+    ]
+  }
+}

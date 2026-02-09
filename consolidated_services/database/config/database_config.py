@@ -51,12 +51,19 @@ class Neo4jConnectionConfig(BaseModel):
 class ConsolidatedDatabaseSettings(BaseSettings):
     """Centralized database settings for all engines"""
     
-    # ConfigScan Database
-    configscan_host: str = Field(default="localhost", env="CONFIGSCAN_DB_HOST")
-    configscan_port: int = Field(default=5432, env="CONFIGSCAN_DB_PORT")
-    configscan_database: str = Field(default="threat_engine_configscan", env="CONFIGSCAN_DB_NAME")
-    configscan_username: str = Field(default="configscan_user", env="CONFIGSCAN_DB_USER")
-    configscan_password: str = Field(default="configscan_password", env="CONFIGSCAN_DB_PASSWORD")
+    # Check Engine Database (check_results, rule_metadata)
+    check_host: str = Field(default="localhost", env="CHECK_DB_HOST")
+    check_port: int = Field(default=5432, env="CHECK_DB_PORT")
+    check_database: str = Field(default="threat_engine_check", env="CHECK_DB_NAME")
+    check_username: str = Field(default="check_user", env="CHECK_DB_USER")
+    check_password: str = Field(default="check_password", env="CHECK_DB_PASSWORD")
+    
+    # Discovery Engine Database (discovery_report, discovery_findings, discovery_history)
+    discoveries_host: str = Field(default="localhost", env="DISCOVERY_DB_HOST")
+    discoveries_port: int = Field(default=5432, env="DISCOVERY_DB_PORT")
+    discoveries_database: str = Field(default="threat_engine_discoveries", env="DISCOVERY_DB_NAME")
+    discoveries_username: str = Field(default="discoveries_user", env="DISCOVERY_DB_USER")
+    discoveries_password: str = Field(default="discoveries_password", env="DISCOVERY_DB_PASSWORD")
     
     # Compliance Database
     compliance_host: str = Field(default="localhost", env="COMPLIANCE_DB_HOST")
@@ -110,18 +117,30 @@ class ConsolidatedDatabaseSettings(BaseSettings):
     
     def get_engine_config(self, engine_name: str) -> DatabaseConnectionConfig:
         """Get database configuration for specific engine"""
+        pool_defaults = dict(
+            ssl_mode=self.ssl_mode,
+            pool_size=self.pool_size,
+            max_overflow=self.max_overflow,
+            pool_timeout=self.pool_timeout,
+            pool_recycle=self.pool_recycle,
+        )
+
         engine_configs = {
-            "configscan": DatabaseConnectionConfig(
-                host=self.configscan_host,
-                port=self.configscan_port,
-                database=self.configscan_database,
-                username=self.configscan_username,
-                password=self.configscan_password,
-                ssl_mode=self.ssl_mode,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_timeout=self.pool_timeout,
-                pool_recycle=self.pool_recycle,
+            "check": DatabaseConnectionConfig(
+                host=self.check_host,
+                port=self.check_port,
+                database=self.check_database,
+                username=self.check_username,
+                password=self.check_password,
+                **pool_defaults,
+            ),
+            "discovery": DatabaseConnectionConfig(
+                host=self.discoveries_host,
+                port=self.discoveries_port,
+                database=self.discoveries_database,
+                username=self.discoveries_username,
+                password=self.discoveries_password,
+                **pool_defaults,
             ),
             "compliance": DatabaseConnectionConfig(
                 host=self.compliance_host,
@@ -129,11 +148,7 @@ class ConsolidatedDatabaseSettings(BaseSettings):
                 database=self.compliance_database,
                 username=self.compliance_username,
                 password=self.compliance_password,
-                ssl_mode=self.ssl_mode,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_timeout=self.pool_timeout,
-                pool_recycle=self.pool_recycle,
+                **pool_defaults,
             ),
             "inventory": DatabaseConnectionConfig(
                 host=self.inventory_host,
@@ -141,11 +156,7 @@ class ConsolidatedDatabaseSettings(BaseSettings):
                 database=self.inventory_database,
                 username=self.inventory_username,
                 password=self.inventory_password,
-                ssl_mode=self.ssl_mode,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_timeout=self.pool_timeout,
-                pool_recycle=self.pool_recycle,
+                **pool_defaults,
             ),
             "threat": DatabaseConnectionConfig(
                 host=self.threat_host,
@@ -153,11 +164,7 @@ class ConsolidatedDatabaseSettings(BaseSettings):
                 database=self.threat_database,
                 username=self.threat_username,
                 password=self.threat_password,
-                ssl_mode=self.ssl_mode,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_timeout=self.pool_timeout,
-                pool_recycle=self.pool_recycle,
+                **pool_defaults,
             ),
             "shared": DatabaseConnectionConfig(
                 host=self.shared_host,
@@ -165,17 +172,17 @@ class ConsolidatedDatabaseSettings(BaseSettings):
                 database=self.shared_database,
                 username=self.shared_username,
                 password=self.shared_password,
-                ssl_mode=self.ssl_mode,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_timeout=self.pool_timeout,
-                pool_recycle=self.pool_recycle,
+                **pool_defaults,
             ),
         }
-        
+
+        # Support aliases: "discoveries" → "discovery"
+        aliases = {"discoveries": "discovery", "configscan": "check"}
+        engine_name = aliases.get(engine_name, engine_name)
+
         if engine_name not in engine_configs:
             raise ValueError(f"Unknown engine: {engine_name}. Available: {list(engine_configs.keys())}")
-        
+
         return engine_configs[engine_name]
     
     def get_neo4j_config(self) -> Neo4jConnectionConfig:
@@ -192,7 +199,8 @@ class ConsolidatedDatabaseSettings(BaseSettings):
     def get_all_engine_configs(self) -> Dict[str, DatabaseConnectionConfig]:
         """Get all engine database configurations"""
         return {
-            "configscan": self.get_engine_config("configscan"),
+            "check": self.get_engine_config("check"),
+            "discovery": self.get_engine_config("discovery"),
             "compliance": self.get_engine_config("compliance"),
             "inventory": self.get_engine_config("inventory"),
             "threat": self.get_engine_config("threat"),
@@ -220,9 +228,14 @@ def get_async_connection_string(engine_name: str) -> str:
 
 
 # Convenience functions for each engine
-def get_configscan_config() -> DatabaseConnectionConfig:
-    """Get ConfigScan database configuration"""
-    return db_settings.get_engine_config("configscan")
+def get_check_config() -> DatabaseConnectionConfig:
+    """Get Check Engine database configuration"""
+    return db_settings.get_engine_config("check")
+
+
+def get_discovery_config() -> DatabaseConnectionConfig:
+    """Get Discovery Engine database configuration"""
+    return db_settings.get_engine_config("discovery")
 
 
 def get_compliance_config() -> DatabaseConnectionConfig:

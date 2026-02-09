@@ -44,6 +44,22 @@ SCANNERS = {
     "ansible": {
         "module": "ansible_scanner.ansible_scanner_engine",
         "description": "Ansible playbook security scanner"
+    },
+    "c": {
+        "module": "C_scanner.c_scanner",
+        "description": "C language security scanner"
+    },
+    "cpp": {
+        "module": "cpp_scanner.cpp_scanner",
+        "description": "C++ language security scanner"
+    },
+    "go": {
+        "module": "go_scanner.go_scanner",
+        "description": "Go language security scanner"
+    },
+    "ruby": {
+        "module": "ruby_scanner.ruby_scanner",
+        "description": "Ruby language security scanner"
     }
 }
 

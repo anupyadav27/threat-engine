@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+    tier: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: gateway
+    spec:
+      serviceAccountName: aws-compliance-engine-sa
+      containers:
+      - name: api-gateway
+        image: yadavanup84/threat-engine-api-gateway:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        # CSP Engine URLs (cluster-internal)
+        - name: CONFIGSCAN_AWS_URL
+          value: "http://aws-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_AZURE_URL
+          value: "http://azure-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_GCP_URL
+          value: "http://gcp-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_ALICLOUD_URL
+          value: "http://alicloud-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_OCI_URL
+          value: "http://oci-compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: CONFIGSCAN_IBM_URL
+          value: "http://ibm-compliance-engine.threat-engine-engines.svc.cluster.local"
+        # Analytics Engine URLs
+        - name: THREAT_ENGINE_URL
+          value: "http://threat-engine.threat-engine-engines.svc.cluster.local"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://compliance-engine.threat-engine-engines.svc.cluster.local"
+        - name: INVENTORY_ENGINE_URL
+          value: "http://inventory-engine.threat-engine-engines.svc.cluster.local"
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://onboarding-api.threat-engine-engines.svc.cluster.local"
+        - name: RULE_ENGINE_URL
+          value: "http://yaml-rule-builder.threat-engine-engines.svc.cluster.local"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /gateway/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-lb
+  namespace: threat-engine-engines
+  labels:
+    app: api-gateway
+    service-type: loadbalancer
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: api-gateway

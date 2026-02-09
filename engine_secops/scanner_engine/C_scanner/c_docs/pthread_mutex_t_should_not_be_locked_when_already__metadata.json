@@ -1,0 +1,49 @@
+{
+  "filename": "pthread_mutex_t_should_not_be_locked_when_already__metadata.json",
+  "rule_id": "pthread_mutex_t_locked_when_already",
+  "title": "pthread_mutex_t should not be locked when already locked, or unlocked when already unlocked",
+  "description": "Mutexes are synchronization primitives that allow to manage concurrency. This is the most fundamental building block for creating safe concurrent applications. By using a mutex, one can ensure that a block of code is executed by a single thread concurrently.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cwe",
+    "bug",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Double locking the same mutex\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid double_lock_example() {\n    pthread_mutex_lock(&mutex);\n    // ... some work\n    pthread_mutex_lock(&mutex);    // Noncompliant: already locked\n    pthread_mutex_unlock(&mutex);\n    pthread_mutex_unlock(&mutex);\n}",
+      "// Double unlocking the same mutex\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid double_unlock_example() {\n    pthread_mutex_lock(&mutex);\n    pthread_mutex_unlock(&mutex);\n    pthread_mutex_unlock(&mutex);  // Noncompliant: already unlocked\n}",
+      "// Unlocking without locking\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid unlock_without_lock() {\n    // No lock call\n    pthread_mutex_unlock(&mutex);  // Noncompliant: never locked\n}"
+    ],
+    "compliant": [
+      "// Proper mutex usage - single lock/unlock pair\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\nint shared_data = 0;\n\nvoid proper_mutex_usage() {\n    pthread_mutex_lock(&mutex);    // Compliant: lock once\n    shared_data++;                 // Critical section\n    pthread_mutex_unlock(&mutex);  // Compliant: unlock once\n}",
+      "// Proper nested function calls with mutex\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid helper_function() {\n    // This function assumes mutex is already locked\n    // Does not lock/unlock itself\n    // ... work on shared data\n}\n\nvoid main_function() {\n    pthread_mutex_lock(&mutex);    // Compliant: single lock\n    helper_function();             // Safe to call\n    pthread_mutex_unlock(&mutex);  // Compliant: single unlock\n}",
+      "// Using trylock to avoid blocking\npthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;\n\nvoid safe_trylock_usage() {\n    if (pthread_mutex_trylock(&mutex) == 0) {  // Compliant\n        // Got the lock, do work\n        // ... critical section\n        pthread_mutex_unlock(&mutex);  // Compliant: unlock after successful lock\n    } else {\n        // Could not get lock, handle gracefully\n        printf(\"Could not acquire mutex\\n\");\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5486"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "pthread_mutex_[a-z_]+\\([^)]*\\);[^\\n]*//[^\\n]*VIOLATION[^\\n]*Noncompliant",
+          "pthread_mutex_[a-z_]+\\([^)]*\\);[^\\n]*//[^\\n]*Noncompliant",
+          "//[^\\n]*VIOLATION[^\\n]*Noncompliant[^\\n]*pthread_mutex"
+        ],
+        "message": "Mutex violation detected - improper mutex usage pattern found",
+        "severity": "critical"
+      }
+    ]
+  }
+}

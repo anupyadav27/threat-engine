@@ -1,0 +1,55 @@
+{
+  "filename": "empty_functions_metadata.json",
+  "rule_id": "structure_empty_functions_avoid",
+  "title": "Avoid empty functions",
+  "description": "Empty functions are misleading and can cause confusion about whether they represent unfinished implementation, intentional no-ops, or errors. They should be avoided unless there is a clear documented reason for their existence.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Add meaningful implementation, throw appropriate exceptions, or add comments explaining the intentional empty behavior.",
+  "impact": "Code readability problem",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Empty functions without explanation\nfunc initialize() {\n    // BAD: Completely empty function\n}\n\nfunc cleanup() {\n    // BAD: No implementation, unclear if intentional\n}\n\nfunc validateInput(input string) error {\n    // BAD: Critical validation function is empty\n    // This could lead to security vulnerabilities\n}\n\nfunc (s *Service) Start() error {\n    // BAD: Empty method in interface implementation\n}\n\nfunc processPayment(amount float64) error {\n    // BAD: Empty payment processing - dangerous!\n}",
+        "description": "Empty functions without clear documentation can hide bugs or incomplete implementations."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"errors\"\n)\n\n// Compliant: Clear documentation for intentional empty functions\nfunc initialize() {\n    // GOOD: Explicit documentation of intentional empty state\n    // Initialization will be implemented in phase 2\n    // Currently using default configuration\n}\n\nfunc cleanup() {\n    // GOOD: Clear explanation\n    // No cleanup required for stateless service\n    // Resources are managed by the runtime\n}\n\nfunc validateInput(input string) error {\n    // GOOD: Proper implementation or clear TODO\n    if input == \"\" {\n        return errors.New(\"input cannot be empty\")\n    }\n    // TODO: Add additional validation rules\n    return nil\n}\n\n// GOOD: Interface method with meaningful implementation\ntype Service interface {\n    Start() error\n    Stop() error\n}\n\ntype NoOpService struct{}\n\nfunc (s *NoOpService) Start() error {\n    // GOOD: Documented no-op implementation\n    // NoOpService intentionally does nothing\n    return nil\n}\n\nfunc (s *NoOpService) Stop() error {\n    // GOOD: Consistent no-op behavior\n    return nil\n}\n\nfunc processPayment(amount float64) error {\n    // GOOD: Proper implementation or clear error\n    if amount <= 0 {\n        return errors.New(\"invalid payment amount\")\n    }\n    \n    // TODO: Integrate with payment processor\n    return errors.New(\"payment processing not yet implemented\")\n}\n\n// Alternative: Use panic for unimplemented critical functions\nfunc processPaymentStrict(amount float64) error {\n    // GOOD: Clear indication that function must be implemented\n    panic(\"processPayment not yet implemented\")\n}\n\n// GOOD: Stub with proper interface\ntype PaymentProcessor interface {\n    Process(amount float64) error\n}\n\ntype MockPaymentProcessor struct{}\n\nfunc (m *MockPaymentProcessor) Process(amount float64) error {\n    // GOOD: Test stub with documented behavior\n    // Mock implementation for testing - always succeeds\n    return nil\n}",
+        "description": "Add meaningful implementation, proper documentation, or explicit error handling for empty functions."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1186"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "method_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "func\\s+\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?://[^\n]*\\s*)*\\}",
+          "func\\s*\\([^)]*\\)\\s*\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?://[^\n]*\\s*)*\\}",
+          "func\\s+\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?:/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/\\s*)*\\}",
+          "func\\s*\\([^)]*\\)\\s*\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?:/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/\\s*)*\\}",
+          "func\\s+\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?://[^\n]*\\s*|/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/\\s*)*\\}",
+          "func\\s*\\([^)]*\\)\\s*\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*(?://[^\n]*\\s*|/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/\\s*)*\\}",
+          "func\\s+\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*\\}",
+          "func\\s*\\([^)]*\\)\\s*\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s*\\}",
+          "func\\s+\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s+\\}",
+          "func\\s*\\([^)]*\\)\\s*\\w+\\s*\\([^)]*\\)\\s*[^{]*\\{\\s+\\}"
+        ],
+        "message": "Empty function detected: Add meaningful implementation or remove the function. If intentionally empty, add explanatory comments or explicit error/panic statements."
+      }
+    ]
+  }
+}

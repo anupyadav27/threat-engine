@@ -1,0 +1,40 @@
+{
+  "filename": "pseudorandom_number_generators_metadata.json",
+  "rule_id": "security_pseudorandom_generators",
+  "title": "Use cryptographically secure random numbers",
+  "description": "Pseudorandom number generators (PRNGs) that are not cryptographically secure can produce predictable values, making them unsuitable for security-sensitive operations like generating tokens, salts, or cryptographic keys.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use cryptographically secure random number generators for security-sensitive operations.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"math/rand\"\n    \"time\"\n)\n\n// Noncompliant: Using math/rand for security-sensitive operations\nfunc generateSessionToken() string {\n    // math/rand is predictable and not cryptographically secure\n    rand.Seed(time.Now().UnixNano())\n    \n    const letters = \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\"\n    token := make([]byte, 32)\n    for i := range token {\n        token[i] = letters[rand.Intn(len(letters))]\n    }\n    return string(token)\n}\n\n// Noncompliant: Generating cryptographic salt with math/rand\nfunc generateSalt() []byte {\n    // Predictable salt compromises password security\n    salt := make([]byte, 16)\n    for i := range salt {\n        salt[i] = byte(rand.Intn(256))\n    }\n    return salt\n}\n\n// Noncompliant: API key generation\nfunc generateAPIKey() string {\n    // API keys need to be unpredictable\n    rand.Seed(time.Now().UnixNano())\n    \n    key := fmt.Sprintf(\"api_%d_%d\", rand.Int63(), rand.Int63())\n    return key\n}\n\n// Noncompliant: Password reset token\nfunc generatePasswordResetToken(userID string) string {\n    // Password reset tokens must be cryptographically secure\n    timestamp := time.Now().Unix()\n    randomPart := rand.Int63()\n    \n    return fmt.Sprintf(\"%s_%d_%d\", userID, timestamp, randomPart)\n}\n\n// Noncompliant: Using time as seed\nfunc generateNonce() int64 {\n    // Time-based seeds are predictable\n    rand.Seed(time.Now().UnixNano())\n    return rand.Int63()\n}\n\n// Noncompliant: Random challenges for authentication\nfunc generateChallenge() string {\n    // Authentication challenges must be unpredictable\n    challenge := make([]byte, 8)\n    for i := range challenge {\n        challenge[i] = byte(rand.Intn(256))\n    }\n    return fmt.Sprintf(\"%x\", challenge)\n}",
+        "description": "Using math/rand for security-sensitive operations produces predictable values that attackers can anticipate."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/rand\"\n    \"encoding/base64\"\n    \"encoding/hex\"\n    \"fmt\"\n    \"math/big\"\n    mathrand \"math/rand\"\n)\n\n// Compliant: Using crypto/rand for session tokens\nfunc generateSessionTokenSecure() (string, error) {\n    // crypto/rand is cryptographically secure\n    tokenBytes := make([]byte, 32)\n    _, err := rand.Read(tokenBytes)\n    if err != nil {\n        return \"\", err\n    }\n    \n    // Use base64 for URL-safe encoding\n    return base64.URLEncoding.EncodeToString(tokenBytes), nil\n}\n\n// Compliant: Cryptographically secure salt generation\nfunc generateSaltSecure() ([]byte, error) {\n    salt := make([]byte, 16)\n    _, err := rand.Read(salt)\n    return salt, err\n}\n\n// Compliant: Secure API key generation\nfunc generateAPIKeySecure() (string, error) {\n    keyBytes := make([]byte, 32)\n    _, err := rand.Read(keyBytes)\n    if err != nil {\n        return \"\", err\n    }\n    \n    // Use hex encoding for API keys\n    return \"api_\" + hex.EncodeToString(keyBytes), nil\n}\n\n// Compliant: Secure password reset token\nfunc generatePasswordResetTokenSecure() (string, error) {\n    tokenBytes := make([]byte, 32)\n    _, err := rand.Read(tokenBytes)\n    if err != nil {\n        return \"\", err\n    }\n    \n    return base64.URLEncoding.EncodeToString(tokenBytes), nil\n}\n\n// Compliant: Cryptographically secure random integers\nfunc generateSecureRandomInt(max int64) (int64, error) {\n    maxBig := big.NewInt(max)\n    n, err := rand.Int(rand.Reader, maxBig)\n    if err != nil {\n        return 0, err\n    }\n    return n.Int64(), nil\n}\n\n// Compliant: Secure challenge generation\nfunc generateChallengeSecure() (string, error) {\n    challenge := make([]byte, 16)\n    _, err := rand.Read(challenge)\n    if err != nil {\n        return \"\", err\n    }\n    \n    return hex.EncodeToString(challenge), nil\n}\n\n// Compliant: When math/rand is appropriate (non-security use cases)\nfunc generateTestData() []int {\n    // OK to use math/rand for testing, simulations, games\n    mathrand.Seed(42) // Fixed seed for reproducible tests\n    \n    data := make([]int, 100)\n    for i := range data {\n        data[i] = mathrand.Intn(1000)\n    }\n    return data\n}\n\n// Compliant: Utility function with proper error handling\nfunc generateRandomString(length int) (string, error) {\n    if length <= 0 {\n        return \"\", fmt.Errorf(\"length must be positive\")\n    }\n    \n    const charset = \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\"\n    bytes := make([]byte, length)\n    \n    for i := range bytes {\n        // Use crypto/rand for each character selection\n        charIndex, err := generateSecureRandomInt(int64(len(charset)))\n        if err != nil {\n            return \"\", err\n        }\n        bytes[i] = charset[charIndex]\n    }\n    \n    return string(bytes), nil\n}",
+        "description": "Using crypto/rand for security-sensitive operations ensures cryptographically secure randomness that cannot be predicted by attackers."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-2245"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_pseudorandom_generators", 
+        "message": "Use cryptographically secure random number generators for security-sensitive operations."
+      }
+    ]
+  }
+}

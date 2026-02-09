@@ -1,0 +1,43 @@
+{
+  "filename": "flexible_array_members_should_not_be_declared_metadata.json",
+  "rule_id": "flexible_array_members_declared",
+  "title": "Flexible array members should not be declared",
+  "description": "Flexible array members should not be declaredAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrasuspiciousWhy is this an issue?More InfoFlexible array members are most likely to be used in conjunction with dynamic memory allocation.The presence of flexible array members modifies the behaviour of thesizeofoperator in ways that might not be expected by a programmer. The assignment of a structure that contains a flexible array member to another structure of the same type may not behave in the expected manner as it copies only those elements up to but not including the start of the flexible array member.Noncompliant code example#include <stdlib.h> struct s { uint16_t len; uint32_t data[ ]; // Noncompliant - flexible array member } str; struct s *copy ( struct s *s1 ) {",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdlib.h>\n\nstruct s {\n  uint16_t len;\n  uint32_t data[]; // Noncompliant - flexible array member\n} str;\n\nstruct s *copy(struct s *s1) {\n  struct s *s2 = malloc(sizeof(struct s) + (s1->len * sizeof(uint32_t)));\n  *s2 = *s1; // Only copies s1->len, not the flexible array\n  return s2;\n}"
+    ],
+    "compliant": [
+      "#include <vector>\n#include <memory>\n\nstruct s {\n  uint16_t len;\n  std::vector<uint32_t> data; // Compliant - use standard container\n};\n\nstruct s copy(const struct s& s1) {\n  struct s s2;\n  s2.len = s1.len;\n  s2.data = s1.data; // Proper copy of all data\n  return s2;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2324"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\w+\\s+\\w+\\[\\]\\s*;",
+          "data\\[\\];"
+        ],
+        "message": "Flexible array members should not be declared. Use alternative approaches like std::vector."
+      }
+    ]
+  }
+}

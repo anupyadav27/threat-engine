@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 
 -- Inventory Run Index
-CREATE TABLE IF NOT EXISTS inventory_run_index (
+CREATE TABLE IF NOT EXISTS inventory_scans (
     scan_run_id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS inventory_run_index (
 );
 
 -- Asset Index Latest (latest state per resource_uid)
-CREATE TABLE IF NOT EXISTS asset_index_latest (
+CREATE TABLE IF NOT EXISTS inventory_findings (
     asset_id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
     resource_uid TEXT NOT NULL,
@@ -51,11 +51,11 @@ CREATE TABLE IF NOT EXISTS asset_index_latest (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     CONSTRAINT fk_tenant_asset FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    CONSTRAINT fk_scan_run FOREIGN KEY (latest_scan_run_id) REFERENCES inventory_run_index(scan_run_id) ON DELETE CASCADE
+    CONSTRAINT fk_scan_run FOREIGN KEY (latest_scan_run_id) REFERENCES inventory_scans(scan_run_id) ON DELETE CASCADE
 );
 
 -- Relationship Index Latest (optional - for quick lookups)
-CREATE TABLE IF NOT EXISTS relationship_index_latest (
+CREATE TABLE IF NOT EXISTS inventory_relationships (
     relationship_id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
     scan_run_id VARCHAR(255) NOT NULL,
@@ -69,29 +69,29 @@ CREATE TABLE IF NOT EXISTS relationship_index_latest (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     CONSTRAINT fk_tenant_rel FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-    CONSTRAINT fk_scan_run_rel FOREIGN KEY (scan_run_id) REFERENCES inventory_run_index(scan_run_id) ON DELETE CASCADE
+    CONSTRAINT fk_scan_run_rel FOREIGN KEY (scan_run_id) REFERENCES inventory_scans(scan_run_id) ON DELETE CASCADE
 );
 
 -- Indexes for efficient queries
-CREATE INDEX IF NOT EXISTS idx_run_tenant ON inventory_run_index(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_run_completed_at ON inventory_run_index(completed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_run_status ON inventory_run_index(status);
+CREATE INDEX IF NOT EXISTS idx_run_tenant ON inventory_scans(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_run_completed_at ON inventory_scans(completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_run_status ON inventory_scans(status);
 
-CREATE INDEX IF NOT EXISTS idx_asset_tenant ON asset_index_latest(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_asset_resource_uid ON asset_index_latest(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_asset_provider ON asset_index_latest(provider);
-CREATE INDEX IF NOT EXISTS idx_asset_resource_type ON asset_index_latest(resource_type);
-CREATE INDEX IF NOT EXISTS idx_asset_region ON asset_index_latest(region);
-CREATE INDEX IF NOT EXISTS idx_asset_account ON asset_index_latest(account_id);
-CREATE INDEX IF NOT EXISTS idx_asset_tags_gin ON asset_index_latest USING gin(tags);
+CREATE INDEX IF NOT EXISTS idx_asset_tenant ON inventory_findings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_asset_resource_uid ON inventory_findings(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_asset_provider ON inventory_findings(provider);
+CREATE INDEX IF NOT EXISTS idx_asset_resource_type ON inventory_findings(resource_type);
+CREATE INDEX IF NOT EXISTS idx_asset_region ON inventory_findings(region);
+CREATE INDEX IF NOT EXISTS idx_asset_account ON inventory_findings(account_id);
+CREATE INDEX IF NOT EXISTS idx_asset_tags_gin ON inventory_findings USING gin(tags);
 
-CREATE INDEX IF NOT EXISTS idx_rel_tenant ON relationship_index_latest(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_rel_from_uid ON relationship_index_latest(from_uid);
-CREATE INDEX IF NOT EXISTS idx_rel_to_uid ON relationship_index_latest(to_uid);
-CREATE INDEX IF NOT EXISTS idx_rel_type ON relationship_index_latest(relation_type);
+CREATE INDEX IF NOT EXISTS idx_rel_tenant ON inventory_relationships(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_rel_from_uid ON inventory_relationships(from_uid);
+CREATE INDEX IF NOT EXISTS idx_rel_to_uid ON inventory_relationships(to_uid);
+CREATE INDEX IF NOT EXISTS idx_rel_type ON inventory_relationships(relation_type);
 
 -- Composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_asset_tenant_type ON asset_index_latest(tenant_id, resource_type);
-CREATE INDEX IF NOT EXISTS idx_asset_tenant_region ON asset_index_latest(tenant_id, region);
-CREATE INDEX IF NOT EXISTS idx_asset_tenant_provider ON asset_index_latest(tenant_id, provider);
+CREATE INDEX IF NOT EXISTS idx_asset_tenant_type ON inventory_findings(tenant_id, resource_type);
+CREATE INDEX IF NOT EXISTS idx_asset_tenant_region ON inventory_findings(tenant_id, region);
+CREATE INDEX IF NOT EXISTS idx_asset_tenant_provider ON inventory_findings(tenant_id, provider);
 

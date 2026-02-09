@@ -1,0 +1,44 @@
+{
+  "filename": "concatenated_stdformat_outputs_should_be_replaced__metadata.json",
+  "rule_id": "concatenated_stdformat_outputs_replaced",
+  "title": "Concatenated std::format outputs should be replaced by a single invocation",
+  "description": "Concatenated \"std::format\" outputs should be replaced by a single invocationAnalyze your codeintentionality-clearmaintainabilityCode Smellclumsyperformancesince-c++20Why is this an issue?More Infostd::formataccepts a format string composed of ordinary text and replacement fields (surrounded with{}) that are replaced with a textual representation of the remainingstd::formatarguments. This allows generating a complex string with a single invocation ofstd::format.Since calls tostd::formatproduce string objects, it is possible to concatenate them with other string objects or string literals. However, compared to a singlestd::formatinvocation with an adjusted format string, this concatenation is inefficient and less readable.This rule raises an issue when the concatenation performed on the resu",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Inefficient concatenation of std::format results\n#include <format>\n#include <string>\n\nvoid printUserInfo(const std::string& name, int age, const std::string& city) {\n    // Noncompliant: concatenating multiple std::format calls\n    std::string message = std::format(\"Name: {}\", name) + \n                         \", \" + \n                         std::format(\"Age: {}\", age) + \n                         \", \" +\n                         std::format(\"City: {}\", city);\n    \n    // Noncompliant: mixing format with string literals\n    std::string greeting = \"Hello \" + std::format(\"{}\", name) + \"!\";\n}"
+    ],
+    "compliant": [
+      "// Efficient single std::format invocation\n#include <format>\n#include <string>\n\nvoid printUserInfo(const std::string& name, int age, const std::string& city) {\n    // Compliant: single std::format call with proper format string\n    std::string message = std::format(\"Name: {}, Age: {}, City: {}\", name, age, city);\n    \n    // Compliant: single format call for greeting\n    std::string greeting = std::format(\"Hello {}!\", name);\n    \n    // Compliant: complex formatting in one call\n    std::string report = std::format(\"User Report:\\n\"\n                                    \"  Name: {}\\n\"\n                                    \"  Age: {} years old\\n\"\n                                    \"  Location: {}\\n\", \n                                    name, age, city);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6484"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "std::format\\s*\\([^)]+\\)\\s*\\+[^;]*std::format\\s*\\(",
+          "\\\"[^\\\"]*\\\"\\s*\\+\\s*std::format\\s*\\([^)]+\\)",
+          "std::format\\s*\\([^)]+\\)\\s*\\+\\s*\\\"[^\\\"]*\\\""
+        ],
+        "message": "Concatenated std::format outputs should be replaced by a single invocation."
+      }
+    ]
+  }
+}

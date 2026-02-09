@@ -1,0 +1,55 @@
+{
+  "filename": "control_characters_should_be_avoided_in_literals_metadata.json",
+  "rule_id": "control_characters_avoided_literals",
+  "title": "Control characters should be avoided in literals",
+  "description": "Control characters should not be used in literalsAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEpitfallWhy is this an issue?More InfoControl characters (e.g., tabs or carriage returns) are not visible to maintainers, so they should be escaped.Noncompliant code exampleconst char* foo = \"A B\"; // Noncompliant: contains a tabulationCompliant solutionconst char* foo = \"A\\tB\"; // Compliant: use escaped valueExceptionsThis rule does not raise issues in raw string literals since they have no escape character mechanism.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025S",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Control characters embedded directly in literals (actual characters, not escaped)",
+      "const char* foo = \\\"A[TAB]B\\\";       // Noncompliant: contains actual tab character",
+      "const char* bar = \\\"Line1[LF]Line2\\\"; // Noncompliant: contains actual newline",
+      "const char* baz = \\\"Text[CR]End\\\";   // Noncompliant: contains actual carriage return",
+      "std::string text = \\\"Hello[BS]World\\\"; // Noncompliant: contains actual backspace character"
+    ],
+    "compliant": [
+      "// Using proper escape sequences",
+      "const char* foo = \"A\\\\tB\";       // Compliant: escaped tab",
+      "const char* bar = \"Line1\\\\nLine2\"; // Compliant: escaped newline",
+      "const char* baz = \"Text\\\\rEnd\";   // Compliant: escaped carriage return",
+      "std::string text = \"Hello\\\\bWorld\"; // Compliant: escaped backspace",
+      "",
+      "// Raw string literals (exception - no escaping needed)",
+      "const char* raw = R\\\"(A[TAB]B)\\\";     // Compliant: raw string literal"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2479"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "VariableDeclaration",
+      "StringLiteral"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\"[^\"]*[\\x09\\x0A\\x0D\\x08\\x0C\\x07\\x0B][^\"]*\""
+        ],
+        "message": "String contains embedded control characters. Use escape sequences instead (e.g., \\t, \\n, \\r)."
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "filename": "heterogeneous_sorted_containers_should_only_be_use_metadata.json",
+  "rule_id": "heterogeneous_sorted_containers_only",
+  "title": "Heterogeneous sorted containers should only be used with types that support heterogeneous comparison",
+  "description": "Heterogeneous containers were introduced in C++14 to increase performance when working with std::map, std::set, std::multimap, std::multiset, and since C++20, their unordered_ counterparts. Before their introduction, when working with a key in such a container, it was required to use an object of the exact key type. This could lead to costly object creations when we would like to work with objects of compatible but different types: std::map<std::string, int> m; m.find(\"abc\"); // Will convert the char const * to a std::string, maybe performing costly memory allocation With heterogeneous containers, the previous code will not create a string, but directly compare keys in the map with the searched char const *.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Using heterogeneous lookup without proper comparison\nstd::map<std::string, int> m;\nm.find(\"abc\"); // Creates temporary string object\n\n// Using heterogeneous operations with incompatible types\nstd::set<std::string> s;\ns.find(42); // Type mismatch - no heterogeneous comparison",
+      "// Noncompliant: Custom comparator doesn't support heterogeneous lookup\nstruct BadComparator {\n    bool operator()(const std::string& a, const std::string& b) const {\n        return a < b;\n    }\n};\nstd::map<std::string, int, BadComparator> m;\nm.find(\"key\"); // Forces string construction"
+    ],
+    "compliant": [
+      "// Compliant: Using heterogeneous comparator\nstruct HeterogeneousComparator {\n    using is_transparent = void;\n    bool operator()(const std::string& a, const std::string& b) const {\n        return a < b;\n    }\n    bool operator()(const std::string& a, const char* b) const {\n        return a < b;\n    }\n    bool operator()(const char* a, const std::string& b) const {\n        return a < b;\n    }\n};\nstd::map<std::string, int, HeterogeneousComparator> m;\nm.find(\"abc\"); // No string construction",
+      "// Compliant: Using std::less<> for transparent comparison\nstd::map<std::string, int, std::less<>> m;\nm.find(\"key\"); // Direct comparison without string creation"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6021"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration",
+      "expression",
+      "function_call"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function_name": "check_heterogeneous_sorted_containers",
+        "message": "Use heterogeneous comparator (e.g., std::less<>) for heterogeneous operations"
+      }
+    ]
+  }
+}

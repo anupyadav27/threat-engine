@@ -1,5 +1,6 @@
 -- Discoveries Engine Database Schema
 -- PostgreSQL DDL for discoveries storage
+-- Tables: discovery_report, discovery_findings, discovery_history
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -25,9 +26,9 @@ CREATE TABLE IF NOT EXISTS tenants (
     CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 );
 
--- Scans (shared schema - engine_shared)
-CREATE TABLE IF NOT EXISTS scans (
-    scan_id VARCHAR(255) PRIMARY KEY,
+-- Discovery Report (scan metadata)
+CREATE TABLE IF NOT EXISTS discovery_report (
+    discovery_scan_id VARCHAR(255) PRIMARY KEY,
     customer_id VARCHAR(255),
     tenant_id VARCHAR(255),
     provider VARCHAR(50),
@@ -43,10 +44,10 @@ CREATE TABLE IF NOT EXISTS scans (
     CONSTRAINT fk_tenant_scan FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
--- Discoveries Table
-CREATE TABLE IF NOT EXISTS discoveries (
+-- Discovery Findings Table
+CREATE TABLE IF NOT EXISTS discovery_findings (
     id SERIAL PRIMARY KEY,
-    scan_id VARCHAR(255) NOT NULL,
+    discovery_scan_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
     tenant_id VARCHAR(255),
     provider VARCHAR(50),
@@ -65,7 +66,7 @@ CREATE TABLE IF NOT EXISTS discoveries (
     version INTEGER DEFAULT 1,
     scan_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_scan_discovery FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE,
+    CONSTRAINT fk_scan_discovery FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE,
     CONSTRAINT fk_tenant_discovery FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
@@ -80,7 +81,7 @@ CREATE TABLE IF NOT EXISTS discovery_history (
     discovery_id VARCHAR(255) NOT NULL,
     resource_arn TEXT,
     resource_uid TEXT,  -- Primary identifier
-    scan_id VARCHAR(255) NOT NULL,
+    discovery_scan_id VARCHAR(255) NOT NULL,
     config_hash VARCHAR(64),
     raw_response JSONB,
     emitted_fields JSONB,
@@ -89,20 +90,22 @@ CREATE TABLE IF NOT EXISTS discovery_history (
     previous_hash VARCHAR(64),
     diff_summary JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_scan_history FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE,
+    CONSTRAINT fk_scan_history FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE,
     CONSTRAINT fk_tenant_history FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_discoveries_scan_id ON discoveries(scan_id);
-CREATE INDEX IF NOT EXISTS idx_discoveries_tenant_id ON discoveries(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_discoveries_discovery_id ON discoveries(discovery_id);
-CREATE INDEX IF NOT EXISTS idx_discoveries_resource_uid ON discoveries(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_discoveries_resource_arn ON discoveries(resource_arn);
-CREATE INDEX IF NOT EXISTS idx_discoveries_service ON discoveries(service);
-CREATE INDEX IF NOT EXISTS idx_discoveries_tenant_uid ON discoveries(tenant_id, resource_uid);
-CREATE INDEX IF NOT EXISTS idx_discoveries_scan_timestamp ON discoveries(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_df_scan_id ON discovery_findings(discovery_scan_id);
+CREATE INDEX IF NOT EXISTS idx_df_tenant_id ON discovery_findings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_df_discovery_id ON discovery_findings(discovery_id);
+CREATE INDEX IF NOT EXISTS idx_df_resource_uid ON discovery_findings(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_df_resource_arn ON discovery_findings(resource_arn);
+CREATE INDEX IF NOT EXISTS idx_df_service ON discovery_findings(service);
+CREATE INDEX IF NOT EXISTS idx_df_tenant_uid ON discovery_findings(tenant_id, resource_uid);
+CREATE INDEX IF NOT EXISTS idx_df_scan_timestamp ON discovery_findings(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_df_lookup ON discovery_findings(discovery_id, tenant_id, hierarchy_id);
+CREATE INDEX IF NOT EXISTS idx_df_latest ON discovery_findings(resource_uid, discovery_id, tenant_id, hierarchy_id, scan_timestamp DESC);
 
-CREATE INDEX IF NOT EXISTS idx_discovery_history_scan_id ON discovery_history(scan_id);
-CREATE INDEX IF NOT EXISTS idx_discovery_history_resource_uid ON discovery_history(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_discovery_history_change_type ON discovery_history(change_type);
+CREATE INDEX IF NOT EXISTS idx_dh_scan_id ON discovery_history(discovery_scan_id);
+CREATE INDEX IF NOT EXISTS idx_dh_resource_uid ON discovery_history(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_dh_change_type ON discovery_history(change_type);

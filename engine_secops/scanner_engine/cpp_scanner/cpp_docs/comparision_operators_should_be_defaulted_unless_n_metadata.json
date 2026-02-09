@@ -1,0 +1,43 @@
+{
+  "filename": "comparision_operators_should_be_defaulted_unless_n_metadata.json",
+  "rule_id": "comparision_operators_defaulted_unless",
+  "title": "Comparision operators (<=>, ==) should be defaulted unless non-default behavior is required",
+  "description": "Comparison operator implementations like == or <=>, despite not being hard to write, remain a source of bugs as they must be updated with every change in the class’s member list. For instance, if the operation does not consider a newly introduced member in the class, the issue will only manifest if two instances are identical, except for the freshly introduced member. As a consequence, this type of bug is usually hard to spot.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Manual implementation when default would work\nclass Point {\n    int x, y;\npublic:\n    // Noncompliant: manual implementation when default would work\n    bool operator==(const Point& other) const {\n        return x == other.x && y == other.y;\n    }\n    \n    // Noncompliant: manual implementation of three-way comparison\n    std::strong_ordering operator<=>(const Point& other) const {\n        if (x < other.x) return std::strong_ordering::less;\n        if (x > other.x) return std::strong_ordering::greater;\n        if (y < other.y) return std::strong_ordering::less;\n        if (y > other.y) return std::strong_ordering::greater;\n        return std::strong_ordering::equal;\n    }\n};\n\nstruct SimpleData {\n    std::string name;\n    int value;\n    \n    // Noncompliant: unnecessary manual implementation\n    bool operator==(const SimpleData& other) const {\n        return name == other.name && value == other.value;\n    }\n};"
+    ],
+    "compliant": [
+      "// Use defaulted operators when possible\nclass Point {\n    int x, y;\npublic:\n    // Compliant: let compiler generate optimal comparison\n    bool operator==(const Point& other) const = default;\n    \n    // Compliant: defaulted three-way comparison\n    std::strong_ordering operator<=>(const Point& other) const = default;\n};\n\nstruct SimpleData {\n    std::string name;\n    int value;\n    \n    // Compliant: defaulted comparison\n    bool operator==(const SimpleData& other) const = default;\n    auto operator<=>(const SimpleData& other) const = default;\n};\n\n// When custom logic is needed - then manual implementation is justified\nclass Person {\n    std::string firstName;\n    std::string lastName;\n    int age;\n    \npublic:\n    // Compliant: custom comparison logic needed\n    bool operator==(const Person& other) const {\n        // Case-insensitive name comparison\n        return std::equal(firstName.begin(), firstName.end(),\n                         other.firstName.begin(), other.firstName.end(),\n                         [](char a, char b) { return std::tolower(a) == std::tolower(b); }) &&\n               std::equal(lastName.begin(), lastName.end(),\n                         other.lastName.begin(), other.lastName.end(),\n                         [](char a, char b) { return std::tolower(a) == std::tolower(b); });\n    }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6230"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "bool\\s+operator\\s*==\\s*\\([^)]+\\)\\s*const\\s*\\{[^}]*\\breturn\\s+[^}]+\\s*&&[^}]*\\}",
+          "std::(strong|weak|partial)_ordering\\s+operator\\s*<=>\\s*\\([^)]+\\)\\s*const\\s*\\{[^}]*if\\s*\\([^}]*\\)"
+        ],
+        "message": "Comparison operators (<=>, ==) should be defaulted unless non-default behavior is required."
+      }
+    ]
+  }
+}

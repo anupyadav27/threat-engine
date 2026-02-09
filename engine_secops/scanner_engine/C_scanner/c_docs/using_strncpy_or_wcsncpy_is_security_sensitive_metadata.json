@@ -1,0 +1,50 @@
+{
+  "filename": "using_strncpy_or_wcsncpy_is_security_sensitive_metadata.json",
+  "rule_id": "using_strncpy_wcsncpy_is",
+  "title": "Using strncpy or wcsncpy is security-sensitive",
+  "description": "Using \"strncpy\" or \"wcsncpy\" is security-sensitiveAnalyze your codeconsistency-conventionalsecuritySecurity HotspotcwecertIn C, a string is just a buffer of characters, normally using thenullcharacter as a sentinel for the end of the string. This means that the developer has to be aware of low-level details such as buffer sizes or having an extra character to store the finalnullcharacter. Doing that correctly and consistently is notoriously difficult and any error can lead to a security vulnerability, for instance, giving access to sensitive data or allowing arbitrary code execution.The functionchar *strncpy(char * restrict dest, const char * restrict src, size_t count);copies the firstcountcharacters fromsrctodest, stopping at the firstnullcharacter, and filling extra space with 0.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "performance",
+    "convention",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char dest[5];\nchar *src = \"This is too long\";\nstrncpy(dest, src, 10); // Noncompliant: count exceeds destination size\n\nchar buffer[10];\nstrncpy(buffer, \"Hello\", sizeof(buffer));\n// Noncompliant: missing null termination check"
+    ],
+    "compliant": [
+      "char dest[20];\nchar *src = \"Hello World\";\nstrncpy(dest, src, sizeof(dest) - 1); // Compliant: leave space for null\ndest[sizeof(dest) - 1] = '\\0'; // Ensure null termination\n\n// Or use safer alternatives:\nsize_t len = strlcpy(dest, src, sizeof(dest)); // Compliant: automatic null termination\nif (len >= sizeof(dest)) {\n    // Handle truncation\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5816"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "strncpy\\s*\\([^,]+,\\s*[^,]+,\\s*sizeof\\s*\\([^)]+\\)\\s*\\)(?!\\s*;\\s*[^=]*\\[[^\\]]*\\]\\s*=\\s*'\\\\0')",
+          "wcsncpy\\s*\\([^,]+,\\s*[^,]+,\\s*sizeof\\s*\\([^)]+\\)\\s*/\\s*sizeof\\s*\\([^)]+\\)\\s*\\)(?!\\s*;\\s*[^=]*\\[[^\\]]*\\]\\s*=\\s*L'\\\\0')",
+          "strncpy\\s*\\([^,]+,\\s*[^,]+,\\s*(?:\\d{2,}|[1-9]\\d+)\\s*\\)",
+          "wcsncpy\\s*\\([^,]+,\\s*[^,]+,\\s*(?:\\d{2,}|[1-9]\\d+)\\s*\\)"
+        ],
+        "message": "Using strncpy/wcsncpy without proper size calculation or missing null termination is security-sensitive. Ensure destination size limits and explicit null termination."
+      }
+    ]
+  }
+}

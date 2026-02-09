@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Threat Engine Compliance Scanner IAM Role'
+
+Parameters:
+  ThreatEngineAccountId:
+    Type: String
+    Description: Threat Engine Platform AWS Account ID
+    Default: '{{PLATFORM_ACCOUNT_ID}}'
+  
+  ExternalId:
+    Type: String
+    Description: External ID for secure role assumption (provided by portal)
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 128
+    Default: '{{EXTERNAL_ID}}'
+
+Resources:
+  ComplianceScannerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ThreatEngineComplianceRole
+      Description: Role for Threat Engine compliance scanning
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${ThreatEngineAccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/SecurityAudit
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+      Policies:
+        - PolicyName: ComplianceScannerAdditionalPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - organizations:DescribeOrganization
+                  - organizations:ListAccounts
+                  - organizations:ListAWSServiceAccessForOrganization
+                  - account:GetAccountInformation
+                  - account:ListRegions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - '*'
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Description: IAM Role ARN to provide during onboarding
+    Value: !GetAtt ComplianceScannerRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleArn'
+  
+  RoleName:
+    Description: IAM Role Name
+    Value: !Ref ComplianceScannerRole
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleName'
+  
+  AccountId:
+    Description: AWS Account ID
+    Value: !Ref 'AWS::AccountId'
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountId'
+  
+  ExternalId:
+    Description: External ID used for role assumption
+    Value: !Ref ExternalId
+    Export:
+      Name: !Sub '${AWS::StackName}-ExternalId'
+  
+  OnboardingJson:
+    Description: Complete onboarding information in JSON format
+    Value: !Sub |
+      {
+        "account_id": "${AWS::AccountId}",
+        "role_arn": "${ComplianceScannerRole.Arn}",
+        "role_name": "${ComplianceScannerRole}",
+        "external_id": "${ExternalId}",
+        "stack_name": "${AWS::StackName}"
+      }
+    Export:
+      Name: !Sub '${AWS::StackName}-OnboardingJson'
+

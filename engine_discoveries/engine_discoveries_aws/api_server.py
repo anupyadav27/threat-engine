@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
+import asyncio
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -38,6 +39,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Shared DatabaseManager for health checks (avoids creating new pools per request)
+_health_db_manager = None
+
+def _get_health_db_manager():
+    global _health_db_manager
+    if _health_db_manager is None:
+        try:
+            _health_db_manager = DatabaseManager()
+        except Exception:
+            pass
+    return _health_db_manager
 
 # In-memory scan storage (use Redis/DB in production)
 scans = {}
@@ -113,12 +126,12 @@ async def create_discovery(request: DiscoveryRequest, background_tasks: Backgrou
     )
 
 
-async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
-    """Run discovery scan in background"""
+def _run_discovery_sync(discovery_scan_id: str, request: DiscoveryRequest):
+    """Run discovery scan synchronously (called in a thread pool)"""
     with LogContext(tenant_id=request.tenant_id, scan_run_id=discovery_scan_id):
         try:
             import os
-            
+
             # Set credentials in environment
             if request.credentials:
                 cred_type = request.credentials.get('credential_type')
@@ -127,30 +140,41 @@ async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
                     os.environ['AWS_SECRET_ACCESS_KEY'] = request.credentials.get('secret_access_key')
                     if 'AWS_ROLE_ARN' in os.environ:
                         os.environ.pop('AWS_ROLE_ARN')
-            
+
             # Get account ID if not provided
             hierarchy_id = request.hierarchy_id
             if not hierarchy_id:
                 import boto3
                 sts = boto3.client('sts')
                 hierarchy_id = sts.get_caller_identity().get('Account')
-            
+
             # Initialize database manager and discovery engine
-            db_manager = DatabaseManager() if os.getenv("DATABASE_URL") else None
+            db_manager = None
+            if request.use_database is True or (request.use_database is None and (os.getenv("DISCOVERY_DB_HOST") or os.getenv("DISCOVERIES_DB_HOST"))):
+                try:
+                    db_manager = DatabaseManager()
+                    logger.info(f"DatabaseManager initialized successfully: {db_manager}")
+                except Exception as e:
+                    logger.error(f"DatabaseManager init failed: {e}", exc_info=True)
+                    if request.use_database is True:
+                        raise RuntimeError(f"Database mode requested but DatabaseManager init failed: {e}") from e
+                    db_manager = None
+            if request.use_database is True and db_manager is None:
+                raise ValueError("Database mode requested but DatabaseManager could not be initialized")
             discovery_engine = DiscoveryEngine(db_manager, use_database=request.use_database)
-            
+
             # Get services
             services = request.include_services
             if not services:
-                # Returns list of tuples: [('s3', 'global'), ...]
                 services_with_scope = load_enabled_services_with_scope()
-                services = [s[0] for s in services_with_scope]  # Extract just service names
-            
-            # Run discovery
+                services = [s[0] for s in services_with_scope]
+
+            # Run discovery — pass the API-generated UUID as the scan ID
             customer_id = request.customer_id or "default"
             tenant_id = request.tenant_id or "default-tenant"
-            
-            result_scan_id = discovery_engine.run_discovery_scan(
+
+            discovery_engine.run_discovery_scan(
+                discovery_scan_id=discovery_scan_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=request.provider,
@@ -159,16 +183,15 @@ async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
                 services=services,
                 regions=request.include_regions
             )
-            
+
             scans[discovery_scan_id]["status"] = "completed"
-            scans[discovery_scan_id]["discovery_scan_id"] = result_scan_id
             scans[discovery_scan_id]["completed_at"] = datetime.utcnow()
             metrics["successful_scans"] += 1
-            
+
             logger.info("Discovery scan completed", extra={
-                "extra_fields": {"discovery_scan_id": result_scan_id}
+                "extra_fields": {"discovery_scan_id": discovery_scan_id}
             })
-            
+
         except Exception as e:
             logger.error("Discovery scan failed", exc_info=True, extra={
                 "extra_fields": {"error": str(e)}
@@ -177,6 +200,11 @@ async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
             scans[discovery_scan_id]["error"] = str(e)
             scans[discovery_scan_id]["completed_at"] = datetime.utcnow()
             metrics["failed_scans"] += 1
+
+
+async def run_discovery(discovery_scan_id: str, request: DiscoveryRequest):
+    """Run discovery scan in a thread pool to avoid blocking the event loop"""
+    await asyncio.to_thread(_run_discovery_sync, discovery_scan_id, request)
 
 
 @app.get("/api/v1/discovery/{discovery_scan_id}/status")
@@ -229,13 +257,13 @@ async def list_discoveries(
 async def health():
     """Health check endpoint"""
     try:
-        db_manager = DatabaseManager()
-        db_info = db_manager.get_database_info() if hasattr(db_manager, 'get_database_info') else {}
+        db_manager = _get_health_db_manager()
+        db_info = db_manager.get_database_info() if db_manager and hasattr(db_manager, 'get_database_info') else {}
         return {
             "status": "healthy",
             "provider": "aws",
             "version": "1.0.0",
-            "database": "connected",
+            "database": "connected" if db_manager else "disconnected",
             "database_details": db_info
         }
     except Exception as e:
@@ -252,11 +280,14 @@ async def health():
 async def health_ready():
     """Readiness check endpoint"""
     try:
-        db_manager = DatabaseManager()
-        # Test connection
+        db_manager = _get_health_db_manager()
+        if not db_manager:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         conn = db_manager._get_connection()
         db_manager._return_connection(conn)
         return {"status": "ready"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Not ready: {str(e)}")
 

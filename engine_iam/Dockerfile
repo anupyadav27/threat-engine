@@ -9,8 +9,8 @@ COPY engine_iam/iam_engine/ ./iam_engine/
 COPY engine_common/ ./engine_common/
 
 ENV PYTHONPATH=/app
-ENV PORT=8001
+ENV PORT=8003
 
-EXPOSE 8001
+EXPOSE 8003
 
-CMD ["python", "-m", "uvicorn", "iam_engine.api_server:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "-m", "uvicorn", "iam_engine.api_server:app", "--host", "0.0.0.0", "--port", "8003"]

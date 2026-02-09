@@ -1,114 +1,193 @@
 """
 Relationship Builder
 
-Builds relationship edges from normalized assets using predefined relationship index.
+Builds relationship edges from normalized assets using relationship rules.
+
+=== DATABASE & TABLE MAP ===
+Source of truth: threat_engine_pythonsdk (PYTHONSDK DB)
+Local cache: config/{csp_id}_relationship_rules.json (synced from DB)
+
+The sync_from_db() class method fetches rules from the DB and writes them
+to local JSON cache files. At runtime, RelationshipBuilder reads from the
+local cache only — no DB calls during scan execution.
+
+Tables READ (by sync_from_db only, not at runtime):
+  - relationship_rules : SELECT from_type, relation_type, to_type, source_field,
+                                target_uid_pattern, source_field_item
+                         FROM relationship_rules WHERE csp_id = %s
+  - relation_types     : SELECT relation_id, category FROM relation_types
+
+Tables WRITTEN: None (returns Relationship objects to callers)
+===
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 from ..schemas.asset_schema import Asset, Provider
 from ..schemas.relationship_schema import Relationship, RelationType
 
+logger = logging.getLogger(__name__)
+
+# Cache directory for synced relationship data
+_CONFIG_DIR = Path(__file__).parent.parent / "config"
+
 
 class RelationshipBuilder:
-    """Builds relationships between assets using predefined relationship index"""
-    
-    def __init__(self, tenant_id: str, scan_run_id: str):
+    """Builds relationships between assets using locally-cached relationship rules"""
+
+    def __init__(self, tenant_id: str, scan_run_id: str, csp_id: str = "aws"):
         self.tenant_id = tenant_id
         self.scan_run_id = scan_run_id
+        self.csp_id = csp_id
         self.relationship_index = self._load_relationship_index()
         self.relation_types = self._load_relation_types()
-    
-    def _load_relationship_index(self) -> Dict[str, Any]:
-        """Load predefined relationship index (supports both JSON and NDJSON formats)"""
-        config_dir = Path(__file__).parent.parent / "config"
-        
-        # Try NDJSON format first (preferred for large files)
-        ndjson_file = config_dir / "aws_relationship_index.ndjson"
-        metadata_file = config_dir / "aws_relationship_index_metadata.json"
-        
-        if ndjson_file.exists() and metadata_file.exists():
+
+    # ------------------------------------------------------------------
+    # Sync: fetch from DB and cache locally (called once at startup/deploy)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def sync_from_db(cls, csp_ids: Optional[List[str]] = None) -> Dict[str, int]:
+        """
+        Fetch relationship rules and relation types from the pythonsdk DB
+        and write them to local JSON cache files.
+
+        Call this once at service startup or via a management command.
+        Returns dict of {csp_id: rule_count}.
+        """
+        conn = cls._get_db_connection()
+        if not conn:
+            logger.error("Cannot sync: no pythonsdk DB connection")
+            return {}
+
+        try:
+            from psycopg2.extras import RealDictCursor
+            result = {}
+
+            # 1. Sync relation_types
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT relation_id, category FROM relation_types ORDER BY relation_id")
+                type_rows = cur.fetchall()
+            if type_rows:
+                types_data = [dict(row) for row in type_rows]
+                cache_file = _CONFIG_DIR / "relation_types_cache.json"
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(cache_file, 'w') as f:
+                    json.dump(types_data, f)
+                logger.info(f"Synced {len(types_data)} relation types to {cache_file}")
+
+            # 2. Determine which CSPs to sync
+            if not csp_ids:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT csp_id FROM relationship_rules ORDER BY csp_id")
+                    csp_ids = [row[0] for row in cur.fetchall()]
+
+            # 3. Sync rules per CSP
+            for csp_id in csp_ids:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT from_type, relation_type, to_type,
+                               source_field, target_uid_pattern, source_field_item
+                        FROM relationship_rules
+                        WHERE csp_id = %s
+                        ORDER BY from_type, relation_type
+                    """, (csp_id,))
+                    rows = cur.fetchall()
+
+                if rows:
+                    rules_data = [dict(row) for row in rows]
+                    cache_file = _CONFIG_DIR / f"{csp_id}_relationship_rules.json"
+                    with open(cache_file, 'w') as f:
+                        json.dump(rules_data, f)
+                    result[csp_id] = len(rules_data)
+                    logger.info(f"Synced {len(rules_data)} rules for {csp_id} to {cache_file}")
+
+            return result
+        except Exception as e:
+            logger.error(f"Error syncing from DB: {e}")
+            return {}
+        finally:
             try:
-                # Load metadata
-                with open(metadata_file, 'r') as f:
-                    metadata = json.load(f)
-                
-                # Load relationships from NDJSON and rebuild structure
-                by_resource_type = {}
-                by_discovery_operation = {}
-                
-                with open(ndjson_file, 'r') as f:
-                    for line in f:
-                        if not line.strip():
-                            continue
-                        rel = json.loads(line)
-                        
-                        # Rebuild by_resource_type structure
-                        from_type = rel.get("from_type")
-                        if from_type:
-                            if from_type not in by_resource_type:
-                                by_resource_type[from_type] = {"relationships": []}
-                            
-                            by_resource_type[from_type]["relationships"].append({
-                                "relation_type": rel.get("relation_type"),
-                                "target_type": rel.get("to_type"),
-                                "source_field": rel.get("source_field"),
-                                "target_uid_pattern": rel.get("target_uid_pattern"),
-                                "source_field_item": rel.get("source_field_item"),
-                            })
-                        
-                        # Rebuild by_discovery_operation structure
-                        from_discovery = rel.get("from_discovery")
-                        if from_discovery:
-                            if from_discovery not in by_discovery_operation:
-                                by_discovery_operation[from_discovery] = {"relationships": []}
-                            
-                            by_discovery_operation[from_discovery]["relationships"].append({
-                                "relation_type": rel.get("relation_type"),
-                                "target_type": rel.get("to_type"),
-                                "source_field": rel.get("source_field"),
-                                "target_uid_pattern": rel.get("target_uid_pattern"),
-                                "source_field_item": rel.get("source_field_item"),
-                            })
-                
-                return {
-                    "version": metadata.get("version"),
-                    "generated_at": metadata.get("generated_at"),
-                    "source": metadata.get("source"),
-                    "classifications": {
-                        "by_resource_type": by_resource_type,
-                        "by_discovery_operation": by_discovery_operation,
-                    },
-                    "metadata": metadata.get("metadata", {}),
-                }
-            except Exception as e:
-                # Fall back to JSON if NDJSON fails
+                conn.close()
+            except Exception:
                 pass
-        
-        # Fallback to JSON format
-        index_file = config_dir / "aws_relationship_index.json"
-        if not index_file.exists():
-            return {}
+
+    @staticmethod
+    def _get_db_connection():
+        """Get a connection to the pythonsdk DB (used only for sync)."""
         try:
-            with open(index_file, 'r') as f:
-                return json.load(f)
-        except Exception:
+            from ..database.connection.database_config import get_database_config
+            import psycopg2
+            cfg = get_database_config("pythonsdk")
+            return psycopg2.connect(
+                host=cfg.host, port=cfg.port, dbname=cfg.database,
+                user=cfg.username, password=cfg.password,
+            )
+        except Exception as e:
+            logger.warning(f"Cannot connect to pythonsdk DB: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Load: read from local cache files (fast, no DB calls)
+    # ------------------------------------------------------------------
+
+    def _load_relationship_index(self) -> Dict[str, Any]:
+        """Load relationship rules from local JSON cache."""
+        cache_file = _CONFIG_DIR / f"{self.csp_id}_relationship_rules.json"
+
+        if not cache_file.exists():
+            logger.warning(f"No cached relationship rules at {cache_file}. "
+                           f"Run RelationshipBuilder.sync_from_db() first.")
             return {}
-    
+
+        try:
+            with open(cache_file, 'r') as f:
+                rules = json.load(f)
+
+            by_resource_type: Dict[str, Dict] = {}
+            for rule in rules:
+                from_type = rule["from_type"]
+                if from_type not in by_resource_type:
+                    by_resource_type[from_type] = {"relationships": []}
+                by_resource_type[from_type]["relationships"].append({
+                    "relation_type": rule["relation_type"],
+                    "target_type": rule["to_type"],
+                    "source_field": rule["source_field"],
+                    "target_uid_pattern": rule["target_uid_pattern"],
+                    "source_field_item": rule.get("source_field_item"),
+                })
+
+            logger.info(f"Loaded {len(rules)} relationship rules from cache for {self.csp_id} "
+                        f"({len(by_resource_type)} resource types)")
+            return {
+                "version": "cache",
+                "source": "local_cache",
+                "classifications": {
+                    "by_resource_type": by_resource_type,
+                    "by_discovery_operation": {},
+                },
+            }
+        except Exception as e:
+            logger.error(f"Error loading relationship rules from cache: {e}")
+            return {}
+
     def _load_relation_types(self) -> Set[str]:
-        """Load valid relation types"""
-        config_dir = Path(__file__).parent.parent / "config"
-        types_file = config_dir / "relation_types.json"
-        if not types_file.exists():
-            return {rt.value for rt in RelationType}
-        try:
-            with open(types_file, 'r') as f:
-                data = json.load(f)
-                return {rt.get("id", "") for rt in data.get("relation_types", [])}
-        except Exception:
-            return {rt.value for rt in RelationType}
+        """Load valid relation types from local JSON cache."""
+        cache_file = _CONFIG_DIR / "relation_types_cache.json"
+
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    types_data = json.load(f)
+                return {t["relation_id"] for t in types_data}
+            except Exception:
+                pass
+
+        # Fallback to enum values if no cache
+        return {rt.value for rt in RelationType}
     
     def build_relationships(self, assets: List[Asset]) -> List[Relationship]:
         """

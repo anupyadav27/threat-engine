@@ -22,6 +22,7 @@ def _project_root() -> Path:
 
 from engine.service_scanner import run_regional_service, run_global_service, load_service_rules
 from engine.database_manager import DatabaseManager
+from engine.check_db_reader import CheckDBReader
 from utils.phase_logger import PhaseLogger
 from utils.progressive_output import ProgressiveOutputWriter
 from utils.service_feature_manager import ServiceFeatureManager
@@ -34,7 +35,7 @@ class DiscoveryEngine:
     def __init__(self, db_manager: DatabaseManager = None, use_database: Optional[bool] = None):
         """
         Initialize discovery engine
-        
+
         Args:
             db_manager: DatabaseManager instance (optional if using file-only mode)
             use_database: If True, store discoveries in database; If False, files only;
@@ -50,7 +51,22 @@ class DiscoveryEngine:
         self.feature_manager = ServiceFeatureManager(str(config_path))
         self.phase_logger = None
         self.output_writer = None
-        
+
+        # Initialize CheckDBReader for loading discovery configs from database
+        self.config_source = os.getenv('DISCOVERY_CONFIG_SOURCE', 'database').lower()
+        self.check_db_reader = None
+        if self.config_source in ('database', 'db', 'yaml_first'):
+            try:
+                self.check_db_reader = CheckDBReader()
+                if self.check_db_reader.check_connection():
+                    logger.info(f"CheckDBReader initialized (config_source={self.config_source})")
+                else:
+                    logger.warning("CheckDBReader connection failed, will use YAML only")
+                    self.check_db_reader = None
+            except Exception as e:
+                logger.warning(f"Failed to initialize CheckDBReader: {e}")
+                self.check_db_reader = None
+
         if self.use_database and not self.db:
             raise ValueError("DatabaseManager required when using database mode")
     
@@ -82,10 +98,11 @@ class DiscoveryEngine:
     def run_discovery_scan(self, customer_id: str, tenant_id: str,
                           provider: str, hierarchy_id: str,
                           hierarchy_type: str, services: List[str],
-                          regions: List[str] = None) -> str:
+                          regions: List[str] = None,
+                          discovery_scan_id: str = None) -> str:
         """
         Run discovery scan for all services and store in database
-        
+
         Args:
             customer_id: Customer ID
             tenant_id: Tenant ID (per CSP)
@@ -94,11 +111,13 @@ class DiscoveryEngine:
             hierarchy_type: Hierarchy type ('account', 'project', 'subscription', etc.)
             services: List of service names to scan
             regions: List of regions to scan (None for global services)
-        
+            discovery_scan_id: UUID from API server (if None, generates one)
+
         Returns:
-            scan_id: Unique scan identifier
+            discovery_scan_id: Unique scan identifier (UUID)
         """
-        scan_id = f"discovery_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        import uuid as _uuid
+        scan_id = discovery_scan_id or str(_uuid.uuid4())
         
         # Setup phase logger and progressive output
         # Use OUTPUT_DIR env var if set (for Kubernetes), otherwise use project root
@@ -223,19 +242,37 @@ class DiscoveryEngine:
         }
         
         try:
-            # Check if service has discoveries file (use absolute path)
+            # Load discovery config: try YAML file and/or database based on config_source
             engine_dir = Path(__file__).parent.parent
             discoveries_file = engine_dir / "services" / service / "discoveries" / f"{service}.discoveries.yaml"
-            
-            if not discoveries_file.exists():
-                self.phase_logger.warning(f"  ⚠️  Discoveries file not found: {discoveries_file}")
-                result['error'] = f"Discoveries file not found: {discoveries_file}"
-                result['error_type'] = 'missing_file'
+            discoveries_config = None
+
+            if self.config_source in ('yaml', 'yaml_first'):
+                # Try YAML first
+                if discoveries_file.exists():
+                    with open(discoveries_file) as f:
+                        discoveries_config = yaml.safe_load(f)
+                    self.phase_logger.info(f"  [{service}] Loaded config from YAML file")
+
+            if discoveries_config is None and self.check_db_reader:
+                # Try database (rule_discoveries table in check DB)
+                db_config = self.check_db_reader.read_discoveries_config(service, provider)
+                if db_config:
+                    discoveries_config = db_config
+                    self.phase_logger.info(f"  [{service}] Loaded config from database (rule_discoveries)")
+
+            if discoveries_config is None and self.config_source not in ('yaml', 'yaml_first'):
+                # Final fallback: try YAML file
+                if discoveries_file.exists():
+                    with open(discoveries_file) as f:
+                        discoveries_config = yaml.safe_load(f)
+                    self.phase_logger.info(f"  [{service}] Loaded config from YAML file (fallback)")
+
+            if discoveries_config is None:
+                self.phase_logger.warning(f"  ⚠️  No discovery config found for {service} (checked DB and YAML)")
+                result['error'] = f"No discovery config found for {service}"
+                result['error_type'] = 'missing_config'
                 return result
-            
-            # Load discoveries config
-            with open(discoveries_file) as f:
-                discoveries_config = yaml.safe_load(f)
             
             discoveries_list = discoveries_config.get('discovery', [])
             self.phase_logger.info(f"  [{service}] Found {len(discoveries_list)} discoveries")

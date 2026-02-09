@@ -1,0 +1,53 @@
+{
+  "filename": "a_function_should_include_a_single_point_of_exit_a_metadata.json",
+  "rule_id": "function_include_single_point",
+  "title": "A function should include a single point of exit at the end of the function",
+  "description": "A function should have a single point of exit at the end of the functionAnalyze your codeconsistency-conventionalmaintainabilityCode Smellbased-on-misrabrain-overloadWhy is this an issue?More InfoThis is required by IEC 61508, under good programming style.Noncompliant code exampleint function1() { return 3; } void function2() { function1(); } int function3(char* ptr) /* Noncompliant; two explicit returns */ { if (ptr == NULL) return -1; return 7; } void function4(char *ptr) /* Noncompliant; two returns, one explicit and one implicit */ { if (1) return; printf(\"hello world!\\n\"); }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025Sona",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int function3(char* ptr) { // Noncompliant: multiple exit points\n    if (ptr == NULL) return -1;\n    if (strlen(ptr) == 0) return -2;\n    return 7;\n}\n\nvoid function4(char *ptr) { // Noncompliant: early return\n    if (ptr == NULL) return;\n    printf(\"hello world!\\n\");\n    if (some_condition) return;\n    cleanup();\n}"
+    ],
+    "compliant": [
+      "int function3(char* ptr) { // Compliant: single exit point\n    int result = 7;\n    if (ptr == NULL) {\n        result = -1;\n    } else if (strlen(ptr) == 0) {\n        result = -2;\n    }\n    return result;\n}\n\nvoid function4(char *ptr) { // Compliant: single exit point\n    if (ptr != NULL) {\n        printf(\"hello world!\\n\");\n        if (some_condition) {\n            // handle condition\n        }\n        cleanup();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1005"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\breturn\\s+[^;]+;[\\s\\S]*?\\breturn\\s+[^;]+;",
+          "\\breturn\\s*;[\\s\\S]*?\\breturn\\s*;",
+          "\\breturn\\s*;[\\s\\S]*?\\breturn\\s+[^;]+;",
+          "\\breturn\\s+[^;]+;[\\s\\S]*?\\breturn\\s*;"
+        ],
+        "exclude_patterns": [
+          "\\[\\s*\\]\\s*\\([^)]*\\)\\s*(?:->\\s*\\w+)?\\s*\\{[^}]*\\breturn[^}]*\\}",
+          "auto\\s+\\w+\\s*=\\s*\\[\\s*\\][^{]*\\{[^}]*\\breturn[^}]*\\}",
+          "printf\\s*\\([^)]*\"[^\"]*return[^\"]*\"[^)]*\\)",
+          "std::cout\\s*<<[^;]*\"[^\"]*return[^\"]*\"",
+          "//[^\\n]*return",
+          "/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/[^\\n]*return"
+        ],
+        "message": "A function should include a single point of exit at the end of the function"
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "filename": "globals_should_not_depend_on_possibly_not_yet_init_metadata.json",
+  "rule_id": "globals_depend_possibly_yet",
+  "title": "Globals should not depend on possibly not yet initialized variables",
+  "description": "This rule raises an issue if the initializer of a global variable a, refers to another global variable b, when there is no guarantee that b is initialized before a. C++ allows global variables to have arbitrally complex initializers. Such variables are zero-initialized statically, and further initialization is performed at runtime, in the process referred to as dynamic initialization.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// file1.cpp\nextern int config_value;  // Declared elsewhere\nint derived_value = config_value * 2;  // Noncompliant: may use uninitialized value\n\n// file2.cpp\nint config_value = 42;  // Definition - initialization order undefined",
+      "// Another noncompliant example\nstruct GlobalObject {\n    GlobalObject(int val) : value(val) {}\n    int value;\n};\n\nGlobalObject obj1(10);\nGlobalObject obj2(obj1.value);  // Noncompliant: obj1 may not be initialized yet",
+      "// Noncompliant: Cross-translation-unit dependency\n// header.h\nextern std::string global_name;\nextern int global_size;\n\n// file1.cpp\nstd::string global_name = \"example\";\n\n// file2.cpp\nint global_size = global_name.length();  // Noncompliant: undefined order"
+    ],
+    "compliant": [
+      "// Compliant: Using initialization function\nint getConfigValue() {\n    static int config_value = 42;  // Initialized on first call\n    return config_value;\n}\n\nint getDerivedValue() {\n    static int derived_value = getConfigValue() * 2;\n    return derived_value;\n}",
+      "// Another compliant example using static local variables\nstruct GlobalObject {\n    GlobalObject(int val) : value(val) {}\n    int value;\n};\n\nGlobalObject& getObj1() {\n    static GlobalObject obj(10);\n    return obj;\n}\n\nGlobalObject& getObj2() {\n    static GlobalObject obj(getObj1().value);\n    return obj;\n}",
+      "// Compliant: Using constants or literal initialization\nconst int BUFFER_SIZE = 1024;  // Constant initialization\nconst int MAX_ITEMS = 100;\nint buffer[BUFFER_SIZE];  // Using constant - safe",
+      "// Compliant: Using meyer's singleton pattern\nclass Configuration {\npublic:\n    static Configuration& getInstance() {\n        static Configuration instance;  // Guaranteed initialized on first call\n        return instance;\n    }\n    \n    int getValue() const { return value_; }\n    \nprivate:\n    Configuration() : value_(42) {}\n    int value_;\n};\n\n// Safe access\nint derived = Configuration::getInstance().getValue() * 2;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-7119"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_global_initialization_order",
+        "message": "Global variables should not depend on other globals due to undefined initialization order."
+      }
+    ]
+  }
+}

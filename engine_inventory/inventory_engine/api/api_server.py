@@ -2,6 +2,36 @@
 Inventory Engine API Server
 
 FastAPI server for inventory scanning and querying.
+
+=== DATABASE & TABLE MAP ===
+This module connects to THREE databases:
+
+1. threat_engine_inventory (INVENTORY DB) — via get_database_config("inventory")
+   Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_USER / INVENTORY_DB_PASSWORD
+   Tables READ:
+     - inventory_report      : Scan-level summaries (get_scan_summary, get_latest_scan_id)
+     - inventory_findings     : Asset records (list_assets, get_asset)
+     - inventory_relationships: Resource edges (list_relationships, get_asset_relationships)
+   Tables WRITTEN (via orchestrator → PostgresIndexWriter):
+     - inventory_report       : INSERT on scan completion
+     - inventory_findings     : UPSERT per asset
+     - inventory_relationships: INSERT per relationship
+
+2. threat_engine_discoveries (DISCOVERIES DB) — via get_discovery_reader()
+   Env: DISCOVERIES_DB_HOST / DISCOVERIES_DB_PORT / DISCOVERIES_DB_NAME / DISCOVERIES_DB_USER / DISCOVERIES_DB_PASSWORD
+   Tables READ:
+     - discovery_report   : List scans, get latest scan ID
+     - discovery_findings  : Read discovery records for normalization
+
+3. threat_engine_check (CHECK DB) — via CheckDBReader (optional enrichment)
+   Env: CHECK_DB_HOST / CHECK_DB_PORT / CHECK_DB_NAME / CHECK_DB_USER / CHECK_DB_PASSWORD
+   Tables READ:
+     - check_findings : Aggregate posture (PASS/FAIL/ERROR counts per resource_uid)
+
+4. LOCAL FILES (legacy, for drift/graph/summary endpoints that haven't been migrated to DB)
+   Path: INVENTORY_OUTPUT_DIR or engine_output/engine_inventory/output/{tenant_id}/{scan_run_id}/normalized/
+   Files: assets.ndjson, relationships.ndjson, drift.ndjson, summary.json
+===
 """
 
 import os

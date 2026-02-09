@@ -1,0 +1,49 @@
+{
+  "filename": "the_value_of_a_complex_expression_should_only_be_c_metadata.json",
+  "rule_id": "value_complex_expression_only",
+  "title": "The value of a complex expression should only be cast to a type that is narrower and of the same signedness as the underlying type of the expression",
+  "description": "The value of a complex expression should only be cast to a type that is narrower and of the same signedness as the underlying type of the expressionAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misraWhy is this an issue?More InfoIf a cast is to be used on any complex expression, the type of cast that may be applied is severely restricted. As explained in MISRA C 2004, section 6.10, conversions on complex expressions are often a source of confusion and it is therefore wise to be cautious. In order to comply with these rules, it may be necessary to use a temporary variable and introduce an extra statement.Noncompliant code example..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "double f64a = 1.0, f64b = 2.0;\nfloat f32a = 1.0f, f32b = 2.0f;\nint32_t s32a = 10, s32b = 5;\nuint16_t u16a = 100, u16b = 200;\nuint8_t u8a = 10, u8b = 20;\nint16_t s16a = 100, s16b = 200;\n\n// Noncompliant examples:\nfloat result1 = (float)(f64a + f64b);        // Widening cast\ndouble result2 = (double)(f32a + f32b);      // Signedness change\ndouble result3 = (double)(s32a / s32b);      // Type change\nuint32_t result4 = (uint32_t)(u16a + u16b);  // Widening cast\nuint16_t result5 = (uint16_t)(u8a * u8b);    // Promotion then cast\nint32_t result6 = (int32_t)(s16a * s16b);    // Widening cast",
+      "// More noncompliant examples\nuint16_t result7 = (uint16_t)(f64a + f64b);   // Type category change\nfloat result8 = (float)(u16a + u16b);         // Type category change"
+    ],
+    "compliant": [
+      "double f64a = 1.0, f64b = 2.0;\nfloat f32a = 1.0f, f32b = 2.0f;\nint32_t s32a = 10, s32b = 5;\nuint16_t u16a = 100, u16b = 200;\nuint8_t u8a = 10, u8b = 20;\nint16_t s16a = 100, s16b = 200;\n\n// Compliant examples:\nfloat temp1 = (float)f64a;\nfloat result1 = temp1 + (float)f64b;         // Cast individual operands\n\nfloat result2 = f32a + f32b;                 // No cast needed\n\nint32_t temp2 = s32a / s32b;\nint16_t result3 = (int16_t)temp2;            // Narrowing same signedness\n\nuint32_t temp3 = (uint32_t)u16a + (uint32_t)u16b;\nuint16_t result4 = (uint16_t)temp3;          // Explicit temporary",
+      "// Using intermediate variables for clarity\ndouble expr_result = f64a + f64b;\nfloat final_result = (float)expr_result;     // Cast simple expression\n\n// Direct assignment without complex casting\nint32_t simple_result = s32a + s32b;         // No cast needed"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-851"
+  ],
+  "logic": {
+    "node_types": [
+      "AssignmentExpression",
+      "ArithmeticExpression",
+      "CastExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\((?:float|double)\\)\\([^)]*[+\\-*/%][^)]*\\)",
+          "\\((?:int|short|long|char)\\)\\([^)]*[+\\-*/%][^)]*\\)",
+          "\\((?:uint|unsigned)\\w*\\)\\([^)]*[+\\-*/%][^)]*\\)",
+          "\\(\\w+_t\\)\\([^)]*[+\\-*/%][^)]*\\)"
+        ],
+        "message": "The value of a complex expression should only be cast to a type that is narrower and of the same signedness as the underlying type of the expression"
+      }
+    ]
+  }
+}

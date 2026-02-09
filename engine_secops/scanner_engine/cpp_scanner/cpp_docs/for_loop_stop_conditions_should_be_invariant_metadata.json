@@ -1,0 +1,45 @@
+{
+  "filename": "for_loop_stop_conditions_should_be_invariant_metadata.json",
+  "rule_id": "loop_stop_conditions_invariant",
+  "title": "for loop stop conditions should be invariant",
+  "description": "\"for\" loop stop conditions should be invariantAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrapitfallWhy is this an issue?More InfoAforloop stop condition should test the loop counter against an invariant value (i.e. one that is true at both the beginning and ending of every loop iteration). Ideally, this means that the stop condition is set to a local variable just before the loop begins.Stop conditions that are not invariant are slightly less efficient, as well as being difficult to understand and maintain, and likely lead to the introduction of errors in the future.This rule tracks three types of non-invariant stop conditions:When the loop counters are updated in the body of theforloopWhen the stop condition depend upon a method callWhen the stop condition de",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <vector>\n\nvoid badLoop(std::vector<int>& vec) {\n  for (int i = 0; i < vec.size(); ++i) {\n    // Noncompliant - stop condition calls method each iteration\n    vec.push_back(i); // Modifies container size during iteration\n  }\n  \n  for (int i = 0; i < getSize(); ++i) {\n    // Noncompliant - function call in stop condition\n  }\n}"
+    ],
+    "compliant": [
+      "#include <vector>\n\nvoid goodLoop(std::vector<int>& vec) {\n  int size = vec.size(); // Store size before loop\n  for (int i = 0; i < size; ++i) {\n    // Compliant - invariant stop condition\n    // Process vec[i] without modifying size\n  }\n  \n  // Or use range-based for when possible\n  for (const auto& element : vec) {\n    // Compliant - no explicit stop condition\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-127"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "for\\s*\\([^;]*;[^;]*\\w+\\s*\\([^)]*\\)",
+          "for\\s*\\([^;]*;[^;]*[^\\w]\\w+\\s*\\([^)]*\\)",
+          "for\\s*\\([^;]*;[^;]*\\.\\w+\\s*\\([^)]*\\)",
+          "for\\s*\\([^;]*;[^;]*::\\w+\\s*\\([^)]*\\)"
+        ],
+        "message": "For loop stop conditions should be invariant. Avoid function calls in loop conditions."
+      }
+    ]
+  }
+}

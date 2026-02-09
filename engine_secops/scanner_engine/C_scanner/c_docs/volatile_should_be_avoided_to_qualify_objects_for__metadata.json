@@ -1,0 +1,47 @@
+{
+  "filename": "volatile_should_be_avoided_to_qualify_objects_for__metadata.json",
+  "rule_id": "volatile_avoided_qualify_objects",
+  "title": "volatile should be avoided to qualify objects for which the meaning is not defined",
+  "description": "\"volatile\" should not be used to qualify objects for which the meaning is not definedAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?More Infovolatilecan be used to qualify many objects in C and C++, but only a few of the possible places have a well-defined meaning (global variables and local variables, for instance). There is no well-defined meaning to the use ofvolatileto qualify a function return type or a function parameter. Furthermore, for structured bindings, thevolatilequalifier appertains to the decomposed object, which cannot be referred to.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "deprecated"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: volatile on function return type\nvolatile int getValue() {\n  return 42;\n}\n\n// Noncompliant: volatile on function parameter\nvoid processValue(volatile int param) {\n  // ...\n}\n\n// Noncompliant: volatile on structured binding\nauto [volatile x, y] = std::make_pair(1, 2);"
+    ],
+    "compliant": [
+      "// Compliant: volatile on global variable\nvolatile int globalCounter = 0;\n\n// Compliant: volatile on local variable\nvoid function() {\n  volatile int localFlag = 1;\n  // ...\n}\n\n// Compliant: volatile on struct member\nstruct Device {\n  volatile int status;\n  int data;\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-6200"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "^\\s*volatile\\s+\\w+.*\\s+\\w+\\s*\\(",
+          "^\\s*const\\s+volatile\\s+\\w+.*\\s+\\w+\\s*\\(",
+          "\\(\\s*volatile\\s+\\w+\\s+\\w+",
+          "\\(.*,\\s*volatile\\s+\\w+\\s+\\w+",
+          "\\s+volatile\\s+\\w+\\s+\\w+\\s*\\)"
+        ],
+        "message": "Volatile should be avoided to qualify objects for which the meaning is not defined. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

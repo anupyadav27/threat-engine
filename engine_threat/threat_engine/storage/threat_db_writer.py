@@ -1,21 +1,24 @@
 """
-Threat DB Writer - Normalized Schema
+Threat DB Writer - Writes to actual threat_engine_threat tables.
 
-Persists threat reports to PostgreSQL using normalized tables:
-- threat_scans (scan summary)
-- threats (one row per threat)
-- threat_resources (threat-resource mapping)
-- drift_records (drift tracking)
+Persists threat reports to PostgreSQL using:
+- threat_report (scan summary with report_data JSONB)
+- threat_detections (individual threat detections with MITRE ATT&CK)
+- threat_findings (individual findings with MITRE mapping)
 """
 
 from __future__ import annotations
 
 import json
 import os
+import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ..schemas.threat_report_schema import ThreatReport
+
+logger = logging.getLogger(__name__)
 
 
 def _default_json(obj: Any) -> Any:
@@ -33,16 +36,34 @@ def _connection_string() -> str:
     return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
 
 
+def _ensure_tenant(conn, tenant_id: str):
+    """No-op — tenants table removed from threat DB.
+
+    Tenant master lives in shared DB (threat_engine_shared).
+    tenant_id is now a plain VARCHAR column on all tables, no local FK.
+    Keeping this function signature to avoid changing all call sites.
+    """
+    pass
+
+
+def _ts_with_tz(dt: Optional[datetime]) -> Optional[datetime]:
+    """Ensure datetime has timezone info (UTC if missing)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def save_report_to_db(report: ThreatReport) -> str:
     """
-    Persist threat report to normalized PostgreSQL tables.
-    
+    Persist threat report to threat_engine_threat PostgreSQL tables.
+
     Writes to:
-    - threat_scans (scan summary)
-    - threats (individual threats)
-    - threat_resources (threat-resource mapping)
-    - drift_records (if drift threats exist)
-    
+    - threat_report (scan summary + full report_data JSONB)
+    - threat_detections (individual threats with MITRE ATT&CK)
+    - threat_findings (individual misconfig findings with MITRE mapping)
+
     Returns:
         scan_run_id
     """
@@ -51,239 +72,268 @@ def save_report_to_db(report: ThreatReport) -> str:
         from psycopg2.extras import Json
     except ImportError:
         raise RuntimeError("psycopg2 is required for Threat DB writer.")
-    
+
     scan_run_id = report.scan_context.scan_run_id
     tenant_id = report.tenant.tenant_id
+    customer_id = getattr(report.tenant, 'customer_id', None)
     c = report.scan_context.cloud
     cloud = c.value if hasattr(c, "value") else str(c)
-    t = report.scan_context.trigger_type
-    trigger_type = t.value if hasattr(t, "value") else str(t)
-    generated_at = report.generated_at
-    if generated_at.tzinfo is None:
-        generated_at = generated_at.replace(tzinfo=timezone.utc)
-    
+    generated_at = _ts_with_tz(report.generated_at)
+
+    # Generate a unique threat_scan_id for this report
+    threat_scan_id = f"threat_{scan_run_id}"
+
     conn = psycopg2.connect(_connection_string())
-    
+
     try:
-        # 1. Write scan summary to threat_scans
+        # Ensure tenant exists
+        _ensure_tenant(conn, tenant_id)
+
+        # Build severity counts from summary
         summary = report.threat_summary
         severity_counts = summary.threats_by_severity or {}
-        category_counts = summary.threats_by_category or {}
-        status_counts = summary.threats_by_status or {}
-        
-        check_scan_id = report.scan_context.scan_run_id  # This is the check scan
-        discovery_scan_id = getattr(report.scan_context, 'discovery_scan_id', None)
-        
+
+        # Build report_data JSONB (full summary + scan context)
+        report_data = {
+            "schema_version": report.schema_version,
+            "threat_summary": summary.dict() if hasattr(summary, 'dict') else dict(summary),
+            "scan_context": report.scan_context.dict() if hasattr(report.scan_context, 'dict') else {},
+        }
+
+        # 1. Write to threat_report
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO threat_scans (
-                    scan_run_id, tenant_id, check_scan_id, discovery_scan_id,
-                    cloud, trigger_type, total_threats,
-                    critical_count, high_count, medium_count, low_count, info_count,
-                    identity_count, exposure_count, data_breach_count, 
-                    data_exfiltration_count, misconfiguration_count, drift_count,
-                    open_count, resolved_count, suppressed_count,
-                    generated_at
+                INSERT INTO threat_report (
+                    threat_scan_id, tenant_id, customer_id, provider,
+                    scan_run_id, check_scan_id,
+                    started_at, completed_at, status,
+                    total_findings, critical_findings, high_findings,
+                    medium_findings, low_findings, threat_score,
+                    report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (scan_run_id) DO UPDATE SET
-                    total_threats = EXCLUDED.total_threats,
-                    critical_count = EXCLUDED.critical_count,
-                    high_count = EXCLUDED.high_count,
-                    medium_count = EXCLUDED.medium_count,
-                    low_count = EXCLUDED.low_count,
-                    info_count = EXCLUDED.info_count,
-                    identity_count = EXCLUDED.identity_count,
-                    exposure_count = EXCLUDED.exposure_count,
-                    data_breach_count = EXCLUDED.data_breach_count,
-                    data_exfiltration_count = EXCLUDED.data_exfiltration_count,
-                    misconfiguration_count = EXCLUDED.misconfiguration_count,
-                    drift_count = EXCLUDED.drift_count,
-                    open_count = EXCLUDED.open_count,
-                    resolved_count = EXCLUDED.resolved_count,
-                    suppressed_count = EXCLUDED.suppressed_count,
-                    generated_at = EXCLUDED.generated_at
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (threat_scan_id) DO UPDATE SET
+                    total_findings = EXCLUDED.total_findings,
+                    critical_findings = EXCLUDED.critical_findings,
+                    high_findings = EXCLUDED.high_findings,
+                    medium_findings = EXCLUDED.medium_findings,
+                    low_findings = EXCLUDED.low_findings,
+                    threat_score = EXCLUDED.threat_score,
+                    report_data = EXCLUDED.report_data,
+                    completed_at = EXCLUDED.completed_at,
+                    status = EXCLUDED.status
             """, (
-                scan_run_id, tenant_id, check_scan_id, discovery_scan_id,
-                cloud, trigger_type, summary.total_threats,
+                threat_scan_id,
+                tenant_id,
+                customer_id,
+                cloud,
+                scan_run_id,
+                scan_run_id,  # check_scan_id = scan_run_id
+                _ts_with_tz(report.scan_context.started_at),
+                _ts_with_tz(report.scan_context.completed_at) or generated_at,
+                "completed",
+                summary.total_threats,
                 severity_counts.get('critical', 0),
                 severity_counts.get('high', 0),
                 severity_counts.get('medium', 0),
                 severity_counts.get('low', 0),
-                severity_counts.get('info', 0),
-                category_counts.get('identity', 0),
-                category_counts.get('exposure', 0),
-                category_counts.get('data_breach', 0),
-                category_counts.get('data_exfiltration', 0),
-                category_counts.get('misconfiguration', 0),
-                category_counts.get('drift', 0),
-                status_counts.get('open', 0),
-                status_counts.get('resolved', 0),
-                status_counts.get('suppressed', 0),
-                generated_at
+                0,  # threat_score
+                Json(report_data, dumps=lambda o: json.dumps(o, default=_default_json)),
             ))
-        
-        # 2. Write individual threats
+
+        # 2. Write individual threat detections
         for threat in report.threats:
             threat_type_val = threat.threat_type.value if hasattr(threat.threat_type, 'value') else str(threat.threat_type)
             severity_val = threat.severity.value if hasattr(threat.severity, 'value') else str(threat.severity)
             confidence_val = threat.confidence.value if hasattr(threat.confidence, 'value') else str(threat.confidence)
             status_val = threat.status.value if hasattr(threat.status, 'value') else str(threat.status)
-            
-            # Extract primary_rule_id from correlations (use first finding's rule)
+
+            # Extract primary rule_id from correlations
             primary_rule_id = None
             finding_refs = []
             if threat.correlations and threat.correlations.misconfig_finding_refs:
                 finding_refs = threat.correlations.misconfig_finding_refs
-                # Try to extract rule_id from first finding in report
                 for finding in report.misconfig_findings:
                     if finding.misconfig_finding_id == finding_refs[0]:
                         primary_rule_id = finding.rule_id
                         break
-            
-            remediation_summary = None
-            remediation_steps = None
-            if threat.remediation:
-                remediation_summary = threat.remediation.get('summary')
-                remediation_steps = threat.remediation.get('steps', [])
-            
+
+            # Extract resource info from first affected asset
+            resource_arn = None
+            resource_id = None
+            resource_type = None
+            account_id = None
+            region = None
+            if threat.affected_assets:
+                asset = threat.affected_assets[0]
+                resource_arn = asset.get('resource_arn') or asset.get('resource_uid')
+                resource_id = asset.get('resource_id')
+                resource_type = asset.get('resource_type')
+                account_id = asset.get('account')
+                region = asset.get('region')
+
+            # MITRE ATT&CK data from threat
+            mitre_techniques = threat.mitre_techniques or []
+            mitre_tactics = threat.mitre_tactics or []
+
+            # Build evidence JSONB
+            evidence = {
+                "finding_refs": finding_refs,
+                "affected_assets": threat.affected_assets,
+                "remediation": threat.remediation,
+            }
+
+            # Build context JSONB
+            context = {
+                "threat_scan_id": threat_scan_id,
+                "risk_score": threat.risk_score,
+                "correlations": {
+                    "misconfig_finding_refs": finding_refs,
+                    "affected_assets": threat.affected_assets,
+                },
+            }
+
+            # Generate deterministic UUID from threat_id
+            detection_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, threat.threat_id))
+
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO threats (
-                        threat_id, scan_run_id, tenant_id, primary_rule_id,
-                        threat_type, category, severity, confidence, status,
-                        title, description, remediation_summary, remediation_steps,
-                        first_seen_at, last_seen_at, resolved_at,
-                        misconfig_count, affected_resource_count,
-                        misconfig_finding_refs
+                    INSERT INTO threat_detections (
+                        detection_id, tenant_id, scan_id,
+                        detection_type, rule_id, rule_name,
+                        resource_arn, resource_id, resource_type,
+                        account_id, region, provider,
+                        severity, confidence, status,
+                        threat_category,
+                        mitre_tactics, mitre_techniques,
+                        indicators, evidence, context,
+                        detection_timestamp, first_seen_at, last_seen_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (threat_id) DO UPDATE SET
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (detection_id) DO UPDATE SET
                         status = EXCLUDED.status,
                         last_seen_at = EXCLUDED.last_seen_at,
-                        resolved_at = EXCLUDED.resolved_at,
-                        misconfig_count = EXCLUDED.misconfig_count,
-                        affected_resource_count = EXCLUDED.affected_resource_count,
-                        updated_at = NOW()
+                        mitre_tactics = EXCLUDED.mitre_tactics,
+                        mitre_techniques = EXCLUDED.mitre_techniques,
+                        evidence = EXCLUDED.evidence,
+                        context = EXCLUDED.context
                 """, (
-                    threat.threat_id,
-                    scan_run_id,
+                    detection_uuid,
                     tenant_id,
-                    primary_rule_id,
+                    scan_run_id,
                     threat_type_val,
-                    threat_type_val,  # category = threat_type for now
+                    primary_rule_id,
+                    threat.title,
+                    resource_arn,
+                    resource_id,
+                    resource_type,
+                    account_id,
+                    region,
+                    cloud,
                     severity_val,
                     confidence_val,
                     status_val,
-                    threat.title,
-                    threat.description,
-                    remediation_summary,
-                    Json(remediation_steps) if remediation_steps else None,
-                    threat.first_seen_at,
-                    threat.last_seen_at,
-                    None,  # resolved_at (set when status changes)
-                    len(finding_refs),
-                    len(threat.affected_assets),
-                    Json(finding_refs)
+                    threat_type_val,
+                    Json(mitre_tactics),
+                    Json(mitre_techniques),
+                    Json([]),
+                    Json(evidence, dumps=lambda o: json.dumps(o, default=_default_json)),
+                    Json(context, dumps=lambda o: json.dumps(o, default=_default_json)),
+                    generated_at,
+                    _ts_with_tz(threat.first_seen_at),
+                    _ts_with_tz(threat.last_seen_at),
                 ))
-            
-            # 3. Write threat-resource mappings
-            for asset in threat.affected_assets:
-                resource_uid = asset.get('resource_uid')
-                if not resource_uid:
-                    continue
-                
-                # Collect failed rules for this resource from findings
-                failed_rules = []
-                for finding in report.misconfig_findings:
-                    if finding.misconfig_finding_id in finding_refs:
-                        if finding.resource.get('resource_uid') == resource_uid:
-                            failed_rules.append(finding.rule_id)
-                
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO threat_resources (
-                            threat_id, resource_uid, resource_arn, resource_type,
-                            account_id, region, failed_rule_ids, tags
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (threat_id, resource_uid) DO UPDATE SET
-                            failed_rule_ids = EXCLUDED.failed_rule_ids,
-                            tags = EXCLUDED.tags
-                    """, (
-                        threat.threat_id,
-                        resource_uid,
-                        asset.get('resource_arn'),
-                        asset.get('resource_type'),
-                        asset.get('account'),
-                        asset.get('region'),
-                        Json(list(set(failed_rules))) if failed_rules else None,
-                        Json(asset.get('tags', {}))
-                    ))
-            
-            # 4. Write drift records (if this threat has drift info)
-            if threat.drift:
-                drift_id = f"drift_{threat.threat_id}"
-                
-                # Extract resource from affected_assets
-                resource_uid = threat.affected_assets[0].get('resource_uid') if threat.affected_assets else None
-                resource_arn = threat.affected_assets[0].get('resource_arn') if threat.affected_assets else None
-                resource_type = threat.affected_assets[0].get('resource_type') if threat.affected_assets else None
-                account_id = threat.affected_assets[0].get('account') if threat.affected_assets else None
-                region = threat.affected_assets[0].get('region') if threat.affected_assets else None
-                
-                drift_event = threat.drift
-                current_scan = drift_event.current_scan_id
-                previous_scan = drift_event.baseline_scan_id
-                change_type = drift_event.change_type
-                
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO drift_records (
-                            drift_id, tenant_id, resource_uid, resource_arn, resource_type,
-                            account_id, region, current_scan_id, previous_scan_id,
-                            config_drift_detected, change_type, config_diff,
-                            status_drift_detected, threat_id, detected_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (drift_id) DO UPDATE SET
-                            config_drift_detected = EXCLUDED.config_drift_detected,
-                            status_drift_detected = EXCLUDED.status_drift_detected,
-                            threat_id = EXCLUDED.threat_id
-                    """, (
-                        drift_id,
-                        tenant_id,
-                        resource_uid,
-                        resource_arn,
-                        resource_type,
-                        account_id,
-                        region,
-                        current_scan,
-                        previous_scan,
-                        True,  # config_drift_detected
-                        change_type,
-                        Json({}),  # config_diff (TODO: add detailed diff)
-                        False,  # status_drift_detected (would come from check drift)
-                        threat.threat_id,
-                        threat.first_seen_at
-                    ))
-        
+
+        # 3. Write individual findings to threat_findings
+        for finding in report.misconfig_findings:
+            severity_val = finding.severity.value if hasattr(finding.severity, 'value') else str(finding.severity)
+
+            # MITRE data from finding
+            mitre_techniques = finding.mitre_techniques or []
+            mitre_tactics = finding.mitre_tactics or []
+            threat_category = finding.threat_category
+
+            # Build evidence and finding_data JSONB
+            evidence_data = {
+                "checked_fields": finding.checked_fields,
+                "evidence_refs": finding.evidence_refs,
+            }
+            finding_data = {
+                "resource": finding.resource,
+                "finding_key": finding.finding_key,
+                "title": finding.title,
+                "description": finding.description,
+                "remediation": finding.remediation,
+                "domain": finding.domain,
+                "risk_score": finding.risk_score,
+                "threat_tags": finding.threat_tags,
+            }
+
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO threat_findings (
+                        finding_id, threat_scan_id, tenant_id, customer_id,
+                        scan_run_id, rule_id, threat_category,
+                        severity, status,
+                        resource_type, resource_id, resource_arn, resource_uid,
+                        account_id, region,
+                        mitre_tactics, mitre_techniques,
+                        evidence, finding_data,
+                        first_seen_at, last_seen_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (finding_id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        mitre_tactics = EXCLUDED.mitre_tactics,
+                        mitre_techniques = EXCLUDED.mitre_techniques,
+                        finding_data = EXCLUDED.finding_data
+                """, (
+                    finding.misconfig_finding_id,
+                    threat_scan_id,
+                    tenant_id,
+                    customer_id,
+                    scan_run_id,
+                    finding.rule_id,
+                    threat_category,
+                    severity_val,
+                    finding.result,
+                    finding.resource.get('resource_type'),
+                    finding.resource.get('resource_id'),
+                    finding.resource.get('resource_arn'),
+                    finding.resource.get('resource_uid'),
+                    finding.account,
+                    finding.region,
+                    Json(mitre_tactics),
+                    Json(mitre_techniques),
+                    Json(evidence_data, dumps=lambda o: json.dumps(o, default=_default_json)),
+                    Json(finding_data, dumps=lambda o: json.dumps(o, default=_default_json)),
+                    _ts_with_tz(finding.first_seen_at),
+                    _ts_with_tz(finding.last_seen_at),
+                ))
+
         conn.commit()
+        logger.info("Threat report saved to DB",
+                     extra={"extra_fields": {
+                         "threat_scan_id": threat_scan_id,
+                         "threats": len(report.threats),
+                         "findings": len(report.misconfig_findings),
+                     }})
         return scan_run_id
-        
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Failed to save threat report to DB: {e}", exc_info=True)
+        raise
+
     finally:
         conn.close()
 
 
 def get_report_from_db(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, Any]]:
     """
-    Load threat report from normalized tables and reconstruct report format.
-    
-    Queries:
-    - threat_scans for summary
-    - threats for threat list
-    - threat_resources for affected assets
-    
+    Load threat report from threat_report + threat_detections + threat_findings.
+
     Returns:
         Reconstructed ThreatReport dict or None
     """
@@ -292,134 +342,136 @@ def get_report_from_db(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, A
         from psycopg2.extras import RealDictCursor
     except ImportError:
         return None
-    
+
     conn = psycopg2.connect(_connection_string())
-    
+
     try:
-        # Get scan summary
+        threat_scan_id = f"threat_{scan_run_id}"
+
+        # Get report summary
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT * FROM threat_scans
-                WHERE tenant_id = %s AND scan_run_id = %s
-            """, (tenant_id, scan_run_id))
+                SELECT * FROM threat_report
+                WHERE tenant_id = %s AND (scan_run_id = %s OR threat_scan_id = %s)
+            """, (tenant_id, scan_run_id, threat_scan_id))
             scan = cur.fetchone()
-        
+
         if not scan:
             return None
-        
-        # Get all threats for this scan
+
+        # Get threat detections
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT * FROM threats
-                WHERE tenant_id = %s AND scan_run_id = %s
-                ORDER BY severity DESC, threat_type
+                SELECT * FROM threat_detections
+                WHERE tenant_id = %s AND scan_id = %s
+                ORDER BY severity, detection_type
             """, (tenant_id, scan_run_id))
-            threat_rows = cur.fetchall()
-        
-        # Reconstruct report format
+            detection_rows = cur.fetchall()
+
+        # Get findings
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM threat_findings
+                WHERE tenant_id = %s AND threat_scan_id = %s
+                ORDER BY severity, rule_id
+            """, (tenant_id, scan['threat_scan_id']))
+            finding_rows = cur.fetchall()
+
+        # Reconstruct threats
         threats = []
-        for t in threat_rows:
-            # Get affected resources for this threat
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT * FROM threat_resources
-                    WHERE threat_id = %s
-                """, (t['threat_id'],))
-                resources = cur.fetchall()
-            
-            affected_assets = []
-            for r in resources:
-                affected_assets.append({
-                    'resource_uid': r['resource_uid'],
-                    'resource_arn': r['resource_arn'],
-                    'resource_id': None,
-                    'resource_type': r['resource_type'],
-                    'account': r['account_id'],
-                    'region': r['region'],
-                    'tags': r['tags'] or {}
-                })
-            
+        for d in detection_rows:
+            evidence_data = d.get('evidence') or {}
+            context_data = d.get('context') or {}
             threats.append({
-                'threat_id': t['threat_id'],
-                'threat_type': t['threat_type'],
-                'title': t['title'],
-                'description': t['description'],
-                'severity': t['severity'],
-                'confidence': t['confidence'],
-                'status': t['status'],
-                'first_seen_at': t['first_seen_at'].isoformat() if t['first_seen_at'] else None,
-                'last_seen_at': t['last_seen_at'].isoformat() if t['last_seen_at'] else None,
-                'affected_assets': affected_assets,
-                'correlations': {
-                    'misconfig_finding_refs': t['misconfig_finding_refs'] or [],
-                    'affected_assets': affected_assets
-                },
-                'remediation': {
-                    'summary': t['remediation_summary'],
-                    'steps': t['remediation_steps'] or []
-                } if t['remediation_summary'] else None,
+                'threat_id': str(d['detection_id']),
+                'threat_type': d['detection_type'],
+                'title': d['rule_name'] or d['detection_type'],
+                'description': '',
+                'severity': d['severity'],
+                'confidence': d['confidence'],
+                'status': d['status'],
+                'first_seen_at': d['first_seen_at'].isoformat() if d['first_seen_at'] else None,
+                'last_seen_at': d['last_seen_at'].isoformat() if d['last_seen_at'] else None,
+                'affected_assets': evidence_data.get('affected_assets', []),
+                'correlations': context_data.get('correlations', {}),
+                'remediation': evidence_data.get('remediation'),
                 'evidence_refs': [],
-                'drift': None  # TODO: reconstruct from drift_records if needed
+                'drift': None,
+                'mitre_techniques': d.get('mitre_techniques') or [],
+                'mitre_tactics': d.get('mitre_tactics') or [],
+                'risk_score': context_data.get('risk_score'),
             })
-        
-        # Reconstruct full report
+
+        # Reconstruct findings
+        misconfig_findings = []
+        for f in finding_rows:
+            fd = f.get('finding_data') or {}
+            misconfig_findings.append({
+                'misconfig_finding_id': f['finding_id'],
+                'finding_key': fd.get('finding_key', ''),
+                'rule_id': f['rule_id'],
+                'severity': f['severity'],
+                'result': f['status'],
+                'account': f['account_id'] or '',
+                'region': f['region'] or '',
+                'service': '',
+                'resource': fd.get('resource', {}),
+                'evidence_refs': [],
+                'checked_fields': (f.get('evidence') or {}).get('checked_fields', []),
+                'mitre_techniques': f.get('mitre_techniques') or [],
+                'mitre_tactics': f.get('mitre_tactics') or [],
+                'threat_category': f.get('threat_category'),
+            })
+
+        # Build report using stored report_data or reconstruct
+        stored_data = scan.get('report_data') or {}
+
         report_dict = {
             'schema_version': 'cspm_threat_report.v1',
             'tenant': {
                 'tenant_id': tenant_id,
                 'tenant_name': None
             },
-            'scan_context': {
+            'scan_context': stored_data.get('scan_context', {
                 'scan_run_id': scan_run_id,
-                'trigger_type': scan['trigger_type'],
-                'cloud': scan['cloud'],
+                'trigger_type': 'manual',
+                'cloud': scan['provider'],
                 'accounts': [],
                 'regions': [],
                 'services': [],
-                'started_at': None,
-                'completed_at': None,
+                'started_at': scan['started_at'].isoformat() if scan.get('started_at') else None,
+                'completed_at': scan['completed_at'].isoformat() if scan.get('completed_at') else None,
                 'engine_version': None
-            },
-            'threat_summary': {
-                'total_threats': scan['total_threats'],
+            }),
+            'threat_summary': stored_data.get('threat_summary', {
+                'total_threats': scan['total_findings'],
                 'threats_by_severity': {
-                    'critical': scan['critical_count'],
-                    'high': scan['high_count'],
-                    'medium': scan['medium_count'],
-                    'low': scan['low_count']
+                    'critical': scan['critical_findings'],
+                    'high': scan['high_findings'],
+                    'medium': scan['medium_findings'],
+                    'low': scan['low_findings']
                 },
-                'threats_by_category': {
-                    'identity': scan['identity_count'],
-                    'exposure': scan['exposure_count'],
-                    'data_breach': scan['data_breach_count'],
-                    'data_exfiltration': scan['data_exfiltration_count'],
-                    'misconfiguration': scan['misconfiguration_count'],
-                    'drift': scan['drift_count']
-                },
-                'threats_by_status': {
-                    'open': scan['open_count'],
-                    'resolved': scan['resolved_count'],
-                    'suppressed': scan['suppressed_count']
-                },
+                'threats_by_category': {},
+                'threats_by_status': {},
                 'top_threat_categories': []
-            },
+            }),
             'threats': threats,
-            'misconfig_findings': [],  # Not stored in normalized schema
+            'misconfig_findings': misconfig_findings,
             'asset_snapshots': [],
             'evidence': [],
-            'generated_at': scan['generated_at'].isoformat()
+            'generated_at': scan['created_at'].isoformat() if scan.get('created_at') else None,
         }
-        
+
         return report_dict
-        
+
     finally:
         conn.close()
 
 
 def list_reports_from_db(tenant_id: str, limit: int = 100) -> List[Dict[str, Any]]:
     """
-    List threat scan summaries for a tenant.
-    
+    List threat report summaries for a tenant.
+
     Returns:
         List of scan summaries
     """
@@ -428,24 +480,26 @@ def list_reports_from_db(tenant_id: str, limit: int = 100) -> List[Dict[str, Any
         from psycopg2.extras import RealDictCursor
     except ImportError:
         return []
-    
+
     conn = psycopg2.connect(_connection_string())
     out: List[Dict[str, Any]] = []
-    
+
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT 
-                    scan_run_id, cloud, total_threats,
-                    critical_count, high_count, medium_count, low_count,
-                    identity_count, exposure_count, data_breach_count,
-                    generated_at
-                FROM threat_scans
+                SELECT
+                    scan_run_id, provider as cloud, total_findings as total_threats,
+                    critical_findings as critical_count,
+                    high_findings as high_count,
+                    medium_findings as medium_count,
+                    low_findings as low_count,
+                    created_at as generated_at
+                FROM threat_report
                 WHERE tenant_id = %s
-                ORDER BY generated_at DESC
+                ORDER BY created_at DESC
                 LIMIT %s
             """, (tenant_id, limit))
-            
+
             for row in cur.fetchall():
                 out.append({
                     'scan_run_id': row['scan_run_id'],
@@ -457,36 +511,227 @@ def list_reports_from_db(tenant_id: str, limit: int = 100) -> List[Dict[str, Any
                         'medium': row['medium_count'],
                         'low': row['low_count']
                     },
-                    'generated_at': row['generated_at'].isoformat()
+                    'generated_at': row['generated_at'].isoformat() if row['generated_at'] else None,
                 })
-        
+
         return out
-        
+
     finally:
         conn.close()
 
 
 def update_report_in_db(tenant_id: str, scan_run_id: str, report_dict: Dict[str, Any]) -> bool:
     """
-    Update threat report (primarily for status changes).
-    
-    Note: In normalized schema, typically update individual threat status
-    rather than entire report. This is kept for compatibility.
+    Update threat report data (primarily for status changes).
+    Updates report_data JSONB in threat_report table.
     """
-    # For normalized schema, this would update specific threat status
-    # Implementation depends on what fields are being updated
-    return True
+    try:
+        import psycopg2
+        from psycopg2.extras import Json
+    except ImportError:
+        return False
+
+    conn = psycopg2.connect(_connection_string())
+
+    try:
+        threat_scan_id = f"threat_{scan_run_id}"
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE threat_report
+                SET report_data = %s
+                WHERE tenant_id = %s AND threat_scan_id = %s
+            """, (
+                Json(report_dict, dumps=lambda o: json.dumps(o, default=_default_json)),
+                tenant_id,
+                threat_scan_id,
+            ))
+        conn.commit()
+        return True
+
+    except Exception:
+        return False
+
+    finally:
+        conn.close()
+
+
+def save_analyses_to_db(
+    analyses: List[Dict[str, Any]],
+) -> int:
+    """
+    Persist threat analysis results to threat_analysis table.
+
+    Args:
+        analyses: List of analysis dicts from ThreatAnalyzer.analyze_scan()
+
+    Returns:
+        Number of rows upserted.
+    """
+    if not analyses:
+        return 0
+
+    try:
+        import psycopg2
+        from psycopg2.extras import Json
+    except ImportError:
+        raise RuntimeError("psycopg2 is required for Threat DB writer.")
+
+    conn = psycopg2.connect(_connection_string())
+    count = 0
+
+    try:
+        tenant_id = analyses[0].get("tenant_id")
+        _ensure_tenant(conn, tenant_id)
+
+        for row in analyses:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO threat_analysis (
+                        detection_id, tenant_id,
+                        analysis_type, analyzer, analysis_status,
+                        risk_score, verdict,
+                        analysis_results, recommendations,
+                        related_threats, attack_chain,
+                        started_at, completed_at
+                    )
+                    VALUES (
+                        %s::uuid, %s,
+                        %s, %s, %s,
+                        %s, %s,
+                        %s, %s,
+                        %s, %s,
+                        %s, %s
+                    )
+                    ON CONFLICT (detection_id, analysis_type) DO UPDATE SET
+                        analysis_status = EXCLUDED.analysis_status,
+                        analyzer = EXCLUDED.analyzer,
+                        risk_score = EXCLUDED.risk_score,
+                        verdict = EXCLUDED.verdict,
+                        analysis_results = EXCLUDED.analysis_results,
+                        recommendations = EXCLUDED.recommendations,
+                        related_threats = EXCLUDED.related_threats,
+                        attack_chain = EXCLUDED.attack_chain,
+                        started_at = EXCLUDED.started_at,
+                        completed_at = EXCLUDED.completed_at
+                """, (
+                    row["detection_id"],
+                    row["tenant_id"],
+                    row.get("analysis_type", "risk_triage"),
+                    row.get("analyzer", "threat_analyzer.v1"),
+                    row.get("analysis_status", "completed"),
+                    row.get("risk_score"),
+                    row.get("verdict"),
+                    Json(row.get("analysis_results", {}), dumps=lambda o: json.dumps(o, default=_default_json)),
+                    Json(row.get("recommendations", []), dumps=lambda o: json.dumps(o, default=_default_json)),
+                    Json(row.get("related_threats", []), dumps=lambda o: json.dumps(o, default=_default_json)),
+                    Json(row.get("attack_chain", []), dumps=lambda o: json.dumps(o, default=_default_json)),
+                    _ts_with_tz(row.get("started_at")),
+                    _ts_with_tz(row.get("completed_at")),
+                ))
+                count += 1
+
+        conn.commit()
+        logger.info(f"Saved {count} threat analyses to DB")
+        return count
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Failed to save threat analyses to DB: {e}", exc_info=True)
+        raise
+
+    finally:
+        conn.close()
+
+
+def get_analyses_from_db(
+    tenant_id: str,
+    scan_run_id: Optional[str] = None,
+    detection_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Load threat analysis rows.
+
+    Filter by scan_run_id (via JOIN to threat_detections)
+    or by detection_id directly.
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+    except ImportError:
+        return []
+
+    conn = psycopg2.connect(_connection_string())
+
+    try:
+        if detection_id:
+            # Direct lookup by detection_id
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        a.analysis_id, a.detection_id, a.tenant_id,
+                        a.analysis_type, a.analyzer, a.analysis_status,
+                        a.risk_score, a.verdict,
+                        a.analysis_results, a.recommendations,
+                        a.related_threats, a.attack_chain,
+                        a.started_at, a.completed_at, a.created_at
+                    FROM threat_analysis a
+                    WHERE a.tenant_id = %s AND a.detection_id = %s::uuid
+                    ORDER BY a.created_at DESC
+                """, (tenant_id, detection_id))
+                return [dict(row) for row in cur.fetchall()]
+
+        elif scan_run_id:
+            # JOIN to threat_detections to filter by scan
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        a.analysis_id, a.detection_id, a.tenant_id,
+                        a.analysis_type, a.analyzer, a.analysis_status,
+                        a.risk_score, a.verdict,
+                        a.analysis_results, a.recommendations,
+                        a.related_threats, a.attack_chain,
+                        a.started_at, a.completed_at, a.created_at,
+                        d.resource_arn, d.resource_type, d.severity as detection_severity,
+                        d.rule_name, d.rule_id, d.threat_category,
+                        d.mitre_techniques, d.mitre_tactics
+                    FROM threat_analysis a
+                    JOIN threat_detections d ON a.detection_id = d.detection_id
+                    WHERE a.tenant_id = %s AND d.scan_id = %s
+                    ORDER BY a.risk_score DESC NULLS LAST
+                """, (tenant_id, scan_run_id))
+                return [dict(row) for row in cur.fetchall()]
+
+        else:
+            # All analyses for tenant (capped)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        a.analysis_id, a.detection_id, a.tenant_id,
+                        a.analysis_type, a.analyzer, a.analysis_status,
+                        a.risk_score, a.verdict,
+                        a.analysis_results, a.recommendations,
+                        a.related_threats, a.attack_chain,
+                        a.started_at, a.completed_at, a.created_at
+                    FROM threat_analysis a
+                    WHERE a.tenant_id = %s
+                    ORDER BY a.risk_score DESC NULLS LAST
+                    LIMIT 500
+                """, (tenant_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    finally:
+        conn.close()
 
 
 def update_threat_status(threat_id: str, status: str, resolved_at: Optional[datetime] = None) -> bool:
     """
-    Update individual threat status in normalized schema.
-    
+    Update individual threat detection status.
+
     Args:
-        threat_id: Threat identifier
+        threat_id: Detection UUID
         status: New status (open, resolved, suppressed, false_positive)
         resolved_at: Timestamp when resolved (if status=resolved)
-    
+
     Returns:
         True if updated successfully
     """
@@ -494,23 +739,22 @@ def update_threat_status(threat_id: str, status: str, resolved_at: Optional[date
         import psycopg2
     except ImportError:
         return False
-    
+
     conn = psycopg2.connect(_connection_string())
-    
+
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE threats
-                SET status = %s, 
-                    resolved_at = %s,
-                    updated_at = NOW()
-                WHERE threat_id = %s
+                UPDATE threat_detections
+                SET status = %s,
+                    resolved_at = %s
+                WHERE detection_id = %s::uuid
             """, (status, resolved_at, threat_id))
         conn.commit()
         return True
-        
+
     except Exception:
         return False
-        
+
     finally:
         conn.close()

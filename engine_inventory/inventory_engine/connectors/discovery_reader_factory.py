@@ -3,6 +3,25 @@ Discovery Reader Factory
 
 Factory to return appropriate discovery reader based on environment.
 Uses consolidated database system when USE_DATABASE=true.
+
+=== DATABASE & TABLE MAP ===
+This factory constructs the DB connection URL for DiscoveryDBReader.
+
+Database: threat_engine_discoveries (DISCOVERIES DB)
+Env: DISCOVERIES_DB_HOST / DISCOVERIES_DB_PORT / DISCOVERIES_DB_NAME / DISCOVERIES_DB_USER / DISCOVERIES_DB_PASSWORD
+     DISCOVERIES_DB_SCHEMA (optional, defaults to DB_SCHEMA or "public")
+     USE_DATABASE ("true" to enable DB mode; "false" uses NDJSON files)
+
+When USE_DATABASE=false:
+  Uses DiscoveryReader (file-based) reading from DISCOVERY_BASE_PATH
+
+When USE_DATABASE=true:
+  Builds postgresql:// URL and returns DiscoveryDBReader(db_url, tenant_id)
+  See discovery_db_reader.py for tables accessed.
+
+Tables READ:  None directly (delegates to DiscoveryDBReader)
+Tables WRITTEN: None
+===
 """
 
 import os

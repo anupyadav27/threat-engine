@@ -40,7 +40,9 @@ class ActivityAnalyzer:
         Args:
             aws_session: Optional boto3 session
         """
-        self.session = aws_session or boto3.Session()
+        import os
+        region = os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'ap-south-1'))
+        self.session = aws_session or boto3.Session(region_name=region)
         self.cloudtrail = self.session.client('cloudtrail')
     
     def get_s3_access_events(self, bucket: str, days_back: int = 7) -> List[ActivityEvent]:

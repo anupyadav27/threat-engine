@@ -1,0 +1,41 @@
+{
+  "filename": "log_injection_attacks_metadata.json",
+  "rule_id": "security_log_injection_attacks",
+  "title": "Prevent log injection attacks",
+  "description": "Logging user input without proper sanitization can lead to log injection attacks where attackers inject malicious content into log files. This can corrupt logs, hide attack traces, or exploit log processing systems.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Sanitize and validate all user input before including it in log messages.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"log\"\n    \"net/http\"\n)\n\n// Noncompliant: Directly logging user input\nfunc handleLogin(w http.ResponseWriter, r *http.Request) {\n    username := r.FormValue(\"username\")\n    password := r.FormValue(\"password\")\n    \n    // Dangerous: User can inject newlines and fake log entries\n    log.Printf(\"Login attempt for user: %s with password: %s\", username, password)\n    \n    if !authenticate(username, password) {\n        log.Printf(\"Failed login for user: %s\", username)\n        http.Error(w, \"Invalid credentials\", http.StatusUnauthorized)\n        return\n    }\n    log.Printf(\"Successful login for user: %s\", username)\n}\n\n// Noncompliant: Logging unsanitized error messages\nfunc processRequest(userInput string) {\n    err := validateInput(userInput)\n    if err != nil {\n        // User input in error message can contain malicious content\n        log.Printf(\"Validation failed: %s\", err.Error())\n    }\n}",
+        "description": "Directly logging user input allows attackers to inject newlines, fake log entries, or malicious content into logs."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"log\"\n    \"net/http\"\n    \"regexp\"\n    \"strings\"\n)\n\n// Compliant: Sanitize user input before logging\nfunc sanitizeForLog(input string) string {\n    // Remove or escape newlines and carriage returns\n    input = strings.ReplaceAll(input, \"\\n\", \"\\\\n\")\n    input = strings.ReplaceAll(input, \"\\r\", \"\\\\r\")\n    input = strings.ReplaceAll(input, \"\\t\", \"\\\\t\")\n    \n    // Remove non-printable characters\n    reg := regexp.MustCompile(\"[^\\x20-\\x7E]\")\n    input = reg.ReplaceAllString(input, \"?\")\n    \n    // Limit length to prevent log flooding\n    if len(input) > 100 {\n        input = input[:100] + \"...\"\n    }\n    \n    return input\n}\n\nfunc handleLoginSecure(w http.ResponseWriter, r *http.Request) {\n    username := r.FormValue(\"username\")\n    password := r.FormValue(\"password\")\n    \n    // Safe: Sanitize before logging\n    safeUsername := sanitizeForLog(username)\n    log.Printf(\"Login attempt for user: %s\", safeUsername)\n    \n    if !authenticate(username, password) {\n        log.Printf(\"Failed login for user: %s\", safeUsername)\n        http.Error(w, \"Invalid credentials\", http.StatusUnauthorized)\n        return\n    }\n    log.Printf(\"Successful login for user: %s\", safeUsername)\n}\n\n// Compliant: Use structured logging\nfunc processRequestSecure(userInput string) {\n    err := validateInput(userInput)\n    if err != nil {\n        // Log with structured fields instead of interpolating user input\n        log.Printf(\"Validation failed for input (length=%d): %v\", len(userInput), err)\n    }\n}",
+        "description": "Sanitizing user input by removing/escaping special characters and using structured logging prevents log injection attacks."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-5145"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration",
+      "call_expression"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_security_log_injection_attacks",
+        "message": "Logging user input without sanitization can lead to log injection attacks"
+      }
+    ]
+  }
+}

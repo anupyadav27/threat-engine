@@ -1,0 +1,49 @@
+{
+  "filename": "arguments_evaluation_order_should_not_be_relied_on_metadata.json",
+  "rule_id": "arguments_evaluation_order_relied",
+  "title": "Arguments evaluation order should not be relied on",
+  "description": "Arguments evaluation order should not be relied onAnalyze your codeintentionality-logicalreliabilityBugcppcoreguidelinesunpredictablelock-inWhy is this an issue?More InfoArguments evaluation order in a function call is not specified:Before C++17, the evaluation of each argument was unsequenced with the evaluation of other arguments, which can lead to undefined behavior if the same value is modified in several arguments,After C++17, it is sequenced, but in an unspecified order: the behavior is not longer undefined, but the values passed to the function will be non portable.Both cases should be avoided, because the code will probably not be what was expected.Noncompliant code examplevoid f(int i, int j); void g() { int i = 0; f(++i, ++i); // Noncompliant, the call could either be f(1,2) or f",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f(int i, int j);\n\nvoid g() {\n  int i = 0;\n  f(++i, ++i); // Noncompliant, the call could either be f(1,2) or f(2,1) (since C++17) or undefined behavior (before C++17)\n}",
+      "void process(int a, int b, int c);\n\nvoid test() {\n  int x = 5;\n  process(x++, x++, x++); // Noncompliant: multiple modifications of x in arguments\n}",
+      "int getValue();\nint global = 0;\n\nvoid func(int a, int b) {\n  printf(\"%d %d\\n\", ++global, getValue()); // Noncompliant if getValue() modifies global\n}"
+    ],
+    "compliant": [
+      "void f(int i, int j);\n\nvoid g() {\n  int i = 0;\n  ++i;\n  ++i;\n  f(i, i); // Compliant: modifications done before function call\n}",
+      "void process(int a, int b, int c);\n\nvoid test() {\n  int x = 5;\n  int a = ++x;\n  int b = ++x;\n  int c = ++x;\n  process(a, b, c); // Compliant: separate statements\n}",
+      "void func(int a, int b) {\n  int temp1 = ++global;\n  int temp2 = getValue();\n  printf(\"%d %d\\n\", temp1, temp2); // Compliant: separate evaluation\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5570"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition", "TranslationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\w+\\s*\\(\\s*\\+\\+(\\w+)\\s*,\\s*\\+\\+\\1\\s*\\)",
+          "\\w+\\s*\\(\\s*(\\w+)\\+\\+\\s*,\\s*\\1\\+\\+\\s*\\)",
+          "\\w+\\s*\\(\\s*\\+\\+(\\w+)\\s*,\\s*\\1\\+\\+\\s*\\)",
+          "\\w+\\s*\\(\\s*(\\w+)\\+\\+\\s*,\\s*\\+\\+\\1\\s*\\)",
+          "\\w+\\s*\\(\\s*--(\\w+)\\s*,\\s*--\\1\\s*\\)",
+          "\\w+\\s*\\(\\s*(\\w+)--\\s*,\\s*\\1--\\s*\\)",
+          "\\w+\\s*\\(\\s*--(\\w+)\\s*,\\s*\\1--\\s*\\)",
+          "\\w+\\s*\\(\\s*(\\w+)--\\s*,\\s*--\\1\\s*\\)"
+        ],
+        "message": "Function call arguments have undefined evaluation order. Same variable is modified multiple times in different arguments, leading to undefined behavior."
+      }
+    ]
+  }
+}

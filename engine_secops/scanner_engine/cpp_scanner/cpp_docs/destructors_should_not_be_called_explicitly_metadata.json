@@ -1,0 +1,44 @@
+{
+  "filename": "destructors_should_not_be_called_explicitly_metadata.json",
+  "rule_id": "destructors_called_explicitly",
+  "title": "Destructors should not be called explicitly",
+  "description": "Destructors should not be called explicitlyAnalyze your codeintentionality-logicalmaintainabilityCode SmellunpredictableWhy is this an issue?Destructors are invoked automatically when control leaves the scope in which the object was created. Add anexplicitdestructor call to that, and you end up with undefined behavior because the automatic destructor invocation will be invoked on an object that no longer exists. However sometimes it is acceptable to have destructor calls for some specific use-cases, i.e.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "MyClass mc;\n//...\nmc.~MyClass();  // Noncompliant: explicit destructor call\n// Object will be destroyed again when leaving scope\n\nvoid badFunction() {\n  MyClass obj;\n  // ... some code\n  obj.~MyClass(); // Noncompliant: manual destruction\n} // Undefined behavior: destructor called again here"
+    ],
+    "compliant": [
+      "void goodFunction() {\n  MyClass obj;\n  // ... some code\n  // Compliant: let destructor be called automatically\n} // Destructor called automatically when leaving scope\n\n// Valid exception: placement new scenarios\nvoid* memory = std::malloc(sizeof(MyClass));\nMyClass* obj = new(memory) MyClass();\n// ... use object\nobj->~MyClass(); // Compliant: necessary for placement new\nstd::free(memory);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3432"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "expression_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?:\\w+(?:\\[[^\\]]+\\])?|\\w+(?:\\.[a-zA-Z_]\\w*)*?)\\s*\\.\\s*~\\w+\\s*\\(\\s*\\)",
+          "(?:\\w+(?:\\[[^\\]]+\\])?|\\w+(?:\\([^)]*\\))*?)\\s*->\\s*~\\w+\\s*\\(\\s*\\)"
+        ],
+        "message": "Do not call destructors explicitly. Let RAII handle object destruction automatically."
+      }
+    ]
+  }
+}

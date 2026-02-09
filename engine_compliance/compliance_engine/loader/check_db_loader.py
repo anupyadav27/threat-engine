@@ -1,7 +1,7 @@
 """
 Check DB Loader
 
-Reads check results from PostgreSQL (threat_engine_check.check_results)
+Reads check results from PostgreSQL (threat_engine_check.check_findings)
 and converts them to the format expected by the compliance engine.
 
 Use this for the Discovery → Check → Threat → Compliance flow when
@@ -62,7 +62,14 @@ class CheckDBLoader:
         if self._connection is None or self._connection.closed:
             if not PSYCOPG_AVAILABLE:
                 raise RuntimeError("psycopg2 is required for CheckDBLoader. Install psycopg2-binary.")
-            self._connection = psycopg2.connect(self.db_url)
+            # Use individual parameters to avoid DSN password encoding issues with %2O
+            self._connection = psycopg2.connect(
+                host=os.getenv('CHECK_DB_HOST', 'localhost'),
+                port=int(os.getenv('CHECK_DB_PORT', '5432')),
+                database=os.getenv('CHECK_DB_NAME', 'threat_engine_check'),
+                user=os.getenv('CHECK_DB_USER', 'check_user'),
+                password=os.getenv('CHECK_DB_PASSWORD', 'check_password')
+            )
         return self._connection
 
     def close(self) -> None:
@@ -77,12 +84,12 @@ class CheckDBLoader:
         self.close()
 
     def _get_scan_timestamp(self, scan_id: str, tenant_id: str) -> Optional[str]:
-        """Fetch scan_timestamp from scans table."""
+        """Fetch scan_timestamp from check_report table."""
         try:
             conn = self._get_conn()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT scan_timestamp FROM scans WHERE scan_id = %s AND tenant_id = %s",
+                    "SELECT scan_timestamp FROM check_report WHERE check_scan_id = %s AND tenant_id = %s",
                     (scan_id, tenant_id),
                 )
                 row = cur.fetchone()
@@ -118,7 +125,7 @@ class CheckDBLoader:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT scan_id FROM scans
+                    SELECT check_scan_id FROM check_report
                     WHERE tenant_id = %s AND status = 'completed'
                       AND scan_type IN ('check', 'full')
                     ORDER BY scan_timestamp DESC
@@ -133,12 +140,12 @@ class CheckDBLoader:
 
         query = """
             SELECT
-                cr.scan_id, cr.customer_id, cr.tenant_id, cr.provider,
+                cr.check_scan_id, cr.customer_id, cr.tenant_id, cr.provider,
                 cr.hierarchy_id, cr.hierarchy_type, cr.rule_id,
                 cr.resource_uid, cr.resource_arn, cr.resource_id, cr.resource_type,
                 cr.status, cr.checked_fields, cr.finding_data, cr.created_at
-            FROM check_results cr
-            WHERE cr.scan_id = %s AND cr.tenant_id = %s
+            FROM check_findings cr
+            WHERE cr.check_scan_id = %s AND cr.tenant_id = %s
         """
         params: List[Any] = [effective_scan_id, tenant_id]
 
@@ -210,7 +217,7 @@ class CheckDBLoader:
             }
 
         first = check_results[0]
-        sid = scan_id or first.get("scan_id", "")
+        sid = scan_id or first.get("check_scan_id", "")
         acc = account_id or first.get("hierarchy_id", "")
         at = scanned_at or first.get("scan_timestamp", datetime.utcnow().isoformat() + "Z")
         if isinstance(at, datetime):
@@ -301,7 +308,7 @@ class CheckDBLoader:
                 [], csp=csp, scan_id=scan_id if scan_id != "latest" else None
             )
 
-        effective_scan_id = rows[0].get("scan_id")
+        effective_scan_id = rows[0].get("check_scan_id")
         scanned_at = self._get_scan_timestamp(effective_scan_id, tenant_id)
         if not scanned_at:
             scanned_at = rows[0].get("scan_timestamp")

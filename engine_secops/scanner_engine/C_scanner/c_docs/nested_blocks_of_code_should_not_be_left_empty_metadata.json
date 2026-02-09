@@ -1,0 +1,50 @@
+{
+  "filename": "nested_blocks_of_code_should_not_be_left_empty_metadata.json",
+  "rule_id": "nested_blocks_code_left",
+  "title": "Nested blocks of code should not be left empty",
+  "description": "Nested blocks of code should not be left emptyAnalyze your codeintentionality-clearmaintainabilityCode SmellsuspiciousWhy is this an issue?An empty code block is confusing. It will require some effort from maintainers to determine if it is intentional or indicates the implementation is incomplete.void foo() { int x; if (x == 42) // Noncompliant - the following nested block is empty { } else { doSomething(); } }Removing or filling the empty code blocks takes away ambiguity and generally results in a more straightforward and less surprising code.void foo() { int x; if (x != 42) { doSomething(); } }ExceptionsThe rule ignores code blocks that contain comments.Functions are not nested blocks, so they can be empty.void bar() // Compliant - functions are not nested blocks { }Available In:Catch is",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void foo() {\n  int x;\n  if (x == 42) {\n    // Noncompliant - the following nested block is empty\n  }\n  else {\n    doSomething();\n  }\n}",
+      "void bar() {\n  for(int i = 0; i < 10; i++) {\n    // Noncompliant: empty for loop body\n  }\n}",
+      "void baz() {\n  int x = getValue();\n  while(x > 0) {\n    // Noncompliant: empty while loop body\n  }\n}"
+    ],
+    "compliant": [
+      "void foo() {\n  int x;\n  if (x != 42) {\n    doSomething(); // Compliant: non-empty block\n  }\n}",
+      "void bar() {\n  for(int i = 0; i < 10; i++) {\n    printf(\"%d\", i); // Compliant: non-empty block\n  }\n}",
+      "void baz() {\n  // Compliant: functions can be empty\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-108"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "if\\s*\\([^)]*\\)\\s*\\{[^{}]*//[^}]*\\}",
+          "else\\s*\\{[^{}]*//[^}]*\\}",
+          "for\\s*\\([^)]*\\)\\s*\\{[^{}]*//[^}]*\\}",
+          "while\\s*\\([^)]*\\)\\s*\\{[^{}]*//[^}]*\\}",
+          "do\\s*\\{[^{}]*//[^}]*\\}\\s*while"
+        ],
+        "message": "Nested blocks of code should not be left empty. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

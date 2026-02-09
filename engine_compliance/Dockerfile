@@ -15,9 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY engine_compliance/compliance_engine/ ./compliance_engine/
 COPY engine_compliance/data/ ./data/
 
-# Copy compliance mappings (for framework loader fallback)
-COPY data_compliance/ ./compliance/
-
 # Copy engine_common
 COPY engine_common/ ./engine_common/
 
@@ -27,10 +24,6 @@ COPY consolidated_services/ ./consolidated_services/
 # Copy API server
 COPY engine_compliance/compliance_engine/api_server.py .
 
-# Add to PYTHONPATH
-ENV PYTHONPATH=/app:$PYTHONPATH
-
-# Set Python path
 ENV PYTHONPATH=/app
 
 # Expose port

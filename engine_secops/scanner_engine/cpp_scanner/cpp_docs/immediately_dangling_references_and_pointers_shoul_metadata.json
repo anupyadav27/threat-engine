@@ -1,0 +1,41 @@
+{
+  "filename": "immediately_dangling_references_and_pointers_shoul_metadata.json",
+  "rule_id": "immediately_dangling_references_pointers",
+  "title": "Immediately dangling references and pointers should not be created",
+  "description": "You can create a temporary object as part of the evaluation of an expression. int getOffset(int i) { int x = std::vector{10, 20, 30}[i] / (i + 1); return x +std::stoi(\"15\"); The code above contains two full expressions (declaration of i and return), each contains a temporary: std::vector{10, 20, 30} is a temporary vector created in-place, and accessed directly. \"15\" is implicitly converted to temporary std::string{\"15\"} because std::stoi accepts std::string const& as an argument.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const int& ref = getValue();  // Dangling reference to temporary",
+      "const int* ptr = &getValue(); // Dangling pointer to temporary",
+      "auto& vec_elem = std::vector{1, 2, 3}[0]; // Reference to temporary vector element"
+    ],
+    "compliant": [
+      "int value = getValue(); // Copy the value, not a reference",
+      "const std::vector<int> vec{1, 2, 3};\nconst int& vec_elem = vec[0]; // Reference to persistent object",
+      "int getOffset(int i) {\n  auto vec = std::vector{10, 20, 30}; // Store temporary in variable first\n  int x = vec[i] / (i + 1);\n  return x + std::stoi(\"15\");\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5553"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_dangling_references_and_pointers",
+        "message": "Immediately dangling references and pointers should not be created"
+      }
+    ]
+  }
+}

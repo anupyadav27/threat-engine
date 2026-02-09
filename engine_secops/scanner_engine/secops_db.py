@@ -39,6 +39,10 @@ def _conn():
         dbname=db_config.database,
         user=db_config.username,
         password=db_config.password,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=5,
     )
     
     # Set schema search_path for engine_secops and engine_shared

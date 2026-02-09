@@ -3,6 +3,24 @@ Discovery Database Reader
 
 Reads discovery records from PostgreSQL database (production mode).
 Supports consolidated DB: set DB_SCHEMA (e.g. engine_configscan,engine_shared).
+
+=== DATABASE & TABLE MAP ===
+Database: threat_engine_discoveries (DISCOVERIES DB)
+Env: DISCOVERIES_DB_HOST / DISCOVERIES_DB_PORT / DISCOVERIES_DB_NAME / DISCOVERIES_DB_USER / DISCOVERIES_DB_PASSWORD
+     (constructed in discovery_reader_factory.py)
+
+Tables READ:
+  - discovery_report   : get_latest_scan_id()  — SELECT discovery_scan_id WHERE status='completed' ORDER BY scan_timestamp DESC
+                         list_available_scans() — SELECT + COUNT(*) FROM discovery_findings
+  - discovery_findings : read_discovery_records() — SELECT discovery_scan_id, customer_id, tenant_id, provider,
+                           hierarchy_id, hierarchy_type, discovery_id, region, service,
+                           COALESCE(resource_uid, resource_arn) as resource_uid,
+                           resource_arn, resource_id, emitted_fields, raw_response, config_hash,
+                           scan_timestamp, version
+                         Filters: discovery_scan_id, tenant_id, hierarchy_id, region, service
+
+Tables WRITTEN: None (read-only connector)
+===
 """
 
 import os
@@ -56,11 +74,11 @@ class DiscoveryDBReader:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT scan_id FROM scans 
-                    WHERE tenant_id = %s 
+                    SELECT discovery_scan_id FROM discovery_report
+                    WHERE tenant_id = %s
                       AND status = 'completed'
                       AND scan_type IN ('discovery', 'full')
-                    ORDER BY scan_timestamp DESC 
+                    ORDER BY scan_timestamp DESC
                     LIMIT 1
                 """, (tenant_id,))
                 result = cur.fetchone()
@@ -103,16 +121,16 @@ class DiscoveryDBReader:
         
         # Build query with filters
         query = """
-            SELECT 
-                scan_id, customer_id, tenant_id, provider,
+            SELECT
+                discovery_scan_id, customer_id, tenant_id, provider,
                 hierarchy_id, hierarchy_type, discovery_id,
-                region, service, 
+                region, service,
                 COALESCE(resource_uid, resource_arn) as resource_uid,
                 resource_arn, resource_id,
                 emitted_fields, raw_response, config_hash,
                 scan_timestamp, version
-            FROM discoveries
-            WHERE scan_id = %s AND tenant_id = %s
+            FROM discovery_findings
+            WHERE discovery_scan_id = %s AND tenant_id = %s
         """
         params = [scan_id, tenant_id]
         
@@ -157,15 +175,15 @@ class DiscoveryDBReader:
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT 
-                        scan_id,
+                    SELECT
+                        discovery_scan_id,
                         scan_timestamp,
                         status,
                         scan_type,
                         provider,
                         metadata,
-                        (SELECT COUNT(*) FROM discoveries WHERE discoveries.scan_id = scans.scan_id) as total_records
-                    FROM scans
+                        (SELECT COUNT(*) FROM discovery_findings WHERE discovery_findings.discovery_scan_id = discovery_report.discovery_scan_id) as total_records
+                    FROM discovery_report
                     WHERE tenant_id = %s
                     ORDER BY scan_timestamp DESC
                     LIMIT 50
@@ -175,7 +193,7 @@ class DiscoveryDBReader:
                 for row in cur.fetchall():
                     scan_dict = dict(row)
                     scans.append({
-                        "scan_id": scan_dict["scan_id"],
+                        "scan_id": scan_dict["discovery_scan_id"],
                         "scan_timestamp": scan_dict["scan_timestamp"].isoformat() if scan_dict["scan_timestamp"] else None,
                         "status": scan_dict["status"],
                         "metadata": scan_dict.get("metadata", {}),
@@ -189,7 +207,7 @@ class DiscoveryDBReader:
     
     def get_discovery_path(self, scan_id: str) -> str:
         """Compatibility method - returns database indicator"""
-        return f"database://discoveries?scan_id={scan_id}"
+        return f"database://discovery_findings?discovery_scan_id={scan_id}"
     
     def close(self):
         """Close database connection"""

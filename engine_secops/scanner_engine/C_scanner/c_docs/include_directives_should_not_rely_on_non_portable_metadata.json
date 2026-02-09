@@ -1,0 +1,95 @@
+{
+  "filename": "include_directives_should_not_rely_on_non_portable_metadata.json",
+  "rule_id": "include_directives_rely_nonportable",
+  "title": "Include directives should not rely on non-portable search strategy",
+  "description": "Include directives should not rely on non-portable search strategyAnalyze your codeintentionality-completemaintainabilityCode SmellpitfallWhy is this an issue?More InfoMicrosoft’s MSVC has a search strategy which differs from other compilers when resolving quoted include directives#include \"file.h\". Relying on such a strategy is not portable and may lead to compilation failure when trying to build with a different compiler.This rule raises an issue whenever the file specified in a#includedirective can only be found using the MSVC search strategy.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Relies on non-portable search paths\n#include \"..\\..\\utils\\helper.h\"  // Windows-style path separators\n#include \"../src/config.h\"         // Relies on specific directory structure\n#include \"C:\\project\\header.h\"    // Absolute path - not portable"
+    ],
+    "compliant": [
+      "// Compliant: Uses portable include strategies\n#include <stdio.h>        // Standard library header\n#include \"config.h\"      // Local header in same directory\n#include \"utils/helper.h\" // Relative path with forward slashes"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-4263"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#include\\s*\"[^\"]*\\\\[^\"]*\"",
+          "#include\\s*\"[A-Za-z]:[^\"]*\"",
+          "#include\\s*\"\\/[^\"]*\"",
+          "#include\\s*\"\\\\\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\.\\.\\/[^\"]*\\.\\.\\/[^\"]*\"",
+          "#include\\s*\"[^\"]*\\.\\.\\/[^\"]*\\.\\.\\/[^\"]*\\.\\.\\/[^\"]*\"",
+          "#include\\s*\"\\.\\/[^\"]*\\.\\.\\/[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\\\\\[^\"]*\\\\[^\"]*\"",
+          "#include\\s*\"[A-Za-z]:\\\\[^\"]*\"",
+          "#include\\s*\"[A-Za-z]:\\/[^\"]*\"",
+          "#include\\s*\"\\.\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\\\.\\.\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\[^\"]*\\\\[^\"]*\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\/[^\"]*\\/[^\"]*\\/[^\"]*\\/[^\"]*\"",
+          "#include\\s*\"\\$[^\"]*\"",
+          "#include\\s*\"%[^\"]*\"",
+          "#include\\s*\"~[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\bin\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\lib\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\include\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\src\\\\[^\"]*\"",
+          "#include\\s*\"\\/usr\\/[^\"]*\"",
+          "#include\\s*\"\\/opt\\/[^\"]*\"",
+          "#include\\s*\"\\/home\\/[^\"]*\"",
+          "#include\\s*\"\\/tmp\\/[^\"]*\"",
+          "#include\\s*\"\\\\\\$[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\\\\\[^\"]*\\\\\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\[^\"]*\\\\\\.\\.[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\windows\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\\\program files\\\\[^\"]*\"",
+          "#include\\s*\"[^\"]*\\.\\.\\\\\\.\\.\\/[^\"]*\"",
+          "#include\\s*\"[^\"]*\\.\\.\\/[^\"]*\\.\\.\\\\\\.\\.[^\"]*\""
+        ],
+        "message": "Include directive uses non-portable path that may only work with MSVC. Use portable relative paths or configure include directories properly."
+      },
+      {
+        "type": "path_portability_check",
+        "property_path": ["source"],
+        "conditions": [
+          "contains_backslash_separators",
+          "contains_absolute_path",
+          "contains_drive_letter",
+          "contains_unc_path",
+          "contains_environment_variables",
+          "contains_deep_relative_paths"
+        ],
+        "message": "Include path uses system-specific conventions that break portability across different operating systems and compilers."
+      },
+      {
+        "type": "msvc_specific_check",
+        "property_path": ["source"],
+        "conditions": [
+          "windows_specific_path",
+          "msvc_search_dependent",
+          "non_standard_directory_structure",
+          "compiler_specific_assumptions"
+        ],
+        "message": "Include directive relies on Microsoft MSVC-specific search behavior that will fail on other compilers."
+      }
+    ]
+  }
+}

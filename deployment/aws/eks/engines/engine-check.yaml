@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-check
+  namespace: threat-engine-engines
+  labels:
+    app: engine-check
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-check
+  template:
+    metadata:
+      labels:
+        app: engine-check
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-check
+        image: yadavanup84/engine-check-aws:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8002
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: INPUT_DIR
+          value: "/input"
+        - name: ENGINE_NAME
+          value: "check"
+        - name: CHECK_MODE
+          value: "database"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "2Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+
+      volumes:
+      - name: output
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-check
+  namespace: threat-engine-engines
+  labels:
+    app: engine-check
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-check

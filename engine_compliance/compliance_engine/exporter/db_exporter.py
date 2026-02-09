@@ -82,9 +82,9 @@ class DatabaseExporter:
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
 
-        -- Report Index Table
-        CREATE TABLE IF NOT EXISTS report_index (
-            report_id UUID PRIMARY KEY,
+        -- Compliance Report Table
+        CREATE TABLE IF NOT EXISTS compliance_report (
+            compliance_scan_id VARCHAR(255) PRIMARY KEY,
             tenant_id VARCHAR(255) NOT NULL,
             scan_run_id VARCHAR(255) NOT NULL,
             cloud VARCHAR(50) NOT NULL,
@@ -102,10 +102,10 @@ class DatabaseExporter:
             CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
         );
 
-        -- Finding Index Table
-        CREATE TABLE IF NOT EXISTS finding_index (
+        -- Compliance Findings Table
+        CREATE TABLE IF NOT EXISTS compliance_findings (
             finding_id VARCHAR(255) PRIMARY KEY,
-            report_id UUID NOT NULL,
+            compliance_scan_id VARCHAR(255) NOT NULL,
             tenant_id VARCHAR(255) NOT NULL,
             scan_run_id VARCHAR(255) NOT NULL,
             rule_id VARCHAR(255) NOT NULL,
@@ -123,28 +123,28 @@ class DatabaseExporter:
             finding_data JSONB NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             
-            CONSTRAINT fk_report FOREIGN KEY (report_id) REFERENCES report_index(report_id) ON DELETE CASCADE,
+            CONSTRAINT fk_report FOREIGN KEY (compliance_scan_id) REFERENCES compliance_report(compliance_scan_id) ON DELETE CASCADE,
             CONSTRAINT fk_tenant_finding FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
         );
 
         -- Indexes
-        CREATE INDEX IF NOT EXISTS idx_report_tenant_scan ON report_index(tenant_id, scan_run_id);
-        CREATE INDEX IF NOT EXISTS idx_report_completed_at ON report_index(completed_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_report_cloud ON report_index(cloud);
+        CREATE INDEX IF NOT EXISTS idx_report_tenant_scan ON compliance_report(tenant_id, scan_run_id);
+        CREATE INDEX IF NOT EXISTS idx_report_completed_at ON compliance_report(completed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_report_cloud ON compliance_report(cloud);
 
-        CREATE INDEX IF NOT EXISTS idx_finding_tenant_scan ON finding_index(tenant_id, scan_run_id);
-        CREATE INDEX IF NOT EXISTS idx_finding_severity ON finding_index(severity);
-        CREATE INDEX IF NOT EXISTS idx_finding_status ON finding_index(status);
-        CREATE INDEX IF NOT EXISTS idx_finding_rule_id ON finding_index(rule_id);
-        CREATE INDEX IF NOT EXISTS idx_finding_resource_type ON finding_index(resource_type);
-        CREATE INDEX IF NOT EXISTS idx_finding_last_seen ON finding_index(last_seen_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_finding_tenant_scan ON compliance_findings(tenant_id, scan_run_id);
+        CREATE INDEX IF NOT EXISTS idx_finding_severity ON compliance_findings(severity);
+        CREATE INDEX IF NOT EXISTS idx_finding_status ON compliance_findings(status);
+        CREATE INDEX IF NOT EXISTS idx_finding_rule_id ON compliance_findings(rule_id);
+        CREATE INDEX IF NOT EXISTS idx_finding_resource_type ON compliance_findings(resource_type);
+        CREATE INDEX IF NOT EXISTS idx_finding_last_seen ON compliance_findings(last_seen_at DESC);
 
-        CREATE INDEX IF NOT EXISTS idx_report_data_gin ON report_index USING gin(report_data);
-        CREATE INDEX IF NOT EXISTS idx_finding_data_gin ON finding_index USING gin(finding_data);
+        CREATE INDEX IF NOT EXISTS idx_report_data_gin ON compliance_report USING gin(report_data);
+        CREATE INDEX IF NOT EXISTS idx_finding_data_gin ON compliance_findings USING gin(finding_data);
 
-        CREATE INDEX IF NOT EXISTS idx_finding_severity_status ON finding_index(severity, status);
-        CREATE INDEX IF NOT EXISTS idx_finding_rule_status ON finding_index(rule_id, status);
-        CREATE INDEX IF NOT EXISTS idx_finding_tenant_severity ON finding_index(tenant_id, severity, last_seen_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_finding_severity_status ON compliance_findings(severity, status);
+        CREATE INDEX IF NOT EXISTS idx_finding_rule_status ON compliance_findings(rule_id, status);
+        CREATE INDEX IF NOT EXISTS idx_finding_tenant_severity ON compliance_findings(tenant_id, severity, last_seen_at DESC);
         """
         
         conn = self._get_connection()
@@ -159,19 +159,19 @@ class DatabaseExporter:
     def export_report(self, report: EnterpriseComplianceReport) -> str:
         """
         Export enterprise compliance report to PostgreSQL.
-        
+
         Args:
             report: EnterpriseComplianceReport to export
-        
+
         Returns:
-            Report ID (UUID)
+            compliance_scan_id string
         """
-        report_id = str(uuid.uuid4())
-        
+        compliance_scan_id = str(uuid.uuid4())
+
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-            
+
             # Insert or update tenant
             cursor.execute("""
                 INSERT INTO tenants (tenant_id, tenant_name)
@@ -179,17 +179,17 @@ class DatabaseExporter:
                 ON CONFLICT (tenant_id) DO UPDATE
                 SET tenant_name = EXCLUDED.tenant_name
             """, (report.tenant.tenant_id, report.tenant.tenant_name))
-            
+
             # Insert report
             cursor.execute("""
-                INSERT INTO report_index (
-                    report_id, tenant_id, scan_run_id, cloud, trigger_type,
+                INSERT INTO compliance_report (
+                    compliance_scan_id, tenant_id, scan_run_id, cloud, trigger_type,
                     collection_mode, started_at, completed_at,
                     total_controls, controls_passed, controls_failed,
                     total_findings, report_data
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                report_id,
+                compliance_scan_id,
                 report.tenant.tenant_id,
                 report.scan_context.scan_run_id,
                 report.scan_context.cloud.value,
@@ -203,27 +203,26 @@ class DatabaseExporter:
                 report.posture_summary.total_findings,
                 json.dumps(report.model_dump(), default=str)
             ))
-            
+
             # Insert findings
             if report.findings:
                 finding_rows = []
                 for finding in report.findings:
-                    # Extract resource info from first affected asset
                     resource_arn = None
                     resource_type = None
                     resource_id = None
                     region = None
-                    
+
                     if finding.affected_assets:
                         first_asset = finding.affected_assets[0]
                         resource_arn = first_asset.arn
                         resource_type = first_asset.resource_type
                         resource_id = first_asset.resource_id
                         region = first_asset.region
-                    
+
                     finding_rows.append((
                         finding.finding_id,
-                        report_id,
+                        compliance_scan_id,
                         report.tenant.tenant_id,
                         report.scan_context.scan_run_id,
                         finding.rule_id,
@@ -240,12 +239,12 @@ class DatabaseExporter:
                         region,
                         json.dumps(finding.model_dump(), default=str)
                     ))
-                
+
                 execute_values(
                     cursor,
                     """
-                    INSERT INTO finding_index (
-                        finding_id, report_id, tenant_id, scan_run_id,
+                    INSERT INTO compliance_findings (
+                        finding_id, compliance_scan_id, tenant_id, scan_run_id,
                         rule_id, rule_version, category, severity, confidence,
                         status, first_seen_at, last_seen_at,
                         resource_type, resource_id, resource_arn, region,
@@ -258,25 +257,25 @@ class DatabaseExporter:
                     """,
                     finding_rows
                 )
-            
+
             conn.commit()
-            return report_id
-            
+            return compliance_scan_id
+
         except Exception as e:
             conn.rollback()
             raise Exception(f"Failed to export report to database: {str(e)}")
         finally:
             conn.close()
-    
-    def get_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_report(self, compliance_scan_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve report from database."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT report_data FROM report_index WHERE report_id = %s
-            """, (report_id,))
-            
+                SELECT report_data FROM compliance_report WHERE compliance_scan_id = %s
+            """, (compliance_scan_id,))
+
             row = cursor.fetchone()
             if row:
                 return json.loads(row[0])
@@ -298,7 +297,7 @@ class DatabaseExporter:
             cursor = conn.cursor()
             
             query = """
-                SELECT finding_data FROM finding_index
+                SELECT finding_data FROM compliance_findings
                 WHERE tenant_id = %s
             """
             params = [tenant_id]

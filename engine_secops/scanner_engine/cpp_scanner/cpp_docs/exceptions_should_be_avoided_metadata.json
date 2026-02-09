@@ -1,0 +1,45 @@
+{
+  "filename": "exceptions_should_be_avoided_metadata.json",
+  "rule_id": "exceptions_avoided",
+  "title": "Exceptions should be avoided",
+  "description": "While exceptions are a common feature of modern languages, there are several reasons to potentially avoid them: They make the control flow of a program more difficult to understand because they introduce additional hidden exit points. It is difficult to introduce them gradually in a codebase that was not designed with exceptions in mind. They add to the size of each binary produced, thereby increasing both compile time and final executable size.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "performance",
+    "convention",
+    "error-handling",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int divide(int a, int b) {\n  if (b == 0) {\n    throw std::runtime_error(\"Division by zero\"); // Noncompliant\n  }\n  return a / b;\n}",
+      "void processFile(const std::string& filename) {\n  std::ifstream file(filename);\n  if (!file) {\n    throw std::invalid_argument(\"File not found\"); // Noncompliant\n  }\n  // process file\n}"
+    ],
+    "compliant": [
+      "std::optional<int> divide(int a, int b) {\n  if (b == 0) {\n    return std::nullopt; // Compliant: using optional instead of exception\n  }\n  return a / b;\n}",
+      "bool processFile(const std::string& filename, std::string& error) {\n  std::ifstream file(filename);\n  if (!file) {\n    error = \"File not found\"; // Compliant: using error parameter\n    return false;\n  }\n  // process file\n  return true;\n}",
+      "#if __cpp_lib_expected >= 202202L\nstd::expected<int, std::string> divide(int a, int b) {\n  if (b == 0) {\n    return std::unexpected(\"Division by zero\"); // Compliant: using expected\n  }\n  return a / b;\n}\n#endif"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1706"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "patterns": ["\\bthrow\\s+"],
+        "property_path": ["source"],
+        "message": "Exceptions should be avoided."
+      }
+    ]
+  }
+}

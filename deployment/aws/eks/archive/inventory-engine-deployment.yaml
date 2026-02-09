@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-engine
+  namespace: threat-engine-engines
+  labels:
+    app: inventory-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-engine
+  template:
+    metadata:
+      labels:
+        app: inventory-engine
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/inventory-engine-role
+    spec:
+      serviceAccountName: inventory-engine-sa
+      containers:
+      - name: inventory-engine
+        image: yadavanup84/inventory-engine:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: USE_S3
+          value: "true"
+        - name: S3_BUCKET
+          value: "cspm-lgtech"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: AWS_REGION
+          value: "ap-south-1"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-engine
+  namespace: threat-engine-engines
+  labels:
+    app: inventory-engine
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: inventory-engine
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-engine-lb
+  namespace: threat-engine-engines
+  labels:
+    app: inventory-engine
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: inventory-engine
+

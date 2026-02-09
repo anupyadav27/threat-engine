@@ -1,0 +1,52 @@
+{
+  "filename": "cipher_algorithms_should_be_robust_metadata.json",
+  "rule_id": "cipher_algorithms_robust",
+  "title": "Cipher algorithms should be robust",
+  "description": "Encryption algorithms are essential for protecting sensitive information and ensuring secure communication in various domains. They are used for several important reasons: Confidentiality, privacy, and intellectual property protection Security during transmission or on storage devices Data integrity, general trust, and authentication When selecting encryption algorithms, tools, or combinations, you should also consider two things: No encryption is unbreakable. The strength of an encryption algorithm is usually measured by the effort required to crack it within a reasonable time frame.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <openssl/des.h>\n\nvoid weakEncryption() {\n    DES_key_schedule key;\n    // Using DES - weak encryption algorithm\n    DES_set_key_unchecked(\"12345678\", &key);\n}",
+      "#include <openssl/evp.h>\n\nvoid insecureHash() {\n    EVP_MD_CTX *ctx = EVP_MD_CTX_new();\n    // Using MD5 - cryptographically broken\n    EVP_DigestInit_ex(ctx, EVP_md5(), NULL);\n    EVP_MD_CTX_free(ctx);\n}"
+    ],
+    "compliant": [
+      "#include <openssl/evp.h>\n\nvoid strongEncryption() {\n    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();\n    // Using AES-256 - strong encryption algorithm\n    EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, key, iv);\n    EVP_CIPHER_CTX_free(ctx);\n}",
+      "#include <openssl/evp.h>\n\nvoid secureHash() {\n    EVP_MD_CTX *ctx = EVP_MD_CTX_new();\n    // Using SHA-256 - secure hash algorithm\n    EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);\n    EVP_MD_CTX_free(ctx);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5547"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\bweakEncryption\\s*\\(",
+          "\\bDES_",
+          "\\bMD5\\b",
+          "\\bMD5_",
+          "\\bRC4\\b",
+          "\\bSHA1\\b",
+          "\\bSHA1_"
+        ],
+        "message": "Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

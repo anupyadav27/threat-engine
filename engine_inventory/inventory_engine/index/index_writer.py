@@ -2,6 +2,29 @@
 Index Writer
 
 Writes searchable indexes to Postgres/DynamoDB for UI queries.
+
+=== DATABASE & TABLE MAP ===
+Database: threat_engine_inventory (INVENTORY DB)
+Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_USER / INVENTORY_DB_PASSWORD
+     (connection URL passed from orchestrator via get_database_config)
+
+Tables WRITTEN:
+  - inventory_report        : write_scan_summary(ScanSummary)
+                              — INSERT ... ON CONFLICT (inventory_scan_id) DO UPDATE
+                              Columns: inventory_scan_id, tenant_id, started_at, completed_at,
+                                       status, total_assets, total_relationships,
+                                       assets_by_provider, assets_by_resource_type, assets_by_region,
+                                       providers_scanned, accounts_scanned, regions_scanned, errors_count
+  - inventory_findings      : write_asset_index(assets)
+                              — INSERT ... ON CONFLICT (asset_id) DO UPDATE
+                              Columns: asset_id, tenant_id, resource_uid, provider, account_id,
+                                       region, resource_type, resource_id, name, tags,
+                                       inventory_scan_id, latest_scan_run_id, updated_at
+  - inventory_relationships : write_relationship_index(relationships)
+                              — INSERT per relationship edge
+
+Tables READ: None (write-only module)
+===
 """
 
 import json
@@ -19,12 +42,12 @@ class IndexWriter:
         self.db_url = db_url
     
     def write_scan_summary(self, summary: ScanSummary):
-        """Write scan summary to inventory_run_index"""
+        """Write scan summary to inventory_scans"""
         # TODO: Implement Postgres write
         pass
     
     def write_asset_index(self, assets: List[Asset]):
-        """Write latest asset state to asset_index_latest"""
+        """Write latest asset state to inventory_findings"""
         # TODO: Implement Postgres/DynamoDB write
         pass
     
@@ -54,16 +77,16 @@ class PostgresIndexWriter(IndexWriter):
         self.conn = psycopg2.connect(_db_url_with_search_path(db_url))
     
     def write_scan_summary(self, summary: ScanSummary):
-        """Write to inventory_run_index table"""
+        """Write to inventory_report table"""
         cursor = self.conn.cursor()
         cursor.execute("""
-            INSERT INTO inventory_run_index (
-                scan_run_id, tenant_id, started_at, completed_at, status,
+            INSERT INTO inventory_report (
+                inventory_scan_id, tenant_id, started_at, completed_at, status,
                 total_assets, total_relationships, assets_by_provider,
                 assets_by_resource_type, assets_by_region, providers_scanned,
                 accounts_scanned, regions_scanned, errors_count
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (scan_run_id) DO UPDATE SET
+            ON CONFLICT (inventory_scan_id) DO UPDATE SET
                 completed_at = EXCLUDED.completed_at,
                 status = EXCLUDED.status,
                 total_assets = EXCLUDED.total_assets,
@@ -83,36 +106,38 @@ class PostgresIndexWriter(IndexWriter):
         self.conn.commit()
     
     def write_asset_index(self, assets: List[Asset]):
-        """Write to asset_index_latest table"""
+        """Write to inventory_findings table"""
         import json
         cursor = self.conn.cursor()
-        
+
         for asset in assets:
             asset_id = generate_asset_id(asset)
             cursor.execute("""
-                INSERT INTO asset_index_latest (
+                INSERT INTO inventory_findings (
                     asset_id, tenant_id, resource_uid, provider, account_id,
                     region, resource_type, resource_id, name, tags,
-                    latest_scan_run_id, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    inventory_scan_id, latest_scan_run_id, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (asset_id) DO UPDATE SET
                     resource_type = EXCLUDED.resource_type,
                     resource_id = EXCLUDED.resource_id,
                     name = EXCLUDED.name,
                     tags = EXCLUDED.tags,
+                    inventory_scan_id = EXCLUDED.inventory_scan_id,
                     latest_scan_run_id = EXCLUDED.latest_scan_run_id,
                     updated_at = EXCLUDED.updated_at
             """, (
                 asset_id, asset.tenant_id, asset.resource_uid,
                 asset.provider.value, asset.account_id, asset.region,
                 asset.resource_type, asset.resource_id, asset.name,
-                json.dumps(asset.tags), asset.scan_run_id, datetime.utcnow()
+                json.dumps(asset.tags), asset.scan_run_id, asset.scan_run_id,
+                datetime.utcnow()
             ))
-        
+
         self.conn.commit()
     
     def write_relationship_index(self, relationships: List[Relationship]):
-        """Write to relationship_index_latest table"""
+        """Write to inventory_relationships table"""
         if not relationships:
             return
         
@@ -121,8 +146,8 @@ class PostgresIndexWriter(IndexWriter):
         for rel in relationships:
             provider_val = rel.provider.value if hasattr(rel.provider, 'value') else str(rel.provider)
             cursor.execute("""
-                INSERT INTO relationship_index_latest (
-                    tenant_id, scan_run_id, provider, account_id, region,
+                INSERT INTO inventory_relationships (
+                    tenant_id, inventory_scan_id, provider, account_id, region,
                     relation_type, from_uid, to_uid, properties
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (

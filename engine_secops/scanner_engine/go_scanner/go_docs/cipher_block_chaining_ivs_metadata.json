@@ -1,0 +1,33 @@
+{
+  "filename": "cipher_block_chaining_ivs_metadata.json",
+  "rule_id": "crypto_cipher_block_chaining_ivs",
+  "title": "Use unpredictable initialization vectors",
+  "description": "Cipher Block Chaining (CBC) mode requires unpredictable initialization vectors (IVs) to ensure security. Predictable or reused IVs can allow attackers to deduce information about encrypted data or perform cryptographic attacks.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Generate cryptographically secure random IVs for each encryption operation using CBC mode.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/aes\"\n    \"crypto/cipher\"\n)\n\n// Noncompliant: Using fixed IV\nfunc encryptWithFixedIV(plaintext []byte, key []byte) ([]byte, error) {\n    block, err := aes.NewCipher(key)\n    if err != nil {\n        return nil, err\n    }\n\n    // BAD: Using a fixed, predictable IV\n    iv := make([]byte, aes.BlockSize)\n    // iv is all zeros - predictable!\n\n    mode := cipher.NewCBCEncrypter(block, iv)\n    ciphertext := make([]byte, len(plaintext))\n    mode.CryptBlocks(ciphertext, plaintext)\n    return ciphertext, nil\n}",
+        "description": "Using a fixed or predictable initialization vector makes the encryption vulnerable to attacks."
+      },
+      {
+        "code": "package main\n\nimport (\n    \"crypto/aes\"\n    \"crypto/cipher\"\n)\n\n// Noncompliant: Reusing the same IV\nvar globalIV = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}\n\nfunc encryptWithReusedIV(plaintext []byte, key []byte) ([]byte, error) {\n    block, err := aes.NewCipher(key)\n    if err != nil {\n        return nil, err\n    }\n\n    // BAD: Reusing the same IV across multiple encryptions\n    mode := cipher.NewCBCEncrypter(block, globalIV)\n    ciphertext := make([]byte, len(plaintext))\n    mode.CryptBlocks(ciphertext, plaintext)\n    return ciphertext, nil\n}",
+        "description": "Reusing the same IV across multiple encryptions compromises security."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/aes\"\n    \"crypto/cipher\"\n    \"crypto/rand\"\n    \"io\"\n)\n\n// Compliant: Generate random IV for each encryption\nfunc encryptWithRandomIV(plaintext []byte, key []byte) ([]byte, error) {\n    block, err := aes.NewCipher(key)\n    if err != nil {\n        return nil, err\n    }\n\n    // GOOD: Generate a cryptographically secure random IV\n    ciphertext := make([]byte, aes.BlockSize+len(plaintext))\n    iv := ciphertext[:aes.BlockSize]\n    if _, err := io.ReadFull(rand.Reader, iv); err != nil {\n        return nil, err\n    }\n\n    mode := cipher.NewCBCEncrypter(block, iv)\n    mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)\n    return ciphertext, nil\n}",
+        "description": "Generate a cryptographically secure random IV for each encryption operation."
+      }
+    ]
+  },
+  "references": ["https://rules.sonarsource.com/go/RSPEC-3329"],
+  "logic": {
+    "custom_function": "check_cipher_block_chaining_ivs"
+  }
+}

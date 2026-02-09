@@ -1,0 +1,72 @@
+{
+  "filename": "gnu_extensions_should_be_avoided_metadata.json",
+  "rule_id": "gnu_extensions_avoided",
+  "title": "GNU extensions should be avoided",
+  "description": "GNU extensions should not be used",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: GNU extension ternary operator with omitted second operand\nint result = condition ? : defaultValue;\n\n// Noncompliant: Case ranges in switch statements\nswitch(value) {\n  case 1...5: // GNU extension\n    doSomething();\n    break;\n}\n\n// Noncompliant: Array initializer without =\nint arr[] = { [0] 10, [1] 20 };"
+    ],
+    "compliant": [
+      "// Compliant: Standard C ternary operator\nint result = condition ? condition : defaultValue;\n\n// Compliant: Standard switch statement\nswitch(value) {\n  case 1:\n  case 2:\n  case 3:\n  case 4:\n  case 5:\n    doSomething();\n    break;\n}\n\n// Compliant: Standard array initializer\nint arr[] = { [0] = 10, [1] = 20 };"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3715"
+  ],
+  "logic": {
+    "node_types": [
+      "CaseStatement",
+      "AssignmentExpression", 
+      "VariableDeclaration",
+      "ArithmeticExpression",
+      "ConditionalExpression",
+      "ArrayExpression",
+      "FunctionDeclaration",
+      "Statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "case\\s+[^:]+\\.\\.\\.\\s*[^:]+\\s*:",
+          "\\?\\s*:",
+          "\\[[0-9]+\\]\\s+[^=][^,;}]+",
+          "\\[\\w+\\]\\s+[^=][^,;}]+", 
+          "\\(\\{[^}]*\\}\\)",
+          "typeof\\s*\\(",
+          "__attribute__\\s*\\(",
+          "\\[0\\]\\s*;",
+          "\\[\\]\\s*;",
+          "&&\\w+",
+          "goto\\s+\\*",
+          "__builtin_",
+          "__extension__",
+          "asm\\s*\\(",
+          "__asm__\\s*\\(",
+          "__inline__",
+          "__restrict__",
+          "__thread",
+          "__alignof__\\s*\\(",
+          "__typeof__\\s*\\(",
+          "\\?\\s*:(?!.*\\?)",
+          "case\\s+[a-zA-Z_]\\w*\\.\\.\\.\\s*[a-zA-Z_]\\w*:",
+          "case\\s+[0-9]+\\.\\.\\.\\s*[0-9]+:",
+          "case\\s+'[^']'\\.\\.\\.\\s*'[^']':"
+        ],
+        "message": "GNU extensions should be avoided. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

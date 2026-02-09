@@ -1,0 +1,42 @@
+{
+  "filename": "exception_classes_should_be_caught_by_reference_metadata.json",
+  "rule_id": "exception_classes_caught_reference",
+  "title": "Exception classes should be caught by reference",
+  "description": "Exception classes should be caught by referenceAnalyze your codeintentionality-clearreliabilityBugQuick FixIDE quick fixes available with SonarQube for IDEcppcoreguidelinescertmisra-c++2008Why is this an issue?How can I fix it?More InfoCatching an exception class by value rather than by reference can cause several problems:Memory is allocated unnecessarily: catching by value creates a copy of the exception object, which is destroyed at the exit of the catch block.Slicing occurs: the copy will be an instance of the exception base class rather than the potentially more specific exception class initially caught. So it may lead to a loss of precision as any additional data or functionality offered by the subclass will not be accessible.Copying the exception class may throw an exception, leadin",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void processData() {\n  try {\n    performOperation();\n  } catch (std::exception ex) { // Noncompliant: caught by value\n    std::cout << ex.what() << std::endl;\n  }\n}",
+      "void handleErrors() {\n  try {\n    riskyFunction();\n  } catch (MyCustomException e) { // Noncompliant: caught by value, causes slicing\n    e.logError();\n  }\n}"
+    ],
+    "compliant": [
+      "void processData() {\n  try {\n    performOperation();\n  } catch (const std::exception& ex) { // Compliant: caught by const reference\n    std::cout << ex.what() << std::endl;\n  }\n}",
+      "void handleErrors() {\n  try {\n    riskyFunction();\n  } catch (MyCustomException& e) { // Compliant: caught by reference\n    e.logError();\n  }\n}",
+      "void multiCatch() {\n  try {\n    complexOperation();\n  } catch (const std::runtime_error& re) { // Compliant\n    handleRuntimeError(re);\n  } catch (const std::exception& ex) { // Compliant\n    handleGenericError(ex);\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1044"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "patterns": ["catch\\s*\\(\\s*[^&]*[a-zA-Z_][a-zA-Z0-9_]*\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\)(?!.*&)"],
+        "property_path": ["source"],
+        "message": "Exception classes should be caught by reference."
+      }
+    ]
+  }
+}

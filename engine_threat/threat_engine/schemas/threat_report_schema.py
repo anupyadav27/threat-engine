@@ -92,7 +92,7 @@ class ScanContext(BaseModel):
 
 
 class MisconfigFinding(BaseModel):
-    """Normalized misconfig finding from scan output"""
+    """Normalized misconfig finding from scan output with MITRE ATT&CK enrichment"""
     misconfig_finding_id: str = Field(..., description="Stable finding identifier")
     finding_key: str = Field(..., description="Composite key: rule_id|resource_uid|account|region")
     rule_id: str = Field(..., description="Rule identifier")
@@ -106,6 +106,17 @@ class MisconfigFinding(BaseModel):
     checked_fields: List[str] = Field(default_factory=list, description="Fields that were checked")
     first_seen_at: Optional[datetime] = Field(None, description="First detection timestamp")
     last_seen_at: Optional[datetime] = Field(None, description="Last detection timestamp")
+    # MITRE ATT&CK enrichment (from rule_metadata JOIN)
+    threat_category: Optional[str] = Field(None, description="Threat category from rule_metadata")
+    threat_tags: Optional[List[str]] = Field(default_factory=list, description="Threat tags")
+    risk_score: Optional[int] = Field(None, description="Risk score (0-100)")
+    mitre_techniques: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK technique IDs")
+    mitre_tactics: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK tactic names")
+    # Rule metadata (from rule_metadata JOIN)
+    title: Optional[str] = Field(None, description="Rule title from metadata")
+    description: Optional[str] = Field(None, description="Rule description from metadata")
+    remediation: Optional[str] = Field(None, description="Remediation guidance from metadata")
+    domain: Optional[str] = Field(None, description="Security domain from metadata")
 
 
 class ThreatCorrelation(BaseModel):
@@ -131,7 +142,7 @@ class DriftEvent(BaseModel):
 
 
 class Threat(BaseModel):
-    """Individual threat detection"""
+    """Individual threat detection with MITRE ATT&CK enrichment"""
     threat_id: str = Field(..., description="Stable threat identifier")
     threat_type: ThreatType = Field(..., description="Threat category")
     title: str = Field(..., description="Threat title")
@@ -146,6 +157,28 @@ class Threat(BaseModel):
     evidence_refs: List[str] = Field(default_factory=list, description="Evidence reference IDs")
     remediation: Optional[Dict[str, Any]] = Field(None, description="Remediation guidance")
     drift: Optional[DriftEvent] = Field(None, description="Drift details if threat is drift-related")
+    # MITRE ATT&CK enrichment
+    mitre_techniques: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK technique IDs")
+    mitre_tactics: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK tactic names")
+    risk_score: Optional[int] = Field(None, description="Aggregated risk score (0-100)")
+
+
+class ThreatAnalysisResult(BaseModel):
+    """Individual threat analysis with blast radius, risk scoring and attack chain"""
+    analysis_id: Optional[str] = Field(None, description="Analysis UUID (set by DB)")
+    detection_id: str = Field(..., description="FK to threat_detections.detection_id")
+    tenant_id: str = Field(..., description="Tenant identifier")
+    analysis_type: str = Field(default="risk_triage", description="Analysis type (risk_triage, blast_radius)")
+    analyzer: str = Field(default="threat_analyzer.v1", description="Analyzer version")
+    analysis_status: str = Field(default="completed", description="pending|running|completed|failed")
+    risk_score: Optional[int] = Field(None, description="Composite risk score (0-100)")
+    verdict: Optional[str] = Field(None, description="Human-readable verdict")
+    analysis_results: Dict[str, Any] = Field(default_factory=dict, description="Blast radius, MITRE impact, reachability")
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="Prioritized recommendations")
+    related_threats: List[str] = Field(default_factory=list, description="Related detection IDs")
+    attack_chain: List[Dict[str, Any]] = Field(default_factory=list, description="Ordered attack chain steps")
+    started_at: Optional[datetime] = Field(None, description="Analysis start timestamp")
+    completed_at: Optional[datetime] = Field(None, description="Analysis completion timestamp")
 
 
 class ThreatSummary(BaseModel):

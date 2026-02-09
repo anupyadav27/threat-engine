@@ -2,6 +2,26 @@
 Database Configuration Management
 Handles database connections and credentials for engine_inventory
 Uses environment variables directly (no pydantic_settings dependency)
+
+=== DATABASE & TABLE MAP ===
+This module provides connection configuration for:
+
+1. threat_engine_inventory (INVENTORY DB) — via get_database_config("inventory") / get_inventory_config()
+   Env: INVENTORY_DB_HOST (default: localhost)
+        INVENTORY_DB_PORT (default: 5432)
+        INVENTORY_DB_NAME (default: threat_engine_inventory)
+        INVENTORY_DB_USER (default: inventory_user)
+        INVENTORY_DB_PASSWORD (default: inventory_password)
+        DB_SSL_MODE / DB_POOL_SIZE / DB_MAX_OVERFLOW / DB_POOL_TIMEOUT / DB_POOL_RECYCLE
+
+2. Neo4j (graph DB) — via get_neo4j_config()
+   Env: NEO4J_URI (default: bolt://localhost:7687)
+        NEO4J_USERNAME / NEO4J_PASSWORD / NEO4J_DATABASE
+        NEO4J_MAX_CONNECTION_LIFETIME / NEO4J_MAX_CONNECTION_POOL_SIZE
+
+Tables READ:  None (configuration only — returns connection objects)
+Tables WRITTEN: None
+===
 """
 import os
 from typing import Dict, Optional, Any
@@ -47,22 +67,37 @@ class Neo4jConnectionConfig:
 
 
 def get_database_config(engine_name: str = "inventory") -> DatabaseConnectionConfig:
-    """Get database configuration for inventory engine from environment variables"""
-    if engine_name != "inventory":
-        raise ValueError(f"Inventory engine only supports 'inventory' database, got: {engine_name}")
-    
-    return DatabaseConnectionConfig(
-        host=os.getenv("INVENTORY_DB_HOST", "localhost"),
-        port=int(os.getenv("INVENTORY_DB_PORT", "5432")),
-        database=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-        username=os.getenv("INVENTORY_DB_USER", "inventory_user"),
-        password=os.getenv("INVENTORY_DB_PASSWORD", "inventory_password"),
-        ssl_mode=os.getenv("DB_SSL_MODE", "prefer"),
-        pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
-        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
-        pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
-        pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "3600")),
-    )
+    """
+    Get database configuration for inventory engine from environment variables.
+
+    Supports:
+      - "inventory" : threat_engine_inventory (INVENTORY_DB_*)
+      - "pythonsdk" : threat_engine_pythonsdk (PYTHONSDK_DB_*)
+    """
+    if engine_name == "inventory":
+        return DatabaseConnectionConfig(
+            host=os.getenv("INVENTORY_DB_HOST", "localhost"),
+            port=int(os.getenv("INVENTORY_DB_PORT", "5432")),
+            database=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
+            username=os.getenv("INVENTORY_DB_USER", "inventory_user"),
+            password=os.getenv("INVENTORY_DB_PASSWORD", "inventory_password"),
+            ssl_mode=os.getenv("DB_SSL_MODE", "prefer"),
+            pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20")),
+            pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
+            pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "3600")),
+        )
+    elif engine_name == "pythonsdk":
+        return DatabaseConnectionConfig(
+            host=os.getenv("PYTHONSDK_DB_HOST", os.getenv("DISCOVERIES_DB_HOST", "localhost")),
+            port=int(os.getenv("PYTHONSDK_DB_PORT", os.getenv("DISCOVERIES_DB_PORT", "5432"))),
+            database=os.getenv("PYTHONSDK_DB_NAME", "threat_engine_pythonsdk"),
+            username=os.getenv("PYTHONSDK_DB_USER", os.getenv("DISCOVERIES_DB_USER", "postgres")),
+            password=os.getenv("PYTHONSDK_DB_PASSWORD", os.getenv("DISCOVERIES_DB_PASSWORD", "")),
+            ssl_mode=os.getenv("DB_SSL_MODE", "prefer"),
+        )
+    else:
+        raise ValueError(f"Inventory engine supports 'inventory' or 'pythonsdk' database, got: {engine_name}")
 
 
 def get_inventory_config() -> DatabaseConnectionConfig:
