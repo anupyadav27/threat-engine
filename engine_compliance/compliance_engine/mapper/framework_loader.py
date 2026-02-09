@@ -1,15 +1,19 @@
 """
 Framework Loader
 
-Loads compliance framework definitions and mappings from CSV/YAML files.
+Loads compliance framework definitions and mappings from CSV/YAML files
+or the rule_control_mapping database table.
 """
 
 import os
 import csv
 import yaml
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -257,15 +261,117 @@ class FrameworkLoader:
             print(f"Error loading metadata mappings: {e}")
             return {}
     
+    def load_rule_mappings_from_db(self, csp: str) -> Dict[str, List[FrameworkControl]]:
+        """
+        Load rule-to-framework mappings from the compliance DB rule_control_mapping table.
+
+        Queries: threat_engine_compliance.rule_control_mapping joined with
+                 compliance_controls and compliance_frameworks.
+
+        Args:
+            csp: Cloud service provider (used to filter rule_ids starting with '{csp}.')
+
+        Returns:
+            Dictionary mapping rule_id to list of FrameworkControl objects
+        """
+        cache_key = f"{csp}_db_mappings"
+        if cache_key in self._rule_mappings_cache:
+            return self._rule_mappings_cache[cache_key]
+
+        mappings: Dict[str, List[FrameworkControl]] = {}
+
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+
+            host = os.getenv("COMPLIANCE_DB_HOST", "localhost")
+            port = os.getenv("COMPLIANCE_DB_PORT", "5432")
+            db = os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance")
+            user = os.getenv("COMPLIANCE_DB_USER", "postgres")
+            pwd = os.getenv("COMPLIANCE_DB_PASSWORD", "")
+
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=db, user=user, password=pwd
+            )
+
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Load all mappings for this CSP in one query
+                # rule_id in mapping can be comma-separated or single
+                cur.execute("""
+                    SELECT
+                        rcm.rule_id,
+                        rcm.framework_id,
+                        rcm.control_id,
+                        cc.control_number,
+                        cc.control_name,
+                        cc.control_description,
+                        cc.severity,
+                        cf.framework_name,
+                        cf.version AS framework_version
+                    FROM rule_control_mapping rcm
+                    JOIN compliance_controls cc ON cc.control_id::text = rcm.control_id::text
+                    JOIN compliance_frameworks cf ON cf.framework_id = rcm.framework_id
+                    WHERE rcm.is_active = true
+                    ORDER BY rcm.rule_id
+                """)
+
+                rows = cur.fetchall()
+
+            conn.close()
+
+            if not rows:
+                logger.warning(f"No rule_control_mapping entries found in compliance DB")
+                self._rule_mappings_cache[cache_key] = {}
+                return {}
+
+            csp_prefix = f"{csp}."
+
+            for row in rows:
+                raw_rule_id = row['rule_id']
+
+                # Some mapping entries have comma-separated rule_ids
+                if ',' in raw_rule_id:
+                    rule_ids = [r.strip() for r in raw_rule_id.split(',')]
+                else:
+                    rule_ids = [raw_rule_id.strip()]
+
+                control = FrameworkControl(
+                    framework=row['framework_name'] or row['framework_id'],
+                    framework_version=row.get('framework_version'),
+                    control_id=row['control_number'] or row['control_id'],
+                    control_title=row['control_name'] or '',
+                    control_category=row.get('severity'),
+                    control_description=row.get('control_description')
+                )
+
+                for rid in rule_ids:
+                    if rid and rid.startswith(csp_prefix):
+                        if rid not in mappings:
+                            mappings[rid] = []
+                        mappings[rid].append(control)
+
+            logger.info(
+                f"Loaded {len(mappings)} rule mappings from compliance DB "
+                f"({sum(len(v) for v in mappings.values())} total control mappings)"
+            )
+
+        except ImportError:
+            logger.warning("psycopg2 not available — cannot load DB mappings")
+        except Exception as e:
+            logger.warning(f"Failed to load rule mappings from compliance DB: {e}")
+
+        self._rule_mappings_cache[cache_key] = mappings
+        return mappings
+
     def get_rule_mappings(self, csp: str, use_metadata: bool = False) -> Dict[str, List[FrameworkControl]]:
         """
         Get rule-to-framework mappings for a CSP.
-        Tries CSV first, then YAML, then metadata files if use_metadata=True.
-        
+        Tries CSV first, then YAML, then database, then metadata files.
+
         Args:
             csp: Cloud service provider
             use_metadata: If True, also try loading from rule metadata files
-        
+
         Returns:
             Dictionary mapping rule_id to list of FrameworkControl objects
         """
@@ -273,17 +379,22 @@ class FrameworkLoader:
         csv_mappings = self.load_rule_mappings_from_csv(csp)
         if csv_mappings:
             return csv_mappings
-        
+
         # Fall back to YAML
         yaml_mappings = self.load_rule_mappings_from_yaml(csp)
         if yaml_mappings:
             return yaml_mappings
-        
+
+        # Fall back to database (rule_control_mapping table)
+        db_mappings = self.load_rule_mappings_from_db(csp)
+        if db_mappings:
+            return db_mappings
+
         # If use_metadata and no other mappings found, try metadata files
         if use_metadata:
             metadata_mappings = self.load_rule_mappings_from_metadata(csp)
             if metadata_mappings:
                 return metadata_mappings
-        
+
         return {}
 

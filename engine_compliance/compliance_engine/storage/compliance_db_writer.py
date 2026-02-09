@@ -26,6 +26,25 @@ def _get_compliance_db_connection():
     )
 
 
+def _insert_findings_batch(conn, batch: list):
+    """Insert a batch of compliance findings using execute_values for performance."""
+    from psycopg2.extras import execute_values
+    with conn.cursor() as cur:
+        execute_values(cur, """
+            INSERT INTO compliance_findings (
+                finding_id, compliance_scan_id, tenant_id, scan_run_id,
+                rule_id, rule_version, category,
+                severity, confidence, status,
+                first_seen_at, last_seen_at,
+                resource_type, resource_id, resource_arn, region,
+                finding_data,
+                compliance_framework, control_id, control_name
+            )
+            VALUES %s
+            ON CONFLICT (finding_id) DO NOTHING
+        """, batch, page_size=500)
+
+
 def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
     """
     Save compliance report to database (compliance_report + compliance_findings).
@@ -120,12 +139,17 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                 json.dumps(compliance_report, default=str)
             ))
 
-        # 3. Insert findings (extract from framework_reports)
+        # 3. Insert findings (extract from framework_reports) — batch mode
         findings_inserted = 0
+        batch = []
+        BATCH_SIZE = 500
+
         for fw_name, fw_report in framework_reports.items():
             controls = fw_report.get('controls', [])
 
             for control in controls:
+                ctrl_id = control.get('control_id', '')
+                ctrl_title = control.get('control_title', '')
                 checks = control.get('checks', [])
 
                 for check in checks:
@@ -133,43 +157,42 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                         finding_id = str(uuid.uuid4())
                         resource = check.get('resource', {})
 
-                        with conn.cursor() as cur:
-                            cur.execute("""
-                                INSERT INTO compliance_findings (
-                                    finding_id, compliance_scan_id, tenant_id, scan_run_id,
-                                    rule_id, rule_version, category,
-                                    severity, confidence, status,
-                                    first_seen_at, last_seen_at,
-                                    resource_type, resource_id, resource_arn, region,
-                                    finding_data
-                                )
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                                ON CONFLICT (finding_id) DO NOTHING
-                            """, (
-                                finding_id,
-                                str(compliance_scan_id),
-                                tenant_id or 'default',
-                                scan_id,
-                                check.get('rule_id'),
-                                None,  # rule_version
-                                check.get('service'),
-                                check.get('severity', 'medium'),
-                                'high',  # confidence
-                                'open',  # status
-                                generated_at,
-                                generated_at,
-                                resource.get('type'),
-                                resource.get('id'),
-                                resource.get('arn'),
-                                check.get('region'),
-                                json.dumps({
-                                    'framework': fw_name,
-                                    'control_id': control.get('control_id'),
-                                    'control_title': control.get('control_title'),
-                                    'check': check
-                                }, default=str)
-                            ))
-                        findings_inserted += 1
+                        batch.append((
+                            finding_id,
+                            str(compliance_scan_id),
+                            tenant_id or 'default',
+                            scan_id,
+                            check.get('rule_id'),
+                            None,  # rule_version
+                            check.get('service'),
+                            check.get('severity', 'medium'),
+                            'high',  # confidence
+                            'open',  # status
+                            generated_at,
+                            generated_at,
+                            resource.get('type'),
+                            resource.get('id'),
+                            resource.get('arn'),
+                            check.get('region'),
+                            json.dumps({
+                                'framework': fw_name,
+                                'control_id': ctrl_id,
+                                'control_title': ctrl_title,
+                                'check': check
+                            }, default=str),
+                            fw_name,
+                            ctrl_id,
+                            ctrl_title,
+                        ))
+
+                        if len(batch) >= BATCH_SIZE:
+                            _insert_findings_batch(conn, batch)
+                            findings_inserted += len(batch)
+                            batch = []
+
+        if batch:
+            _insert_findings_batch(conn, batch)
+            findings_inserted += len(batch)
 
         conn.commit()
         print(f"Saved to DB: 1 report, {findings_inserted} findings")
