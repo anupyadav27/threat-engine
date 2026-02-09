@@ -602,14 +602,16 @@ def save_analyses_to_db(
                         %s, %s,
                         %s, %s
                     )
-                    ON CONFLICT (analysis_id) DO UPDATE SET
+                    ON CONFLICT (detection_id, analysis_type) DO UPDATE SET
                         analysis_status = EXCLUDED.analysis_status,
+                        analyzer = EXCLUDED.analyzer,
                         risk_score = EXCLUDED.risk_score,
                         verdict = EXCLUDED.verdict,
                         analysis_results = EXCLUDED.analysis_results,
                         recommendations = EXCLUDED.recommendations,
                         related_threats = EXCLUDED.related_threats,
                         attack_chain = EXCLUDED.attack_chain,
+                        started_at = EXCLUDED.started_at,
                         completed_at = EXCLUDED.completed_at
                 """, (
                     row["detection_id"],

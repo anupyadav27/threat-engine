@@ -176,7 +176,8 @@ CREATE TABLE IF NOT EXISTS threat_analysis (
     completed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
-    CONSTRAINT fk_detection_analysis FOREIGN KEY (detection_id) REFERENCES threat_detections(detection_id) ON DELETE CASCADE
+    CONSTRAINT fk_detection_analysis FOREIGN KEY (detection_id) REFERENCES threat_detections(detection_id) ON DELETE CASCADE,
+    CONSTRAINT uq_detection_analysis_type UNIQUE (detection_id, analysis_type)
 );
 
 -- ============================================================================
