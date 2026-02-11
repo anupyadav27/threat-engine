@@ -1,1 +1,0 @@
-# SecOps management tests
