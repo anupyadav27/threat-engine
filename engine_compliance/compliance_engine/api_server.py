@@ -13,11 +13,13 @@ from typing import Optional, List, Dict, Any
 import uuid
 import json
 from datetime import datetime
+import psycopg2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.storage_paths import get_project_root
+from engine_common.orchestration import get_orchestration_metadata
 
 logger = setup_logger(__name__, engine_name="engine-compliance")
 
@@ -33,6 +35,7 @@ from .exporter.json_exporter import JSONExporter
 from .exporter.csv_exporter import CSVExporter
 from .storage.trend_tracker import TrendTracker
 from .storage.report_storage import ReportStorage
+from .loader.check_db_loader import CheckDBLoader
 try:
     from .exporter.pdf_exporter import PDFExporter
     PDF_AVAILABLE = True
@@ -87,18 +90,42 @@ trend_tracker = TrendTracker()
 report_storage = ReportStorage()
 
 
+# DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
+# This wrapper maintained for backward compatibility
+def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
+    """Query scan_orchestration table to get check_scan_id for a given scan_run_id."""
+    try:
+        metadata = get_orchestration_metadata(scan_run_id)
+        if metadata:
+            check_scan_id = metadata.get("check_scan_id")
+            if check_scan_id:
+                logger.info(f"Found check_scan_id={check_scan_id} for scan_run_id={scan_run_id}")
+                return check_scan_id
+            else:
+                logger.warning(f"No check_scan_id found in scan_orchestration for scan_run_id={scan_run_id}")
+                return None
+        return None
+    except Exception as e:
+        logger.error(f"Error querying scan_orchestration table: {e}", exc_info=True)
+        return None
+
+
 class GenerateReportRequest(BaseModel):
     """Request to generate compliance report."""
-    scan_id: str
+    scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
+    orchestration_id: Optional[str] = None  # Orchestration ID (pipeline mode)
+    scan_run_id: Optional[str] = None  # Alias for orchestration_id
     csp: str  # aws, azure, gcp, alicloud, oci, ibm
     frameworks: Optional[List[str]] = None  # Optional: filter specific frameworks
 
 
 class GenerateEnterpriseReportRequest(BaseModel):
     """Request to generate enterprise-grade compliance report."""
-    scan_id: str
-    csp: str  # aws, azure, gcp, alicloud, oci, ibm
-    tenant_id: str
+    scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
+    orchestration_id: Optional[str] = None  # Orchestration ID (pipeline mode)
+    scan_run_id: Optional[str] = None  # Alias for orchestration_id
+    csp: Optional[str] = None  # aws, azure, gcp (OPTIONAL - queried from scan_orchestration if not provided)
+    tenant_id: Optional[str] = None  # OPTIONAL - queried from scan_orchestration if not provided
     tenant_name: Optional[str] = None
     trigger_type: Optional[str] = "manual"  # scheduled, manual, api, webhook
     collection_mode: Optional[str] = "full"  # full, incremental
@@ -407,7 +434,7 @@ async def generate_compliance_report(
 ):
     """
     Generate compliance report from scan results.
-    
+
     Can either:
     1. Load scan results from S3/storage using scan_id
     2. Accept direct scan results in request body
@@ -415,21 +442,39 @@ async def generate_compliance_report(
     import time
     start_time = time.time()
     report_id = str(uuid.uuid4())
-    
-    with LogContext(scan_run_id=request.scan_id):
+
+    # Determine which check_scan_id to use
+    # Priority: direct scan_id > orchestration_id lookup > scan_run_id lookup
+    check_query_scan_id = None
+
+    if request.scan_id:
+        # MODE 1: Direct scan_id provided (ad-hoc testing)
+        check_query_scan_id = request.scan_id
+        logger.info(f"Using direct check_scan_id: {check_query_scan_id}")
+    elif request.orchestration_id or request.scan_run_id:
+        # MODE 2: Orchestrated run - query scan_orchestration table
+        orchestration_id = request.orchestration_id or request.scan_run_id
+        check_query_scan_id = get_check_scan_id_from_orchestration(orchestration_id)
+
+        if not check_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"No check_scan_id found in scan_orchestration for scan_run_id={orchestration_id}. Check engine may not have completed yet.")
+    else:
+        raise HTTPException(status_code=400, detail="Either scan_id, scan_run_id, or orchestration_id must be provided")
+
+    with LogContext(scan_run_id=check_query_scan_id):
         logger.info("Generating compliance report", extra={
             "extra_fields": {
-                "scan_id": request.scan_id,
+                "check_scan_id": check_query_scan_id,
                 "csp": request.csp,
                 "frameworks": request.frameworks,
                 "report_id": report_id
             }
         })
-        
+
         try:
             # Load scan results
             logger.info("Loading scan results")
-            scan_results = load_scan_results_from_s3(request.scan_id, request.csp)
+            scan_results = load_scan_results_from_s3(check_query_scan_id, request.csp)
 
             # Generate executive dashboard
             dashboard = executive_dashboard.generate(
@@ -455,7 +500,7 @@ async def generate_compliance_report(
             # Store report
             report = {
                 'report_id': report_id,
-                'scan_id': request.scan_id,
+                'scan_id': check_query_scan_id,  # Use resolved check_scan_id
                 'csp': request.csp,
                 'generated_at': datetime.utcnow().isoformat() + 'Z',
                 'executive_dashboard': dashboard,
@@ -977,10 +1022,22 @@ async def generate_compliance_report_from_threat_db(
 
 @app.get("/api/v1/compliance/report/{report_id}")
 async def get_compliance_report(report_id: str):
-    """Get compliance report by ID."""
+    """Get compliance report by ID. Reads from DB first, then in-memory."""
+    # DB-first lookup
+    if DB_AVAILABLE:
+        try:
+            db_exp = DatabaseExporter()
+            db_report = db_exp.get_report(report_id)
+            if db_report is not None:
+                db_report['report_id'] = report_id
+                db_report['source'] = 'database'
+                return db_report
+        except Exception as db_err:
+            logger.warning(f"DB get_report failed for {report_id}: {db_err}")
+
+    # In-memory fallback
     if report_id not in reports:
         raise HTTPException(status_code=404, detail="Report not found")
-    
     return reports[report_id]
 
 
@@ -1032,14 +1089,14 @@ async def get_resource_drilldown(
         )
 
 
-@app.post("/api/v1/compliance/generate/enterprise")
+@app.post("/api/v1/scan")
 async def generate_enterprise_report(
     request: GenerateEnterpriseReportRequest,
     background_tasks: BackgroundTasks
 ):
     """
-    Generate enterprise-grade compliance report (cspm_misconfig_report.v1).
-    
+    Run compliance scan and generate enterprise-grade compliance report (cspm_misconfig_report.v1).
+
     Features:
     - Deduplicated findings with stable IDs
     - Evidence stored by reference (S3)
@@ -1048,48 +1105,97 @@ async def generate_enterprise_report(
     - PostgreSQL export (optional)
     """
     report_id = str(uuid.uuid4())
-    
+
+    # Determine which check_scan_id to use and fetch metadata
+    # Priority: direct scan_id > orchestration_id lookup > scan_run_id lookup
+    check_query_scan_id = None
+    csp = request.csp  # May be None
+    tenant_id = request.tenant_id  # May be None
+
+    if request.scan_id:
+        # MODE 1: Direct scan_id provided (ad-hoc testing)
+        check_query_scan_id = request.scan_id
+        logger.info(f"Using direct check_scan_id: {check_query_scan_id}")
+        # In ad-hoc mode, csp and tenant_id MUST be provided
+        if not csp or not tenant_id:
+            raise HTTPException(status_code=400, detail="In ad-hoc mode (using scan_id), both csp and tenant_id must be provided")
+    elif request.orchestration_id or request.scan_run_id:
+        # MODE 2: Orchestrated run - query scan_orchestration table for ALL metadata
+        orchestration_id = request.orchestration_id or request.scan_run_id
+        logger.info(f"Querying metadata for orchestration_id: {orchestration_id}")
+
+        try:
+            metadata = get_orchestration_metadata(orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        check_query_scan_id = metadata.get("check_scan_id")
+        if not check_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"No check_scan_id found in scan_orchestration for orchestration_id={orchestration_id}. Check engine may not have completed yet.")
+
+        # Get metadata from orchestration table (override request params if provided)
+        csp = metadata.get("provider_type", "aws").lower()  # aws, azure, gcp
+        tenant_id = metadata.get("tenant_id")
+
+        logger.info(f"Retrieved metadata: check_scan_id={check_query_scan_id}, csp={csp}, tenant_id={tenant_id}")
+    else:
+        raise HTTPException(status_code=400, detail="Either scan_id, scan_run_id, or orchestration_id must be provided")
+
     try:
-        # Load scan results
-        scan_results = load_scan_results_from_s3(request.scan_id, request.csp)
-        
-        # Create scan context
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
         from .schemas.enterprise_report_schema import (
             ScanContext, TriggerType, Cloud, CollectionMode
         )
-        
-        scan_run_id = request.scan_id  # Use scan_id as scan_run_id
-        trigger_type = TriggerType(request.trigger_type)
-        cloud = Cloud(request.csp)
-        collection_mode = CollectionMode(request.collection_mode)
-        
-        # Get timestamps from scan results if available
-        started_at = scan_results.get('scanned_at', datetime.utcnow().isoformat() + 'Z')
-        completed_at = datetime.utcnow().isoformat() + 'Z'
-        
-        scan_context = ScanContext(
-            scan_run_id=scan_run_id,
-            trigger_type=trigger_type,
-            cloud=cloud,
-            collection_mode=collection_mode,
-            started_at=started_at,
-            completed_at=completed_at
-        )
-        
-        # Generate enterprise report
-        s3_bucket = os.getenv("S3_BUCKET", "cspm-lgtech")
-        reporter = EnterpriseReporter(
-            tenant_id=request.tenant_id,
-            s3_bucket=s3_bucket
-        )
-        
-        enterprise_report = reporter.generate_report(
-            scan_results=scan_results,
-            scan_context=scan_context,
-            tenant_name=request.tenant_name
-        )
+
+        # Run all blocking I/O and CPU work in a thread so the event loop
+        # remains free to serve liveness probes during a long scan.
+        def _run_scan_blocking():
+            # Load scan results from DATABASE using existing CheckDBLoader (NOT S3)
+            logger.info(f"Querying check findings from database: check_scan_id={check_query_scan_id}, tenant_id={tenant_id}")
+
+            loader = CheckDBLoader()
+            try:
+                scan_results = loader.load_and_convert(
+                    scan_id=check_query_scan_id,
+                    tenant_id=tenant_id,
+                    csp=csp,
+                    status_filter=None  # Get all findings
+                )
+            finally:
+                loader.close()
+
+            if not scan_results or not scan_results.get('results'):
+                return None  # caller checks for None
+
+            scan_run_id = check_query_scan_id
+            scan_context = ScanContext(
+                scan_run_id=scan_run_id,
+                trigger_type=TriggerType(request.trigger_type),
+                cloud=Cloud(csp),
+                collection_mode=CollectionMode(request.collection_mode),
+                started_at=scan_results.get('scanned_at', datetime.utcnow().isoformat() + 'Z'),
+                completed_at=datetime.utcnow().isoformat() + 'Z'
+            )
+
+            s3_bucket = os.getenv("S3_BUCKET", "cspm-lgtech")
+            reporter = EnterpriseReporter(tenant_id=tenant_id, s3_bucket=s3_bucket)
+            enterprise_report = reporter.generate_report(
+                scan_results=scan_results,
+                scan_context=scan_context,
+                tenant_name=request.tenant_name
+            )
+            return enterprise_report
+
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            enterprise_report = await loop.run_in_executor(pool, _run_scan_blocking)
+
+        if enterprise_report is None:
+            raise HTTPException(status_code=404, detail=f"No check findings found in database for check_scan_id={check_query_scan_id}")
         
         # Export to database if requested
+        db_report_id = None
         if request.export_to_db and DB_AVAILABLE:
             try:
                 db_exporter = DatabaseExporter()
@@ -1109,21 +1215,53 @@ async def generate_enterprise_report(
                         "report_id": report_id
                     }
                 })
-        
-        # Save to S3 in background
+
+        # The canonical compliance_scan_id is the DB export ID (if written), else the report_id
+        compliance_scan_id = db_report_id or report_id
+
+        # Save to S3 in background (don't hold report in memory for response)
         background_tasks.add_task(
             save_enterprise_report_to_s3,
             enterprise_report,
-            request.csp
+            csp  # Use csp from metadata query, not request
         )
-        
-        # Store in memory (for API retrieval)
-        reports[report_id] = enterprise_report.model_dump()
-        
+
+        # Update scan_orchestration with compliance_scan_id (if in pipeline mode)
+        if request.orchestration_id or request.scan_run_id:
+            try:
+                import psycopg2 as _pg2
+                _orch_conn = _pg2.connect(
+                    host=os.getenv("ONBOARDING_DB_HOST", "localhost"),
+                    port=int(os.getenv("ONBOARDING_DB_PORT", "5432")),
+                    database=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
+                    user=os.getenv("ONBOARDING_DB_USER", "postgres"),
+                    password=os.getenv("ONBOARDING_DB_PASSWORD", ""),
+                    sslmode=os.getenv("DB_SSLMODE", "prefer"),
+                )
+                with _orch_conn:
+                    with _orch_conn.cursor() as _cur:
+                        _cur.execute(
+                            "UPDATE scan_orchestration SET compliance_scan_id = %s WHERE orchestration_id = %s",
+                            (compliance_scan_id, request.orchestration_id or request.scan_run_id)
+                        )
+                _orch_conn.close()
+                logger.info(f"Updated scan_orchestration with compliance_scan_id: {compliance_scan_id}")
+            except Exception as e:
+                logger.error(f"Failed to update scan_orchestration: {e}")
+                # Don't fail the request - this is tracking only
+
+        posture = enterprise_report.posture_summary
         return {
-            'report_id': report_id,
+            'report_id': compliance_scan_id,
             'status': 'completed',
-            'enterprise_report': enterprise_report.model_dump()
+            'scan_id': compliance_scan_id,
+            'compliance_scan_id': compliance_scan_id,
+            'total_findings': posture.total_findings,
+            'total_controls': posture.total_controls,
+            'controls_passed': posture.controls_passed,
+            'controls_failed': posture.controls_failed,
+            'findings_by_severity': posture.findings_by_severity,
+            'frameworks': [f.framework_id for f in enterprise_report.frameworks],
         }
     
     except HTTPException:
@@ -1390,47 +1528,55 @@ async def list_reports(
 ):
     """
     List generated compliance reports.
-    
-    Returns paginated list of reports with metadata.
+
+    Returns paginated list of reports with metadata. Reads from DB first,
+    then merges any in-memory-only reports (e.g. generated this session but
+    not yet flushed).
     """
     try:
-        # Filter reports
+        # --- DB-first: query compliance_report table ---
+        if DB_AVAILABLE:
+            try:
+                db_exp = DatabaseExporter()
+                result = db_exp.list_reports(tenant_id=tenant_id, csp=csp, limit=limit, offset=offset)
+                return {
+                    'total': result['total'],
+                    'limit': limit,
+                    'offset': offset,
+                    'reports': result['reports'],
+                    'source': 'database',
+                }
+            except Exception as db_err:
+                logger.warning(f"DB list_reports failed, falling back to in-memory: {db_err}")
+
+        # --- Fallback: in-memory dict ---
         filtered_reports = []
-        
         for report_id, report in reports.items():
-            # Filter by tenant_id if provided (for enterprise reports)
             if tenant_id:
                 if isinstance(report, dict):
                     report_tenant = report.get('tenant', {}).get('tenant_id') if isinstance(report.get('tenant'), dict) else None
                     if report_tenant != tenant_id:
                         continue
-            
-            # Filter by csp if provided
             if csp:
                 report_csp = report.get('csp') if isinstance(report, dict) else None
                 if report_csp != csp:
                     continue
-            
             filtered_reports.append({
                 'report_id': report_id,
                 'scan_id': report.get('scan_id') if isinstance(report, dict) else None,
                 'csp': report.get('csp') if isinstance(report, dict) else None,
                 'generated_at': report.get('generated_at') if isinstance(report, dict) else None,
-                'tenant_id': report.get('tenant', {}).get('tenant_id') if isinstance(report, dict) and isinstance(report.get('tenant'), dict) else None
+                'tenant_id': report.get('tenant', {}).get('tenant_id') if isinstance(report, dict) and isinstance(report.get('tenant'), dict) else None,
             })
-        
-        # Sort by generated_at descending
         filtered_reports.sort(key=lambda x: x.get('generated_at') or '', reverse=True)
-        
-        # Paginate
         total = len(filtered_reports)
         paginated = filtered_reports[offset:offset + limit]
-        
         return {
             'total': total,
             'limit': limit,
             'offset': offset,
-            'reports': paginated
+            'reports': paginated,
+            'source': 'memory',
         }
     except Exception as e:
         raise HTTPException(
@@ -1443,20 +1589,37 @@ async def list_reports(
 async def get_report_status(report_id: str):
     """
     Get generation status for a compliance report.
-    
+
     Useful for async report generation.
     """
+    # DB-first
+    if DB_AVAILABLE:
+        try:
+            db_exp = DatabaseExporter()
+            db_report = db_exp.get_report(report_id)
+            if db_report is not None:
+                return {
+                    'report_id': report_id,
+                    'status': 'completed',
+                    'source': 'database',
+                    'scan_id': db_report.get('scan_run_id'),
+                    'csp': db_report.get('cloud'),
+                    'generated_at': db_report.get('generated_at'),
+                }
+        except Exception as db_err:
+            logger.warning(f"DB get_report_status failed for {report_id}: {db_err}")
+
+    # In-memory fallback
     if report_id not in reports:
         raise HTTPException(status_code=404, detail="Report not found")
-    
     report = reports[report_id]
-    
     return {
         'report_id': report_id,
-        'status': 'completed',  # In-memory reports are always completed
+        'status': 'completed',
+        'source': 'memory',
         'generated_at': report.get('generated_at') if isinstance(report, dict) else None,
         'scan_id': report.get('scan_id') if isinstance(report, dict) else None,
-        'csp': report.get('csp') if isinstance(report, dict) else None
+        'csp': report.get('csp') if isinstance(report, dict) else None,
     }
 
 

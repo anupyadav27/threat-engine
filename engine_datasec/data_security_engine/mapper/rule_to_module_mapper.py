@@ -12,14 +12,39 @@ from typing import Dict, List, Optional, Set
 import logging
 import re
 
+from ..input.threat_db_reader import load_data_store_services
+
 logger = logging.getLogger(__name__)
 
-# Data-security relevant resource types
-DATA_SECURITY_RESOURCE_TYPES = {
+# Fallback set (used when datasec DB is unavailable at import time)
+_DATA_SECURITY_RESOURCE_TYPES_FALLBACK = {
     's3', 'rds', 'dynamodb', 'redshift', 'glacier', 'documentdb',
     'neptune', 'glue', 'lakeformation', 'macie', 'ecr', 'kms',
     'elasticache', 'dax', 'efs', 'fsx',
 }
+
+
+def _get_all_data_store_types() -> Set[str]:
+    """
+    Load data store service types from DB for all known CSPs.
+
+    Returns a union set so that a finding from any CSP can be checked
+    without knowing the CSP at classification time.
+    """
+    all_types: Set[str] = set()
+    for csp in ("aws", "azure", "gcp", "oci", "ibm", "alicloud"):
+        try:
+            all_types.update(load_data_store_services(csp))
+        except Exception:
+            pass
+    return all_types if all_types else _DATA_SECURITY_RESOURCE_TYPES_FALLBACK
+
+
+# Module-level set loaded once at import time (per process)
+try:
+    DATA_SECURITY_RESOURCE_TYPES: Set[str] = _get_all_data_store_types()
+except Exception:
+    DATA_SECURITY_RESOURCE_TYPES = _DATA_SECURITY_RESOURCE_TYPES_FALLBACK
 
 # Data-security relevant rule_id patterns
 DATA_SECURITY_RULE_PATTERNS = [

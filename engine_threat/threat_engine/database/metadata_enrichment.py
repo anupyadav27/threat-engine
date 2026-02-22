@@ -66,7 +66,6 @@ def get_enriched_check_results(
     scan_id: str,
     schema: str = 'check_db',
     status_filter: Optional[List[str]] = None,
-    customer_id: Optional[str] = None,
     tenant_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
@@ -80,7 +79,6 @@ def get_enriched_check_results(
         scan_id: Check scan ID (check_scan_id in check_findings)
         schema: Ignored (kept for backward compat)
         status_filter: Filter by status (e.g., ['FAIL', 'WARN']). Default: all
-        customer_id: Optional customer_id filter
         tenant_id: Optional tenant_id filter
 
     Returns:
@@ -141,10 +139,6 @@ def get_enriched_check_results(
             if status_filter:
                 query += " AND cf.status = ANY(%s)"
                 params.append(status_filter)
-
-            if customer_id:
-                query += " AND cf.customer_id = %s"
-                params.append(customer_id)
 
             if tenant_id:
                 query += " AND cf.tenant_id = %s"

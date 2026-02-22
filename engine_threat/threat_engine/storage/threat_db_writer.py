@@ -37,13 +37,13 @@ def _connection_string() -> str:
 
 
 def _ensure_tenant(conn, tenant_id: str):
-    """No-op — tenants table removed from threat DB.
-
-    Tenant master lives in shared DB (threat_engine_shared).
-    tenant_id is now a plain VARCHAR column on all tables, no local FK.
-    Keeping this function signature to avoid changing all call sites.
-    """
-    pass
+    """Upsert tenant into threat DB's tenants table to satisfy FK constraints."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO tenants (tenant_id, tenant_name)
+            VALUES (%s, %s)
+            ON CONFLICT (tenant_id) DO NOTHING
+        """, (tenant_id, tenant_id))
 
 
 def _ts_with_tz(dt: Optional[datetime]) -> Optional[datetime]:
@@ -245,6 +245,14 @@ def save_report_to_db(report: ThreatReport) -> str:
                 ))
 
         # 3. Write individual findings to threat_findings
+        # Delete existing findings for this threat_scan_id first (ensures clean re-run
+        # and fixes any stale rows from old account_id representations)
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM threat_findings WHERE threat_scan_id = %s",
+                (threat_scan_id,)
+            )
+
         for finding in report.misconfig_findings:
             severity_val = finding.severity.value if hasattr(finding.severity, 'value') else str(finding.severity)
 
@@ -283,6 +291,9 @@ def save_report_to_db(report: ThreatReport) -> str:
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
+                        threat_scan_id = EXCLUDED.threat_scan_id,
+                        scan_run_id = EXCLUDED.scan_run_id,
+                        tenant_id = EXCLUDED.tenant_id,
                         status = EXCLUDED.status,
                         last_seen_at = EXCLUDED.last_seen_at,
                         mitre_tactics = EXCLUDED.mitre_tactics,

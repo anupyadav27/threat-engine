@@ -25,10 +25,13 @@ Tables WRITTEN: None (returns Asset objects to callers)
 import json
 import hashlib
 import logging
+import os
+import re
 from typing import List, Dict, Any, Optional
 from ..schemas.asset_schema import Asset, Provider, Scope, compute_asset_hash
 from ..schemas.relationship_schema import Relationship, RelationType
 from .resource_classifier import ResourceClassifier, InventoryDecision
+from ..metadata.service_metadata_loader import ServiceMetadataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +39,29 @@ logger = logging.getLogger(__name__)
 class AssetNormalizer:
     """Normalizes raw provider data to canonical assets"""
 
-    def __init__(self, tenant_id: str, scan_run_id: str):
+    def __init__(self, tenant_id: str, scan_run_id: str, db_connection=None):
         self.tenant_id = tenant_id
         self.scan_run_id = scan_run_id
         self.classifier = ResourceClassifier()  # Initialize classifier with default index
+
+        # Initialize metadata loader for pattern-based ARN/ID generation
+        try:
+            if db_connection:
+                self.metadata_loader = ServiceMetadataLoader(db_connection=db_connection)
+            else:
+                # Build connection config from environment variables (all CSPs use same pythonsdk DB)
+                db_config = {
+                    'host': os.getenv('PYTHONSDK_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                    'port': int(os.getenv('PYTHONSDK_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                    'database': os.getenv('PYTHONSDK_DB_NAME', 'threat_engine_pythonsdk'),
+                    'user': os.getenv('PYTHONSDK_DB_USER', os.getenv('DB_USER', 'postgres')),
+                    'password': os.getenv('PYTHONSDK_DB_PASSWORD', os.getenv('DB_PASSWORD', '')),
+                }
+                self.metadata_loader = ServiceMetadataLoader(db_config=db_config)
+            logger.info(f"AssetNormalizer: ServiceMetadataLoader initialized with {len(self.metadata_loader._services_cache)} services")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ServiceMetadataLoader: {e}. Falling back to legacy ARN generation.")
+            self.metadata_loader = None
     
     def normalize_from_raw(
         self,
@@ -190,16 +212,37 @@ class AssetNormalizer:
         return [raw_data]
     
     def _extract_aws_resource_uid(self, resource: Dict[str, Any], service: str, account_id: str, region: str) -> str:
-        """Extract AWS resource UID (ARN preferred)"""
-        # Try ARN first
+        """
+        Extract AWS resource UID (ARN) using pattern-based generation from database
+
+        This method uses ServiceMetadataLoader to get ARN patterns from the database,
+        replacing hardcoded ARN generation for 20 services with pattern-based generation
+        for all 429+ AWS services.
+        """
+        # Try explicit ARN field first
         arn = resource.get("Arn") or resource.get("arn") or resource.get("ARN")
         if arn:
             return arn
-        
-        # Generate ARN if possible
+
+        # Use pattern-based ARN generation from database
+        if self.metadata_loader:
+            try:
+                arn_pattern = self.metadata_loader.get_identifier_pattern('aws', service)
+                if arn_pattern:
+                    generated_arn = self._apply_identifier_pattern(
+                        arn_pattern, resource, region, account_id, 'aws'
+                    )
+                    if generated_arn:
+                        return generated_arn
+            except Exception as e:
+                logger.warning(f"Error generating ARN from pattern for {service}: {e}")
+
+        # Legacy fallback for services without patterns
+        # (These fallbacks are only used if database pattern fails)
         if service == "s3":
             bucket_name = resource.get("Name") or resource.get("BucketName")
-            return f"arn:aws:s3:::{bucket_name}"
+            if bucket_name:
+                return f"arn:aws:s3:::{bucket_name}"
         elif service == "ec2":
             instance_id = resource.get("InstanceId")
             if instance_id:
@@ -209,10 +252,74 @@ class AssetNormalizer:
             resource_type = "user" if resource.get("UserName") else "role" if resource.get("RoleName") else "group"
             if resource_name:
                 return f"arn:aws:iam::{account_id}:{resource_type}/{resource_name}"
-        
-        # Fallback: construct UID
+
+        # Final fallback: construct UID
         resource_id = resource.get("Id") or resource.get("ResourceId") or resource.get("Name")
         return f"{service}:{region}:{account_id}:{resource_id}"
+
+    def _apply_identifier_pattern(
+        self,
+        pattern: str,
+        resource: Dict[str, Any],
+        region: str,
+        account_id: str,
+        csp: str
+    ) -> Optional[str]:
+        """
+        Apply identifier pattern with field substitution
+
+        Pattern examples:
+        - AWS: "arn:aws:s3:::${BucketName}"
+        - Azure: "/subscriptions/${SubscriptionId}/resourceGroups/${ResourceGroup}/..."
+        - GCP: "projects/${ProjectId}/zones/${Zone}/instances/${InstanceName}"
+
+        Args:
+            pattern: Pattern string with ${FieldName} placeholders
+            resource: Resource data dictionary
+            region: Region/location
+            account_id: Account/subscription/project ID
+            csp: Cloud provider (aws, azure, gcp, etc.)
+
+        Returns:
+            Generated identifier string or None if pattern cannot be satisfied
+        """
+        def replace_field(match):
+            field_name = match.group(1)
+
+            # Handle special fields
+            if field_name in ['Region', 'region']:
+                return region
+            elif field_name in ['AccountId', 'account']:
+                return account_id
+            elif field_name in ['SubscriptionId', 'subscription']:
+                return account_id
+            elif field_name in ['ProjectId', 'project']:
+                return account_id
+            else:
+                # Try to get from resource data
+                # Try exact match first
+                value = resource.get(field_name)
+
+                # Try case-insensitive match if not found
+                if value is None:
+                    for key in resource.keys():
+                        if key.lower() == field_name.lower():
+                            value = resource[key]
+                            break
+
+                return str(value) if value is not None else ''
+
+        # Replace all ${FieldName} placeholders
+        try:
+            identifier = re.sub(r'\$\{(\w+)\}', replace_field, pattern)
+
+            # Check if all placeholders were replaced (no empty values)
+            if identifier and '${' not in identifier and identifier != pattern:
+                return identifier
+        except Exception as e:
+            logger.warning(f"Error applying pattern '{pattern}': {e}")
+
+        return None
     
     def _extract_aws_resource_id(self, resource: Dict[str, Any], service: str) -> str:
         """Extract AWS resource ID"""
@@ -400,6 +507,12 @@ class AssetNormalizer:
 
         # Extract emitted fields (actual resource data)
         emitted_fields = discovery_record.get("emitted_fields", {})
+        # Merge raw_response as fallback field source so relationship builder
+        # can find AWS native fields (SecurityGroups, BlockDeviceMappings, etc.)
+        # emitted_fields explicit extractions take priority over raw API response
+        raw_response = discovery_record.get("raw_response")
+        if isinstance(raw_response, dict) and isinstance(emitted_fields, dict):
+            emitted_fields = {**raw_response, **emitted_fields}
 
         # Normalize based on provider
         if provider == Provider.AWS:

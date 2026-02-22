@@ -12,10 +12,12 @@ from datetime import datetime
 from pathlib import Path
 import sys
 import os
+import psycopg2
 
 # Add project root for engine_common
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from engine_common.logger import setup_logger, LogContext, log_duration
+from engine_common.orchestration import get_orchestration_metadata
 
 from engine.check_engine import CheckEngine
 from engine.database_manager import DatabaseManager
@@ -63,8 +65,18 @@ metrics = {
 }
 
 
+# DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
+# def get_discovery_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
+#     """Query scan_orchestration table to get discovery_scan_id for a given scan_run_id."""
+#     # This function is no longer used - use get_orchestration_metadata() instead
+#     # which returns ALL metadata (tenant_id, account_id, provider_type, etc.)
+#     pass
+
+
 class CheckRequest(BaseModel):
-    discovery_scan_id: str  # Required - from discovery endpoint
+    discovery_scan_id: Optional[str] = None  # Direct discovery_scan_id (ad-hoc mode)
+    scan_run_id: Optional[str] = None  # Orchestration ID (pipeline mode)
+    orchestration_id: Optional[str] = None  # Alias for scan_run_id
     customer_id: Optional[str] = None
     tenant_id: Optional[str] = None
     provider: str = "aws"
@@ -81,25 +93,80 @@ class CheckResponse(BaseModel):
     message: str
 
 
-@app.post("/api/v1/check", response_model=CheckResponse)
+@app.post("/api/v1/scan", response_model=CheckResponse)
 async def create_check(request: CheckRequest, background_tasks: BackgroundTasks):
     """Run check scan on discoveries - runs compliance checks"""
     check_scan_id = str(uuid.uuid4())
-    
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=check_scan_id):
+
+    # Determine which discovery_scan_id to use and get metadata
+    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
+    discovery_query_scan_id = None
+    tenant_id = None
+    customer_id = None
+    provider = None
+    hierarchy_id = None
+
+    if request.discovery_scan_id:
+        # MODE 1: Ad-hoc mode - use provided parameters
+        discovery_query_scan_id = request.discovery_scan_id
+        tenant_id = request.tenant_id or "default-tenant"
+        customer_id = request.customer_id or "default"
+        provider = request.provider
+        hierarchy_id = request.hierarchy_id or discovery_query_scan_id
+        logger.info(f"Ad-hoc mode: Using direct discovery_scan_id: {discovery_query_scan_id}")
+
+    elif request.orchestration_id or request.scan_run_id:
+        # MODE 2: Pipeline mode - query scan_orchestration for ALL metadata
+        orchestration_id = request.orchestration_id or request.scan_run_id
+
+        try:
+            metadata = get_orchestration_metadata(orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        discovery_query_scan_id = metadata.get("discovery_scan_id")
+        if not discovery_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"Discovery not completed yet for orchestration_id={orchestration_id}")
+
+        # Get ALL metadata from orchestration table
+        tenant_id = metadata.get("tenant_id")
+        customer_id = request.customer_id or "default"  # Not in orchestration table yet
+        provider = metadata.get("provider_type", "aws")
+        hierarchy_id = metadata.get("account_id") or discovery_query_scan_id
+
+        logger.info(f"Pipeline mode: Got metadata from orchestration_id={orchestration_id}", extra={
+            "extra_fields": {
+                "discovery_scan_id": discovery_query_scan_id,
+                "tenant_id": tenant_id,
+                "provider": provider
+            }
+        })
+    else:
+        raise HTTPException(status_code=400, detail="Either discovery_scan_id OR orchestration_id must be provided")
+
+    # Update request object with resolved metadata
+    request.discovery_scan_id = discovery_query_scan_id
+    request.tenant_id = tenant_id
+    request.customer_id = customer_id
+    request.provider = provider
+    request.hierarchy_id = hierarchy_id
+
+    with LogContext(tenant_id=tenant_id, scan_run_id=check_scan_id):
         logger.info("Received check request", extra={
             "extra_fields": {
-                "discovery_scan_id": request.discovery_scan_id,
-                "provider": request.provider,
+                "discovery_scan_id": discovery_query_scan_id,
+                "check_scan_id": check_scan_id,
+                "provider": provider,
+                "tenant_id": tenant_id,
                 "services": request.include_services
             }
         })
-    
+
     # Store check scan info
     scans[check_scan_id] = {
         "status": "running",
         "type": "check",
-        "discovery_scan_id": request.discovery_scan_id,
+        "discovery_scan_id": discovery_query_scan_id,  # Use resolved discovery_scan_id
         "results": None,
         "error": None,
         "started_at": datetime.utcnow(),
@@ -110,10 +177,10 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
             "percentage": 0
         }
     }
-    
+
     metrics["total_scans"] += 1
-    
-    # Run check in background
+
+    # Run check in background with resolved metadata
     task = background_tasks.add_task(run_check, check_scan_id, request)
     scan_tasks[check_scan_id] = task
     

@@ -64,9 +64,22 @@ class DatabaseSettings(BaseSettings):
             return env_settings, init_settings, file_secret_settings
     
     def get_shared_config(self) -> DatabaseConnectionConfig:
-        """Get shared database configuration"""
-        # Read env vars at runtime to ensure latest values
+        """Get database configuration. Prefers ONBOARDING_DB_* when set (onboarding DB with scan_orchestration)."""
         import os
+        # Prefer onboarding DB env when present (EKS uses ONBOARDING_DB_* for threat_engine_onboarding)
+        if os.getenv("ONBOARDING_DB_HOST"):
+            return DatabaseConnectionConfig(
+                host=os.getenv("ONBOARDING_DB_HOST"),
+                port=int(os.getenv("ONBOARDING_DB_PORT", "5432")),
+                database=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
+                username=os.getenv("ONBOARDING_DB_USER", "postgres"),
+                password=os.getenv("ONBOARDING_DB_PASSWORD", ""),
+                ssl_mode=self.ssl_mode,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+            )
         return DatabaseConnectionConfig(
             host=os.getenv('SHARED_DB_HOST', self.shared_host),
             port=int(os.getenv('SHARED_DB_PORT', str(self.shared_port))),

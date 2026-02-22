@@ -1,7 +1,10 @@
 # CSPM Platform — UI Developer Handoff
 
+> Last updated: 2026-02-22
+> Cluster: `vulnerability-eks-cluster` | Region: `ap-south-1`
+
 ## Overview
-This is the complete specification for building the frontend UI for the CSPM (Cloud Security Posture Management) platform. The platform consists of **9 backend engines + 1 API gateway**, all deployed on AWS EKS and exposed via a single NLB endpoint.
+This is the complete specification for building the frontend UI for the CSPM (Cloud Security Posture Management) platform. The platform consists of **10 backend engines + 1 API gateway**, all deployed on AWS EKS and exposed via a single NLB endpoint.
 
 ## Documents
 
@@ -12,57 +15,115 @@ This is the complete specification for building the frontend UI for the CSPM (Cl
 | 03 | [Sample Requests & Responses](03-SAMPLE-REQUESTS-AND-RESPONSES.md) | Real API examples with request/response JSON for every endpoint |
 | 04 | [Tech Stack & Design System](04-TECH-STACK-AND-DESIGN-SYSTEM.md) | Recommended libraries, color tokens, component patterns, data flow |
 
+---
+
 ## Quick Reference
 
-### API Base URLs
+### API Base URL (External ELB)
+
 ```
-NLB:  http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com
+http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com
 ```
 
-### Engine Routing (via Nginx Ingress)
-| Path Prefix | Engine | Internal Port | Description |
-|-------------|--------|---------------|-------------|
-| `/gateway/*` | API Gateway | 8000 | Orchestration, service registry, proxy |
-| `/secops/*` | SecOps Scanner | 8009 | Code security scanning |
+No auth required currently (open HTTP). Pass `tenant_id` as query param to all requests.
 
-> **Note**: Other engines are accessed via the API Gateway proxy:
-> `/gateway/api/v1/discovery/*`, `/gateway/api/v1/check/*`, etc.
+---
 
-### Engines Summary
-| Engine | API Prefix | Endpoints | Primary Use |
-|--------|-----------|-----------|-------------|
-| **API Gateway** | `/gateway/` | ~10 | Orchestration, routing |
-| **Onboarding** | `/gateway/api/v1/onboarding/` | ~20 | Tenants, accounts, schedules |
-| **Discovery** | `/gateway/api/v1/discovery/` | ~8 | Cloud resource discovery |
-| **Check** | `/gateway/api/v1/check/` | ~7 | Misconfig rule checks |
-| **Threat** | `/gateway/api/v1/threat/` | ~45 | Threats, analysis, hunting, intel |
-| **Inventory** | `/gateway/api/v1/inventory/` | ~18 | Assets, relationships, drift |
-| **Compliance** | `/gateway/api/v1/compliance/` | ~32 | Framework compliance |
-| **IAM Security** | `/gateway/api/v1/iam-security/` | ~7 | Identity & access findings |
-| **Data Security** | `/gateway/api/v1/data-security/` | ~16 | Data catalog, classification |
-| **SecOps** | `/secops/api/v1/secops/` | ~7 | Code scanning (14 languages) |
+### Engine Direct Routing via Nginx Ingress
 
-### Total: ~170 API endpoints
+**IMPORTANT**: Each engine is now directly accessible via its own path prefix.
+The nginx ingress strips the prefix before forwarding to the engine.
+
+| Path Prefix | Engine | Container Port | ClusterIP | Status |
+|-------------|--------|----------------|-----------|--------|
+| `/onboarding/*` | engine-onboarding | 8010 | 10.100.138.231 | ✓ Running |
+| `/discoveries/*` | engine-discoveries | 8001 | 10.100.188.200 | ✓ Running |
+| `/check/*` | engine-check | 8002 | 10.100.43.124 | ✓ Running |
+| `/inventory/*` | engine-inventory | 8022 | 10.100.246.103 | ✓ Running |
+| `/compliance/*` | engine-compliance | 8000 | 10.100.48.135 | ✓ Running |
+| `/threat/*` | engine-threat | 8020 | 10.100.60.108 | ✓ Running |
+| `/iam/*` | engine-iam | 8001 | 10.100.170.233 | ✓ Running |
+| `/datasec/*` | engine-datasec | 8003 | 10.100.155.216 | ✓ Running |
+| `/secops/*` | engine-secops | 8005 | 10.100.192.50 | ✓ Running |
+| `/gateway/*` | api-gateway | 8080 | 10.100.209.181 | ✓ Running |
+
+**How prefix stripping works:**
+```
+UI calls:  GET /inventory/api/v1/inventory/assets?tenant_id=T
+Engine receives: GET /api/v1/inventory/assets?tenant_id=T
+```
+
+---
+
+### Engine API Summary
+
+| Engine | Direct Path | Key Endpoints | Primary Use |
+|--------|------------|---------------|-------------|
+| **Onboarding** | `/onboarding/api/v1/` | `/accounts`, `/scan/trigger`, `/orchestration` | Register accounts, trigger scans |
+| **Discoveries** | `/discoveries/api/v1/` | `POST /discovery` | Cloud resource discovery |
+| **Check** | `/check/api/v1/` | `/findings`, `/check` | Misconfig rule evaluation |
+| **Inventory** | `/inventory/api/v1/inventory/` | `/assets`, `/relationships`, `/graph`, `/runs/latest/summary` | Asset inventory |
+| **Compliance** | `/compliance/api/v1/compliance/` | `/reports`, `/scan`, `/frameworks` | Framework compliance |
+| **Threat** | `/threat/api/v1/` | `/threats`, `/scan`, `/analytics/` | Threat detection |
+| **IAM** | `/iam/api/v1/` | `/findings`, `/scan` | IAM posture |
+| **DataSec** | `/datasec/api/v1/` | `/findings`, `/scan` | Data security |
+| **SecOps** | `/secops/api/v1/` | `/scan`, `/scans` | IaC scanning |
+| **API Gateway** | `/gateway/` | `/health`, `/services`, `/orchestrate` | Orchestration proxy |
+
+---
+
+### Common Query Parameters
+
+All engines accept these parameters:
+- `tenant_id` (required on most endpoints)
+- `limit` / `offset` — pagination (default limit=100)
+- `account_id` — filter by single cloud account
+- `account_ids` — comma-separated list for multi-account
+
+---
+
+### Scan Pipeline Order
+
+```
+1. Onboarding  →  2. Discoveries  →  3. Check  →  4. Inventory
+                                       ↓
+                   5. Compliance / Threat / IAM / DataSec (parallel)
+```
+
+All engines coordinate via `scan_orchestration` table. Pass `orchestration_id` to chain them.
+
+---
 
 ### Pages Summary (10 sections, ~25 pages)
+
 1. **Dashboard** — Executive overview (1 page)
-2. **Onboarding** — Tenants, accounts, schedules (3 pages + onboarding wizard)
+2. **Onboarding** — Accounts, schedules (3 pages + wizard)
 3. **Scans** — Run scan, history, detail (3 pages)
 4. **Inventory** — Assets, relationships, graph, drift (4 pages)
-5. **Threats** — Overview, list, detail, attack paths, analytics, hunting, intel (7 pages)
+5. **Threats** — Overview, list, detail, attack paths, analytics (5+ pages)
 6. **Compliance** — Dashboard, framework detail, control detail, reports (4 pages)
-7. **IAM Security** — Findings, modules (1 page)
-8. **Data Security** — Catalog, classification, lineage, residency, activity (1 page + tabs)
-9. **Code Security** — Run scan, results, rule library (3 pages)
+7. **IAM Security** — Findings by module (1 page)
+8. **Data Security** — Classification, exposure, encryption (1 page + tabs)
+9. **Code Security** — IaC scan results, rule library (3 pages)
 10. **Settings** — Platform health, engine status (1 page)
 
+---
+
 ### Key Design Patterns
-- **Global context**: Tenant + Account selector in top bar (persisted across pages)
-- **Polling**: Scan status endpoints polled every 3s until completion
-- **Pagination**: All list endpoints support `limit` + `offset`
-- **Filtering**: Severity, status, category, region, account, service
-- **Export**: PDF/Excel download for compliance reports
-- **Graph visualization**: Force-directed graph for inventory relationships and attack paths
+
+- **Global context**: Account selector in top bar (persisted, passed as `account_id`/`account_ids`)
+- **Polling**: Use `GET /api/v1/inventory/jobs/{job_id}` (async scans polled every 3s)
+- **Pagination**: All list endpoints support `limit` + `offset`; response includes `total` count
+- **Multi-account**: Pass `account_ids=id1,id2,id3` as comma-separated query param
+- **Filtering**: Most list endpoints accept `severity`, `status`, `provider`, `region`, `resource_type`
+- **Scan IDs**: Store `orchestration_id` and use it to query all engines for a specific scan run
+
+---
 
 ## For Figma Designer
-Start with the **Dashboard** and **Threat List** pages first — they represent the core user experience. Use the wireframes in document 02 as the layout foundation, and the component patterns in document 04 for the design system.
+
+Start with the **Dashboard** and **Inventory** pages first — they use the most production-ready APIs.
+All inventory endpoints are fully tested and return real data (1,529 assets, 199 relationships).
+Compliance, Threat, IAM, DataSec engines are also live.
+
+See `docs/api/03_engine_inventory.md` for complete inventory API reference with real sample data.

@@ -1,9 +1,10 @@
 -- ============================================================================
 -- Discoveries Engine Database Schema
 -- ============================================================================
--- Purpose: Store discovered AWS resources, rule YAMLs for loading discovery definitions
+-- Purpose: Store discovered cloud resources from discovery scans
 -- Used by: engine_discoveries_aws
--- Tables: customers, tenants, discovery_report, discovery_findings, discovery_history, rule_definitions
+-- Tables: customers, tenants, discovery_report, discovery_findings, discovery_history
+-- NOTE: Discovery YAML definitions are stored in rule_discoveries (threat_engine_check DB)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
@@ -32,22 +33,41 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 
 CREATE TABLE IF NOT EXISTS discovery_report (
-    discovery_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
-    customer_id VARCHAR(255),       -- nullable in RDS
-    tenant_id VARCHAR(255),         -- nullable in RDS
-    provider VARCHAR(50),           -- nullable in RDS
-    hierarchy_id VARCHAR(255),
-    hierarchy_type VARCHAR(50),
-    region VARCHAR(100),
-    service VARCHAR(100),
-    scan_timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    scan_type VARCHAR(50) DEFAULT 'discovery',
-    status VARCHAR(50) DEFAULT 'running',
-    metadata JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    discovery_scan_id   VARCHAR(255)                    PRIMARY KEY,
+    customer_id         VARCHAR(255),                   -- nullable in RDS
+    tenant_id           VARCHAR(255),                   -- nullable in RDS
+    provider            VARCHAR(50),                    -- nullable in RDS
+    hierarchy_id        VARCHAR(255),
+    hierarchy_type      VARCHAR(50),
+    region              VARCHAR(100),
+    service             VARCHAR(100),
+    scan_type           VARCHAR(50)     DEFAULT 'discovery',
+    status              VARCHAR(50)     DEFAULT 'running',
+    metadata            JSONB           DEFAULT '{}'::jsonb,
+    scan_timestamp      TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at          TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     -- NOTE: No FK constraints enforced in RDS
+    -- NOTE: orchestration_id is NOT in RDS (removed PLANNED column from local schema)
 );
+
+-- Legacy discovery report table (exists in RDS, kept for backward compatibility)
+CREATE TABLE IF NOT EXISTS discovery_report_legacy (
+    discovery_scan_id   VARCHAR(255)    PRIMARY KEY,
+    customer_id         VARCHAR(255)    NOT NULL,
+    tenant_id           VARCHAR(255)    NOT NULL,
+    provider            VARCHAR(50)     NOT NULL,
+    hierarchy_id        VARCHAR(255),
+    hierarchy_type      VARCHAR(50),
+    region              VARCHAR(50),
+    service             VARCHAR(100),
+    scan_timestamp      TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
+    scan_type           VARCHAR(50)     DEFAULT 'discovery',
+    status              VARCHAR(50),
+    metadata            JSONB,
+    execution_id        VARCHAR(255)
+);
+
+COMMENT ON TABLE discovery_report_legacy IS 'Discovery scan metadata (one row per run) - legacy table';
 
 -- ============================================================================
 -- DISCOVERY TABLES
@@ -61,6 +81,7 @@ CREATE TABLE IF NOT EXISTS discovery_findings (
     provider VARCHAR(50) NOT NULL,
     hierarchy_id VARCHAR(255),
     hierarchy_type VARCHAR(50),
+    account_id VARCHAR(255),
     discovery_id VARCHAR(255) NOT NULL,
     resource_uid TEXT,
     resource_arn TEXT,
@@ -76,6 +97,14 @@ CREATE TABLE IF NOT EXISTS discovery_findings (
     FOREIGN KEY (discovery_scan_id) REFERENCES discovery_report(discovery_scan_id) ON DELETE CASCADE
     -- NOTE: No FK to customers/tenants enforced in RDS
 );
+
+-- Indexes for account_id
+CREATE INDEX IF NOT EXISTS idx_df_account_id ON discovery_findings(account_id);
+CREATE INDEX IF NOT EXISTS idx_df_account_region ON discovery_findings(account_id, region);
+
+-- Column comment
+COMMENT ON COLUMN discovery_findings.account_id IS
+'Cloud account identifier (AWS account ID, Azure subscription ID, GCP project ID, etc.)';
 
 CREATE TABLE IF NOT EXISTS discovery_history (
     id SERIAL PRIMARY KEY,
@@ -100,30 +129,17 @@ CREATE TABLE IF NOT EXISTS discovery_history (
 );
 
 -- ============================================================================
--- RULE DEFINITIONS (YAML files for loading discovery rules)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS rule_definitions (
-    id SERIAL PRIMARY KEY,
-    csp VARCHAR(50) NOT NULL DEFAULT 'aws',
-    service VARCHAR(100) NOT NULL,
-    file_path VARCHAR(512) NOT NULL,
-    content_yaml TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(csp, service, file_path)
-);
-
--- ============================================================================
 -- INDEXES
 -- ============================================================================
 
--- PLANNED: not yet deployed to RDS
+-- discovery_report indexes (basic; no FK/orchestration_id in RDS)
 CREATE INDEX IF NOT EXISTS idx_dr_customer_tenant ON discovery_report(customer_id, tenant_id);
--- PLANNED: not yet deployed to RDS
 CREATE INDEX IF NOT EXISTS idx_dr_timestamp ON discovery_report(scan_timestamp DESC);
--- PLANNED: not yet deployed to RDS
-CREATE INDEX IF NOT EXISTS idx_dr_orchestration ON discovery_report(orchestration_id);
+
+-- discovery_report_legacy indexes
+CREATE INDEX IF NOT EXISTS idx_discoveries_report_customer_tenant ON discovery_report_legacy(customer_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_discoveries_report_timestamp ON discovery_report_legacy(scan_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_discoveries_execution_id ON discovery_report_legacy(execution_id);
 
 CREATE INDEX IF NOT EXISTS idx_df_scan ON discovery_findings(discovery_scan_id, discovery_id);
 CREATE INDEX IF NOT EXISTS idx_df_tenant ON discovery_findings(tenant_id, hierarchy_id);
@@ -138,9 +154,6 @@ CREATE INDEX IF NOT EXISTS idx_history_tenant ON discovery_history(tenant_id, re
 CREATE INDEX IF NOT EXISTS idx_history_timestamp ON discovery_history(scan_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_history_hash ON discovery_history(config_hash, previous_hash);
 
-CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp_service ON rule_definitions(csp, service);
-CREATE INDEX IF NOT EXISTS idx_rule_definitions_csp ON rule_definitions(csp);
-
 CREATE INDEX IF NOT EXISTS idx_df_emitted_fields_gin ON discovery_findings USING gin(emitted_fields);
 CREATE INDEX IF NOT EXISTS idx_discoveries_raw_response_gin ON discovery_findings USING gin(raw_response);
 CREATE INDEX IF NOT EXISTS idx_history_diff_summary_gin ON discovery_history USING gin(diff_summary);
@@ -149,7 +162,6 @@ CREATE INDEX IF NOT EXISTS idx_history_diff_summary_gin ON discovery_history USI
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE discovery_findings IS 'Discovered AWS resources from discovery scans';
+COMMENT ON TABLE discovery_findings IS 'Discovered cloud resources from discovery scans';
 COMMENT ON TABLE discovery_history IS 'Version history and drift detection';
-COMMENT ON TABLE rule_definitions IS 'Full YAML rules for discoveries engine to load';
 COMMENT ON TABLE discovery_report IS 'Discovery scan metadata';

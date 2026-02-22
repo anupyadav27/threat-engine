@@ -25,11 +25,71 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Data-security relevant resource types (S3, RDS, databases, data stores)
-DATA_SECURITY_RESOURCE_TYPES = {
+# Fallback hardcoded set (used when datasec DB is unreachable)
+_DATA_STORE_SERVICES_FALLBACK: Set[str] = {
     's3', 'rds', 'dynamodb', 'redshift', 'glacier', 'documentdb',
     'neptune', 'glue', 'lakeformation', 'macie', 'ecr',
+    'kms', 'elasticache', 'dax', 'efs', 'fsx',
 }
+
+# Module-level cache: {csp: frozenset}
+_data_store_services_cache: Dict[str, Set[str]] = {}
+
+
+def _get_datasec_db_connection():
+    """Get DataSec DB connection for reading config tables."""
+    return psycopg2.connect(
+        host=os.getenv("DATASEC_DB_HOST", "localhost"),
+        port=int(os.getenv("DATASEC_DB_PORT", "5432")),
+        database=os.getenv("DATASEC_DB_NAME", "threat_engine_datasec"),
+        user=os.getenv("DATASEC_DB_USER", "postgres"),
+        password=os.getenv("DATASEC_DB_PASSWORD", ""),
+    )
+
+
+def load_data_store_services(csp: str = "aws") -> Set[str]:
+    """
+    Load data store service names from datasec_data_store_services table.
+
+    Falls back to the hardcoded _DATA_STORE_SERVICES_FALLBACK set when the
+    datasec DB is not available (e.g. local dev, unit tests).
+
+    Results are module-level cached per CSP for the process lifetime.
+    """
+    global _data_store_services_cache
+    if csp in _data_store_services_cache:
+        return _data_store_services_cache[csp]
+
+    if not PSYCOPG_AVAILABLE:
+        return _DATA_STORE_SERVICES_FALLBACK
+
+    try:
+        conn = _get_datasec_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT service_name FROM datasec_data_store_services "
+                    "WHERE csp = %s AND is_active = TRUE",
+                    (csp,),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+
+        if rows:
+            services = {row[0] for row in rows}
+            _data_store_services_cache[csp] = services
+            logger.info(
+                f"Loaded {len(services)} data store service names for csp={csp} from datasec DB"
+            )
+            return services
+    except Exception as exc:
+        logger.warning(
+            f"Could not load data store services from datasec DB (csp={csp}): {exc}. "
+            "Using fallback hardcoded set."
+        )
+
+    return _DATA_STORE_SERVICES_FALLBACK
 
 
 def _get_threat_db_connection():
@@ -96,7 +156,15 @@ class ThreatDBReader:
 
         The threat_findings table uses threat_scan_id as FK, not scan_run_id directly.
         threat_scan_id format is typically 'threat_{scan_run_id}'.
+
+        When called from the pipeline the caller may already pass the threat_scan_id
+        (e.g. 'threat_bfed9ebc-...') — detect the prefix early to avoid the
+        double-prefix 'threat_threat_...' bug.
         """
+        # Already a threat_scan_id — return directly without DB lookup
+        if scan_run_id and scan_run_id.startswith("threat_"):
+            return scan_run_id
+
         try:
             with conn.cursor() as cur:
                 cur.execute(
@@ -360,15 +428,20 @@ class ThreatDBReader:
         tenant_id: str,
         scan_run_id: str,
         data_security_rule_ids: Optional[Set[str]] = None,
+        csp: str = "aws",
     ) -> List[Dict[str, Any]]:
         """
         Extract data stores from threat_findings table by filtering
         for data-security relevant resource types (s3, rds, dynamodb, etc.).
 
+        Resource type list is loaded from datasec_data_store_services DB table
+        (no hardcoded values — multi-CSP aware).
+
         Args:
             tenant_id: Tenant identifier
             scan_run_id: Scan run ID
             data_security_rule_ids: Optional filter by data security rule IDs
+            csp: Cloud provider key (aws | azure | gcp | oci | ibm | alicloud)
 
         Returns:
             List of unique data store dictionaries
@@ -381,8 +454,8 @@ class ThreatDBReader:
             if not threat_scan_id:
                 return []
 
-            # Query only data-security relevant resource types
-            ds_types = list(DATA_SECURITY_RESOURCE_TYPES)
+            # Load data store service names from DB (with fallback)
+            ds_types = list(load_data_store_services(csp))
             placeholders = ','.join(['%s'] * len(ds_types))
             query = f"""
                 SELECT DISTINCT ON (resource_uid)

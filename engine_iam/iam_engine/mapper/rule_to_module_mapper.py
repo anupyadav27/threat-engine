@@ -17,31 +17,45 @@ logger = logging.getLogger(__name__)
 
 # IAM-relevant rule_id patterns
 IAM_RULE_PATTERNS = [
-    re.compile(r'\.iam\.'),           # aws.iam.role.*, aws.iam.policy.*
-    re.compile(r'\.iam_'),            # e.g. aws.service.iam_fine_grained
-    re.compile(r'\.mfa[._]'),         # MFA rules
-    re.compile(r'\.password[._]'),    # Password rules
-    re.compile(r'\.root[._]'),        # Root account rules
-    re.compile(r'\.sso[._]'),         # SSO rules
+    re.compile(r'\.iam\.'),              # aws.iam.role.*, aws.iam.policy.*
+    re.compile(r'\.iam_'),               # e.g. aws.service.iam_fine_grained
+    re.compile(r'\.mfa[._]'),            # MFA rules
+    re.compile(r'\.password[._]'),       # Password rules
+    re.compile(r'\.root[._]'),           # Root account rules
+    re.compile(r'\.sso[._]'),            # SSO rules
+    # Azure IAM/identity patterns
+    re.compile(r'\.entraid\.'),          # azure.entraid.*
+    re.compile(r'\.aad\.'),              # azure.aad.*
+    re.compile(r'\.managedidentity\.'),  # azure.managedidentity.*
+    re.compile(r'\.serviceprincipal\.'), # azure.serviceprincipal.*
+    re.compile(r'\.rbac\.'),             # azure.rbac.*
+    re.compile(r'\.pim\.'),              # azure.pim.*
+    # GCP IAM/identity patterns
+    re.compile(r'\.serviceaccount\.'),   # gcp.serviceaccount.*
+    re.compile(r'\.workloadidentity\.'), # gcp.workloadidentity.*
+    re.compile(r'\.orgpolicy\.'),        # gcp.orgpolicy.*
 ]
 
 # Module derivation from rule_id keywords
 MODULE_KEYWORDS = {
     'least_privilege': ['least_privilege', 'rbac', 'privilege_escalation', 'overly_permissive',
                         'wildcard_admin', 'full_admin', 'no_policies_without_constraints',
-                        'resource_constraints', 'fine_grained_access', 'scopes_or_s_least'],
+                        'resource_constraints', 'fine_grained_access', 'scopes_or_s_least',
+                        'serviceaccount'],
     'policy_analysis': ['policy', 'managed_policy', 'managedpolicy', 'inline_policies',
                         'attached_only_to', 'versioning_and_change', 'conditions_used'],
     'mfa': ['mfa', 'multi_factor', 'hardware_mfa'],
     'role_management': ['role', 'trust_principals', 'trust_external_id', 'session_duration',
                         'max_session_duration', 'workload_identity', 'instanceprofile',
-                        'samlprovider', 'oidcprovider'],
+                        'samlprovider', 'oidcprovider',
+                        'managedidentity', 'serviceprincipal', 'workloadidentity'],
     'password_policy': ['password', 'reuse_24', 'expires_passwords', 'minimum_length',
                         'lowercase', 'uppercase', 'number', 'symbol'],
     'access_control': ['access', 'root_usage', 'avoid_root', 'inactive_90',
                        'console_access', 'console_password', 'guest_accounts',
                        'centralization', 'key_rotation', 'support_role',
-                       'group_has_users'],
+                       'group_has_users',
+                       'entraid', 'aad', 'pim', 'orgpolicy'],
 }
 
 

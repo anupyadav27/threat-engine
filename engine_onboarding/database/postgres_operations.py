@@ -521,24 +521,28 @@ def create_orchestration_status(
     scan_run_id: str,
     engine: str,
     status: str = 'running',
+    account_id: Optional[str] = None,
     tenant_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Create orchestration status record (uses shared.scan_orchestration table)"""
     from sqlalchemy import text
     from datetime import datetime, timezone
-    
+
+    if not account_id:
+        raise ValueError("account_id is required for orchestration status")
+
     with get_db_session() as db:
         # Insert into shared.scan_orchestration table
         # Note: This assumes the shared schema is accessible
         # For now, we'll use a simple approach - store in scan_results metadata
         # In production, this should use the shared.scan_orchestration table
-        
+
         # For backward compatibility, we'll create a scan_result entry
         # with orchestration metadata
         result = create_scan_result(
             scan_id=f"{scan_run_id}_{engine}",
-            account_id=tenant_id or "default",
+            account_id=account_id,
             provider_type=engine,
             scan_type="orchestration"
         )
@@ -568,25 +572,302 @@ def update_orchestration_status(
 ) -> Dict[str, Any]:
     """Update orchestration status record"""
     from datetime import datetime, timezone
-    
+
     scan_id = f"{scan_run_id}_{engine}"
-    
+
     metadata = {
         "scan_run_id": scan_run_id,
         "engine": engine,
         "status": status,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
-    
+
     if response_data:
         metadata["response_data"] = response_data
-    
+
     if error:
         metadata["error"] = error
-    
+
     return update_scan_result(
         scan_id=scan_id,
         status=status,
         metadata=metadata
     )
+
+
+# ============================================================================
+# NEW ORCHESTRATION FUNCTIONS (scan_orchestration table)
+# ============================================================================
+
+def create_orchestration_record(
+    orchestration_id: str,
+    tenant_id: str,
+    account_id: str,
+    provider_type: str,
+    customer_id: Optional[str] = None,
+    include_services: Optional[List[str]] = None,
+    include_regions: Optional[List[str]] = None,
+    exclude_services: Optional[List[str]] = None,
+    exclude_regions: Optional[List[str]] = None,
+    credential_type: Optional[str] = None,
+    credential_ref: Optional[str] = None,
+    engines_requested: Optional[List[str]] = None
+) -> str:
+    """
+    Create new orchestration record in scan_orchestration table (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: UUID for this orchestration (usually scan_run_id)
+        tenant_id: Tenant identifier
+        account_id: Account identifier
+        provider_type: Cloud provider (aws, azure, gcp, etc.)
+        customer_id: Customer identifier (optional)
+        include_services: Services to include (optional, null = all)
+        include_regions: Regions to include (optional, null = all)
+        exclude_services: Services to exclude (optional)
+        exclude_regions: Regions to exclude (optional)
+        credential_type: Credential type (iam_role, access_key)
+        credential_ref: Credential reference (ARN or Secrets Manager path)
+        engines_requested: List of engines to run
+
+    Returns:
+        orchestration_id
+    """
+    with get_db_session() as db:
+        # Use SQLAlchemy to insert into the local scan_orchestration table
+        from sqlalchemy import text
+        
+        engines_json = json.dumps(engines_requested or ["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"])
+        include_services_json = json.dumps(include_services) if include_services else None
+        include_regions_json = json.dumps(include_regions) if include_regions else None
+        exclude_services_json = json.dumps(exclude_services) if exclude_services else None
+        exclude_regions_json = json.dumps(exclude_regions) if exclude_regions else None
+        
+        result = db.execute(text("""
+            INSERT INTO scan_orchestration
+            (orchestration_id, tenant_id, customer_id, account_id, provider, 
+             overall_status, engines_requested, include_services, include_regions,
+             exclude_services, exclude_regions, credential_type, credential_ref,
+             started_at, created_at)
+            VALUES (:orchestration_id::uuid, :tenant_id, :customer_id, :account_id, :provider,
+                    'pending', :engines_requested::jsonb, :include_services::jsonb, :include_regions::jsonb,
+                    :exclude_services::jsonb, :exclude_regions::jsonb, :credential_type, :credential_ref,
+                    NOW(), NOW())
+            ON CONFLICT (orchestration_id) DO NOTHING
+            RETURNING orchestration_id
+        """), {
+            "orchestration_id": orchestration_id,
+            "tenant_id": tenant_id,
+            "customer_id": customer_id,
+            "account_id": account_id,
+            "provider": provider_type,
+            "engines_requested": engines_json,
+            "include_services": include_services_json,
+            "include_regions": include_regions_json,
+            "exclude_services": exclude_services_json,
+            "exclude_regions": exclude_regions_json,
+            "credential_type": credential_type,
+            "credential_ref": credential_ref
+        })
+        
+        db.commit()
+        return orchestration_id
+
+
+def update_orchestration_engine_scan_id(
+    orchestration_id: str,
+    engine: str,
+    engine_scan_id: str
+) -> None:
+    """
+    Update orchestration record with engine-specific scan_id (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: Orchestration UUID
+        engine: Engine name (discovery, check, threat, compliance, iam, datasec, inventory)
+        engine_scan_id: The engine's generated scan ID
+    """
+    column_map = {
+        "discovery": "discovery_scan_id",
+        "check": "check_scan_id",
+        "threat": "threat_scan_id",
+        "compliance": "compliance_scan_id",
+        "iam": "iam_scan_id",
+        "datasec": "datasec_scan_id",
+        "inventory": "inventory_scan_id"
+    }
+
+    column = column_map.get(engine)
+    if not column:
+        raise ValueError(f"Unknown engine: {engine}. Valid engines: {list(column_map.keys())}")
+
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        db.execute(text(f"""
+            UPDATE scan_orchestration
+            SET {column} = :engine_scan_id
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {
+            "engine_scan_id": engine_scan_id,
+            "orchestration_id": orchestration_id
+        })
+        
+        db.commit()
+
+
+def get_orchestration_scan_ids(orchestration_id: str) -> Dict[str, Optional[str]]:
+    """
+    Get all engine scan IDs for an orchestration.
+
+    Args:
+        orchestration_id: Orchestration UUID
+
+    Returns:
+        Dictionary with engine scan IDs:
+        {
+            "discovery_scan_id": "...",
+            "check_scan_id": "...",
+            "threat_scan_id": "...",
+            "compliance_scan_id": "...",
+            "iam_scan_id": "...",
+            "datasec_scan_id": "...",
+            "inventory_scan_id": "..."
+        }
+    """
+    import psycopg2
+    import os
+
+    conn = psycopg2.connect(
+        host=os.getenv('SHARED_DB_HOST'),
+        database=os.getenv('SHARED_DB_NAME'),
+        user=os.getenv('SHARED_DB_USER'),
+        password=os.getenv('SHARED_DB_PASSWORD')
+    )
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT discovery_scan_id, check_scan_id, threat_scan_id,
+                   compliance_scan_id, iam_scan_id, datasec_scan_id, inventory_scan_id
+            FROM scan_orchestration
+            WHERE orchestration_id = %s::uuid
+        """, (orchestration_id,))
+
+        row = cursor.fetchone()
+        if not row:
+            return {}
+
+        return {
+            "discovery_scan_id": row[0],
+            "check_scan_id": row[1],
+            "threat_scan_id": row[2],
+            "compliance_scan_id": row[3],
+            "iam_scan_id": row[4],
+            "datasec_scan_id": row[5],
+            "inventory_scan_id": row[6]
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_orchestration_complete(orchestration_id: str, status: str = 'completed') -> None:
+    """
+    Mark orchestration as complete (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: Orchestration UUID
+        status: Final status (completed, failed, partial)
+    """
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        db.execute(text("""
+            UPDATE scan_orchestration
+            SET overall_status = :status, completed_at = NOW()
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {
+            "status": status,
+            "orchestration_id": orchestration_id
+        })
+        
+        db.commit()
+
+
+def get_orchestration_metadata(orchestration_id: str) -> Dict[str, Any]:
+    """
+    Get complete orchestration metadata including tenant_id, account_id, provider,
+    and all engine scan IDs (LOCAL from onboarding DB).
+
+    This allows engines to receive ONLY orchestration_id and query all other
+    metadata from the onboarding database (single source of truth).
+
+    Args:
+        orchestration_id: Orchestration UUID
+
+    Returns:
+        Dictionary with all orchestration metadata (matches live RDS schema)
+    """
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        result = db.execute(text("""
+            SELECT
+                orchestration_id,
+                tenant_id,
+                customer_id,
+                account_id,
+                provider,
+                overall_status,
+                discovery_scan_id,
+                check_scan_id,
+                threat_scan_id,
+                compliance_scan_id,
+                iam_scan_id,
+                datasec_scan_id,
+                inventory_scan_id,
+                credential_type,
+                credential_ref,
+                include_services,
+                include_regions,
+                exclude_services,
+                exclude_regions,
+                engines_requested,
+                started_at,
+                completed_at,
+                created_at
+            FROM scan_orchestration
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {"orchestration_id": orchestration_id})
+        
+        row = result.fetchone()
+        if not row:
+            return {}
+
+        return {
+            "orchestration_id": str(row[0]),
+            "tenant_id": row[1],
+            "customer_id": row[2],
+            "account_id": row[3],
+            "provider": row[4],
+            "overall_status": row[5],
+            "discovery_scan_id": row[6],
+            "check_scan_id": row[7],
+            "threat_scan_id": row[8],
+            "compliance_scan_id": row[9],
+            "iam_scan_id": row[10],
+            "datasec_scan_id": row[11],
+            "inventory_scan_id": row[12],
+            "credential_type": row[13],
+            "credential_ref": row[14],
+            "include_services": row[15],
+            "include_regions": row[16],
+            "exclude_services": row[17],
+            "exclude_regions": row[18],
+            "engines_requested": row[19],
+            "started_at": row[20].isoformat() if row[20] else None,
+            "completed_at": row[21].isoformat() if row[21] else None,
+            "created_at": row[22].isoformat() if row[22] else None
+        }
 

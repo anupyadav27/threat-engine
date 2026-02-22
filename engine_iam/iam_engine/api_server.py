@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
+from engine_common.orchestration import get_orchestration_metadata
 
 from .input.threat_db_reader import ThreatDBReader
 from .enricher.finding_enricher import FindingEnricher
@@ -49,7 +50,8 @@ report_storage = ReportStorage()
 class ScanRequest(BaseModel):
     """Request to generate IAM security report."""
     csp: str = Field(..., description="Cloud service provider (e.g., 'aws')")
-    scan_id: str = Field(..., description="Threat scan_run_id (from Threat engine)")
+    scan_id: Optional[str] = Field(default=None, description="Threat scan_run_id (from Threat engine) - for ad-hoc mode")
+    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
     tenant_id: str = Field(default="default-tenant", description="Tenant ID")
     max_findings: Optional[int] = Field(default=None, description="Max findings to process")
 
@@ -77,17 +79,62 @@ async def health():
     return health_status
 
 
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — returns 200 when ready to serve traffic."""
+    return {"status": "ready"}
+
+
 @app.post("/api/v1/iam-security/scan", response_model=ReportResponse)
 async def generate_report(request: ScanRequest):
     """Generate IAM security report (findings filtered by IAM-relevant rules, enriched)."""
     import time
     start_time = time.time()
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=request.scan_id):
+
+    # Determine threat_scan_id and tenant_id
+    # Priority: direct scan_id (ad-hoc) > orchestration_id (pipeline)
+    threat_scan_id = None
+    tenant_id = request.tenant_id
+
+    if request.scan_id:
+        # MODE 1: Ad-hoc mode - use provided threat scan_id
+        threat_scan_id = request.scan_id
+        logger.info(f"Ad-hoc mode: Using direct threat_scan_id: {threat_scan_id}")
+
+    elif request.orchestration_id:
+        # MODE 2: Pipeline mode - query scan_orchestration for threat_scan_id
+        try:
+            metadata = get_orchestration_metadata(request.orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        threat_scan_id = metadata.get("threat_scan_id")
+        if not threat_scan_id:
+            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={request.orchestration_id}")
+
+        # Get tenant_id and csp from orchestration metadata
+        tenant_id = metadata.get("tenant_id") or request.tenant_id
+        orchestration_csp = metadata.get("provider") or metadata.get("provider_type") or metadata.get("csp")
+        if orchestration_csp:
+            request = request.model_copy(update={"csp": orchestration_csp.lower()})
+
+        logger.info(f"Pipeline mode: Got threat_scan_id={threat_scan_id} from orchestration_id={request.orchestration_id}, csp={request.csp}")
+
+    else:
+        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+
+    with LogContext(tenant_id=tenant_id, scan_run_id=threat_scan_id):
         try:
             report = reporter.generate_report(
                 csp=request.csp,
-                scan_id=request.scan_id,
-                tenant_id=request.tenant_id,
+                scan_id=threat_scan_id,
+                tenant_id=tenant_id,
                 max_findings=request.max_findings,
             )
             
@@ -100,27 +147,27 @@ async def generate_report(request: ScanRequest):
             try:
                 report_path = report_storage.save_report(
                     report=report,
-                    tenant_id=request.tenant_id,
-                    scan_id=request.scan_id
+                    tenant_id=tenant_id,
+                    scan_id=threat_scan_id
                 )
                 logger.info(f"IAM report saved to: {report_path}")
             except Exception as e:
                 logger.error(f"Error saving IAM report to file storage: {e}")
-            
+
             # Save to /output for S3 sync
             try:
                 output_dir = os.getenv("OUTPUT_DIR", "/output")
                 if output_dir and os.path.exists(output_dir):
-                    iam_dir = os.path.join(output_dir, "iam", request.tenant_id, request.scan_id)
+                    iam_dir = os.path.join(output_dir, "iam", tenant_id, threat_scan_id)
                     os.makedirs(iam_dir, exist_ok=True)
-                    
+
                     with open(os.path.join(iam_dir, "iam_report.json"), "w") as f:
                         json.dump(report, f, indent=2, default=str)
-                    
+
                     logger.info(f"IAM report saved to {iam_dir}")
             except Exception as e:
                 logger.error(f"Error saving IAM report to output dir: {e}")
-            
+
             # Save to database
             try:
                 from .storage.iam_db_writer import save_iam_report_to_db
@@ -128,6 +175,21 @@ async def generate_report(request: ScanRequest):
                 logger.info(f"IAM report saved to database: {saved_id}")
             except Exception as e:
                 logger.error(f"Error saving IAM report to database: {e}", exc_info=True)
+
+            # Update scan_orchestration with iam_scan_id (if in pipeline mode)
+            if request.orchestration_id:
+                try:
+                    from engine_common.orchestration import update_orchestration_scan_id
+                    iam_scan_id = report.get("report_id")
+                    update_orchestration_scan_id(
+                        orchestration_id=request.orchestration_id,
+                        engine="iam",
+                        scan_id=iam_scan_id,
+                    )
+                    logger.info(f"Updated scan_orchestration with iam_scan_id: {iam_scan_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update scan_orchestration: {e}")
+                    # Non-fatal — report is saved; this is tracking only
             
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "IAM security report generated", duration_ms)
@@ -172,6 +234,7 @@ async def get_findings(
     scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None),
+    hierarchy_id: Optional[str] = Query(None),
     service: Optional[str] = Query(None),
     module: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -189,6 +252,8 @@ async def get_findings(
         enriched = [f for f in enriched if f.get("is_iam_relevant", False)]
         if account_id:
             enriched = [f for f in enriched if f.get("account_id") == account_id]
+        if hierarchy_id:
+            enriched = [f for f in enriched if f.get("hierarchy_id") == hierarchy_id]
         if service:
             enriched = [f for f in enriched if (f.get("service") or "").lower() == service.lower()]
         if module:
@@ -202,7 +267,7 @@ async def get_findings(
             summary["by_status"][f.get("status", "UNKNOWN")] = summary["by_status"].get(f.get("status", "UNKNOWN"), 0) + 1
             for m in f.get("iam_security_modules", []):
                 summary["by_module"][m] = summary["by_module"].get(m, 0) + 1
-        return {"filters": {"account_id": account_id, "service": service, "module": module, "status": status, "resource_id": resource_id}, "summary": summary, "findings": enriched}
+        return {"filters": {"account_id": account_id, "hierarchy_id": hierarchy_id, "service": service, "module": module, "status": status, "resource_id": resource_id}, "summary": summary, "findings": enriched}
     except Exception as e:
         logger.error(f"Error getting IAM findings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -217,6 +282,107 @@ async def get_iam_rule_ids():
         "patterns": [p.pattern for p in IAM_RULE_PATTERNS],
         "description": "IAM relevance is determined by matching rule_id against these patterns",
     }
+
+
+@app.get("/api/v1/iam-security/accounts/{account_id}")
+async def get_account_iam_posture(
+    account_id: str,
+    csp: str = Query(..., description="Cloud service provider"),
+    scan_id: str = Query(..., description="Threat scan_run_id"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
+    module: Optional[str] = Query(None, description="Filter by IAM module"),
+    status: Optional[str] = Query(None, description="Filter by status (PASS/FAIL)"),
+):
+    """Get IAM security posture for a specific account from Threat DB."""
+    try:
+        findings = threat_db_reader.get_misconfig_findings(tenant_id=tenant_id, scan_run_id=scan_id)
+        enriched = finding_enricher.enrich_findings(findings)
+        enriched = [f for f in enriched if f.get("is_iam_relevant", False) and f.get("account_id") == account_id]
+        if module:
+            enriched = [f for f in enriched if module in f.get("iam_security_modules", [])]
+        if status:
+            enriched = [f for f in enriched if f.get("status") == status.upper()]
+        summary = {
+            "account_id": account_id,
+            "total_findings": len(enriched),
+            "findings_by_status": {},
+            "findings_by_module": {},
+            "findings_by_severity": {},
+        }
+        for f in enriched:
+            s = f.get("status", "UNKNOWN")
+            summary["findings_by_status"][s] = summary["findings_by_status"].get(s, 0) + 1
+            sev = f.get("severity", "unknown")
+            summary["findings_by_severity"][sev] = summary["findings_by_severity"].get(sev, 0) + 1
+            for m in f.get("iam_security_modules", []):
+                summary["findings_by_module"][m] = summary["findings_by_module"].get(m, 0) + 1
+        return {"account_id": account_id, "summary": summary, "findings": enriched}
+    except Exception as e:
+        logger.error(f"Error getting account IAM posture: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/iam-security/services/{service}")
+async def get_service_iam_posture(
+    service: str,
+    csp: str = Query(..., description="Cloud service provider"),
+    scan_id: str = Query(..., description="Threat scan_run_id"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
+    account_id: Optional[str] = Query(None, description="Filter by account ID"),
+    module: Optional[str] = Query(None, description="Filter by IAM module"),
+):
+    """Get IAM security posture for a specific service (e.g. iam, sts, cognito) from Threat DB."""
+    try:
+        findings = threat_db_reader.get_misconfig_findings(tenant_id=tenant_id, scan_run_id=scan_id)
+        enriched = finding_enricher.enrich_findings(findings)
+        enriched = [
+            f for f in enriched
+            if f.get("is_iam_relevant", False) and service.lower() in (f.get("service") or "").lower()
+        ]
+        if account_id:
+            enriched = [f for f in enriched if f.get("account_id") == account_id]
+        if module:
+            enriched = [f for f in enriched if module in f.get("iam_security_modules", [])]
+        summary = {
+            "service": service,
+            "total_findings": len(enriched),
+            "findings_by_status": {},
+            "findings_by_module": {},
+            "accounts": list({f.get("account_id", "") for f in enriched}),
+        }
+        for f in enriched:
+            s = f.get("status", "UNKNOWN")
+            summary["findings_by_status"][s] = summary["findings_by_status"].get(s, 0) + 1
+            for m in f.get("iam_security_modules", []):
+                summary["findings_by_module"][m] = summary["findings_by_module"].get(m, 0) + 1
+        return {"service": service, "account_id": account_id, "summary": summary, "findings": enriched}
+    except Exception as e:
+        logger.error(f"Error getting service IAM posture: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/iam-security/resources/{resource_uid}")
+async def get_resource_iam_findings(
+    resource_uid: str,
+    csp: str = Query(..., description="Cloud service provider"),
+    scan_id: str = Query(..., description="Threat scan_run_id"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
+):
+    """Get IAM findings for a specific resource (by resource_uid or ARN) from Threat DB."""
+    try:
+        findings = threat_db_reader.get_findings_by_resource(
+            tenant_id=tenant_id, scan_run_id=scan_id, resource_uid=resource_uid
+        )
+        enriched = finding_enricher.enrich_findings(findings)
+        iam_findings = [f for f in enriched if f.get("is_iam_relevant", False)]
+        return {
+            "resource_uid": resource_uid,
+            "total_findings": len(iam_findings),
+            "findings": iam_findings,
+        }
+    except Exception as e:
+        logger.error(f"Error getting resource IAM findings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

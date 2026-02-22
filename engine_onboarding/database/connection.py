@@ -1,7 +1,7 @@
 """
 PostgreSQL database connection and session management.
-Uses local database configuration from engine_onboarding.database.connection.
-Onboarding engine uses the shared database with engine_onboarding schema.
+Uses onboarding DB (threat_engine_onboarding) when ONBOARDING_DB_* is set, else shared DB.
+Tables: cloud_accounts, scan_orchestration, etc. in public schema.
 """
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
@@ -116,4 +116,28 @@ async def check_connection_async() -> bool:
     """Async database connection check"""
     # For now, use synchronous check (asyncpg not required for SQLAlchemy)
     return check_connection()
+
+
+def get_db_connection():
+    """
+    Get a raw psycopg2 database connection for direct SQL operations.
+    Used by cloud_accounts_operations.py
+    """
+    import psycopg2
+
+    # Extract connection parameters from database_url
+    # Format: postgresql://user:password@host:port/database
+    url_parts = database_url.replace("postgresql://", "").split("@")
+    user_pass = url_parts[0].split(":")
+    host_db = url_parts[1].split("/")
+    host_port = host_db[0].split(":")
+
+    return psycopg2.connect(
+        host=host_port[0],
+        port=int(host_port[1]) if len(host_port) > 1 else 5432,
+        user=user_pass[0],
+        password=user_pass[1],
+        dbname=host_db[1].split("?")[0],  # Remove query params if any
+        connect_timeout=10
+    )
 

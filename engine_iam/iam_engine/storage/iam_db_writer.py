@@ -114,10 +114,11 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                         INSERT INTO iam_findings (
                             finding_id, iam_scan_id, tenant_id, scan_run_id,
                             rule_id, iam_modules, severity, status,
-                            resource_type, resource_id, resource_arn, account_id, region,
+                            resource_type, resource_id, resource_arn, resource_uid,
+                            account_id, region, hierarchy_id, provider,
                             finding_data, first_seen_at, last_seen_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                         ON CONFLICT (finding_id) DO NOTHING
                     """, (
                         finding_id,
@@ -128,11 +129,14 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                         finding.get("iam_security_modules", []),
                         finding.get("severity", "medium"),
                         finding.get("status"),
-                        finding.get("resource", {}).get("type"),
-                        finding.get("resource", {}).get("id"),
-                        finding.get("resource", {}).get("arn"),
+                        finding.get("resource_type"),
+                        finding.get("resource_id"),
+                        finding.get("resource_arn") or finding.get("resource_uid"),
+                        finding.get("resource_uid"),
                         finding.get("account_id"),
                         finding.get("region"),
+                        finding.get("hierarchy_id") or finding.get("account_id"),
+                        cloud,
                         json.dumps(finding, default=str),
                         generated_at,
                         generated_at

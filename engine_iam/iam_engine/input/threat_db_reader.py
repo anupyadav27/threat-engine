@@ -89,7 +89,15 @@ class ThreatDBReader:
 
         The threat_findings table uses threat_scan_id as FK, not scan_run_id directly.
         threat_scan_id format is typically 'threat_{scan_run_id}'.
+
+        If scan_run_id already starts with 'threat_' it IS the threat_scan_id — return it directly
+        to avoid the double-prefix bug (threat_threat_...) that occurs when IAM receives the
+        orchestration threat_scan_id value and mistakenly tries to resolve it again.
         """
+        # Already a threat_scan_id (passed from orchestration metadata)
+        if scan_run_id.startswith("threat_"):
+            return scan_run_id
+
         try:
             with conn.cursor() as cur:
                 cur.execute(
@@ -103,7 +111,7 @@ class ThreatDBReader:
             logger.error(f"Error resolving threat_scan_id: {e}")
             conn.rollback()
 
-        # Fallback: try the conventional format
+        # Fallback: construct conventional format from bare check_scan_id
         return f"threat_{scan_run_id}"
 
     def load_threat_report_summary(self, tenant_id: str, scan_run_id: str) -> Optional[Dict[str, Any]]:
@@ -230,6 +238,7 @@ class ThreatDBReader:
                     'status': row['status'],
                     'account': row['account_id'] or '',
                     'account_id': row['account_id'] or '',
+                    'hierarchy_id': row['account_id'] or '',
                     'region': row['region'] or '',
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',
@@ -330,6 +339,7 @@ class ThreatDBReader:
                     'status': row['status'],
                     'account': row['account_id'] or '',
                     'account_id': row['account_id'] or '',
+                    'hierarchy_id': row['account_id'] or '',
                     'region': row['region'] or '',
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',

@@ -64,6 +64,10 @@ class Settings(BaseSettings):
         'IBM_ENGINE_URL',
         'http://ibm-compliance-engine.threat-engine-engines.svc.cluster.local'
     )
+    k8s_engine_url: str = os.getenv(
+        'K8S_ENGINE_URL',
+        'http://engine-discoveries.threat-engine-engines.svc.cluster.local'
+    )
     rule_engine_url: str = os.getenv(
         'RULE_ENGINE_URL',
         'http://engine-rule.threat-engine-engines.svc.cluster.local'

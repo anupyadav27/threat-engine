@@ -1,299 +1,265 @@
 # Scan Pipeline — End-to-End Flow
 
-> How a security scan flows through the CSPM platform, from cloud resource discovery to compliance reporting.
+> How a security scan flows through the CSPM platform, from cloud resource discovery
+> to compliance reporting and threat detection.
+>
+> Last updated: 2026-02-22
 
 ---
 
 ## Pipeline Overview
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Discovery  │───►│    Check    │───►│  Inventory  │───►│    Threat    │───►│ Compliance  │───►│   Graph     │
-│  Engine     │    │   Engine    │    │   Engine    │    │   Engine     │    │   Engine    │    │  (Neo4j)    │
-│  (:8002)    │    │  (:8001)    │    │  (:8022)    │    │  (:8020)     │    │  (:8021)    │    │  (:8020)    │
-└─────────────┘    └─────────────┘    └─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
-      │                  │                  │                   │                  │                  │
-      ▼                  ▼                  ▼                   ▼                  ▼                  ▼
- discovery_scans    check_findings     inventory_         threat_report      compliance_        Neo4j
- discovery_findings rule_metadata      findings           threat_detections  reports            Nodes &
-                                       inventory_         threat_findings    compliance_        Relationships
-                                       relationships      threat_analysis    scores
-                                                          threat_intelligence
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         SCAN ORCHESTRATION HUB                              │
+│              threat_engine_onboarding.scan_orchestration                    │
+│   (all engines read this to find input; write their scan_id when done)     │
+└────────────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  1. ONBOARDING  │  Port 8010
+│  engine-        │  Register cloud account, create orchestration row
+│  onboarding     │  Writes: orchestration_id, account_id, provider_type
+└────────┬────────┘
+         │ orchestration_id
+         ▼
+┌─────────────────┐
+│  2. DISCOVERIES │  Port 8001
+│  engine-        │  Enumerate all cloud resources (40+ services, 6 CSPs)
+│  discoveries    │  Reads:  cloud_accounts (credentials), scan_orchestration
+│                 │  Writes: discovery_findings, discovery_report
+│                 │          scan_orchestration.discovery_scan_id
+└────────┬────────┘
+         │ discovery_scan_id
+         ├────────────────────────────────────┐
+         ▼                                    ▼
+┌─────────────────┐                ┌──────────────────┐
+│  3. CHECK       │  Port 8002     │  4. INVENTORY    │  Port 8022
+│  engine-check   │                │  engine-inventory│
+│  Evaluate 400+  │                │  Normalise assets│
+│  rules PASS/FAIL│                │  Build edges     │
+│  Reads:         │                │  Detect drift    │
+│   discovery_    │                │  Reads:          │
+│   findings      │                │   discovery_     │
+│  Writes:        │                │   findings       │
+│   check_        │                │  Writes:         │
+│   findings,     │                │   inventory_     │
+│   check_report  │                │   findings,      │
+│   orchestration │                │   inventory_     │
+│   .check_scan_id│                │   relationships, │
+└────────┬────────┘                │   inventory_     │
+         │ check_scan_id           │   report         │
+         │                        │  orchestration   │
+         │                        │  .inventory_     │
+         │                        │  scan_id         │
+         │                        └──────────────────┘
+         │
+         │ (check_scan_id available — downstream engines run in parallel)
+         ├──────────────┬──────────────┬──────────────┐
+         ▼              ▼              ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────────┐
+│  5. THREAT   │ │  6. COMPLI.  │ │  7. IAM  │ │  8. DATASEC  │
+│  engine-     │ │  engine-     │ │  engine- │ │  engine-     │
+│  threat      │ │  compliance  │ │  iam     │ │  datasec     │
+│  Port: 8020  │ │  Port: 8000  │ │  Port:   │ │  Port: 8003  │
+│              │ │              │ │  8001    │ │              │
+│  MITRE ATT&CK│ │  13+frameworks│ │  57 IAM  │ │  62 data     │
+│  Risk 0-100  │ │  scoring     │ │  rules   │ │  rules       │
+│  Attack      │ │  CIS,NIST,   │ │          │ │              │
+│  chains      │ │  SOC2,PCI,   │ │          │ │              │
+│              │ │  HIPAA,GDPR, │ │          │ │              │
+│              │ │  ISO27001… │ │          │ │              │
+│              │ │              │ │          │ │              │
+│  Writes:     │ │  Writes:     │ │  Writes: │ │  Writes:     │
+│   threat_    │ │   compliance_│ │   iam_   │ │   datasec_   │
+│   findings,  │ │   reports,   │ │   finding│ │   findings,  │
+│   threat_    │ │   compliance_│ │   s,     │ │   data_      │
+│   report     │ │   findings   │ │   iam_   │ │   assets     │
+│              │ │              │ │   report │ │              │
+└──────────────┘ └──────────────┘ └──────────┘ └──────────────┘
+
+Additional (independent, on-demand):
+┌──────────────────────────────────────────────┐
+│  SECOPS  (engine-secops, Port 8005)          │
+│  IaC scanning: Terraform, CloudFormation,    │
+│  Helm, K8s, Ansible, Dockerfile, ARM, Bicep… │
+│  Reads: source code / S3 input              │
+│  Writes: secops_scans, secops_findings       │
+└──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Stage 1: Discovery (engine_discoveries)
+## scan_orchestration — The Pipeline Hub
 
-**Purpose:** Connect to cloud provider APIs and discover all resources.
+All engines coordinate through a single row in this table:
 
-**Trigger:** `POST /api/v1/discovery`
+```sql
+-- In threat_engine_onboarding DB
+SELECT
+    orchestration_id,     -- UUID — passed to every engine API call
+    tenant_id,
+    account_id,           -- cloud account (hierarchy_id)
+    provider_type,        -- 'aws' | 'azure' | 'gcp' | 'oci' | 'alicloud' | 'ibm'
+    status,               -- 'pending' | 'running' | 'completed' | 'failed'
 
-**Input:**
+    -- Each engine writes its scan_id here when done:
+    discovery_scan_id,    -- written by engine-discoveries
+    check_scan_id,        -- written by engine-check
+    inventory_scan_id,    -- written by engine-inventory
+    compliance_scan_id,   -- written by engine-compliance
+    threat_scan_id,       -- written by engine-threat
+    iam_scan_id,          -- written by engine-iam
+    datasec_scan_id,      -- written by engine-datasec
+
+    created_at,
+    updated_at
+FROM scan_orchestration
+WHERE orchestration_id = '<uuid>';
+```
+
+---
+
+## Stage-by-Stage Details
+
+### Stage 1: Onboarding
+
+**Endpoint:** `POST /onboarding/api/v1/scan/trigger` (or similar)
+**Output:** `orchestration_id` — pass to every subsequent engine
+
+Creates a row in `scan_orchestration` with account details and returns the
+`orchestration_id` that chains the entire pipeline together.
+
+---
+
+### Stage 2: Discovery (engine-discoveries)
+
+**Endpoint:** `POST /discoveries/api/v1/discovery`
 ```json
 {
-  "tenant_id": "588989875114",
-  "scan_run_id": "ece8c3a6-...",
-  "cloud": "aws",
-  "accounts": ["588989875114"],
-  "regions": ["ap-south-1"],
-  "services": ["s3", "iam", "ec2", "rds", "lambda"]
+  "orchestration_id": "<uuid>",
+  "provider": "aws",
+  "hierarchy_id": "588989875114",
+  "tenant_id": "..."
 }
 ```
 
-**What it does:**
-1. Authenticates to AWS using IAM role or access keys (from onboarding credentials)
-2. Iterates through each requested service (40+ supported)
-3. Calls AWS APIs (boto3) to list and describe all resources
-4. Normalizes raw API responses into NDJSON format
-5. Stores results in `discovery_findings` table and S3
+- Authenticates to cloud provider (AWS STS assume-role, or stored credentials)
+- Iterates 40+ services (EC2, S3, IAM, RDS, Lambda, ECS, EKS, …)
+- Calls SDK APIs to list and describe all resources
+- Stores raw API responses in `discovery_findings` (one row per resource)
+- Writes `discovery_scan_id` back to `scan_orchestration`
 
-**Output:**
-- `discovery_scans` — Scan metadata (id, tenant, status, timing)
-- `discovery_findings` — Raw resource configurations (one row per resource)
-- S3: `cspm-lgtech/aws-configScan-engine/output/{scan_run_id}/`
-
-**Data example:** Each discovery finding contains the full AWS API response for a resource (e.g., S3 bucket config, IAM role policies, EC2 security group rules).
+**Performance:** v10-multicloud — ~2.2 services/min using 100-thread pool, 10s boto3 timeout
 
 ---
 
-## Stage 2: Check (engine_check)
+### Stages 3 & 4: Check + Inventory (PARALLEL — both depend only on discoveries)
 
-**Purpose:** Evaluate security rules against discovered resources.
+> **Key fact**: Both check and inventory read `discovery_findings` directly.
+> Inventory does NOT depend on check. They run in parallel after discoveries complete.
 
-**Trigger:** `POST /api/v1/check`
+### Stage 3: Check (engine-check)
 
-**Input:** Same scan_run_id from discovery stage.
-
-**What it does:**
-1. Loads discovery findings from DB for the given scan_run_id
-2. Loads YAML security rules from `rule_metadata` table (1000+ rules)
-3. For each resource, evaluates applicable rules:
-   - Matches rule's service/resource_type to discovery resource
-   - Executes rule logic (field checks, policy evaluation)
-   - Produces PASS/FAIL/ERROR status per rule per resource
-4. Enriches results with MITRE ATT&CK technique mappings from rule metadata
-5. Stores results in `check_findings` table
-
-**Output:**
-- `check_scans` — Scan metadata with total passed/failed counts
-- `check_findings` — Individual check results (rule_id, resource_uid, status, evidence, severity)
-
-**Data volume:** ~764 findings per scan (depending on resource count and rule count)
-
-**Rule evaluation example:**
-```
-Rule: aws.s3.bucket.versioning_enabled
-Resource: arn:aws:s3:::my-bucket
-Check: resource.Versioning.Status == "Enabled"
-Result: FAIL (versioning disabled)
-Severity: high
-MITRE: T1485 (Data Destruction)
+**Endpoint:** `POST /check/api/v1/check`
+```json
+{ "orchestration_id": "<uuid>", "tenant_id": "..." }
 ```
 
----
-
-## Stage 3: Inventory (engine_inventory)
-
-**Purpose:** Normalize assets, build relationships between resources, detect drift.
-
-**Trigger:** `POST /api/v1/inventory/scan`
-
-**What it does:**
-1. Reads discovery findings from DB
-2. Normalizes each resource into a standard asset schema:
-   - Extracts: resource_uid, resource_type, region, account, tags, configuration
-   - Classifies by service (s3.resource, iam.role, ec2.security-group, etc.)
-3. Builds relationships between resources:
-   - IAM role → attached policies
-   - EC2 instance → security groups
-   - S3 bucket → IAM roles with access
-   - VPC → subnets → instances
-4. Compares with previous scan to detect drift (config changes)
-5. Stores normalized assets and relationships
-
-**Output:**
-- `inventory_findings` — Normalized asset records
-- `inventory_relationships` — Resource-to-resource edges (from_uid, to_uid, rel_type)
-- `inventory_drift` — Configuration change records between scans
+- Reads `discovery_findings` for the `discovery_scan_id` from `scan_orchestration`
+- Evaluates 400+ YAML rules (from `rule_metadata` table) per resource
+- Produces PASS / FAIL / SKIP per rule per resource
+- Enriches with MITRE ATT&CK technique mappings
 
 ---
 
-## Stage 4: Threat Detection (engine_threat)
+### Stage 4: Inventory (engine-inventory)
 
-**Purpose:** Group related findings into threats, assign MITRE techniques, score risk.
+**Endpoint:** `POST /inventory/api/v1/inventory/scan/discovery`
+```json
+{ "orchestration_id": "<uuid>", "tenant_id": "..." }
+```
 
-**Trigger:** `POST /api/v1/threat/generate`
-
-**What it does (5 sub-stages):**
-
-### 4a. Metadata Enrichment
-- JOINs `check_findings` with `rule_metadata` to get severity, MITRE mappings
-- Groups findings by resource_uid
-
-### 4b. Threat Detection
-- Groups related findings into threat detections
-- Each threat = one resource with multiple failing checks
-- Aggregates MITRE techniques from all findings for that resource
-- Assigns threat category (misconfiguration, exposure, etc.)
-- Calculates confidence based on finding consistency
-
-### 4c. Threat Analysis (Risk Scoring)
-- For each threat detection, computes:
-  ```
-  risk_score = severity_weight × 40
-             + blast_radius_factor × 25
-             + mitre_impact_score × 25
-             + reachability_bonus × 10
-  ```
-- Builds attack chains (resource → related resources)
-- Generates recommendations
-- Assigns verdict: critical_action_required / high_risk / medium_risk / low_risk / informational
-
-### 4d. Storage
-- Saves to `threat_report`, `threat_detections`, `threat_findings`, `threat_analysis`
-
-### 4e. Intel Correlation (optional)
-- Cross-references threat detections with `threat_intelligence` entries
-- Matches by MITRE technique overlap
-
-**Output:**
-- `threat_report` — Scan-level summary (total threats, by severity, by category)
-- `threat_detections` — Individual threats (resource, severity, MITRE techniques)
-- `threat_findings` — Links threats to underlying check findings
-- `threat_analysis` — Risk scores, verdicts, recommendations, attack chains
-
-**Data volume:** ~21 threats from 764 check findings (typical)
+- Two-pass algorithm:
+  - **Pass 1**: Root records → create normalised `inventory_findings` assets
+  - **Pass 2**: Enrichment records → merge config into existing assets
+- Extracts ARNs using step5 catalog (`resource_inventory_identifier` table)
+- Builds `inventory_relationships` edges (e.g., EC2 → SecurityGroup, S3 → IAMPolicy)
+- Writes `inventory_scan_id` to `scan_orchestration`
+- Typical: 1,529 assets + 199 relationships in ~73s
 
 ---
 
-## Stage 5: Compliance Reporting (engine_compliance)
+### Stage 5: Threat Detection (engine-threat)
 
-**Purpose:** Map check findings to compliance framework controls.
+**Endpoint:** `POST /threat/api/v1/scan` (or `/api/v1/threat/generate`)
+```json
+{ "orchestration_id": "<uuid>", "tenant_id": "..." }
+```
 
-**Trigger:** `POST /api/v1/compliance/generate`
-
-**What it does:**
-1. Loads check findings from DB
-2. Loads framework definitions (CIS AWS, NIST 800-53, SOC 2, etc.)
-3. Maps each rule to framework controls via rule_metadata mappings
-4. Calculates compliance scores per control, per domain, per framework
-5. Generates executive summary, resource drilldowns, trend data
-6. Exports as JSON, PDF, or Excel
-
-**Output:**
-- `compliance_reports` — Full compliance report
-- `compliance_scores` — Scores per framework/control
-- `compliance_findings` — Links findings to controls
-- `compliance_trends` — Historical score tracking
-
-**Frameworks supported:** CIS AWS Benchmark, NIST 800-53, SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR, AWS Well-Architected
+Risk score formula:
+```
+risk_score = severity_weight × 40
+           + blast_radius_factor × 25
+           + mitre_impact_score × 25
+           + reachability_bonus × 10
+```
+Verdict: `critical_action_required` / `high_risk` / `medium_risk` / `low_risk` / `informational`
 
 ---
 
-## Stage 6: Security Graph (engine_threat → Neo4j)
+### Stage 6: Compliance (engine-compliance)
 
-**Purpose:** Build a graph database for attack path analysis and threat hunting.
+**Endpoint:** `POST /compliance/api/v1/compliance/scan`
+```json
+{ "orchestration_id": "<uuid>", "tenant_id": "..." }
+```
 
-**Trigger:** `POST /api/v1/graph/build`
+Frameworks: CIS AWS, NIST 800-53, SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR, CCPA, AWS Well-Architected, FedRAMP, CMMC, SWIFT CSP, Singapore MAS TRM
 
-**What it does:**
-1. Reads all data from PostgreSQL (3 databases):
-   - Resources from inventory
-   - Threats from threat_detections
-   - Findings from check_findings
-   - Relationships from inventory_relationships
-2. Creates Neo4j nodes:
-   - Virtual: Internet, Account, Region
-   - Resources: S3Bucket, IAMRole, IAMPolicy, SecurityGroup, etc.
-   - ThreatDetection nodes
-   - Finding nodes
-3. Creates relationships:
-   - CONTAINS (Account → Resource), HOSTS (Region → Resource)
-   - HAS_THREAT (Resource → Threat), HAS_FINDING (Resource → Finding)
-   - EXPOSES (Internet → Resource — for internet-facing resources)
-   - RELATES_TO, REFERENCES (resource-to-resource)
-4. Infers internet exposure from security group rules (0.0.0.0/0)
+---
 
-**Output:**
-- Neo4j graph: ~1,855 nodes, ~2,132 relationships (typical)
-- Enables: attack path queries, blast radius, toxic combinations, threat hunting
+### Stages 7–8: IAM & DataSec
+
+**IAM Endpoint:** `POST /iam/api/v1/scan`
+**DataSec Endpoint:** `POST /datasec/api/v1/scan`
+
+Both read `check_findings` and optionally `inventory_findings` for their specialised analysis.
 
 ---
 
 ## Trigger Methods
 
-### Manual (API)
-Each stage can be triggered individually via its API endpoint.
+### Method A: Individual engine calls (manual)
 
-### Orchestrated (API Gateway)
-```
-POST /gateway/orchestrate
-```
-Triggers the full pipeline in sequence.
+Each engine can be triggered independently by calling its API directly with `orchestration_id`.
 
-### Scheduled (Onboarding Engine)
-CRON-based schedules trigger scans automatically:
-```json
+### Method B: Gateway orchestration
+
+```
+POST /gateway/api/v1/orchestrate
 {
-  "schedule": "0 2 * * *",
-  "pipeline": ["discovery", "check", "inventory", "threat", "compliance", "graph"]
+  "orchestration_id": "<uuid>",
+  "stages": ["discovery", "check", "inventory", "threat", "compliance"]
 }
 ```
 
-### Auto-chained (Threat Engine)
-When `POST /api/v1/threat/generate` is called, it automatically:
-1. Reads check findings from DB
-2. Runs threat detection
-3. Runs threat analysis (risk scoring)
-4. Stores everything
-5. Returns combined results
+### Method C: Scheduled (via onboarding engine)
+
+Cron schedules can be configured to trigger the full pipeline automatically.
 
 ---
 
-## Database Dependencies
-
-```
-                    ┌──────────────────┐
-                    │  discovery_scans  │
-                    │ discovery_findings│
-                    └────────┬─────────┘
-                             │ (scan_run_id)
-                    ┌────────▼─────────┐
-                    │  check_scans     │
-                    │  check_findings  │◄──── rule_metadata
-                    └────────┬─────────┘
-                             │ (scan_run_id)
-              ┌──────────────┼──────────────┐
-              │              │              │
-     ┌────────▼───────┐ ┌───▼──────┐ ┌─────▼──────┐
-     │ inventory_     │ │ threat_  │ │ compliance_│
-     │ findings       │ │ report   │ │ reports    │
-     │ inventory_     │ │ threat_  │ │ compliance_│
-     │ relationships  │ │ detections│ │ scores    │
-     └────────────────┘ │ threat_  │ └────────────┘
-                        │ findings │
-                        │ threat_  │
-                        │ analysis │
-                        └───┬──────┘
-                            │
-                       ┌────▼────┐
-                       │  Neo4j  │
-                       │  Graph  │
-                       └─────────┘
-```
-
----
-
-## Timing (Typical)
+## Timing (Production Reference)
 
 | Stage | Duration | Data Volume |
 |-------|----------|-------------|
-| Discovery | 2-5 min | 280+ resources |
-| Check | 30-60 sec | 764 findings |
-| Inventory | 15-30 sec | 280 assets, 300+ relationships |
-| Threat Detection | 5-10 sec | 21 threats |
-| Threat Analysis | 2-5 sec | 21 analyses with risk scores |
-| Compliance | 10-30 sec | 7 framework reports |
-| Graph Build | 3-5 min | 1,855 nodes, 2,132 relationships |
-| **Total** | **~8-12 min** | End-to-end pipeline |
+| Discovery | 3–4h (414 AWS services) | 400k+ findings |
+| Discovery (partial, 38 services) | ~17 min | ~50k findings |
+| Check | 30–60 sec | 400+ rules × resources |
+| Inventory | ~73 sec | 1,529 assets, 199 relationships |
+| Compliance | 10–30 sec | 13 framework reports |
+| Threat | 5–15 sec | Threat detections with MITRE |
+| IAM | 5–10 sec | 57-rule analysis |
+| DataSec | 5–10 sec | 62-rule analysis |

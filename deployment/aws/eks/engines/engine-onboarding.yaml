@@ -8,6 +8,11 @@ metadata:
     tier: engine
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: engine-onboarding
@@ -97,17 +102,25 @@ spec:
           value: "threat_engine_onboarding"
         - name: DB_SCHEMA
           value: "public"
+        - name: ROOT_PATH
+          value: "/onboarding"
         - name: PORT
           value: "8008"
-        # Engine URLs (uniform naming)
+        # Engine URLs — all CSPs route through unified discoveries engine
         - name: AWS_ENGINE_URL
-          value: "http://engine-configscan-aws.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
         - name: AZURE_ENGINE_URL
-          value: "http://engine-configscan-azure.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
         - name: GCP_ENGINE_URL
-          value: "http://engine-configscan-gcp.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
         - name: ALICLOUD_ENGINE_URL
-          value: "http://engine-configscan-alicloud.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+        - name: OCI_ENGINE_URL
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+        - name: IBM_ENGINE_URL
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+        - name: K8S_ENGINE_URL
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
         - name: YAML_RULE_BUILDER_URL
           value: "http://engine-rule.threat-engine-engines.svc.cluster.local"
         - name: SCHEDULER_INTERVAL_SECONDS
@@ -118,10 +131,10 @@ spec:
           value: "7200"
         resources:
           requests:
-            memory: "512Mi"
+            memory: "256Mi"
             cpu: "250m"
           limits:
-            memory: "1Gi"
+            memory: "512Mi"
             cpu: "1000m"
         livenessProbe:
           httpGet:

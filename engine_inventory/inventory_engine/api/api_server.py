@@ -34,12 +34,14 @@ This module connects to THREE databases:
 ===
 """
 
+import asyncio
 import os
 import json
 import sys
 import time
 import random
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
@@ -56,12 +58,12 @@ sys.path.insert(0, _consolidated_path)
 
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
+from engine_common.orchestration import get_orchestration_metadata
 
 # Import local database config
 from ..database.connection.database_config import get_database_config
 
 from ..api.orchestrator import ScanOrchestrator
-from ..api.data_loader import DataLoader
 from ..api.inventory_db_loader import InventoryDBLoader
 from ..schemas.asset_schema import Provider
 from ..connectors.discovery_reader_factory import get_discovery_reader
@@ -73,6 +75,9 @@ app = FastAPI(
     description="Cloud Resource Inventory Discovery and Graph Building",
     version="1.0.0"
 )
+
+# Thread pool for running synchronous scan orchestrator without blocking the asyncio loop
+_scan_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inv-scan")
 
 # Lightweight in-memory job tracker for async scans.
 # NOTE: This is per-pod memory; for HA move to Redis/DB.
@@ -97,17 +102,19 @@ class ScanRequest(BaseModel):
     providers: List[str] = ["aws"]
     accounts: List[str]
     regions: List[str]
-    services: Optional[List[str]] = None
+    services: Optional[str] = None
     previous_scan_id: Optional[str] = None
     # DB-first inputs
-    discovery_scan_id: str = Field(default="latest", description="Discovery scan id from Discoveries DB (or 'latest')")
+    discovery_scan_id: Optional[str] = Field(default="latest", description="Discovery scan id from Discoveries DB (or 'latest') - for ad-hoc mode")
+    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
     check_scan_id: Optional[str] = Field(default=None, description="Optional check scan id to enrich assets with posture")
 
 
 class DiscoveryScanRequest(BaseModel):
     """Request model for discovery-based inventory scan"""
     tenant_id: str
-    discovery_scan_id: str = Field(..., alias="configscan_scan_id")
+    discovery_scan_id: Optional[str] = Field(default=None, alias="configscan_scan_id", description="Discovery scan ID - for ad-hoc mode")
+    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
     providers: Optional[List[str]] = None
     accounts: Optional[List[str]] = None
     previous_scan_id: Optional[str] = None
@@ -157,28 +164,70 @@ async def health():
     return health_status
 
 
-@app.post("/api/v1/inventory/scan", response_model=ScanResponse)
+@app.post("/api/v1/scan", response_model=ScanResponse)
 async def run_inventory_scan(request: ScanRequest):
     """
     Run inventory scan.
-    
+
     Collects resources, normalizes to assets/relationships, detects drift,
     and saves artifacts to S3/local storage.
     """
     import time
     start_time = time.time()
-    
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=request.previous_scan_id):
+
+    # Determine discovery_scan_id and check_scan_id
+    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
+    discovery_query_scan_id = request.discovery_scan_id
+    check_query_scan_id = request.check_scan_id
+    tenant_id = request.tenant_id
+
+    if request.orchestration_id:
+        # Pipeline mode - query scan_orchestration for discovery_scan_id and check_scan_id
+        try:
+            metadata = get_orchestration_metadata(request.orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        discovery_query_scan_id = metadata.get("discovery_scan_id")
+        if not discovery_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"Discovery scan not completed yet for orchestration_id={request.orchestration_id}")
+
+        # Optionally get check_scan_id if available (for posture enrichment)
+        check_query_scan_id = metadata.get("check_scan_id")
+
+        # Get tenant_id from orchestration metadata
+        tenant_id = metadata.get("tenant_id") or request.tenant_id
+
+        # Derive account and provider from orchestration metadata when not supplied in request
+        orch_account = metadata.get("account_id")
+        orch_provider = metadata.get("provider_type", "").lower() or None
+        if orch_account and not request.accounts:
+            request = request.model_copy(update={"accounts": [orch_account]})
+        if orch_provider and not request.providers:
+            request = request.model_copy(update={"providers": [orch_provider]})
+
+        logger.info(
+            f"Pipeline mode: discovery_scan_id={discovery_query_scan_id}, "
+            f"check_scan_id={check_query_scan_id}, "
+            f"account_id={orch_account}, provider={orch_provider} "
+            f"(orchestration_id={request.orchestration_id})"
+        )
+    elif not discovery_query_scan_id:
+        discovery_query_scan_id = "latest"
+        logger.info("Ad-hoc mode: Using discovery_scan_id='latest'")
+
+    with LogContext(tenant_id=tenant_id, scan_run_id=request.previous_scan_id):
         logger.info("Running inventory scan", extra={
             "extra_fields": {
                 "providers": request.providers,
                 "accounts": request.accounts,
                 "regions": request.regions,
                 "services": request.services,
-                "previous_scan_id": request.previous_scan_id
+                "previous_scan_id": request.previous_scan_id,
+                "discovery_scan_id": discovery_query_scan_id
             }
         })
-        
+
         try:
             # Get consolidated database URL
             try:
@@ -194,21 +243,26 @@ async def run_inventory_scan(request: ScanRequest):
                     status_code=500,
                     detail=f"Database configuration error: {str(e)}"
                 )
-            
+
             orchestrator = ScanOrchestrator(
-                tenant_id=request.tenant_id,
+                tenant_id=tenant_id,
                 db_url=db_url,
             )
-            
-            # DB-first: derive inventory from discoveries DB (default latest) and optionally enrich from check DB.
-            result = orchestrator.run_scan_from_discovery(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=request.check_scan_id,
-                providers=request.providers,
-                accounts=request.accounts,
-                previous_scan_id=request.previous_scan_id,
+
+            # DB-first: derive inventory from discoveries DB and optionally enrich from check DB.
+            # Run in thread pool so the asyncio event loop remains free (liveness probes stay healthy).
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                _scan_executor,
+                lambda: orchestrator.run_scan_from_discovery(
+                    discovery_scan_id=discovery_query_scan_id,
+                    check_scan_id=check_query_scan_id,
+                    providers=request.providers,
+                    accounts=request.accounts,
+                    previous_scan_id=request.previous_scan_id,
+                )
             )
-            
+
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Inventory scan completed", duration_ms)
             audit_log(
@@ -230,9 +284,24 @@ async def run_inventory_scan(request: ScanRequest):
                     "total_relationships": result.get("total_relationships", 0)
                 }
             })
-            
+
+            # Update scan_orchestration with inventory_scan_id (if in pipeline mode)
+            if request.orchestration_id:
+                try:
+                    from engine_common.orchestration import update_orchestration_scan_id
+                    inventory_scan_id = result.get("scan_run_id")
+                    update_orchestration_scan_id(
+                        orchestration_id=request.orchestration_id,
+                        engine="inventory",
+                        scan_id=inventory_scan_id,
+                    )
+                    logger.info(f"Updated scan_orchestration with inventory_scan_id: {inventory_scan_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update scan_orchestration: {e}")
+                    # Don't fail the request - this is tracking only
+
             return ScanResponse(**result)
-        
+
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error("Failed to run inventory scan", exc_info=True, extra={
@@ -309,24 +378,63 @@ async def run_inventory_scan_async(request: ScanRequest):
 async def run_discovery_scan(request: DiscoveryScanRequest):
     """
     Run inventory scan from discoveries (DB-first).
-    
+
     Reads discovery records from Discoveries DB (or local files), normalizes to assets/relationships,
     optionally enriches assets with check posture from Check DB, and writes indexes to Inventory DB.
     """
     import time
     start_time = time.time()
-    
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=request.discovery_scan_id):
+
+    # Determine discovery_scan_id and check_scan_id
+    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
+    discovery_query_scan_id = request.discovery_scan_id
+    check_query_scan_id = request.check_scan_id
+    tenant_id = request.tenant_id
+
+    if request.orchestration_id:
+        # Pipeline mode - query scan_orchestration for discovery_scan_id
+        try:
+            metadata = get_orchestration_metadata(request.orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        discovery_query_scan_id = metadata.get("discovery_scan_id")
+        if not discovery_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"Discovery scan not completed yet for orchestration_id={request.orchestration_id}")
+
+        # Optionally get check_scan_id
+        check_query_scan_id = metadata.get("check_scan_id")
+
+        # Get tenant_id from orchestration metadata
+        tenant_id = metadata.get("tenant_id") or request.tenant_id
+
+        # Derive account and provider from orchestration metadata when not supplied in request
+        orch_account = metadata.get("account_id")
+        orch_provider = metadata.get("provider_type", "").lower() or None
+        if orch_account and not request.accounts:
+            request = request.model_copy(update={"accounts": [orch_account]})
+        if orch_provider and not request.providers:
+            request = request.model_copy(update={"providers": [orch_provider]})
+
+        logger.info(
+            f"Pipeline mode: discovery_scan_id={discovery_query_scan_id}, "
+            f"account_id={orch_account}, provider={orch_provider} "
+            f"(orchestration_id={request.orchestration_id})"
+        )
+    elif not discovery_query_scan_id:
+        raise HTTPException(status_code=400, detail="Either discovery_scan_id OR orchestration_id must be provided")
+
+    with LogContext(tenant_id=tenant_id, scan_run_id=discovery_query_scan_id):
         logger.info("Running discovery-based inventory scan", extra={
             "extra_fields": {
-                "discovery_scan_id": request.discovery_scan_id,
+                "discovery_scan_id": discovery_query_scan_id,
                 "providers": request.providers,
                 "accounts": request.accounts,
                 "previous_scan_id": request.previous_scan_id,
-                "check_scan_id": request.check_scan_id
+                "check_scan_id": check_query_scan_id
             }
         })
-        
+
         try:
             # Get consolidated database URL
             try:
@@ -342,20 +450,25 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
                     status_code=500,
                     detail=f"Database configuration error: {str(e)}"
                 )
-            
+
             orchestrator = ScanOrchestrator(
-                tenant_id=request.tenant_id,
+                tenant_id=tenant_id,
                 db_url=db_url,
             )
-            
-            result = orchestrator.run_scan_from_discovery(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=request.check_scan_id,
-                providers=request.providers,
-                accounts=request.accounts,
-                previous_scan_id=request.previous_scan_id
+
+            # Run in thread pool so the asyncio event loop remains free (liveness probes stay healthy).
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                _scan_executor,
+                lambda: orchestrator.run_scan_from_discovery(
+                    discovery_scan_id=discovery_query_scan_id,
+                    check_scan_id=check_query_scan_id,
+                    providers=request.providers,
+                    accounts=request.accounts,
+                    previous_scan_id=request.previous_scan_id,
+                )
             )
-            
+
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Discovery scan completed", duration_ms)
             audit_log(
@@ -378,9 +491,24 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
                     "total_relationships": result.get("total_relationships", 0)
                 }
             })
-            
+
+            # Update scan_orchestration with inventory_scan_id (if in pipeline mode)
+            if request.orchestration_id:
+                try:
+                    from engine_common.orchestration import update_orchestration_scan_id
+                    inventory_scan_id = result.get("scan_run_id")
+                    update_orchestration_scan_id(
+                        orchestration_id=request.orchestration_id,
+                        engine="inventory",
+                        scan_id=inventory_scan_id,
+                    )
+                    logger.info(f"Updated scan_orchestration with inventory_scan_id: {inventory_scan_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update scan_orchestration: {e}")
+                    # Don't fail the request - this is tracking only
+
             return ScanResponse(**result)
-        
+
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error("Failed to run discovery scan", exc_info=True, extra={
@@ -469,19 +597,43 @@ async def get_inventory_job(job_id: str):
 
 @app.get("/api/v1/inventory/runs/{scan_run_id}/summary")
 async def get_scan_summary(scan_run_id: str, tenant_id: str = Query(...)):
-    """Get scan summary"""
+    """Get scan summary (DB-first)"""
     with LogContext(tenant_id=tenant_id, scan_run_id=scan_run_id):
         logger.info("Retrieving scan summary")
         try:
-            # DB-first only: summaries are read from local artifacts (no S3).
-            from engine_common.storage_paths import get_project_root
-            base = os.getenv("INVENTORY_OUTPUT_DIR") or str(get_project_root() / "engine_output" / "engine_inventory" / "output")
-            base_path = base
-            summary_path = os.path.join(base_path, tenant_id, scan_run_id, "normalized", "summary.json")
-            
-            with open(summary_path, 'r') as f:
-                summary = json.load(f)
-            
+            db_config = get_database_config("inventory")
+            db_url = db_config.connection_string
+            schema = os.getenv("DB_SCHEMA", "public")
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+            loader = InventoryDBLoader(db_url)
+
+            # Handle "latest" alias (FastAPI routes match {scan_run_id} before static "latest" route)
+            if scan_run_id == "latest":
+                scan_run_id = loader.get_latest_scan_id(tenant_id)
+                if not scan_run_id:
+                    loader.close()
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No completed scans found for tenant: {tenant_id}"
+                    )
+
+            summary = loader.get_scan_summary(tenant_id=tenant_id, scan_run_id=scan_run_id)
+            loader.close()
+
+            if not summary:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Scan summary not found for scan_run_id={scan_run_id}"
+                )
+
+            # Normalise datetime columns for JSON serialisation
+            for key in ("started_at", "completed_at"):
+                val = summary.get(key)
+                if val and hasattr(val, "isoformat"):
+                    summary[key] = val.isoformat()
+
             logger.info("Scan summary retrieved", extra={
                 "extra_fields": {
                     "total_assets": summary.get("total_assets", 0),
@@ -489,7 +641,9 @@ async def get_scan_summary(scan_run_id: str, tenant_id: str = Query(...)):
                 }
             })
             return summary
-        
+
+        except HTTPException:
+            raise
         except Exception as e:
             logger.warning("Scan summary not found", exc_info=True, extra={
                 "extra_fields": {
@@ -505,37 +659,34 @@ async def get_scan_summary(scan_run_id: str, tenant_id: str = Query(...)):
 
 @app.get("/api/v1/inventory/runs/latest/summary")
 async def get_latest_scan_summary(tenant_id: str = Query(...)):
-    """Get latest scan summary"""
+    """Get latest scan summary (DB-first)"""
     try:
-        loader = DataLoader()
-        
-        from pathlib import Path
-        from engine_common.storage_paths import get_project_root
-        base = os.getenv("INVENTORY_OUTPUT_DIR") or str(get_project_root() / "engine_output" / "engine_inventory" / "output")
-        base_path = Path(base)
-        tenant_dir = base_path / tenant_id
-        
-        if not tenant_dir.exists():
-            raise HTTPException(status_code=404, detail=f"No scans found for tenant: {tenant_id}")
-        
-        # Get all scan directories, sorted by name (assuming timestamp-based naming)
-        scan_dirs = sorted([d for d in tenant_dir.iterdir() if d.is_dir()], reverse=True)
-        
-        if not scan_dirs:
-            raise HTTPException(status_code=404, detail=f"No scans found for tenant: {tenant_id}")
-        
-        latest_scan_id = scan_dirs[0].name
-        
-        # Load summary for latest scan
-        summary_path = scan_dirs[0] / "normalized" / "summary.json"
-        if not summary_path.exists():
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+        schema = os.getenv("DB_SCHEMA", "public")
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+        loader = InventoryDBLoader(db_url)
+        latest_scan_id = loader.get_latest_scan_id(tenant_id)
+        if not latest_scan_id:
+            loader.close()
+            raise HTTPException(status_code=404, detail=f"No completed scans found for tenant: {tenant_id}")
+
+        summary = loader.get_scan_summary(tenant_id=tenant_id, scan_run_id=latest_scan_id)
+        loader.close()
+
+        if not summary:
             raise HTTPException(status_code=404, detail=f"Summary not found for scan: {latest_scan_id}")
-        
-        with open(summary_path, 'r') as f:
-            summary = json.load(f)
-        
+
+        # Normalise datetime columns for JSON serialisation
+        for key in ("started_at", "completed_at"):
+            val = summary.get(key)
+            if val and hasattr(val, "isoformat"):
+                summary[key] = val.isoformat()
+
         return summary
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -552,27 +703,35 @@ async def list_assets(
     provider: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
-    account_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None, description="Single account ID filter"),
+    account_ids: Optional[str] = Query(None, description="Comma-separated account IDs for multi-account filter"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0)
 ):
-    """List assets with filters and pagination (DB-first)"""
+    """List assets with filters and pagination (DB-first, multi-account support)"""
     try:
+        # Parse multi-account filter
+        parsed_account_ids: Optional[List[str]] = (
+            [a.strip() for a in account_ids.split(",") if a.strip()]
+            if account_ids else None
+        )
+
         # Get DB connection
         db_config = get_database_config("inventory")
         db_url = db_config.connection_string
         schema = os.getenv("DB_SCHEMA", "public")
         sep = "&" if "?" in db_url else "?"
         db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-        
+
         loader = InventoryDBLoader(db_url)
-        
+
         # Auto-resolve "latest" scan_run_id
         if not scan_run_id or scan_run_id == "latest":
             scan_run_id = loader.get_latest_scan_id(tenant_id)
             if not scan_run_id:
+                loader.close()
                 return {"assets": [], "total": 0, "limit": limit, "offset": offset, "has_more": False}
-        
+
         # Load assets with filters
         assets, total = loader.load_assets(
             tenant_id=tenant_id,
@@ -581,12 +740,13 @@ async def list_assets(
             region=region,
             resource_type=resource_type,
             account_id=account_id,
+            account_ids=parsed_account_ids,
             limit=limit,
             offset=offset
         )
-        
+
         loader.close()
-        
+
         return {
             "assets": assets,
             "total": total,
@@ -594,7 +754,7 @@ async def list_assets(
             "offset": offset,
             "has_more": (offset + len(assets)) < total
         }
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -776,51 +936,18 @@ async def get_asset_drift_history(
         })
         
         try:
-            loader = DataLoader()
-            
-            from pathlib import Path
-            from engine_common.storage_paths import get_project_root
-            base = os.getenv("INVENTORY_OUTPUT_DIR") or str(get_project_root() / "engine_output" / "engine_inventory" / "output")
-            base_path = Path(base)
-            tenant_dir = base_path / tenant_id
-            
-            if not tenant_dir.exists():
-                return {
-                    "resource_uid": resource_uid,
-                    "drift_history": [],
-                    "total": 0
-                }
-            
-            # Get all scan directories, sorted by name (newest first)
-            scan_dirs = sorted([d for d in tenant_dir.iterdir() if d.is_dir()], reverse=True)
-            
-            drift_history = []
-            for scan_dir in scan_dirs[:limit]:  # Limit number of scans to check
-                scan_run_id = scan_dir.name
-                drift_records = loader.load_drift_records(
-                    tenant_id=tenant_id,
-                    scan_run_id=scan_run_id,
-                    resource_uid=resource_uid
-                )
-                
-                for drift in drift_records:
-                    drift_history.append({
-                        **drift,
-                        "scan_run_id": scan_run_id
-                    })
-            
-            # Sort by detected_at (newest first)
-            drift_history.sort(key=lambda x: x.get("detected_at", ""), reverse=True)
-            
+            # Drift history is computed by comparing consecutive scan runs.
+            # Return empty list — use /api/v1/inventory/drift?baseline_scan=X&compare_scan=Y for comparison.
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Asset drift history retrieved", duration_ms)
-            
+
             return {
                 "resource_uid": resource_uid,
-                "drift_history": drift_history[:limit],
-                "total": len(drift_history)
+                "drift_history": [],
+                "total": 0,
+                "hint": "For drift comparison use GET /api/v1/inventory/drift?baseline_scan=<id>&compare_scan=<id>"
             }
-        
+
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error("Failed to load asset drift history", exc_info=True, extra={
@@ -843,19 +970,36 @@ async def get_graph(
     depth: int = Query(2, ge=1, le=3),
     limit: int = Query(100, ge=1, le=500)
 ):
-    """Get graph visualization data (nodes and edges)"""
+    """Get graph visualization data (nodes and edges) — DB-first"""
     try:
-        loader = DataLoader()
-        
-        # Load assets (nodes)
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+        schema = os.getenv("DB_SCHEMA", "public")
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+        loader = InventoryDBLoader(db_url)
+
+        # Auto-resolve "latest" scan_run_id
+        if not scan_run_id or scan_run_id == "latest":
+            scan_run_id = loader.get_latest_scan_id(tenant_id)
+            if not scan_run_id:
+                loader.close()
+                return {"nodes": [], "edges": [], "depth": depth, "total_nodes": 0, "total_edges": 0}
+
         if resource_uid:
             # Get specific asset and its relationships
-            asset = loader.load_asset_by_uid(tenant_id, scan_run_id or "latest", resource_uid)
+            asset = loader.load_asset_by_uid(tenant_id, resource_uid, scan_run_id)
             nodes = [asset] if asset else []
-            
-            # Get related assets
-            relationships = loader.load_relationships(tenant_id, scan_run_id or "latest", resource_uid)
-            
+
+            rels_from, _ = loader.load_relationships(
+                tenant_id=tenant_id, scan_run_id=scan_run_id, from_uid=resource_uid, limit=500
+            )
+            rels_to, _ = loader.load_relationships(
+                tenant_id=tenant_id, scan_run_id=scan_run_id, to_uid=resource_uid, limit=500
+            )
+            relationships = rels_from + rels_to
+
             # Collect related asset UIDs
             related_uids = set()
             for rel in relationships:
@@ -863,17 +1007,17 @@ async def get_graph(
                     related_uids.add(rel.get("from_uid"))
                 if rel.get("to_uid") != resource_uid:
                     related_uids.add(rel.get("to_uid"))
-            
-            # Load related assets
+
             for uid in related_uids:
-                related_asset = loader.load_asset_by_uid(tenant_id, scan_run_id or "latest", uid)
+                related_asset = loader.load_asset_by_uid(tenant_id, uid, scan_run_id)
                 if related_asset:
                     nodes.append(related_asset)
         else:
-            # Get all assets (limited)
-            nodes = loader.load_assets(tenant_id, scan_run_id or "latest", limit=limit)
-            relationships = loader.load_relationships(tenant_id, scan_run_id or "latest", limit=limit)
-        
+            nodes, _ = loader.load_assets(tenant_id=tenant_id, scan_run_id=scan_run_id, limit=limit)
+            relationships, _ = loader.load_relationships(tenant_id=tenant_id, scan_run_id=scan_run_id, limit=limit)
+
+        loader.close()
+
         return {
             "nodes": nodes,
             "edges": relationships,
@@ -881,7 +1025,7 @@ async def get_graph(
             "total_nodes": len(nodes),
             "total_edges": len(relationships)
         }
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -914,13 +1058,20 @@ async def get_drift(
         })
         
         try:
-            loader = DataLoader()
-            
+            db_config = get_database_config("inventory")
+            db_url = db_config.connection_string
+            schema = os.getenv("DB_SCHEMA", "public")
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+            loader = InventoryDBLoader(db_url)
+
             # If both baseline and compare are provided, compare two scans
             if baseline_scan and compare_scan:
-                # Load assets from both scans
-                baseline_assets = {a.get("resource_uid"): a for a in loader.load_assets(tenant_id, baseline_scan)}
-                compare_assets = {a.get("resource_uid"): a for a in loader.load_assets(tenant_id, compare_scan)}
+                # Load assets from both scans (DB-first)
+                _base_assets, _ = loader.load_assets(tenant_id=tenant_id, scan_run_id=baseline_scan, limit=50000)
+                _cmp_assets, _ = loader.load_assets(tenant_id=tenant_id, scan_run_id=compare_scan, limit=50000)
+                baseline_assets = {a.get("resource_uid"): a for a in _base_assets}
+                compare_assets = {a.get("resource_uid"): a for a in _cmp_assets}
                 
                 # Detect changes
                 drift_records = []
@@ -980,13 +1131,11 @@ async def get_drift(
                                 "detected_at": datetime.utcnow().isoformat() + "Z"
                             })
             else:
-                # Load drift records from single scan
-                drift_records = loader.load_drift_records(
-                    tenant_id=tenant_id,
-                    scan_run_id=scan_run_id or "latest",
-                    change_type=change_type
-                )
-            
+                # Single-scan drift: provider two scans to compare (baseline_scan vs compare_scan required)
+                drift_records = []
+
+            loader.close()
+
             # Apply additional filters
             if provider:
                 drift_records = [d for d in drift_records if d.get("provider") == provider]
@@ -994,17 +1143,17 @@ async def get_drift(
                 drift_records = [d for d in drift_records if d.get("resource_type") == resource_type]
             if account_id:
                 drift_records = [d for d in drift_records if d.get("account_id") == account_id]
-            
+
             # Group by change type
-            by_change_type = {}
+            by_change_type: Dict[str, List] = {}
             for drift in drift_records:
                 change = drift.get("change_type", "unknown")
                 if change not in by_change_type:
                     by_change_type[change] = []
                 by_change_type[change].append(drift)
-            
+
             # Group by provider
-            by_provider = {}
+            by_provider: Dict[str, Dict] = {}
             for drift in drift_records:
                 prov = drift.get("provider", "unknown")
                 if prov not in by_provider:
@@ -1016,7 +1165,7 @@ async def get_drift(
                     by_provider[prov]["removed"] += 1
                 elif "changed" in change:
                     by_provider[prov]["changed"] += 1
-            
+
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Drift records retrieved", duration_ms)
             
@@ -1058,28 +1207,43 @@ async def get_account_summary(
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None)
 ):
-    """Get account summary with service breakdown and regional distribution"""
+    """Get account summary with service breakdown and regional distribution (DB-first)"""
     try:
-        loader = DataLoader()
-        
-        # Load all assets for this account
-        assets = loader.load_assets(tenant_id, scan_run_id or "latest")
-        
-        # Filter by account
-        account_assets = [a for a in assets if a.get("account_id") == account_id]
-        
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+        schema = os.getenv("DB_SCHEMA", "public")
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+        loader = InventoryDBLoader(db_url)
+
+        if not scan_run_id or scan_run_id == "latest":
+            scan_run_id = loader.get_latest_scan_id(tenant_id)
+            if not scan_run_id:
+                loader.close()
+                return {"account_id": account_id, "total_assets": 0, "by_service": {}, "by_region": {}, "provider": "unknown"}
+
+        # Load all assets for this specific account (no pagination - aggregate query)
+        account_assets, _ = loader.load_assets(
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+            account_id=account_id,
+            limit=10000
+        )
+        loader.close()
+
         # Group by service
-        by_service = {}
+        by_service: Dict[str, int] = {}
         for asset in account_assets:
             service = asset.get("resource_type", "unknown").split(".")[0]
             by_service[service] = by_service.get(service, 0) + 1
-        
+
         # Group by region
-        by_region = {}
+        by_region: Dict[str, int] = {}
         for asset in account_assets:
             region = asset.get("region", "unknown")
             by_region[region] = by_region.get(region, 0) + 1
-        
+
         return {
             "account_id": account_id,
             "total_assets": len(account_assets),
@@ -1087,7 +1251,7 @@ async def get_account_summary(
             "by_region": by_region,
             "provider": account_assets[0].get("provider") if account_assets else "unknown"
         }
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -1101,34 +1265,49 @@ async def get_service_summary(
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None)
 ):
-    """Get service-specific summary with configuration statistics"""
+    """Get service-specific summary with configuration statistics (DB-first)"""
     try:
-        loader = DataLoader()
-        
-        # Load all assets for this service
-        assets = loader.load_assets(tenant_id, scan_run_id or "latest")
-        
-        # Filter by service (resource_type starts with service)
-        service_assets = [a for a in assets if a.get("resource_type", "").startswith(f"{service}.")]
-        
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+        schema = os.getenv("DB_SCHEMA", "public")
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+        loader = InventoryDBLoader(db_url)
+
+        if not scan_run_id or scan_run_id == "latest":
+            scan_run_id = loader.get_latest_scan_id(tenant_id)
+            if not scan_run_id:
+                loader.close()
+                return {"service": service, "total_assets": 0, "by_account": {}, "by_region": {}, "by_resource_type": {}}
+
+        # Load assets filtered by resource_type prefix (DB LIKE query)
+        service_assets, _ = loader.load_assets(
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+            resource_type_prefix=service,
+            limit=10000
+        )
+        loader.close()
+
         # Group by account
-        by_account = {}
+        by_account: Dict[str, int] = {}
         for asset in service_assets:
             acct = asset.get("account_id", "unknown")
             by_account[acct] = by_account.get(acct, 0) + 1
-        
+
         # Group by region
-        by_region = {}
+        by_region: Dict[str, int] = {}
         for asset in service_assets:
             region = asset.get("region", "unknown")
             by_region[region] = by_region.get(region, 0) + 1
-        
+
         # Group by resource type
-        by_resource_type = {}
+        by_resource_type: Dict[str, int] = {}
         for asset in service_assets:
             rtype = asset.get("resource_type", "unknown")
             by_resource_type[rtype] = by_resource_type.get(rtype, 0) + 1
-        
+
         return {
             "service": service,
             "total_assets": len(service_assets),
@@ -1136,7 +1315,7 @@ async def get_service_summary(
             "by_region": by_region,
             "by_resource_type": by_resource_type
         }
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -1194,43 +1373,41 @@ async def get_scan_drift(
         })
         
         try:
-            loader = DataLoader()
-            
-            # Load drift records for this scan
-            drift_records = loader.load_drift_records(
-                tenant_id=tenant_id,
-                scan_run_id=scan_run_id,
-                change_type=change_type
-            )
-            
-            # Apply additional filters
+            # Drift records are generated by comparing two scans.
+            # For a single scan_run_id, return empty (use /api/v1/inventory/drift?baseline_scan=X&compare_scan=Y for comparison).
+            drift_records: List[Dict[str, Any]] = []
+
+            # Apply filters
             if provider:
                 drift_records = [d for d in drift_records if d.get("provider") == provider]
             if resource_type:
                 drift_records = [d for d in drift_records if d.get("resource_type") == resource_type]
             if account_id:
                 drift_records = [d for d in drift_records if d.get("account_id") == account_id]
-            
+            if change_type:
+                drift_records = [d for d in drift_records if d.get("change_type") == change_type]
+
             # Group by change type
-            by_change_type = {}
+            by_change_type: Dict[str, List] = {}
             for drift in drift_records:
                 change = drift.get("change_type", "unknown")
                 if change not in by_change_type:
                     by_change_type[change] = []
                 by_change_type[change].append(drift)
-            
+
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Scan drift retrieved", duration_ms)
-            
+
             return {
                 "scan_run_id": scan_run_id,
                 "tenant_id": tenant_id,
                 "drift_records": drift_records,
                 "total": len(drift_records),
                 "by_change_type": {k: len(v) for k, v in by_change_type.items()},
-                "details": by_change_type
+                "details": by_change_type,
+                "hint": "For cross-scan drift comparison use GET /api/v1/inventory/drift?baseline_scan=<id>&compare_scan=<id>"
             }
-        
+
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error("Failed to load scan drift", exc_info=True, extra={

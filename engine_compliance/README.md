@@ -1,247 +1,273 @@
-# Compliance Engine Generator
+# Compliance Engine (`engine_compliance`)
 
-A unified compliance reporting engine that processes scan results from all CSP engines (AWS, Azure, GCP, AliCloud, OCI, IBM) and generates comprehensive compliance reports across multiple frameworks.
+Compliance reporting engine for CSPM — maps check findings to 13+ regulatory frameworks, calculates per-control pass rates and compliance scores, and generates executive and audit-ready reports.
+
+**Port:** `8010` | **Database:** `threat_engine_compliance` | **Image:** `yadavanup84/threat-engine-compliance-engine:v2-db-reports`
+
+---
 
 ## Overview
 
-The Compliance Engine Generator:
-- **Consumes** scan results from CSP compliance engines
-- **Maps** security checks to compliance framework controls (CIS, ISO 27001, NIST, PCI-DSS, HIPAA, GDPR, etc.)
-- **Aggregates** results by framework and calculates compliance scores
-- **Generates** executive dashboards, framework reports, and audit-ready documentation
-- **Tracks** compliance trends over time
+The Compliance Engine reads **check findings** from the `threat_engine_check` DB (written by the Check Engine), maps each rule to its compliance framework controls, aggregates pass/fail rates per control, and generates structured compliance reports.
+
+Pipeline position:
+
+```
+discoveries → check → compliance
+                (8002)   (8010)
+```
+
+Supported frameworks: CIS AWS Foundations, CIS Azure, CIS GCP, ISO 27001, NIST CSF, NIST 800-53, PCI-DSS, HIPAA, GDPR, SOC 2, FedRAMP, MITRE ATT&CK, AWS Well-Architected.
+
+---
 
 ## Architecture
 
 ```
-CSP Engines (AWS/Azure/GCP/etc.) 
-    ↓ (scan results JSON/NDJSON)
-Compliance Engine Generator
-    ├── Mapper: rule_id → compliance controls
-    ├── Aggregator: Group by framework, calculate scores
-    ├── Reporter: Generate reports (executive, framework, resource-level)
-    ├── Exporter: Export to JSON/PDF/CSV/DB
-    └── Storage: Track historical trends
-    ↓
-Compliance Reports (JSON/PDF/CSV/DB)
+Check DB (check_findings / rule_findings)
+        ↓
+  CheckDBLoader            ← reads findings for check_scan_id from threat_engine_check DB
+        ↓
+  RuleMapper               ← maps rule_id → compliance framework controls
+        ↓
+  ResultAggregator         ← groups by framework, control, resource; calculates pass rates
+        ↓
+  ScoreCalculator          ← computes compliance score (0-100%) per framework
+        ↓
+  EnterpriseReporter       ← assembles deduplicated findings + evidence + asset snapshots
+        ↓
+  DatabaseExporter         ← writes compliance_report + findings to threat_engine_compliance DB
 ```
 
-## Features
+---
 
-### Core Features
-- ✅ Multi-framework compliance mapping (CIS, ISO, NIST, PCI-DSS, HIPAA, GDPR)
-- ✅ Compliance score calculation (0-100% per framework)
-- ✅ Multi-CSP aggregation (unified view across AWS/Azure/GCP/etc.)
-- ✅ Historical tracking and trend analysis
-- ✅ Evidence and audit trail
-- ✅ Remediation prioritization
+## Key Components
 
-### Report Types
-- **Executive Dashboard**: High-level compliance posture
-- **Framework Reports**: Control-by-control status (audit-ready)
-- **Resource Drill-down**: Per-resource compliance status
-- **Remediation Roadmap**: Prioritized fix list
+| File | Purpose |
+|------|---------|
+| `compliance_engine/api_server.py` | FastAPI app — all endpoints |
+| `loader/check_db_loader.py` | Reads check findings from `threat_engine_check` DB |
+| `mapper/rule_mapper.py` | Maps `rule_id` to framework controls (CSV-driven) |
+| `mapper/framework_loader.py` | Loads framework definitions and control hierarchies |
+| `aggregator/result_aggregator.py` | Groups findings by framework/control/resource |
+| `aggregator/score_calculator.py` | Calculates weighted compliance scores |
+| `reporter/executive_dashboard.py` | High-level compliance posture summary |
+| `reporter/framework_report.py` | Control-by-control framework report |
+| `reporter/resource_drilldown.py` | Per-resource compliance status |
+| `reporter/enterprise_reporter.py` | Full enterprise-grade report (cspm_misconfig_report.v1) |
+| `exporter/json_exporter.py` | JSON export for API responses |
+| `exporter/csv_exporter.py` | CSV export for spreadsheet analysis |
+| `exporter/pdf_exporter.py` | PDF export (optional, requires `weasyprint`) |
+| `exporter/excel_exporter.py` | Excel export (optional, requires `openpyxl`) |
+| `storage/trend_tracker.py` | Historical compliance trend tracking |
+| `storage/report_storage.py` | Local JSON report storage for S3 sync |
 
-### Export Formats
-- JSON API responses (for UI)
-- PDF reports (executive + detailed)
-- CSV exports (spreadsheet analysis)
-- Database tables (PostgreSQL/DynamoDB)
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-cd compliance-engine
-pip install -r requirements.txt
-```
-
-### 2. Load Compliance Mappings
-
-Place framework mapping files in `data/frameworks/`:
-- `cis_aws_foundations_v2.0.csv`
-- `iso27001_2022.csv`
-- `nist_csf.csv`
-- etc.
-
-### 3. Run Compliance Engine
-
-```bash
-# Start API server
-python -m compliance_engine.api_server
-
-# Generate compliance report from scan results
-curl -X POST http://localhost:8000/api/v1/compliance/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scan_id": "9c5ebb5b-5e68-4b9f-9851-6c5697f1d1f0",
-    "csp": "aws",
-    "frameworks": ["CIS", "ISO27001"]
-  }'
-```
+---
 
 ## API Endpoints
 
-- `POST /api/v1/compliance/generate` - Generate compliance report from scan results (S3/NDJSON)
-- `POST /api/v1/compliance/generate/from-check-db` - Generate from **Check DB** (PostgreSQL). Use for Discovery → Check → Threat → Compliance flow. Requires `tenant_id`, `scan_id` (or `latest`). Env: `CHECK_DB_*`.
-- `POST /api/v1/compliance/generate/from-threat-db` - Generate from **Threat DB** (PostgreSQL). Reads `threat_reports.report_data`, extracts `misconfig_findings`. Use when Threat writes to DB (`THREAT_USE_DB=true`). Env: `THREAT_DB_*`.
-- `POST /api/v1/compliance/generate/from-threat-engine` - Generate from threat engine NDJSON output (file-based)
-- `GET /api/v1/compliance/report/{report_id}` - Get compliance report
-- `GET /api/v1/compliance/framework/{framework}/status` - Get framework compliance status
-- `GET /api/v1/compliance/trends` - Get compliance trends
-- `GET /api/v1/compliance/report/{report_id}/export?format=pdf` - Export report
+### Health
 
-### Generate from Check DB or Threat DB (table-based, SaaS-friendly)
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/health` | Health check with DB connection status |
 
-**Check DB** (check_results from Discovery → Check):
-```bash
-curl -X POST "http://localhost:8000/api/v1/compliance/generate/from-check-db" \
-  -H "Content-Type: application/json" \
-  -d '{"tenant_id": "tenant-456", "scan_id": "latest", "csp": "aws"}'
-```
+### Scan (Pipeline Entry Point)
 
-**Threat DB** (threat_reports when Threat uses `THREAT_USE_DB=true`):
-```bash
-curl -X POST "http://localhost:8000/api/v1/compliance/generate/from-threat-db" \
-  -H "Content-Type: application/json" \
-  -d '{"tenant_id": "tenant-456", "scan_run_id": "check_xxx", "csp": "aws"}'
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/scan` | Run compliance scan — generates enterprise-grade report |
+| `POST` | `/api/v1/compliance/generate` | Generate report from S3/NDJSON scan output |
+| `POST` | `/api/v1/compliance/generate/direct` | Generate report with direct check results payload |
+| `POST` | `/api/v1/compliance/generate/from-threat-engine` | Generate from Threat Engine NDJSON output |
+| `POST` | `/api/v1/compliance/generate/from-check-db` | Generate from Check DB (legacy endpoint) |
+| `POST` | `/api/v1/compliance/generate/from-threat-db` | Generate from Threat DB report data |
+| `POST` | `/api/v1/compliance/generate/detailed` | Generate detailed report with extended control info |
+| `POST` | `/api/v1/compliance/mock/generate` | Generate mock compliance report for UI development |
 
-**Database:** Single-DB setup. Run `scripts/init-databases.sql` (creates `engine_*` schemas, including `engine_threat.threat_reports`, `engine_compliance.*`, etc.).
-
-See `sample_output/README.md` and `sample_output/compliance_report_sample.json` for report structure.
-
-## Data Structure
-
-### Input: Scan Results (from CSP engines)
+**Primary scan request body (`POST /api/v1/scan`):**
 ```json
 {
-  "scan_id": "uuid",
+  "orchestration_id": "337a7425-...",
+  "tenant_id": "5a8b072b-...",
   "csp": "aws",
-  "account_id": "588989875114",
-  "scanned_at": "2026-01-13T07:27:00Z",
-  "results": [
-    {
-      "service": "accessanalyzer",
-      "region": "us-east-1",
-      "checks": [
-        {
-          "rule_id": "aws.accessanalyzer.resource.access_analyzer_enabled",
-          "result": "FAIL",
-          "severity": "medium",
-          "resource": {...}
-        }
-      ]
-    }
-  ]
+  "frameworks": ["CIS", "ISO27001", "NIST", "PCI-DSS", "HIPAA"],
+  "include_passing": false,
+  "max_findings": 1000
 }
 ```
 
-### Output: Compliance Report
-```json
-{
-  "compliance_report": {
-    "frameworks": [
-      {
-        "framework": "CIS AWS Foundations Benchmark",
-        "version": "2.0",
-        "compliance_score": 78.5,
-        "controls": [...]
-      }
-    ],
-    "summary": {
-      "overall_compliance_score": 78.5,
-      "critical_findings": 12
-    }
-  }
-}
-```
+Supports two modes:
+- **Pipeline mode** (recommended): provide `orchestration_id` — engine looks up `check_scan_id` + `tenant_id` + `csp` from `scan_orchestration`
+- **Ad-hoc mode**: provide `scan_id` (direct `check_scan_id`, must also provide `csp` and `tenant_id`)
 
-## Framework Mappings
+### Report Queries
 
-Compliance mappings are stored in:
-- `data/frameworks/` - Framework control definitions (CSV)
-- `data/mappings/` - Rule-to-framework mappings (YAML/CSV)
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/compliance/report/{report_id}` | Get compliance report by ID |
+| `GET` | `/api/v1/compliance/reports` | List all compliance reports |
+| `GET` | `/api/v1/compliance/reports/{report_id}/status` | Get report generation status |
+| `DELETE` | `/api/v1/compliance/reports/{report_id}` | Delete a compliance report |
 
-Format:
-```csv
-rule_id,framework,framework_version,control_id,control_title,control_category
-aws.accessanalyzer.resource.access_analyzer_enabled,CIS AWS Foundations Benchmark,2.0,2.1.1,Ensure IAM Access Analyzer is enabled,Identity and Access Management
-```
+### Framework Queries
 
-## Development
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/compliance/frameworks` | List all supported frameworks with metadata |
+| `GET` | `/api/v1/compliance/frameworks/all` | Extended framework list with control counts |
+| `GET` | `/api/v1/compliance/framework/{framework}/status` | Compliance status for a framework |
+| `GET` | `/api/v1/compliance/framework/{framework}/detailed` | Detailed framework report with per-control breakdown |
+| `GET` | `/api/v1/compliance/framework/{framework}/structure` | Framework control hierarchy structure |
+| `GET` | `/api/v1/compliance/framework/{framework}/controls/grouped` | Controls grouped by category |
+| `GET` | `/api/v1/compliance/framework/{framework}/resources/grouped` | Resources grouped by compliance status |
+| `GET` | `/api/v1/compliance/framework/{framework}/control/{control_id}` | Detail for a specific control |
+| `GET` | `/api/v1/compliance/controls/search` | Search controls across frameworks |
 
-### Project Structure
-```
-compliance-engine/
-├── compliance_engine/
-│   ├── mapper/          # Framework mapping logic
-│   ├── aggregator/      # Result aggregation and scoring
-│   ├── reporter/        # Report generation
-│   ├── exporter/        # Export formats
-│   └── storage/         # Historical tracking
-├── data/
-│   ├── frameworks/      # Framework definitions
-│   └── mappings/        # Rule-to-framework mappings
-└── tests/               # Unit tests
-```
+### Dashboard & UI Endpoints
 
-### Running Tests
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/compliance/dashboard` | Executive compliance dashboard (all frameworks summary) |
+| `GET` | `/api/v1/compliance/trends` | Historical compliance trend data |
+| `GET` | `/api/v1/compliance/accounts/{account_id}` | Compliance posture for a specific account |
+| `GET` | `/api/v1/compliance/resource/drilldown` | Resource-level compliance details |
+| `GET` | `/api/v1/compliance/resource/{resource_uid}/compliance` | All compliance findings for a resource |
+| `GET` | `/api/v1/compliance/framework-detail/{framework}` | Framework detail view for UI |
+| `GET` | `/api/v1/compliance/control-detail/{framework}/{control_id}` | Control detail for UI |
+
+### Export
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/compliance/report/{report_id}/export` | Export report (`?format=pdf\|csv\|excel\|json`) |
+| `GET` | `/api/v1/compliance/framework/{framework}/download/pdf` | Download framework report as PDF |
+| `GET` | `/api/v1/compliance/framework/{framework}/download/excel` | Download framework report as Excel |
+| `GET` | `/api/v1/compliance/report/{report_id}/download/pdf` | Download full report as PDF |
+| `GET` | `/api/v1/compliance/report/{report_id}/download/excel` | Download full report as Excel |
+
+All query endpoints that require scan context use query params: `csp`, `scan_id`, `tenant_id`.
+
+---
+
+## Database Tables (`threat_engine_compliance`)
+
+| Table | Description |
+|-------|-------------|
+| `compliance_reports` | One row per scan — overall score, framework counts, full report JSONB |
+| `compliance_findings` | Individual findings mapped to framework controls |
+| `compliance_frameworks` | Framework definitions and metadata |
+| `rule_control_mapping` | Maps `rule_id` to `(framework, control_id)` |
+
+---
+
+## Supported Frameworks
+
+| Framework | ID | Controls |
+|-----------|-----|---------|
+| CIS AWS Foundations Benchmark v2.0 | `CIS` | 58 controls |
+| CIS Azure Foundations Benchmark | `CIS-Azure` | 49 controls |
+| CIS GCP Foundations Benchmark | `CIS-GCP` | 48 controls |
+| ISO/IEC 27001:2022 | `ISO27001` | 93 controls |
+| NIST Cybersecurity Framework v1.1 | `NIST` | 108 subcategories |
+| NIST SP 800-53 Rev 5 | `NIST-800-53` | 20 control families |
+| PCI-DSS v4.0 | `PCI-DSS` | 12 requirements |
+| HIPAA Security Rule | `HIPAA` | 18 standards |
+| GDPR | `GDPR` | 24 articles |
+| SOC 2 | `SOC2` | 5 trust service criteria |
+| FedRAMP | `FedRAMP` | 325 controls |
+| MITRE ATT&CK | `MITRE` | 14 tactics |
+| AWS Well-Architected | `AWS-WA` | 5 pillars |
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COMPLIANCE_DB_HOST` | `localhost` | Compliance DB host |
+| `COMPLIANCE_DB_PORT` | `5432` | Compliance DB port |
+| `COMPLIANCE_DB_NAME` | `threat_engine_compliance` | Compliance database name |
+| `COMPLIANCE_DB_USER` | `postgres` | DB user |
+| `COMPLIANCE_DB_PASSWORD` | — | DB password (from K8s secret) |
+| `CHECK_DB_HOST` | `localhost` | Check DB host (read-only) |
+| `CHECK_DB_PORT` | `5432` | Check DB port |
+| `CHECK_DB_NAME` | `threat_engine_check` | Check database name |
+| `CHECK_DB_PASSWORD` | — | Check DB password |
+| `OUTPUT_DIR` | `/output` | Directory for JSON report (synced to S3) |
+| `LOG_LEVEL` | `INFO` | Log verbosity |
+
+---
+
+## Running Locally
+
 ```bash
-pytest tests/
+cd engine_compliance
+pip install -r engine_compliance_aws/requirements.txt
+
+export COMPLIANCE_DB_HOST=localhost
+export COMPLIANCE_DB_PASSWORD=your_password
+export CHECK_DB_HOST=localhost
+export CHECK_DB_PASSWORD=your_password
+export PYTHONPATH=$(pwd)/..
+
+python -m uvicorn compliance_engine.api_server:app --host 0.0.0.0 --port 8010 --reload
 ```
 
-## Deployment
+---
 
-### Docker
+## Docker
+
 ```bash
-docker build -t compliance-engine:latest -f Dockerfile .
-docker run -p 8000:8000 compliance-engine:latest
+# Build (from repo root)
+docker build -t yadavanup84/threat-engine-compliance-engine:latest -f engine_compliance/Dockerfile .
+
+# Run
+docker run -p 8010:8010 \
+  -e COMPLIANCE_DB_HOST=host.docker.internal \
+  -e COMPLIANCE_DB_PASSWORD=your_password \
+  -e CHECK_DB_HOST=host.docker.internal \
+  -e CHECK_DB_PASSWORD=your_password \
+  yadavanup84/threat-engine-compliance-engine:latest
 ```
 
-### Kubernetes
+---
+
+## Kubernetes Deployment
+
+Manifest: `deployment/aws/eks/engines/engine-compliance.yaml`
+
 ```bash
-kubectl apply -f kubernetes/compliance-engine-deployment.yaml
+kubectl apply -f deployment/aws/eks/engines/engine-compliance.yaml
+kubectl rollout status deployment/engine-compliance -n threat-engine-engines
+kubectl logs -f -l app=engine-compliance -n threat-engine-engines
 ```
 
-## Integration with CSP Engines
+The pod runs two containers:
+- `engine-compliance` — FastAPI app on port 8010
+- `s3-sync` — syncs `/output/` to S3 every 30s
 
-The compliance engine consumes scan results from S3:
+---
 
-### S3 Structure
+## Triggering a Scan (Pipeline Mode)
 
+```bash
+# Via orchestration_id (preferred in pipeline)
+curl -X POST http://engine-compliance/api/v1/scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
+    "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
+    "csp": "aws",
+    "frameworks": ["CIS", "ISO27001", "NIST", "PCI-DSS"]
+  }'
 ```
-s3://cspm-lgtech/
-├── aws-compliance-engine/output/{scan_id}/
-│   ├── results.ndjson      # NDJSON format (one JSON per line)
-│   └── summary.json       # Scan metadata
-├── azure-compliance-engine/output/{scan_id}/
-├── gcp-compliance-engine/output/{scan_id}/
-├── alicloud-compliance-engine/output/{scan_id}/
-├── oci-compliance-engine/output/{scan_id}/
-└── ibm-compliance-engine/output/{scan_id}/
-```
 
-### Loading Scan Results
-
-The compliance engine automatically:
-1. **Loads from S3** using scan_id and CSP name
-2. **Falls back to local filesystem** if S3 unavailable
-3. **Parses NDJSON format** (one JSON object per line)
-
-### CSP Engines Supported
-
-- `aws` → `aws-compliance-engine/output`
-- `azure` → `azure-compliance-engine/output`
-- `gcp` → `gcp-compliance-engine/output`
-- `alicloud` → `alicloud-compliance-engine/output`
-- `oci` → `oci-compliance-engine/output`
-- `ibm` → `ibm-compliance-engine/output`
-
-All engines output a unified JSON format that the compliance engine processes.
-
-## License
-
-Same as parent project.
-
+The engine will:
+1. Look up `check_scan_id` + `tenant_id` from `scan_orchestration`
+2. Load check findings from `threat_engine_check` DB
+3. Map each `rule_id` to its framework controls
+4. Aggregate pass/fail counts per control per framework
+5. Calculate compliance scores (0-100%) per framework
+6. Write report to `compliance_reports` + `compliance_findings` tables
+7. Write `compliance_scan_id` back to `scan_orchestration`
