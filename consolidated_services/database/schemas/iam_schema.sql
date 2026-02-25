@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS iam_findings (
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     customer_id VARCHAR(255),
     resource_uid TEXT,
+    hierarchy_id VARCHAR(255),
+    provider VARCHAR(50) DEFAULT 'aws',
 
     CONSTRAINT fk_tenant_finding FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -85,6 +87,8 @@ CREATE INDEX IF NOT EXISTS idx_iam_findings_rule ON iam_findings(rule_id);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_severity ON iam_findings(severity, status);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_resource ON iam_findings(resource_arn);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_resource_uid ON iam_findings(resource_uid);
+CREATE INDEX IF NOT EXISTS idx_iam_findings_provider ON iam_findings(provider);
+CREATE INDEX IF NOT EXISTS idx_iam_findings_hierarchy ON iam_findings(hierarchy_id);
 
 -- JSONB indexes
 CREATE INDEX IF NOT EXISTS idx_iam_report_data_gin ON iam_report USING gin(report_data);

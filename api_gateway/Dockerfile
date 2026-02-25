@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api_gateway/*.py ./
 COPY api_gateway/ ./
 COPY engine_common/ ./engine_common
+COPY engine_auth/ ./engine_auth
 
 # Create non-root user
 RUN groupadd -r gateway && useradd -r -g gateway gateway

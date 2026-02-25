@@ -84,19 +84,19 @@ class DiscoveryReader:
         else:
             conn.close()
     
-    def read_discovery_records(self, discovery_id: str, tenant_id: str, 
+    def read_discovery_records(self, discovery_id: str, tenant_id: str,
                               hierarchy_id: str, scan_id: Optional[str] = None,
                               service: Optional[str] = None) -> List[Dict]:
         """
         Read discovery records from discoveries database
-        
+
         Args:
             discovery_id: Discovery ID (e.g., 'aws.s3.list_buckets')
             tenant_id: Tenant ID
-            hierarchy_id: Hierarchy ID (account_id, etc.)
-            scan_id: Optional scan ID to filter by specific scan
+            hierarchy_id: Hierarchy ID (account_id, etc.) - IGNORED if scan_id provided
+            scan_id: Discovery scan ID to filter by (PREFERRED - scopes to specific scan)
             service: Optional service name to filter
-        
+
         Returns:
             List of discovery items with emitted_fields
         """
@@ -104,34 +104,58 @@ class DiscoveryReader:
         try:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Get latest version of each resource using DISTINCT ON (PostgreSQL)
-                # Much more efficient than correlated subquery for large datasets
-                query = """
-                    SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
-                        COALESCE(resource_uid, resource_arn) as resource_uid,
-                        resource_arn,
-                        resource_id,
-                        emitted_fields,
-                        service,
-                        region,
-                        discovery_id,
-                        discovery_scan_id
-                    FROM discovery_findings
-                    WHERE discovery_id = %s
-                      AND tenant_id = %s
-                      AND hierarchy_id = %s
-                """
-                params = [discovery_id, tenant_id, hierarchy_id]
+                # ARCHITECTURE: Use discovery_scan_id to scope the query (preferred)
+                # This ensures we only get discoveries from the specific scan run
+                if scan_id:
+                    # PREFERRED: Filter by discovery_scan_id (most precise)
+                    query = """
+                        SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
+                            COALESCE(resource_uid, resource_arn) as resource_uid,
+                            resource_arn,
+                            resource_id,
+                            emitted_fields,
+                            service,
+                            region,
+                            discovery_id,
+                            discovery_scan_id,
+                            hierarchy_id,
+                            tenant_id
+                        FROM discovery_findings
+                        WHERE discovery_id = %s
+                          AND discovery_scan_id = %s
+                    """
+                    params = [discovery_id, scan_id]
+                else:
+                    # FALLBACK: Filter by tenant_id + hierarchy_id (gets latest across all scans)
+                    logger.warning(f"No scan_id provided for discovery_id={discovery_id}, using tenant_id + hierarchy_id filter (may return stale data)")
+                    query = """
+                        SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
+                            COALESCE(resource_uid, resource_arn) as resource_uid,
+                            resource_arn,
+                            resource_id,
+                            emitted_fields,
+                            service,
+                            region,
+                            discovery_id,
+                            discovery_scan_id,
+                            hierarchy_id,
+                            tenant_id
+                        FROM discovery_findings
+                        WHERE discovery_id = %s
+                          AND tenant_id = %s
+                          AND hierarchy_id = %s
+                    """
+                    params = [discovery_id, tenant_id, hierarchy_id]
 
                 if service:
                     query += " AND service = %s"
                     params.append(service)
 
                 query += " ORDER BY COALESCE(resource_uid, resource_arn), scan_timestamp DESC"
-                
+
                 cur.execute(query, params)
                 rows = cur.fetchall()
-                
+
                 # Convert to list of dicts and parse JSON fields
                 items = []
                 for row in rows:
@@ -141,10 +165,10 @@ class DiscoveryReader:
                         if isinstance(item['emitted_fields'], str):
                             item['emitted_fields'] = json.loads(item['emitted_fields'])
                         # emitted_fields is already a dict if from RealDictCursor
-                    
+
                     items.append(item)
-                
-                logger.debug(f"Read {len(items)} discovery records for discovery_id={discovery_id}, scan_id={scan_id}")
+
+                logger.info(f"[DiscoveryReader] Read {len(items)} discovery records for discovery_id={discovery_id}, scan_id={scan_id}")
                 return items
                 
         except Exception as e:

@@ -88,11 +88,12 @@ class DataSecurityReporter:
         if max_findings and len(enriched_findings) > max_findings:
             enriched_findings = enriched_findings[:max_findings]
 
-        # Extract data stores from threat_findings table (by resource_type)
+        # Extract data stores from threat_findings table (by resource_type, CSP-aware)
         logger.info("Extracting data stores from threat_findings")
         data_stores = self.threat_db_reader.filter_data_stores(
             tenant_id=tenant_id,
-            scan_run_id=scan_id
+            scan_run_id=scan_id,
+            csp=csp,
         )
         
         # Get enrichment summary

@@ -1,55 +1,94 @@
 # CSPM Threat Engine Platform
 
-Cloud Security Posture Management (CSPM) platform built as a microservices architecture. Discovers cloud resources, evaluates security rules, detects threats, and generates compliance reports across AWS, Azure, GCP, OCI, AliCloud, IBM Cloud, and Kubernetes.
+Cloud Security Posture Management (CSPM) platform built as a microservices architecture. Discovers cloud resources, evaluates 1000+ security rules, detects threats with MITRE ATT&CK mapping, and generates compliance reports across AWS, Azure, GCP, OCI, AliCloud, IBM Cloud, and Kubernetes.
 
 ---
 
 ## Architecture
 
 ```
-                     NLB (nginx ingress)
+                    EKS Cluster (ap-south-1)
                            │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-   /gateway/*         /ui/*  /cspm/*     /secops/*
-        │                  │                  │
-   api-gateway        cspm-ui           secops-scanner
-        │             django-backend
-        │
-   ┌────┴────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
-   │         │      │      │      │      │      │      │      │
- /discovery /check /threat /compliance /iam /datasec /inventory /onboarding
-   :8001    :8002   :8004   :8003      :8005  :8006   :8007     :8008
-   │         │      │      │      │      │      │      │
-   PostgreSQL (9 databases on single RDS) + Neo4j (graph)
+                    nginx Ingress (NLB)
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+     /gateway/*       /ui/*  /cspm/*    /secops/*
+          │                │                │
+     api-gateway      cspm-ui          secops-scanner
+          │
+  ┌───────┴───────────────────────────────────┐
+  │                                           │
+  ▼                                           ▼
+engine-discoveries (8001)          engine-onboarding (8008)
+  ↓ discovery_scan_id
+engine-check (8002)
+  ↓ check_scan_id
+  ├──→ engine-inventory (8022)
+  ├──→ engine-threat (8020)
+  │       ↓ threat_scan_id
+  │       ├──→ engine-iam (8003)
+  │       └──→ engine-datasec (8004)
+  └──→ engine-compliance (8010)
 ```
 
 ### Engines
 
-| Engine | K8s Name | Ingress Path | Port | Purpose |
-|--------|----------|-------------|------|---------|
-| **api_gateway** | `api-gateway` | `/gateway/*` | 80 | Unified entry point, service routing, scan orchestration |
-| **engine_discoveries** | `engine-discoveries` | `/discoveries/*` | 8001 | Discover cloud resources via AWS/Azure/GCP APIs |
-| **engine_check** | `engine-check` | `/check/*` | 8002 | Evaluate YAML security rules against discoveries |
-| **engine_compliance** | `engine-compliance` | `/compliance/*` | 8003 | Map findings to 13 compliance frameworks (CIS, NIST, SOC2, etc.) |
-| **engine_threat** | `engine-threat` | `/threat/*` | 8004 | Detect threats, risk scoring, attack paths (Neo4j), MITRE mapping |
-| **engine_iam** | `engine-iam` | `/iam/*` | 8005 | IAM posture analysis, privilege escalation detection |
-| **engine_datasec** | `engine-datasec` | `/datasec/*` | 8006 | Data classification, lineage, residency, governance |
-| **engine_inventory** | `engine-inventory` | `/inventory/*` | 8007 | Normalize assets, build relationships, detect drift |
-| **engine_onboarding** | `engine-onboarding` | `/onboarding/*` | 8008 | Account onboarding, credential management, scan scheduling |
-| **engine_rule** | `engine-rule` | - | 8000 | YAML rule builder for 7 cloud providers |
-| **engine_secops** | `engine-secops` | `/secops/*` | 8000 | IaC/code scanning (Terraform, CloudFormation, Docker, K8s) |
+| Engine | K8s Service | Port | Image | Purpose |
+|--------|------------|------|-------|---------|
+| **engine_discoveries** | `engine-discoveries` | `8001` | `engine-discoveries:v10-multicloud` | Discover cloud resources via AWS/Azure/GCP/OCI APIs |
+| **engine_check** | `engine-check` | `8002` | `engine-check:latest` | Evaluate 1000+ YAML security rules against discoveries |
+| **engine_iam** | `engine-iam` | `8003` | `engine-iam:v2-fixes` | IAM posture analysis, privilege escalation, MFA, password policy |
+| **engine_datasec** | `engine-datasec` | `8004` | `engine-datasec:v3-fixes` | Data classification, S3/RDS/DynamoDB governance, lineage, residency |
+| **engine_secops** | `engine-secops` | `8000` | `secops-scanner:latest` | IaC scanning (Terraform, CloudFormation, Dockerfile, K8s YAML) |
+| **engine_onboarding** | `engine-onboarding` | `8008` | `threat-engine-onboarding-api:latest` | Account onboarding, credential management, scan orchestration |
+| **engine_compliance** | `engine-compliance` | `8010` | `threat-engine-compliance-engine:v2-db-reports` | Map findings to 13 compliance frameworks (CIS, NIST, SOC2, etc.) |
+| **engine_threat** | `engine-threat` | `8020` | `threat-engine:latest` | Threat detection, MITRE ATT&CK mapping, risk scoring (0-100) |
+| **engine_inventory** | `engine-inventory` | `8022` | `inventory-engine:v6-multi-csp` | Normalize assets, build relationships, detect drift |
+| **engine_rule** | `engine-rule` | `8000` | `threat-engine-yaml-rule-builder:latest` | YAML rule builder and validator |
 
-### Scan Pipeline
+### Scan Pipeline (Sequential)
 
 ```
-Discovery → Check ─┬─→ Threat ─┬─→ IAM Security
-  (AWS)    (rules)  │  (MITRE)  └─→ DataSec
-                    │
-                    ├─→ Compliance (13 frameworks)
-                    │
-                    └─→ Inventory (assets, relationships, graph)
+onboarding            # Stores account credentials and orchestration row
+  ↓  orchestration_id
+discoveries           # Phase 1 — enumerates all cloud resources
+  ↓  discovery_scan_id
+check                 # Phase 2 — evaluates YAML rules → PASS/FAIL per resource
+  ↓  check_scan_id
+inventory             # Phase 3 — normalizes assets, builds relationships
+threat                # Phase 4 — groups findings into threats, MITRE mapping
+  ↓  threat_scan_id
+iam + datasec         # Phase 5a — IAM posture + data security analysis
+compliance            # Phase 5b — maps check findings to 13 frameworks
 ```
+
+All engines coordinate through the `scan_orchestration` table in the `threat_engine_onboarding` DB. Each engine reads its upstream scan_id from this table and writes its own scan_id back on completion.
+
+---
+
+## Infrastructure
+
+- **Cloud:** AWS (Mumbai, ap-south-1)
+- **Cluster:** `arn:aws:eks:ap-south-1:588989875114:cluster/vulnerability-eks-cluster`
+- **Database:** Single RDS `postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com:5432` (13 databases)
+- **Spot scanning:** `vulnerability-spot-scanners` node group (t3.xlarge/m5.xlarge/c5.xlarge, min=0, max=6)
+
+### Databases
+
+| Database | Used By | Key Tables |
+|----------|---------|-----------|
+| `threat_engine_onboarding` | onboarding | `cloud_accounts`, `scan_orchestration` |
+| `threat_engine_discoveries` | discoveries | `discovery_report`, `discovery_findings`, `discovery_history` |
+| `threat_engine_check` | check + discoveries | `rule_discoveries`, `check_findings`, `check_report` |
+| `threat_engine_inventory` | inventory | `inventory_assets`, `inventory_relationships`, `resource_inventory_identifier` |
+| `threat_engine_threat` | threat | `threat_report`, `threat_findings`, `tenants` |
+| `threat_engine_iam` | iam | `iam_report`, `iam_findings` |
+| `threat_engine_datasec` | datasec | `datasec_report`, `datasec_findings`, `datasec_data_store_services` |
+| `threat_engine_compliance` | compliance | `compliance_reports`, `compliance_findings`, `rule_control_mapping` |
+| `threat_engine_secops` | secops | `secops_scan`, `secops_findings` |
+| `threat_engine_pythonsdk` | inventory | `resource_inventory_identifier`, `rule_discoveries_metadata` |
+| `threat_engine_shared` | (deprecated) | — |
 
 ---
 
@@ -59,107 +98,148 @@ Discovery → Check ─┬─→ Threat ─┬─→ IAM Security
 
 - Python 3.11+
 - Docker & Docker Compose
-- PostgreSQL 15+ (or use RDS)
-- Neo4j 5+ (optional, for security graph)
+- PostgreSQL 15+ (or RDS)
 - AWS credentials (for cloud scanning)
 
-### Local Development
+### Running an Engine Locally
 
 ```bash
-# 1. Clone and setup
-git clone <repo-url>
-cd threat-engine
+# Discovery engine
+cd engine_discoveries
+pip install -r engine_discoveries_aws/requirements.txt
+export DISCOVERY_DB_HOST=localhost
+export DISCOVERY_DB_PASSWORD=your_password
+export PYTHONPATH=$(pwd)/..
+python -m uvicorn common.api_server:app --host 0.0.0.0 --port 8001 --reload
 
-# 2. Copy environment config
-cp config.env.template .env
-
-# 3. Start with Docker Compose
-cd deployment
-docker-compose up -d
-
-# 4. Or run individual engine
-cd engine_threat
+# Check engine
+cd engine_check/engine_check_aws
 pip install -r requirements.txt
-python -m uvicorn threat_engine.api_server:app --host 0.0.0.0 --port 8020
+export CHECK_DB_HOST=localhost
+export CHECK_DB_PASSWORD=your_password
+uvicorn api_server:app --host 0.0.0.0 --port 8002 --reload
+
+# Threat engine
+cd engine_threat
+pip install -r threat_engine/requirements.txt
+export THREAT_DB_HOST=localhost
+export THREAT_DB_PASSWORD=your_password
+export CHECK_DB_HOST=localhost
+export CHECK_DB_PASSWORD=your_password
+python -m uvicorn threat_engine.api_server:app --host 0.0.0.0 --port 8020 --reload
 ```
 
-### Verify
+### Triggering a Full Pipeline Scan
 
 ```bash
-# Health check
-curl http://localhost:8020/health
-
-# Run a threat scan
-curl -X POST http://localhost:8020/api/v1/threat/generate \
+# 1. Create an orchestration row via onboarding engine
+curl -X POST http://engine-onboarding/api/v1/accounts/scan \
   -H "Content-Type: application/json" \
-  -d '{"tenant_id": "YOUR_TENANT", "scan_run_id": "YOUR_SCAN_ID", "cloud": "aws"}'
+  -d '{"account_id": "588989875114", "provider": "aws"}'
+# → returns orchestration_id
+
+# 2. Trigger each engine with the orchestration_id
+ORCH_ID="337a7425-5a53-4664-8569-04c1f0d6abf0"
+
+# Phase 1: discoveries
+curl -X POST http://engine-discoveries/api/v1/discovery \
+  -d "{\"orchestration_id\": \"$ORCH_ID\"}"
+
+# Phase 2: check (after discoveries complete)
+curl -X POST http://engine-check/api/v1/scan \
+  -d "{\"orchestration_id\": \"$ORCH_ID\"}"
+
+# Phase 4: threat (after check complete)
+curl -X POST http://engine-threat/api/v1/threat/scan \
+  -d "{\"orchestration_id\": \"$ORCH_ID\"}"
+
+# Phase 5: IAM + DataSec + Compliance (after threat complete)
+curl -X POST http://engine-iam/api/v1/iam-security/scan \
+  -d "{\"orchestration_id\": \"$ORCH_ID\", \"csp\": \"aws\"}"
+
+curl -X POST http://engine-datasec/api/v1/data-security/scan \
+  -d "{\"orchestration_id\": \"$ORCH_ID\", \"csp\": \"aws\"}"
+
+curl -X POST http://engine-compliance/api/v1/scan \
+  -d "{\"orchestration_id\": \"$ORCH_ID\", \"csp\": \"aws\"}"
+```
+
+### Kubernetes Operations
+
+```bash
+# Apply all engine manifests
+kubectl apply -f deployment/aws/eks/engines/
+
+# Check status
+kubectl get pods -n threat-engine-engines
+
+# View logs
+kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
+kubectl logs -f -l app=engine-check -n threat-engine-engines
+
+# Port-forward for local testing
+kubectl port-forward svc/engine-check 8002:80 -n threat-engine-engines
+kubectl port-forward svc/engine-threat 8020:80 -n threat-engine-engines
 ```
 
 ---
 
-## Documentation
-
-### For UI Developers
-- [API Overview](docs/api/00_OVERVIEW.md) — Architecture, ports, routing, deployment
-- [Engine API Reference](docs/api/) — Per-engine endpoints with sample request/response
-
-### For Backend Engineers
-- [Setup Guide](docs/SETUP_GUIDE.md) — Local dev environment setup
-- [Database Schema](docs/DATABASE_SCHEMA.md) — All tables, columns, relationships
-- [Scan Pipeline](docs/SCAN_PIPELINE.md) — End-to-end data flow
-- [Graph Schema](docs/GRAPH_SCHEMA.md) — Neo4j nodes, relationships, Cypher queries
-- [Environment Variables](docs/ENV_REFERENCE.md) — All config variables
-
-### For DevOps
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) — Docker, EKS, production setup
-- [Troubleshooting](docs/TROUBLESHOOTING.md) — Common issues and fixes
-- [Performance Tuning](docs/PERFORMANCE.md) — Optimization guide
-
-### For Security Engineers
-- [MITRE ATT&CK Mapping](docs/MITRE_MAPPING.md) — Technique coverage matrix
-- [Security Practices](docs/SECURITY.md) — Auth, secrets, IRSA
-- [Rule Authoring](docs/RULE_AUTHORING.md) — Write custom YAML rules
-
-### Reference
-- [Data Flow](docs/DATA_FLOW.md) — How data moves between services
-- [Testing Guide](docs/TESTING_GUIDE.md) — Running tests
-- [Multi-CSP Guide](docs/MULTI_CSP_GUIDE.md) — Onboarding each cloud provider
-- [Changelog](CHANGELOG.md) — Version history
-
----
-
-## Project Structure
+## Repository Structure
 
 ```
 threat-engine/
-├── api_gateway/                # Unified API entry point
-├── consolidated_services/      # Shared database layer
+├── README.md                       # This file
+├── deployment/
+│   └── aws/eks/
+│       ├── engines/                # K8s Deployment + Service manifests (1 per engine)
+│       ├── configmaps/             # DB config, S3 config
+│       ├── secrets/                # ExternalSecret (ESO) manifests
+│       └── cluster-autoscaler/     # Cluster Autoscaler for spot nodes
+├── consolidated_services/
 │   └── database/
-│       ├── schemas/            # SQL schema definitions (8 DBs)
-│       ├── migrations/         # Schema migrations
-│       └── connections/        # Connection pool management
-├── deployment/                 # Docker Compose & deployment configs
-├── kubernetes/                 # K8s manifests (32+ files)
-├── docs/                       # Documentation
-│   └── api/                    # Per-engine API reference (13 files)
-├── engine_threat/              # Threat detection + analysis + graph
-├── engine_check/               # Compliance check scanning
-├── engine_inventory/           # Asset inventory + relationships
-├── engine_compliance/          # Compliance framework reporting
-├── engine_rule/                # YAML rule builder (multi-CSP)
-├── engine_discoveries/         # AWS resource discovery
-├── engine_onboarding/          # Account onboarding + scheduling
-├── engine_datasec/             # Data security engine
-├── engine_iam/                 # IAM security engine
-├── engine_secops/              # IaC/code scanner
-├── engine_input/               # ConfigScan engines (7 CSPs)
-├── engine_output/              # Result export
-├── engine_common/              # Shared libraries
-├── engine_adminportal/         # Admin UI (Django)
-├── engine_userportal/          # User UI (Django + Next.js)
-├── scripts/                    # Build & test scripts
-└── tests/                      # Test suite
+│       ├── schemas/                # SQL schema files (1 per DB)
+│       ├── migrations/             # Incremental migration scripts
+│       └── config/database_config.py
+├── engine_common/                  # Shared libraries (logger, middleware, orchestration)
+├── engine_onboarding/              # Account onboarding (port 8008)
+├── engine_discoveries/             # Multi-CSP resource discovery (port 8001)
+├── engine_check/                   # YAML rule evaluation (port 8002)
+├── engine_inventory/               # Asset normalization + relationships (port 8022)
+├── engine_threat/                  # Threat detection + MITRE mapping (port 8020)
+├── engine_iam/                     # IAM posture analysis (port 8003)
+├── engine_datasec/                 # Data security analysis (port 8004)
+├── engine_compliance/              # Compliance framework reporting (port 8010)
+├── engine_secops/                  # IaC/code scanning (port 8000)
+├── engine_rule/                    # YAML rule builder (port 8000)
+├── engine_adminportal/             # Admin UI (Django)
+├── engine_userportal/              # User UI (React/Next.js)
+└── data_pythonsdk/                 # Multi-CSP service catalog (step1–step6 pipeline)
+    ├── aws/                        # 479+ AWS services
+    ├── azure/
+    ├── gcp/
+    ├── oci/
+    ├── ibm/
+    ├── alicloud/
+    └── k8s/
 ```
+
+---
+
+## Per-Engine Documentation
+
+Each engine has its own README with full API reference, DB schema, and deployment instructions:
+
+| Engine | README | Port |
+|--------|--------|------|
+| Onboarding | `engine_onboarding/README.md` | 8008 |
+| Discoveries | `engine_discoveries/README.md` | 8001 |
+| Check | `engine_check/README.md` | 8002 |
+| Inventory | `engine_inventory/README.md` | 8022 |
+| Threat | `engine_threat/README.md` | 8020 |
+| IAM Security | `engine_iam/README.md` | 8003 |
+| Data Security | `engine_datasec/README.md` | 8004 |
+| Compliance | `engine_compliance/README.md` | 8010 |
+| SecOps | `engine_secops/README.md` | 8000 |
 
 ---
 
@@ -169,30 +249,39 @@ threat-engine/
 |-------|-----------|
 | API Framework | FastAPI + Uvicorn |
 | Language | Python 3.11 |
-| Databases | PostgreSQL 15 (RDS), Neo4j 5 (Aura) |
-| Cache | Redis 7 |
-| Storage | AWS S3 |
+| Databases | PostgreSQL 15 (AWS RDS, single instance, 13 DBs) |
 | Container | Docker |
-| Orchestration | AWS EKS (Kubernetes) |
-| Admin UI | Django + Celery |
-| User UI | Django + Next.js |
+| Orchestration | AWS EKS (Kubernetes 1.31) |
+| Secrets | AWS Secrets Manager + External Secrets Operator |
+| Storage | AWS S3 (scan output sync) |
 | Cloud SDKs | boto3, azure-sdk, google-cloud, oci-sdk |
-| Compliance | CIS, NIST 800-53, SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR |
-| Threat Intel | MITRE ATT&CK framework |
+| Compliance | CIS, NIST CSF, NIST 800-53, SOC 2, ISO 27001, PCI-DSS, HIPAA, GDPR, FedRAMP, MITRE ATT&CK |
+
+---
+
+## DB-Driven Noise Control
+
+Three layers of noise suppression with no code changes required:
+
+| Layer | Mechanism | How to use |
+|-------|-----------|-----------|
+| 1 | `rule_discoveries.is_active = FALSE` | Suppress entire service from discovery + check |
+| 2 | `rule_discoveries.filter_rules.response_filters` | Exclude specific API response items post-call |
+| 3 | `resource_inventory_identifier.should_inventory = FALSE` | Skip asset creation in inventory engine |
+
+These controls apply per `provider` column — same tables support AWS, Azure, GCP, OCI, IBM, AliCloud.
 
 ---
 
 ## Key Features
 
-- **Multi-Cloud Discovery** — Scan 40+ AWS services, Azure, GCP, OCI, AliCloud, IBM, K8s
-- **1000+ Security Rules** — YAML-based rules with MITRE ATT&CK mapping
-- **Threat Detection** — Group findings into threats with risk scoring (0-100)
-- **Security Graph** — Neo4j-powered attack paths, blast radius, toxic combinations
-- **Threat Hunting** — Ad-hoc and predefined Cypher queries against security graph
-- **13-Framework Compliance** — CIS, NIST 800-53, SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR, NIST CSF, FFIEC, ACSC, MAS-TRM, NYDFS, RBI
-- **IAM Security Analysis** — Privilege escalation detection, MFA audit, password policy, root account, SSO posture
-- **Data Security** — Classification, lineage tracking, residency mapping, activity monitoring
-- **Drift Detection** — Track configuration changes between scans
-- **Scheduled Scanning** — CRON-based scan scheduling with orchestration
-- **200+ API Endpoints** — Full REST API for UI integration
-- **Single NLB Entry Point** — All traffic routes through nginx ingress on one Network Load Balancer
+- **Multi-Cloud Discovery** — AWS (414 services), Azure, GCP, OCI with parallel scanning
+- **1000+ Security Rules** — YAML-based rules, DB-driven, `is_active` toggle per service
+- **Threat Detection** — MITRE ATT&CK technique mapping, risk scoring (0–100)
+- **13-Framework Compliance** — CIS, NIST 800-53, SOC 2, ISO 27001, PCI-DSS, HIPAA, GDPR, FedRAMP, and more
+- **IAM Security** — Privilege escalation detection, MFA audit, password policy (AWS, Azure, GCP)
+- **Data Security** — Data store classification, PII/PCI/PHI detection, governance findings
+- **Asset Inventory** — Normalized cross-CSP asset graph with relationship mapping
+- **Drift Detection** — `config_hash` tracks configuration changes between scans
+- **Orchestration** — `scan_orchestration` table coordinates the full pipeline via `orchestration_id`
+- **Spot Node Scanning** — Auto-scaling spot node group for cost-efficient heavy scans

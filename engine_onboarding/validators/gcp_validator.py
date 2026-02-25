@@ -33,11 +33,17 @@ class GCPValidator(BaseValidator):
         """Validate GCP Service Account credentials"""
         try:
             service_account_json = credentials.get('service_account_json')
-            
+
+            # Support both formats:
+            # 1. {"service_account_json": {...}} — wrapped format
+            # 2. {"type": "service_account", "project_id": "..."} — direct SA JSON
+            if not service_account_json and credentials.get('type') == 'service_account':
+                service_account_json = credentials
+
             if not service_account_json:
                 return self._create_error_result(
                     "Missing required field",
-                    ["service_account_json is required"]
+                    ["service_account_json is required or credentials must be a service account JSON"]
                 )
             
             # Parse JSON

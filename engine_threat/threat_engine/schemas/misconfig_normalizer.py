@@ -236,17 +236,19 @@ def normalize_db_check_results_to_findings(
         resource_id = check.get("resource_id")
         resource_type = check.get("resource_type", "resource")
 
-        # Extract account and region from hierarchy_id and resource_arn
+        # Extract account and region from resource_arn (preferred) or hierarchy_id (fallback)
         hierarchy_id = check.get("hierarchy_id", "unknown")
-        account = hierarchy_id  # hierarchy_id is typically the account ID
+        account = hierarchy_id  # default: internal UUID
 
-        # Extract region from resource_arn if available
+        # Extract region AND real cloud account number from resource_arn if available
+        # AWS ARN format: arn:aws:service:region:account-id:resource
         region = "global"
         if resource_arn:
-            # AWS ARN format: arn:aws:service:region:account:resource
             parts = resource_arn.split(":")
             if len(parts) >= 4:
                 region = parts[3] if parts[3] else "global"
+            if len(parts) >= 5 and parts[4]:
+                account = parts[4]  # real AWS/Azure/GCP account number from ARN
         elif resource_uid and ":" in resource_uid:
             parts = resource_uid.split(":")
             if len(parts) >= 3:

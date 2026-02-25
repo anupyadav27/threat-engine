@@ -230,6 +230,9 @@ class ClassificationAnalyzer:
             
             # Handle S3 buckets
             if "s3:bucket" in resource_type or store.get("service", "").lower() == "s3":
+                if not resource_id:
+                    logger.debug(f"Skipping S3 classification: resource_id is empty for store {store.get('resource_arn', 'unknown')}")
+                    continue
                 bucket_results = self.classify_s3_bucket(resource_id)
                 results.extend(bucket_results)
             # TODO: Add support for RDS, DynamoDB, etc.

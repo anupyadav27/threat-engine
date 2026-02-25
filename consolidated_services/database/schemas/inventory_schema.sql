@@ -7,7 +7,8 @@
 -- Tables: tenants, inventory_report, inventory_scans, inventory_findings,
 --         inventory_relationships, inventory_asset_history, inventory_asset_tags_index,
 --         inventory_asset_collections, inventory_asset_collection_membership,
---         inventory_asset_metrics, inventory_drift
+--         inventory_asset_metrics, inventory_drift,
+--         resource_inventory_identifier
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
@@ -357,3 +358,176 @@ COMMENT ON TABLE inventory_asset_tags_index IS 'Efficient tag-based queries';
 COMMENT ON TABLE inventory_asset_collections IS 'Business logic asset grouping';
 COMMENT ON TABLE inventory_asset_collection_membership IS 'Asset-to-collection mapping';
 COMMENT ON TABLE inventory_asset_metrics IS 'Asset performance and utilization metrics';
+
+-- ============================================================================
+-- STEP5 RESOURCE CATALOG
+-- ============================================================================
+-- Static metadata loaded from data_pythonsdk resource_inventory_identifier_inventory_enrich.json files.
+-- Used by the inventory engine at scan-time to:
+--   1. Identify the ARN/identifier field in emitted_fields (arn_entity)
+--   2. Construct the full ARN from identifier_pattern + discovery context (account, region)
+--   3. Classify discovery operations as root (independent) or dependent (enrichment)
+--   4. Understand the dependency chain (which dependent ops need which required_params)
+--
+-- Runtime context (account_id, region, tenant_id) comes from discovery_findings.
+-- This table provides STATIC service/resource metadata independent of any specific scan.
+
+CREATE TABLE IF NOT EXISTS resource_inventory_identifier (
+    id                    BIGSERIAL PRIMARY KEY,
+    csp                   VARCHAR(50)   NOT NULL,  -- aws | azure | gcp | alicloud | ibm | k8s | oci
+    service               VARCHAR(100)  NOT NULL,  -- appsync | s3 | ec2 | lambda | ...
+    resource_type         VARCHAR(255)  NOT NULL,  -- api | bucket | instance | function | ...
+    classification        VARCHAR(50)   NOT NULL,  -- PRIMARY_RESOURCE | SUB_RESOURCE | CONFIGURATION | EPHEMERAL
+
+    -- Identifier / ARN metadata
+    has_arn               BOOLEAN       NOT NULL DEFAULT TRUE,
+    arn_entity            VARCHAR(500),            -- dot-path to ARN in emitted_fields: "appsync.graphql_api_arn"
+    identifier_type       VARCHAR(50)   DEFAULT 'arn',  -- arn | id | name
+    primary_param         VARCHAR(255),            -- AWS API field name carrying the ARN: "GraphqlApiArn"
+    identifier_pattern    VARCHAR(1000),           -- ARN template with placeholders:
+                                                  --   "arn:${Partition}:appsync:${Region}:${Account}:api/${GraphqlApiArn}"
+                                                  -- Placeholders resolved from discovery_findings at runtime:
+                                                  --   ${Region}    → discovery_findings.region
+                                                  --   ${Account}   → discovery_findings.hierarchy_id (account_id)
+                                                  --   ${Partition} → "aws" (default)
+
+    -- Inventory classification flags
+    can_inventory_from_roots  BOOLEAN NOT NULL DEFAULT TRUE,
+                                                  -- TRUE  = resource appears in root/independent op output
+                                                  -- FALSE = resource only reachable via dependent (enrich) ops
+    should_inventory          BOOLEAN NOT NULL DEFAULT TRUE,
+                                                  -- FALSE = skip this resource type (EPHEMERAL, CONFIG-only)
+
+    -- Parent resource relationship (for SUB_RESOURCE types)
+    -- Tells the inventory engine: "to find/enrich this resource, first locate the parent"
+    parent_service        VARCHAR(100),           -- Service name of the parent resource (NULL for root resources)
+                                                  -- e.g. "s3" for bucket_versioning, "ec2" for security_group
+    parent_resource_type  VARCHAR(255),           -- resource_type of the parent (NULL for root resources)
+                                                  -- e.g. "bucket" for bucket_versioning, "vpc" for security_group
+    -- param_sources lives inside each enrich_op entry (see enrich_ops below)
+
+    -- Operations
+    root_ops              JSONB NOT NULL DEFAULT '[]',
+                                                  -- Root/independent operations that produce this resource
+                                                  -- [{
+                                                  --   operation:      "list_buckets",
+                                                  --   independent:    true,
+                                                  --   required_params: [],
+                                                  --   python_method:  "list_buckets"
+                                                  -- }]
+    enrich_ops            JSONB NOT NULL DEFAULT '[]',
+                                                  -- Dependent/enrichment operations that add detail
+                                                  -- [{
+                                                  --   operation:       "get_bucket_versioning",
+                                                  --   independent:     false,
+                                                  --   required_params: ["Bucket"],
+                                                  --   python_method:   "get_bucket_versioning",
+                                                  --   param_sources: {
+                                                  --     "Bucket": {
+                                                  --       "from_field":         "resource_id",
+                                                  --       "from_asset_field":   "name",
+                                                  --       "parent_resource_type": "bucket"
+                                                  --     }
+                                                  --   }
+                                                  -- }]
+                                                  -- param_sources tells the engine how to extract
+                                                  -- each required_param from the parent asset's fields
+
+    -- Raw catalog (full step5 resource block for extensibility)
+    raw_catalog           JSONB,
+
+    -- Housekeeping
+    loaded_at             TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT rii_unique UNIQUE (csp, service, resource_type)
+);
+
+-- ── Indexes ──────────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_rii_csp_service      ON resource_inventory_identifier(csp, service);
+CREATE INDEX IF NOT EXISTS idx_rii_csp              ON resource_inventory_identifier(csp);
+CREATE INDEX IF NOT EXISTS idx_rii_classification   ON resource_inventory_identifier(classification);
+CREATE INDEX IF NOT EXISTS idx_rii_should_inventory ON resource_inventory_identifier(should_inventory)
+    WHERE should_inventory = TRUE;
+CREATE INDEX IF NOT EXISTS idx_rii_arn_entity       ON resource_inventory_identifier(arn_entity)
+    WHERE arn_entity IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rii_root_ops_gin     ON resource_inventory_identifier USING GIN(root_ops);
+CREATE INDEX IF NOT EXISTS idx_rii_enrich_ops_gin   ON resource_inventory_identifier USING GIN(enrich_ops);
+-- Parent relationship index: look up all sub-resources owned by a given parent type
+CREATE INDEX IF NOT EXISTS idx_rii_parent           ON resource_inventory_identifier(csp, parent_service, parent_resource_type)
+    WHERE parent_resource_type IS NOT NULL;
+
+-- ── Updated-at trigger ───────────────────────────────────────────────────────
+DROP TRIGGER IF EXISTS update_rii_updated_at ON resource_inventory_identifier;
+CREATE TRIGGER update_rii_updated_at
+    BEFORE UPDATE ON resource_inventory_identifier
+    FOR EACH ROW EXECUTE FUNCTION update_inventory_updated_at_column();
+
+-- ── Comment ──────────────────────────────────────────────────────────────────
+COMMENT ON TABLE resource_inventory_identifier IS
+    'Static step5 resource catalog: ARN entity paths, identifier patterns, root/enrich ops per csp.service.resource_type.';
+
+-- ============================================================================
+-- RELATIONSHIP RULES  (single DB-driven source of truth, no local JSON files)
+-- ============================================================================
+--
+-- Stores the relationship extraction rules for every (csp, resource_type) pair.
+-- Rules are auto-generated from resource_inventory_identifier (contained_by from
+-- parent_resource_type; uses/depends_on from enrich_ops.param_sources) and
+-- supplemented with curated cross-service rules for AWS, Azure, GCP, OCI, IBM,
+-- AliCloud and K8s.
+--
+-- Consumed by: RelationshipBuilder._load_rules_from_db()  (no local cache)
+-- Populated by: engine_inventory/scripts/load_relationship_rules_to_db.py
+--
+
+CREATE TABLE IF NOT EXISTS resource_relationship_rules (
+    rule_id           BIGSERIAL PRIMARY KEY,
+
+    -- Identity
+    csp               VARCHAR(20)  NOT NULL,  -- aws | azure | gcp | oci | ibm | alicloud | k8s
+    service           VARCHAR(100),            -- source service (e.g. ec2, lambda)  — nullable for cross-service rules
+
+    -- Rule definition
+    from_resource_type VARCHAR(200) NOT NULL,  -- e.g. ec2.instance
+    relation_type      VARCHAR(100) NOT NULL,  -- contained_by | attached_to | uses | encrypted_by …
+    to_resource_type   VARCHAR(200) NOT NULL,  -- e.g. ec2.vpc
+
+    -- Field extraction
+    source_field       VARCHAR(500) NOT NULL,  -- dot-path in raw_response / emitted_fields
+    source_field_item  VARCHAR(200),           -- for array fields: sub-field to extract per item
+    target_uid_pattern TEXT         NOT NULL,  -- pattern to build target UID, e.g. arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}
+
+    -- Control
+    is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
+    rule_source       VARCHAR(50)  NOT NULL DEFAULT 'auto',  -- auto | curated | migrated
+
+    -- Metadata
+    rule_metadata     JSONB        NOT NULL DEFAULT '{}',
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_resource_rel_rule
+        UNIQUE (csp, from_resource_type, relation_type, to_resource_type, source_field)
+);
+
+-- Indexes for fast lookup at scan time
+CREATE INDEX IF NOT EXISTS idx_rrr_csp_from_type
+    ON resource_relationship_rules(csp, from_resource_type)
+    WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_rrr_csp
+    ON resource_relationship_rules(csp)
+    WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_rrr_service
+    ON resource_relationship_rules(csp, service)
+    WHERE is_active = TRUE AND service IS NOT NULL;
+
+-- Auto-update timestamp trigger
+DROP TRIGGER IF EXISTS update_rrr_updated_at ON resource_relationship_rules;
+CREATE TRIGGER update_rrr_updated_at
+    BEFORE UPDATE ON resource_relationship_rules
+    FOR EACH ROW EXECUTE FUNCTION update_inventory_updated_at_column();
+
+COMMENT ON TABLE resource_relationship_rules IS
+    'DB-driven relationship extraction rules: one row per (csp, from_resource_type, relation_type, to_resource_type, source_field). '
+    'No local JSON file cache — RelationshipBuilder loads directly from this table at scan start.';

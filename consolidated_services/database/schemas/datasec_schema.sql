@@ -97,8 +97,61 @@ CREATE INDEX IF NOT EXISTS idx_datasec_report_modules_gin ON datasec_report USIN
 CREATE INDEX IF NOT EXISTS idx_datasec_report_classification_gin ON datasec_report USING gin(classification_summary);
 
 -- ============================================================================
+-- DATA STORE SERVICES CONFIGURATION (DB-driven, multi-CSP)
+-- ============================================================================
+-- Replaces hardcoded DATA_SECURITY_RESOURCE_TYPES in Python code.
+-- Add new services here instead of editing Python source.
+
+CREATE TABLE IF NOT EXISTS datasec_data_store_services (
+    id          SERIAL PRIMARY KEY,
+    csp         VARCHAR(20)  NOT NULL DEFAULT 'aws',
+    service_name VARCHAR(100) NOT NULL,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_datasec_svc UNIQUE (csp, service_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_datasec_svc_csp ON datasec_data_store_services(csp) WHERE is_active = TRUE;
+
+-- Seed: AWS data store services
+INSERT INTO datasec_data_store_services (csp, service_name) VALUES
+  ('aws', 's3'),           ('aws', 'rds'),          ('aws', 'dynamodb'),
+  ('aws', 'redshift'),     ('aws', 'glacier'),       ('aws', 'documentdb'),
+  ('aws', 'neptune'),      ('aws', 'glue'),          ('aws', 'lakeformation'),
+  ('aws', 'macie'),        ('aws', 'ecr'),           ('aws', 'kms'),
+  ('aws', 'elasticache'),  ('aws', 'dax'),           ('aws', 'efs'),
+  ('aws', 'fsx'),          ('aws', 'kinesis'),       ('aws', 'firehose'),
+  ('aws', 'athena'),       ('aws', 'opensearch'),    ('aws', 'timestream'),
+  ('aws', 'keyspaces'),    ('aws', 'qldb'),          ('aws', 's3tables'),
+  -- Azure data store services
+  ('azure', 'blob'),         ('azure', 'cosmos'),       ('azure', 'sql'),
+  ('azure', 'postgresql'),   ('azure', 'mysql'),        ('azure', 'mariadb'),
+  ('azure', 'storage'),      ('azure', 'keyvault'),     ('azure', 'eventhub'),
+  ('azure', 'servicebus'),   ('azure', 'synapse'),      ('azure', 'redis'),
+  ('azure', 'sqlmanagedinstance'), ('azure', 'cassandra'),
+  -- GCP data store services
+  ('gcp', 'storage'),     ('gcp', 'bigquery'),   ('gcp', 'spanner'),
+  ('gcp', 'bigtable'),    ('gcp', 'cloudsql'),   ('gcp', 'firestore'),
+  ('gcp', 'memorystore'), ('gcp', 'pubsub'),     ('gcp', 'datastore'),
+  ('gcp', 'kms'),         ('gcp', 'secretmanager'),
+  -- OCI data store services
+  ('oci', 'objectstorage'), ('oci', 'database'),   ('oci', 'nosql'),
+  ('oci', 'filesystem'),    ('oci', 'vault'),       ('oci', 'streaming'),
+  ('oci', 'mysql'),         ('oci', 'postgresql'),  ('oci', 'goldengate'),
+  -- IBM data store services
+  ('ibm', 'cos'),       ('ibm', 'db2'),         ('ibm', 'postgresql'),
+  ('ibm', 'mongodb'),   ('ibm', 'kafka'),        ('ibm', 'keyprotect'),
+  ('ibm', 'redis'),     ('ibm', 'elasticsearch'),
+  -- AliCloud data store services
+  ('alicloud', 'oss'),     ('alicloud', 'rds'),       ('alicloud', 'mongodb'),
+  ('alicloud', 'redis'),   ('alicloud', 'memcache'),  ('alicloud', 'tablestore'),
+  ('alicloud', 'kms'),     ('alicloud', 'dts'),       ('alicloud', 'sls')
+ON CONFLICT (csp, service_name) DO NOTHING;
+
+-- ============================================================================
 -- COMMENTS
 -- ============================================================================
 
 COMMENT ON TABLE datasec_report IS 'Data security scan metadata with links to check/threat scans';
 COMMENT ON TABLE datasec_findings IS 'Individual data security findings (classification, protection, residency)';
+COMMENT ON TABLE datasec_data_store_services IS 'DB-driven list of data-store service names per CSP (replaces hardcoded Python sets)';

@@ -91,34 +91,36 @@ class DiscoveryDBReader:
         self,
         scan_id: str,
         account_id: Optional[str] = None,
+        account_ids: Optional[List[str]] = None,
         region: Optional[str] = None,
         service: Optional[str] = None,
         tenant_id: Optional[str] = None
     ) -> Iterator[Dict[str, Any]]:
         """
         Read discovery records from database with filters.
-        
+
         Args:
             scan_id: Scan ID or "latest" for auto-detect
-            account_id: Optional filter by account ID
+            account_id: Optional filter by single account ID (backward compat)
+            account_ids: Optional filter by multiple account IDs (multi-account support)
             region: Optional filter by region (use "global" or None for global services)
             service: Optional filter by service name
             tenant_id: Tenant identifier (uses instance tenant_id if not provided)
-        
+
         Yields:
             Discovery record dictionaries
         """
         tenant_id = tenant_id or self.tenant_id
         if not tenant_id:
             raise ValueError("tenant_id must be provided either in __init__ or method call")
-        
+
         # Auto-detect latest scan
         if scan_id == "latest":
             scan_id = self.get_latest_scan_id(tenant_id)
             if not scan_id:
                 logger.warning(f"No scans found for tenant: {tenant_id}")
                 return
-        
+
         # Build query with filters
         query = """
             SELECT
@@ -132,11 +134,22 @@ class DiscoveryDBReader:
             FROM discovery_findings
             WHERE discovery_scan_id = %s AND tenant_id = %s
         """
-        params = [scan_id, tenant_id]
-        
-        if account_id:
+        params: list = [scan_id, tenant_id]
+
+        # Multi-account filter: merge account_ids list + single account_id
+        effective_account_ids: Optional[List[str]] = None
+        if account_ids:
+            effective_account_ids = list(set(account_ids + ([account_id] if account_id else [])))
+        elif account_id:
+            effective_account_ids = [account_id]
+
+        if effective_account_ids and len(effective_account_ids) == 1:
             query += " AND hierarchy_id = %s"
-            params.append(account_id)
+            params.append(effective_account_ids[0])
+        elif effective_account_ids:
+            query += " AND hierarchy_id = ANY(%s::text[])"
+            params.append(effective_account_ids)
+
         if region is not None:
             if region == "global":
                 query += " AND (region IS NULL OR region = 'global')"

@@ -21,6 +21,8 @@ COPY engine_discoveries/engine_discoveries_aws/config/ ./config/
 COPY engine_discoveries/engine_discoveries_aws/database/ ./database/
 COPY engine_discoveries/engine_discoveries_aws/api_server.py .
 COPY engine_common/ ./engine_common/
+COPY engine_onboarding/storage/ ./engine_onboarding/storage/
+COPY engine_onboarding/__init__.py ./engine_onboarding/
 
 # Set Python path
 ENV PYTHONPATH=/app

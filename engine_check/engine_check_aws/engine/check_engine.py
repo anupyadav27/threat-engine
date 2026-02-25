@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import logging
+import psycopg2
+import psycopg2.extras
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,6 +28,7 @@ from engine.service_scanner import extract_value, evaluate_condition, resolve_te
 from engine.database_manager import DatabaseManager
 from engine.discovery_reader import DiscoveryReader
 from engine.rule_reader import RuleReader
+from engine.check_validator import CheckValidator
 from utils.phase_logger import PhaseLogger
 
 logger = logging.getLogger(__name__)
@@ -60,11 +63,88 @@ class CheckEngine:
             logger.warning(f"Failed to initialize RuleReader: {e}")
             self.rule_reader = None
 
+        # Initialize CheckValidator for runtime validation
+        self.validator = None
+        self.validation_mode = os.getenv('CHECK_VALIDATION_MODE', 'lenient').lower()
+        strict_mode = (self.validation_mode == 'strict')
+
+        try:
+            # Load discovery cache for validation
+            discovery_cache = self._load_discovery_cache()
+            self.validator = CheckValidator(discovery_cache, strict_mode=strict_mode)
+            logger.info(f"CheckValidator initialized: mode={self.validation_mode}, cached={len(discovery_cache)} services")
+        except Exception as e:
+            logger.warning(f"Failed to initialize CheckValidator: {e}")
+            self.validator = None
+
         if not self.use_ndjson and not self.db:
             raise ValueError("DatabaseManager required when not using NDJSON mode")
 
-        logger.info(f"CheckEngine initialized: mode={'NDJSON' if self.use_ndjson else 'DATABASE'}, rule_reader={'yes' if self.rule_reader else 'no'}")
+        logger.info(f"CheckEngine initialized: mode={'NDJSON' if self.use_ndjson else 'DATABASE'}, rule_reader={'yes' if self.rule_reader else 'no'}, validator={'yes' if self.validator else 'no'}")
     
+    def _load_discovery_cache(self) -> Dict:
+        """Load discovery configurations for validation from rule_discoveries table"""
+        cache = {}
+
+        if not self.rule_reader:
+            logger.debug("RuleReader not available, skipping discovery cache loading")
+            return cache
+
+        try:
+            # Use RuleReader to read from rule_discoveries table
+            # Get all discoveries for the provider
+            provider = 'aws'  # TODO: Make this configurable
+
+            # Read directly from rule_discoveries table using database manager
+            if self.db:
+                conn = self.db._get_connection()
+                try:
+                    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                    # Query all discovery configurations from rule_discoveries
+                    # Try with is_active column first, fallback to without it
+                    try:
+                        cursor.execute("""
+                            SELECT service, discoveries_data
+                            FROM rule_discoveries
+                            WHERE provider = %s AND is_active = TRUE
+                        """, (provider,))
+                    except psycopg2.errors.UndefinedColumn:
+                        # Fallback: is_active column doesn't exist yet
+                        logger.debug("is_active column not found, querying without it")
+                        cursor.execute("""
+                            SELECT service, discoveries_data
+                            FROM rule_discoveries
+                            WHERE provider = %s
+                        """, (provider,))
+
+                    rows = cursor.fetchall()
+
+                    for row in rows:
+                        service = row['service']
+                        discoveries_data = row['discoveries_data']
+
+                        if isinstance(discoveries_data, str):
+                            import json
+                            discoveries_data = json.loads(discoveries_data)
+
+                        cache[service] = discoveries_data
+
+                    logger.debug(f"Loaded discovery cache for {len(cache)} services from rule_discoveries")
+
+                finally:
+                    cursor.close()
+                    self.db._return_connection(conn)
+            else:
+                logger.warning("No database connection available for discovery cache")
+
+        except Exception as e:
+            logger.warning(f"Failed to load discovery cache: {e}")
+            import traceback
+            traceback.print_exc()
+
+        return cache
+
     def _determine_mode(self, use_ndjson: Optional[bool]) -> bool:
         """Determine whether to use NDJSON or database mode"""
         if use_ndjson is not None:
@@ -339,7 +419,7 @@ class CheckEngine:
                             parts = resource_arn.split(':')
                             if len(parts) >= 6:
                                 resource_id = parts[-1]
-                    except:
+                    except Exception:
                         pass
         
         # Step 3: Use discovery_id to determine resource_type and extract ARN/ID
@@ -661,6 +741,19 @@ class CheckEngine:
                         self.phase_logger.warning(f"  ⚠️  Check {rule_id} missing for_each or conditions")
                         continue
 
+                    # Pre-execution validation (if validator is available)
+                    if self.validator:
+                        try:
+                            is_valid = self.validator.validate_check(check, service, rule_id)
+                            if not is_valid:
+                                if self.validation_mode == 'strict':
+                                    self.phase_logger.error(f"  ⚠️  Check {rule_id} failed validation (strict mode), skipping")
+                                    continue
+                                else:
+                                    self.phase_logger.warning(f"  ⚠️  Check {rule_id} validation warnings (lenient mode), continuing")
+                        except Exception as e:
+                            self.phase_logger.warning(f"  ⚠️  Validation error for {rule_id}: {e}")
+
                     # Use cached discovery data
                     discovery_items = discovery_cache.get(for_each, [])
 
@@ -802,7 +895,7 @@ class CheckEngine:
                                     )
                                     error_resource_arn = resource_info.get('resource_arn')
                                     error_resource_id = resource_info.get('resource_id')
-                                except:
+                                except Exception:
                                     error_resource_arn = item_record.get('resource_arn')
                                     error_resource_id = item_record.get('resource_id')
                                 
@@ -1013,7 +1106,8 @@ class CheckEngine:
             Results summary
         """
         # Get all services with checks
-        services_dir = Path("services")
+        engine_dir = _project_root() / "engine_check" / "engine_check_aws"
+        services_dir = engine_dir / "services"
         services = [
             d.name for d in services_dir.iterdir()
             if d.is_dir() and not d.name.startswith('.')

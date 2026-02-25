@@ -14,22 +14,22 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS check_report (
-    check_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
-    execution_id VARCHAR(255),      -- exists in RDS
-    customer_id VARCHAR(255) NOT NULL,
-    tenant_id VARCHAR(255) NOT NULL,
-    provider VARCHAR(50) NOT NULL,
-    hierarchy_id VARCHAR(255),
-    hierarchy_type VARCHAR(50),
-    region VARCHAR(50),
-    service VARCHAR(100),
-    scan_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    scan_type VARCHAR(50) DEFAULT 'check',
-    status VARCHAR(50),
-    metadata JSONB,
+    check_scan_id   VARCHAR(255)    PRIMARY KEY,
+    customer_id     VARCHAR(255)    NOT NULL,
+    tenant_id       VARCHAR(255)    NOT NULL,
+    provider        VARCHAR(50)     NOT NULL,
+    hierarchy_id    VARCHAR(255),
+    hierarchy_type  VARCHAR(50),
+    region          VARCHAR(50),
+    service         VARCHAR(100),
+    scan_timestamp  TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
+    scan_type       VARCHAR(50)     DEFAULT 'check',
+    status          VARCHAR(50),
+    metadata        JSONB,
+    execution_id    VARCHAR(255),
     discovery_scan_id VARCHAR(255)
     -- NOTE: No FK constraints — customers/tenants tables don't exist in check DB
+    -- NOTE: orchestration_id not in RDS (removed from local schema to match)
 );
 
 -- ============================================================================
@@ -45,16 +45,19 @@ CREATE TABLE IF NOT EXISTS check_findings (
     hierarchy_id VARCHAR(255),
     hierarchy_type VARCHAR(50),
     rule_id VARCHAR(255) NOT NULL,
+    service VARCHAR(100),
+    discovery_id VARCHAR(255),
     resource_uid TEXT,
     resource_arn TEXT,
     resource_id VARCHAR(255),
     resource_type VARCHAR(100),
+    region VARCHAR(50),
     status VARCHAR(50) NOT NULL,
     checked_fields JSONB,
+    actual_values JSONB,
     finding_data JSONB NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
-    FOREIGN KEY (check_scan_id) REFERENCES check_report(check_scan_id) ON DELETE CASCADE
-    -- NOTE: No FK to customers/tenants
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    -- NOTE: No FK constraints — no FK to check_report or customers/tenants in RDS
 );
 
 CREATE TABLE IF NOT EXISTS rule_checks (
@@ -121,17 +124,30 @@ CREATE TABLE IF NOT EXISTS rule_metadata (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS rule_discoveries (
-    id SERIAL PRIMARY KEY,
-    service VARCHAR(100) NOT NULL,
-    provider VARCHAR(50) NOT NULL DEFAULT 'aws',
-    version VARCHAR(20),
-    discoveries_data JSONB NOT NULL DEFAULT '[]',
-    customer_id VARCHAR(255),
-    tenant_id VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    source VARCHAR(50) NOT NULL DEFAULT 'default',
-    generated_by VARCHAR(50) DEFAULT 'default',
+    id                                  SERIAL          PRIMARY KEY,
+    service                             VARCHAR(100)    NOT NULL,
+    provider                            VARCHAR(50)     NOT NULL DEFAULT 'aws',
+    version                             VARCHAR(20),
+    discoveries_data                    JSONB           NOT NULL DEFAULT '[]'::jsonb,
+    customer_id                         VARCHAR(255),
+    tenant_id                           VARCHAR(255),
+    created_at                          TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
+    updated_at                          TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
+    source                              VARCHAR(50)     NOT NULL DEFAULT 'default',
+    generated_by                        VARCHAR(50)     DEFAULT 'default',
+    is_active                           BOOLEAN         DEFAULT true,
+    -- Boto3 integration fields (used by discovery engine)
+    boto3_client_name                   VARCHAR(100),
+    arn_identifier                      VARCHAR(255),
+    arn_identifier_independent_methods  TEXT[],
+    arn_identifier_dependent_methods    TEXT[],
+    -- Filter rules (merged from filter_rules table — no separate table needed)
+    -- Format: {"api_filters": [...], "response_filters": [...]}
+    -- api_filters:      pre-call param overrides (e.g. OwnerIds=["self"])
+    -- response_filters: post-call exclusion patterns (e.g. exclude ^alias/aws/)
+    -- Read by: engine_discoveries/utils/config_loader.py → get_filter_rules()
+    --          engine_discoveries/utils/filter_engine.py
+    filter_rules                        JSONB           DEFAULT '{}'::jsonb,
     UNIQUE(service, provider, customer_id, tenant_id)
 );
 
@@ -142,7 +158,7 @@ CREATE TABLE IF NOT EXISTS rule_discoveries (
 CREATE INDEX IF NOT EXISTS idx_cr_customer_tenant ON check_report(customer_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cr_timestamp ON check_report(scan_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_cr_discovery_scan ON check_report(discovery_scan_id);
-CREATE INDEX IF NOT EXISTS idx_cr_orchestration ON check_report(orchestration_id);
+-- idx_cr_orchestration removed: orchestration_id column not in RDS
 
 CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(check_scan_id, rule_id);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, hierarchy_id);

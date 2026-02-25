@@ -54,8 +54,6 @@ echo "Running migrations..."
 # check engine (rule_metadata + threat metadata)
 psql_ -d threat_engine_check -f "$MIGRATIONS_DIR/002_add_rule_metadata.sql"
 psql_ -d threat_engine_check -f "$MIGRATIONS_DIR/004_add_threat_metadata.sql"
-# discoveries engine (rule_definitions for discovery YAMLs)
-psql_ -d threat_engine_discoveries -f "$MIGRATIONS_DIR/009_rule_definitions.sql"
 # threat (003 expects threat_reports; ensure it exists so backup/drop succeed)
 psql_ -d threat_engine_threat -c "CREATE TABLE IF NOT EXISTS threat_reports (id SERIAL PRIMARY KEY, tenant_id VARCHAR(255), data JSONB);" 2>/dev/null || true
 psql_ -d threat_engine_threat    -f "$MIGRATIONS_DIR/003_normalize_threat_schema.sql"

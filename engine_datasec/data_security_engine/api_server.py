@@ -16,6 +16,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log, security_event_log
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
+from engine_common.orchestration import get_orchestration_metadata
 
 from .input.threat_db_reader import ThreatDBReader
 from .input.rule_db_reader import RuleDBReader
@@ -51,7 +52,8 @@ app.add_middleware(
 class ScanRequest(BaseModel):
     """Request to generate data security report."""
     csp: str = Field(..., description="Cloud service provider (e.g., 'aws')")
-    scan_id: str = Field(..., description="Threat scan_run_id (from Threat engine)")
+    scan_id: Optional[str] = Field(default=None, description="Threat scan_run_id (from Threat engine) - for ad-hoc mode")
+    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
     tenant_id: str = Field(default="default-tenant", description="Tenant ID")
     include_classification: bool = Field(default=True, description="Include classification analysis")
     include_lineage: bool = Field(default=True, description="Include lineage analysis")
@@ -98,9 +100,9 @@ async def health():
     """Health check endpoint."""
     import time
     start = time.time()
-    
+
     health_status = {"status": "healthy"}
-    
+
     duration_ms = (time.time() - start) * 1000
     logger.info("Health check", extra={
         "extra_fields": {
@@ -108,15 +110,27 @@ async def health():
             "duration_ms": duration_ms
         }
     })
-    
+
     return health_status
+
+
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — returns 200 when ready to serve traffic."""
+    return {"status": "ready"}
 
 
 @app.post("/api/v1/data-security/scan", response_model=ReportResponse)
 async def generate_report(request: ScanRequest):
     """
     Generate comprehensive data security report.
-    
+
     Combines enriched configScan findings with new analysis:
     - Data classification (PII/PCI/PHI detection)
     - Data lineage (flow tracking)
@@ -125,11 +139,45 @@ async def generate_report(request: ScanRequest):
     """
     import time
     start_time = time.time()
-    
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=request.scan_id):
+
+    # Determine threat_scan_id and tenant_id
+    # Priority: direct scan_id (ad-hoc) > orchestration_id (pipeline)
+    threat_scan_id = None
+    tenant_id = request.tenant_id
+
+    if request.scan_id:
+        # MODE 1: Ad-hoc mode - use provided threat scan_id
+        threat_scan_id = request.scan_id
+        logger.info(f"Ad-hoc mode: Using direct threat_scan_id: {threat_scan_id}")
+
+    elif request.orchestration_id:
+        # MODE 2: Pipeline mode - query scan_orchestration for threat_scan_id
+        try:
+            metadata = get_orchestration_metadata(request.orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        threat_scan_id = metadata.get("threat_scan_id")
+        if not threat_scan_id:
+            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={request.orchestration_id}")
+
+        # Get tenant_id and csp from orchestration metadata
+        tenant_id = metadata.get("tenant_id") or request.tenant_id
+        # Derive CSP from orchestration provider if not explicitly provided
+        orchestration_csp = metadata.get("provider") or metadata.get("provider_type") or metadata.get("csp")
+        if orchestration_csp and not request.scan_id:
+            # In pipeline mode, use orchestration CSP (normalize to lowercase)
+            request = request.model_copy(update={"csp": orchestration_csp.lower()})
+
+        logger.info(f"Pipeline mode: Got threat_scan_id={threat_scan_id} from orchestration_id={request.orchestration_id}, csp={request.csp}")
+
+    else:
+        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+
+    with LogContext(tenant_id=tenant_id, scan_run_id=threat_scan_id):
         logger.info("Generating data security report", extra={
             "extra_fields": {
-                "scan_id": request.scan_id,
+                "scan_id": threat_scan_id,
                 "csp": request.csp,
                 "include_classification": request.include_classification,
                 "include_lineage": request.include_lineage,
@@ -140,15 +188,15 @@ async def generate_report(request: ScanRequest):
         try:
             logger.info("Generating data security report", extra={
                 "extra_fields": {
-                    "scan_id": request.scan_id,
+                    "scan_id": threat_scan_id,
                     "csp": request.csp
                 }
             })
-            
+
             report = reporter.generate_report(
                 csp=request.csp,
-                scan_id=request.scan_id,
-                tenant_id=request.tenant_id,
+                scan_id=threat_scan_id,
+                tenant_id=tenant_id,
                 include_classification=request.include_classification,
                 include_lineage=request.include_lineage,
                 include_residency=request.include_residency,
@@ -166,27 +214,27 @@ async def generate_report(request: ScanRequest):
             try:
                 report_path = report_storage.save_report(
                     report=report,
-                    tenant_id=request.tenant_id,
-                    scan_id=request.scan_id
+                    tenant_id=tenant_id,
+                    scan_id=threat_scan_id
                 )
                 logger.info(f"Data security report saved to: {report_path}")
             except Exception as e:
                 logger.error(f"Error saving data security report to file storage: {e}")
-            
+
             # Save to /output for S3 sync
             try:
                 output_dir = os.getenv("OUTPUT_DIR", "/output")
                 if output_dir and os.path.exists(output_dir):
-                    datasec_dir = os.path.join(output_dir, "datasec", request.tenant_id, request.scan_id)
+                    datasec_dir = os.path.join(output_dir, "datasec", tenant_id, threat_scan_id)
                     os.makedirs(datasec_dir, exist_ok=True)
-                    
+
                     with open(os.path.join(datasec_dir, "datasec_report.json"), "w") as f:
                         json.dump(report, f, indent=2, default=str)
-                    
+
                     logger.info(f"DataSec report saved to {datasec_dir}")
             except Exception as e:
                 logger.error(f"Error saving DataSec report to output dir: {e}")
-            
+
             # Save to database
             try:
                 from .storage.datasec_db_writer import save_datasec_report_to_db
@@ -194,6 +242,21 @@ async def generate_report(request: ScanRequest):
                 logger.info(f"DataSec report saved to database: {saved_id}")
             except Exception as e:
                 logger.error(f"Error saving DataSec report to database: {e}", exc_info=True)
+
+            # Update scan_orchestration with datasec_scan_id (if in pipeline mode)
+            if request.orchestration_id:
+                try:
+                    from engine_common.orchestration import update_orchestration_scan_id
+                    datasec_scan_id = report.get("report_id") or report.get("datasec_scan_id")
+                    update_orchestration_scan_id(
+                        orchestration_id=request.orchestration_id,
+                        engine="datasec",
+                        scan_id=datasec_scan_id,
+                    )
+                    logger.info(f"Updated scan_orchestration with datasec_scan_id: {datasec_scan_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update scan_orchestration: {e}")
+                    # Don't fail the request - this is tracking only
             
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Data security report generated", duration_ms)
@@ -241,15 +304,20 @@ async def generate_report(request: ScanRequest):
 @app.get("/api/v1/data-security/catalog")
 async def get_data_catalog(
     csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="ConfigScan scan ID"),
+    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(..., description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service (e.g., 's3', 'rds', 'dynamodb')"),
     region: Optional[str] = Query(None, description="Filter by region")
 ):
     """Get data catalog (list of data stores) with optional filtering."""
     try:
-        data_stores = configscan_reader.filter_data_stores(csp, scan_id)
-        
+        data_stores = threat_db_reader.filter_data_stores(
+            tenant_id=tenant_id,
+            scan_run_id=scan_id,
+            csp=csp,
+        )
+
         # Apply filters
         if account_id:
             data_stores = [ds for ds in data_stores if ds.get("account_id") == account_id]
@@ -257,7 +325,7 @@ async def get_data_catalog(
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if region:
             data_stores = [ds for ds in data_stores if ds.get("region") == region]
-        
+
         return {
             "total_stores": len(data_stores),
             "filters": {
@@ -287,8 +355,6 @@ async def get_access_governance(
 ):
     """Get access governance analysis for a resource from Threat DB."""
     try:
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get findings for resource
         findings = threat_db_reader.get_findings_by_resource(tenant_id, scan_id, resource_id, data_security_rule_ids)
@@ -320,17 +386,22 @@ async def get_access_governance(
 async def get_protection_status(
     resource_id: str,
     csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="ConfigScan scan ID")
+    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(..., description="Tenant ID"),
 ):
     """Get encryption/protection status for a resource."""
     try:
-        findings = configscan_reader.get_findings_by_resource(csp, scan_id, resource_id)
+        findings = threat_db_reader.get_findings_by_resource(
+            tenant_id=tenant_id,
+            scan_run_id=scan_id,
+            resource_uid=resource_id,
+        )
         enriched = finding_enricher.enrich_findings(findings)
         protection_findings = [
             f for f in enriched
             if "data_protection_encryption" in f.get("data_security_modules", [])
         ]
-        
+
         return {
             "resource_id": resource_id,
             "findings": protection_findings
@@ -431,12 +502,9 @@ async def get_classification(
     """Get data classification results (PII/PCI/PHI detection) from Threat DB."""
     try:
         from .analyzer.classification_analyzer import ClassificationAnalyzer
-        from ..input.rule_db_reader import RuleDBReader
-        
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get data stores from Threat DB
-        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids)
+        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids, csp=csp)
         
         # Filter by account, service, or resource
         if account_id:
@@ -479,12 +547,9 @@ async def get_lineage(
     """Get data lineage (flow tracking across services) from Threat DB."""
     try:
         from .analyzer.lineage_analyzer import LineageAnalyzer
-        from ..input.rule_db_reader import RuleDBReader
-        
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get data stores from Threat DB
-        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids)
+        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids, csp=csp)
         
         # Filter by account, service, or resource
         if account_id:
@@ -533,12 +598,9 @@ async def get_residency(
     """Get data residency compliance (geographic location checks) from Threat DB."""
     try:
         from .analyzer.residency_analyzer import ResidencyAnalyzer, ResidencyPolicy
-        from ..input.rule_db_reader import RuleDBReader
-        
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get data stores from Threat DB
-        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids)
+        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids, csp=csp)
         
         # Filter by account, service, or resource
         if account_id:
@@ -578,7 +640,8 @@ async def get_residency(
 @app.get("/api/v1/data-security/activity")
 async def get_activity(
     csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="ConfigScan scan ID"),
+    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(..., description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
     resource_id: Optional[str] = Query(None, description="Filter by resource ID/ARN"),
@@ -587,10 +650,14 @@ async def get_activity(
     """Get data activity monitoring (anomaly detection)."""
     try:
         from .analyzer.activity_analyzer import ActivityAnalyzer
-        
-        # Get data stores
-        data_stores = configscan_reader.filter_data_stores(csp, scan_id)
-        
+
+        # Get data stores from Threat DB (CSP-aware, DB-driven resource types)
+        data_stores = threat_db_reader.filter_data_stores(
+            tenant_id=tenant_id,
+            scan_run_id=scan_id,
+            csp=csp,
+        )
+
         # Filter by account, service, or resource
         if account_id:
             data_stores = [ds for ds in data_stores if ds.get("account_id") == account_id]
@@ -598,11 +665,11 @@ async def get_activity(
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if resource_id:
             data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_arn", "") or resource_id in ds.get("resource_id", "")]
-        
+
         # Run activity monitoring
         analyzer = ActivityAnalyzer()
         activity_results = analyzer.monitor_data_access(data_stores, days_back=days_back)
-        
+
         # Format activity data
         formatted_activity = {}
         for res_id, events in activity_results.items():
@@ -619,7 +686,7 @@ async def get_activity(
                 "risk_level": ae.risk_level,
                 "alert_triggered": ae.alert_triggered
             } for ae in events]
-        
+
         return {
             "total_resources": len(data_stores),
             "days_back": days_back,
@@ -642,8 +709,6 @@ async def get_compliance(
 ):
     """Get data compliance status (GDPR, PCI, HIPAA compliance checks) from Threat DB."""
     try:
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get data-related findings from Threat DB
         findings = threat_db_reader.get_misconfig_findings(tenant_id, scan_id, data_security_rule_ids)
@@ -719,8 +784,6 @@ async def get_findings(
 ):
     """Get all data security findings from Threat DB with optional filtering."""
     try:
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get data-related findings from Threat DB
         findings = threat_db_reader.get_misconfig_findings(tenant_id, scan_id, data_security_rule_ids)
@@ -784,8 +847,6 @@ async def get_account_data_security(
 ):
     """Get comprehensive data security status for a specific account from Threat DB."""
     try:
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get all findings for account from Threat DB
         findings = threat_db_reader.get_misconfig_findings(tenant_id, scan_id, data_security_rule_ids)
@@ -798,7 +859,7 @@ async def get_account_data_security(
         enriched = finding_enricher.enrich_findings(account_findings)
         
         # Get data stores for account from Threat DB
-        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids)
+        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids, csp=csp)
         account_stores = [ds for ds in data_stores if ds.get("account_id") == account_id]
         
         if service:
@@ -842,8 +903,6 @@ async def get_service_data_security(
 ):
     """Get comprehensive data security status for a specific service from Threat DB."""
     try:
-        from ..input.rule_db_reader import RuleDBReader
-        rule_db_reader = RuleDBReader()
         data_security_rule_ids = rule_db_reader.get_all_data_security_rule_ids()
         # Get findings for service from Threat DB
         findings = threat_db_reader.get_misconfig_findings(tenant_id, scan_id, data_security_rule_ids)
@@ -856,7 +915,7 @@ async def get_service_data_security(
         enriched = finding_enricher.enrich_findings(findings)
         
         # Get data stores for service from Threat DB
-        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids)
+        data_stores = threat_db_reader.filter_data_stores(tenant_id, scan_id, data_security_rule_ids, csp=csp)
         service_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         
         if account_id:

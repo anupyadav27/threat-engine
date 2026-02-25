@@ -3,21 +3,63 @@ Main FastAPI application for onboarding service
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.openapi.utils import get_openapi
 import uvicorn
 import asyncio
+import os
 
-from engine_onboarding.api import onboarding_router, credentials_router, schedules_router, health_router
+from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router
 from engine_onboarding.config import settings
 from engine_onboarding.database.connection import init_db, check_connection
-from engine_onboarding.database import mark_stale_running_executions_as_failed
-from engine_onboarding.scheduler.scheduler_service import SchedulerService
+# from engine_onboarding.database import mark_stale_running_executions_as_failed  # REMOVED - old schema
+# from engine_onboarding.scheduler.scheduler_service import SchedulerService  # REMOVED - uses old schema
+
+# Path prefix when running behind ingress rewrite (/onboarding -> /)
+ROOT_PATH = (os.getenv("ROOT_PATH", "") or "").rstrip("/")
 
 # Create FastAPI app
 app = FastAPI(
     title="Threat Engine Onboarding API",
     description="API for account onboarding, credential management, and scheduling",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None,
+    redoc_url=None
 )
+
+# Inject root_path as OpenAPI server so Swagger calls include /onboarding.
+def _custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    if ROOT_PATH:
+        schema["servers"] = [{"url": ROOT_PATH}]
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+app.openapi = _custom_openapi
+
+
+@app.get("/docs", include_in_schema=False)
+def _swagger_ui():
+    openapi_url = f"{ROOT_PATH}{app.openapi_url}" if ROOT_PATH else app.openapi_url
+    oauth2_redirect_url = f"{ROOT_PATH}/docs/oauth2-redirect" if ROOT_PATH else app.swagger_ui_oauth2_redirect_url
+    return get_swagger_ui_html(
+        openapi_url=openapi_url,
+        title=f"{app.title} - Swagger UI",
+        oauth2_redirect_url=oauth2_redirect_url,
+    )
+
+
+@app.get("/docs/oauth2-redirect", include_in_schema=False)
+def _swagger_ui_redirect():
+    return get_swagger_ui_oauth2_redirect_html()
+
 
 # CORS middleware
 app.add_middleware(
@@ -30,9 +72,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router)
-app.include_router(onboarding_router)
+app.include_router(cloud_accounts_router)
 app.include_router(credentials_router)
-app.include_router(schedules_router)
 
 # Global scheduler instance
 scheduler_service = None
@@ -53,45 +94,20 @@ async def startup_event():
         # Initialize database tables
         init_db()
         print("✅ PostgreSQL database initialized successfully")
-
-        # Clean up stale executions from previous pod restarts
-        stale_count = mark_stale_running_executions_as_failed(max_age_minutes=30)
-        if stale_count:
-            print(f"🧹 Marked {stale_count} stale 'running' executions as failed")
     except Exception as e:
         print(f"❌ Database initialization error: {e}")
         import traceback
         traceback.print_exc()
         return
     
-    # Start scheduler as background task
-    try:
-        scheduler_service = SchedulerService()
-        # Start scheduler in background (non-blocking)
-        scheduler_task = asyncio.create_task(scheduler_service.start())
-        print("✅ Scheduler started as background task")
-    except Exception as e:
-        print(f"⚠️  Scheduler startup error: {e}")
-        import traceback
-        traceback.print_exc()
+    # TODO: Re-implement scheduler using cloud_accounts table schedule fields
+    print("⚠️  Scheduler disabled - needs reimplementation for cloud_accounts schema")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Stop scheduler on shutdown"""
-    global scheduler_service, scheduler_task
-    
-    if scheduler_service:
-        scheduler_service.stop()
-        print("✅ Scheduler stopped")
-    
-    if scheduler_task:
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
-        print("✅ Scheduler task cancelled")
+    """Cleanup on shutdown"""
+    print("✅ Onboarding API shutdown complete")
 
 
 @app.get("/")

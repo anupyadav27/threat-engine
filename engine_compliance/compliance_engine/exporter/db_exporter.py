@@ -67,8 +67,15 @@ class DatabaseExporter:
         )
 
     def _get_connection(self):
-        """Get database connection."""
-        return psycopg2.connect(self.connection_string)
+        """Get database connection using env vars (bypasses Pydantic BaseSettings defaults)."""
+        return psycopg2.connect(
+            host=os.getenv("COMPLIANCE_DB_HOST", "localhost"),
+            port=int(os.getenv("COMPLIANCE_DB_PORT", "5432")),
+            database=os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance"),
+            user=os.getenv("COMPLIANCE_DB_USER", "postgres"),
+            password=os.getenv("COMPLIANCE_DB_PASSWORD", ""),
+            sslmode=os.getenv("DB_SSLMODE", "prefer"),
+        )
 
     def create_schema(self):
         """Create database schema. No-op when using consolidated DB (DB_SCHEMA set)."""
@@ -156,6 +163,25 @@ class DatabaseExporter:
         finally:
             conn.close()
     
+    @staticmethod
+    def _parse_ts(ts_str) -> Optional[datetime]:
+        """Parse a timestamp string that may have double timezone indicator (+00:00Z)."""
+        if ts_str is None:
+            return None
+        if isinstance(ts_str, datetime):
+            return ts_str
+        s = str(ts_str)
+        # Remove trailing Z if already has +HH:MM offset (e.g. "2026-02-15T16:49:14+00:00Z")
+        if s.endswith('Z') and ('+' in s[:-1] or s[:-1].count('-') > 2):
+            s = s[:-1]
+        # Replace trailing Z with +00:00 for fromisoformat
+        if s.endswith('Z'):
+            s = s[:-1] + '+00:00'
+        try:
+            return datetime.fromisoformat(s)
+        except Exception:
+            return datetime.now()
+
     def export_report(self, report: EnterpriseComplianceReport) -> str:
         """
         Export enterprise compliance report to PostgreSQL.
@@ -195,13 +221,26 @@ class DatabaseExporter:
                 report.scan_context.cloud.value,
                 report.scan_context.trigger_type.value,
                 report.scan_context.collection_mode.value,
-                report.scan_context.started_at,
-                report.scan_context.completed_at,
+                self._parse_ts(report.scan_context.started_at),
+                self._parse_ts(report.scan_context.completed_at),
                 report.posture_summary.total_controls,
                 report.posture_summary.controls_passed,
                 report.posture_summary.controls_failed,
                 report.posture_summary.total_findings,
-                json.dumps(report.model_dump(), default=str)
+                # Slim summary — exclude findings/assets/frameworks to avoid multi-GB JSONB blob
+                json.dumps({
+                    'scan_run_id': report.scan_context.scan_run_id,
+                    'cloud': report.scan_context.cloud.value,
+                    'posture_summary': {
+                        'total_controls': report.posture_summary.total_controls,
+                        'controls_passed': report.posture_summary.controls_passed,
+                        'controls_failed': report.posture_summary.controls_failed,
+                        'total_findings': report.posture_summary.total_findings,
+                        'findings_by_severity': report.posture_summary.findings_by_severity,
+                    },
+                    'framework_ids': [f.framework_id for f in report.frameworks],
+                    'generated_at': report.integrity.generated_at if report.integrity else None,
+                }, default=str)
             ))
 
             # Insert findings
@@ -231,13 +270,21 @@ class DatabaseExporter:
                         finding.severity.value,
                         finding.confidence.value,
                         finding.status.value,
-                        finding.first_seen_at,
-                        finding.last_seen_at,
+                        self._parse_ts(finding.first_seen_at),
+                        self._parse_ts(finding.last_seen_at),
                         resource_type,
                         resource_id,
                         resource_arn,
                         region,
-                        json.dumps(finding.model_dump(), default=str)
+                        # Slim finding_data — only compliance mappings (full model_dump OOMs at scale)
+                        json.dumps({
+                            'compliance_mappings': [
+                                {'framework_id': m.framework_id, 'control_id': m.control_id,
+                                 'control_title': m.control_title}
+                                for m in (finding.compliance_mappings or [])
+                            ],
+                            'remediation': finding.remediation.description if finding.remediation else None,
+                        }, default=str)
                     ))
 
                 execute_values(
@@ -278,11 +325,12 @@ class DatabaseExporter:
 
             row = cursor.fetchone()
             if row:
-                return json.loads(row[0])
+                d = row[0]
+                return d if isinstance(d, dict) else json.loads(d)
             return None
         finally:
             conn.close()
-    
+
     def get_findings(
         self,
         tenant_id: str,
@@ -295,32 +343,95 @@ class DatabaseExporter:
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-            
+
             query = """
                 SELECT finding_data FROM compliance_findings
                 WHERE tenant_id = %s
             """
             params = [tenant_id]
-            
+
             if status:
                 query += " AND status = %s"
                 params.append(status)
-            
+
             if severity:
                 query += " AND severity = %s"
                 params.append(severity)
-            
+
             if rule_id:
                 query += " AND rule_id = %s"
                 params.append(rule_id)
-            
+
             query += " ORDER BY last_seen_at DESC LIMIT %s"
             params.append(limit)
-            
+
             cursor.execute(query, params)
             rows = cursor.fetchall()
-            
+
             return [json.loads(row[0]) for row in rows]
+        finally:
+            conn.close()
+
+    def list_reports(
+        self,
+        tenant_id: str = None,
+        csp: str = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> Dict[str, Any]:
+        """List compliance reports from DB with pagination."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+
+            conditions: List[str] = []
+            params: List[Any] = []
+
+            if tenant_id:
+                conditions.append("tenant_id = %s")
+                params.append(tenant_id)
+            if csp:
+                conditions.append("cloud = %s")
+                params.append(csp)
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            cursor.execute(f"SELECT COUNT(*) FROM compliance_report {where}", params)
+            total = cursor.fetchone()[0]
+
+            cursor.execute(f"""
+                SELECT compliance_scan_id, tenant_id, scan_run_id, cloud,
+                       started_at, completed_at,
+                       total_controls, controls_passed, controls_failed, total_findings,
+                       created_at, report_data
+                FROM compliance_report
+                {where}
+                ORDER BY completed_at DESC NULLS LAST
+                LIMIT %s OFFSET %s
+            """, params + [limit, offset])
+
+            rows = cursor.fetchall()
+            result_rows = []
+            for row in rows:
+                rd = row[11] if isinstance(row[11], dict) else (json.loads(row[11]) if row[11] else {})
+                result_rows.append({
+                    'report_id': row[0],
+                    'compliance_scan_id': row[0],
+                    'tenant_id': row[1],
+                    'scan_id': row[2],
+                    'csp': row[3],
+                    'started_at': row[4].isoformat() if row[4] else None,
+                    'completed_at': row[5].isoformat() if row[5] else None,
+                    'total_controls': row[6],
+                    'controls_passed': row[7],
+                    'controls_failed': row[8],
+                    'total_findings': row[9],
+                    'generated_at': row[10].isoformat() if row[10] else None,
+                    'framework_ids': rd.get('framework_ids', []),
+                    'posture_summary': rd.get('posture_summary'),
+                })
+
+            return {'total': total, 'reports': result_rows}
         finally:
             conn.close()
 

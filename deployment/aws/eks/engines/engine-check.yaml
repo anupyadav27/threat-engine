@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-check
-        image: yadavanup84/engine-check-aws:latest
+        image: yadavanup84/engine-check:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8002
@@ -52,8 +52,6 @@ spec:
               key: s3-region
         - name: OUTPUT_DIR
           value: "/output"
-        - name: INPUT_DIR
-          value: "/input"
         - name: ENGINE_NAME
           value: "check"
         - name: CHECK_MODE
@@ -84,6 +82,52 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 6
+
+      # S3 sync sidecar - output only
+      # Check engine is database-first: rules come from rule_checks table,
+      # discoveries come from discovery_findings table via DiscoveryReader.
+      # No input sync needed — no S3 files are read.
+      # Output NDJSON (checks.ndjson, summary.json) is synced to S3 for audit/downstream use.
+      - name: s3-sync
+        image: amazon/aws-cli:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "S3 Sync Sidecar starting (output-only, check engine is database-first)"
+            echo "Output: /output -> s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/"
+            while true; do
+              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
+                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
+                  --region ${AWS_REGION} \
+                  --exclude "*.tmp" \
+                  --exclude "*.lock" \
+                  --delete 2>/dev/null || echo "$(date): S3 sync failed, retrying next cycle"
+              fi
+              sleep 30
+            done
+        env:
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: ENGINE_NAME
+          value: "check"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
 
       volumes:
       - name: output

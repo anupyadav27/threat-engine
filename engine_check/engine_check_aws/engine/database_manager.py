@@ -101,49 +101,14 @@ class DatabaseManager:
         if self.connection_pool:
             self.connection_pool.putconn(conn)
 
-    # Customer Management (shared)
-    def create_customer(self, customer_id: str, customer_name: str = None,
-                       metadata: Dict = None) -> None:
-        """Create or update customer"""
-        conn = self._get_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO customers (customer_id, customer_name, metadata)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (customer_id) 
-                    DO UPDATE SET 
-                        customer_name = EXCLUDED.customer_name,
-                        metadata = EXCLUDED.metadata
-                """, (customer_id, customer_name, json.dumps(metadata or {}) if metadata else None))
-            conn.commit()
-        finally:
-            self._return_connection(conn)
-    
-    # Tenant Management (shared)
-    def create_tenant(self, tenant_id: str, customer_id: str, provider: str,
-                     tenant_name: str = None, metadata: Dict = None) -> None:
-        """Create or update tenant"""
-        conn = self._get_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO tenants (tenant_id, customer_id, provider, tenant_name, metadata)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (tenant_id)
-                    DO UPDATE SET
-                        customer_id = EXCLUDED.customer_id,
-                        provider = EXCLUDED.provider,
-                        tenant_name = EXCLUDED.tenant_name,
-                        metadata = EXCLUDED.metadata
-                """, (
-                    tenant_id, customer_id, provider, tenant_name,
-                    json.dumps(metadata or {}) if metadata else None
-                ))
-            conn.commit()
-        finally:
-            self._return_connection(conn)
-    
+    def get_database_info(self) -> Dict[str, Any]:
+        """Return database connection info for health checks"""
+        return {
+            "host": self.db_config.get("host"),
+            "database": self.db_config.get("database"),
+            "user": self.db_config.get("user"),
+        }
+
     # Scan Management — uses check_report table
     def create_scan(self, scan_id: str, customer_id: str, tenant_id: str,
                    provider: str, hierarchy_id: str = None,

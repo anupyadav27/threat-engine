@@ -19,6 +19,7 @@ import logging
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from engine_common.logger import setup_logger, LogContext
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
+from engine_auth.fastapi.middleware import AuthMiddleware
 
 # Import orchestration (local module)
 try:
@@ -201,10 +202,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add middleware
-app.add_middleware(CorrelationIDMiddleware)
-app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
-
+# Add middleware (order matters: last added = first executed)
+# 1. CORS — must be outermost to handle preflight
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -212,6 +211,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# 2. Correlation ID — add to every request
+app.add_middleware(CorrelationIDMiddleware)
+# 3. Request logging
+app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
+# 4. Auth — validate access_token cookie, build AuthContext, set X-Auth-Context
+#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS
+app.add_middleware(AuthMiddleware)
 
 def get_target_service(path: str) -> Optional[str]:
     """Determine which service should handle this request"""
@@ -370,6 +376,11 @@ async def route_requests(request: Request, call_next):
                 headers = dict(request.headers)
                 headers["X-Forwarded-For"] = request.client.host
                 headers["X-Forwarded-Proto"] = "http"
+
+                # Forward auth context to downstream engines (set by AuthMiddleware)
+                auth_header = getattr(request.state, "auth_header", None)
+                if auth_header:
+                    headers["X-Auth-Context"] = auth_header
                 
                 # Forward request
                 if request.method == "GET":

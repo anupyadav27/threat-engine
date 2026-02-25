@@ -64,6 +64,8 @@ class Relationship(BaseModel):
     relation_type: RelationType = Field(..., description="Relationship type")
     from_uid: str = Field(..., description="Source asset resource_uid")
     to_uid: str = Field(..., description="Target asset resource_uid")
+    from_resource_type: Optional[str] = Field(None, description="Source asset resource type")
+    to_resource_type: Optional[str] = Field(None, description="Target asset resource type")
     properties: Dict[str, Any] = Field(default_factory=dict, description="Edge properties")
     
     class Config:

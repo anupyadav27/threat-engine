@@ -50,7 +50,9 @@ class InventoryDBLoader:
         provider: Optional[str] = None,
         region: Optional[str] = None,
         resource_type: Optional[str] = None,
+        resource_type_prefix: Optional[str] = None,
         account_id: Optional[str] = None,
+        account_ids: Optional[List[str]] = None,
         limit: int = 100,
         offset: int = 0
     ) -> tuple[List[Dict[str, Any]], int]:
@@ -79,11 +81,25 @@ class InventoryDBLoader:
         if resource_type:
             where_parts.append("resource_type = %s")
             params.append(resource_type)
-        
-        if account_id:
+
+        if resource_type_prefix:
+            where_parts.append("resource_type LIKE %s")
+            params.append(f"{resource_type_prefix}%")
+
+        # Multi-account filter: merge account_ids list + single account_id
+        effective_account_ids: Optional[List[str]] = None
+        if account_ids:
+            effective_account_ids = list(set(account_ids + ([account_id] if account_id else [])))
+        elif account_id:
+            effective_account_ids = [account_id]
+
+        if effective_account_ids and len(effective_account_ids) == 1:
             where_parts.append("account_id = %s")
-            params.append(account_id)
-        
+            params.append(effective_account_ids[0])
+        elif effective_account_ids:
+            where_parts.append("account_id = ANY(%s::text[])")
+            params.append(effective_account_ids)
+
         where_clause = " AND ".join(where_parts)
         
         # Get total count
@@ -204,9 +220,9 @@ class InventoryDBLoader:
         params = [tenant_id]
         
         if scan_run_id:
-            where_parts.append("scan_run_id = %s")
+            where_parts.append("inventory_scan_id = %s")
             params.append(scan_run_id)
-        
+
         if from_uid:
             where_parts.append("from_uid = %s")
             params.append(from_uid)
@@ -229,8 +245,8 @@ class InventoryDBLoader:
         
         # Get paginated results
         query = f"""
-            SELECT 
-                relationship_id, tenant_id, scan_run_id, provider,
+            SELECT
+                relationship_id, tenant_id, inventory_scan_id, provider,
                 account_id, region, relation_type, from_uid, to_uid,
                 properties, created_at
             FROM inventory_relationships
@@ -250,7 +266,7 @@ class InventoryDBLoader:
             relationships.append({
                 "schema_version": "cspm_relationship.v1",
                 "tenant_id": row["tenant_id"],
-                "scan_run_id": row["scan_run_id"],
+                "scan_run_id": row["inventory_scan_id"],
                 "provider": row["provider"],
                 "account_id": row["account_id"],
                 "region": row["region"] or "global",

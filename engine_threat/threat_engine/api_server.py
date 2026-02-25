@@ -17,11 +17,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
+import psycopg2
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
+from engine_common.orchestration import get_orchestration_metadata
 
 from .schemas.threat_report_schema import (
     ThreatReport,
@@ -77,6 +79,29 @@ app.add_middleware(
 
 # Initialize storage
 storage = ThreatStorage()
+
+
+# DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
+# def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
+#     """Query scan_orchestration table to get check_scan_id for a given scan_run_id."""
+#     # This function is no longer used - use get_orchestration_metadata() instead
+#     # which returns ALL metadata (tenant_id, account_id, provider_type, etc.)
+#     pass
+
+# Placeholder to avoid breaking references
+def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
+    try:
+        metadata = get_orchestration_metadata(scan_run_id)
+        if metadata:
+            logger.info(f"Found check_scan_id={metadata.get('check_scan_id')} for scan_run_id={scan_run_id}")
+            return metadata.get("check_scan_id")
+        else:
+            logger.warning(f"No check_scan_id found in scan_orchestration for scan_run_id={scan_run_id}")
+            return None
+    except Exception as e:
+        logger.error(f"Error querying scan_orchestration table: {e}", exc_info=True)
+        return None
+
 
 # Include check results router (standalone - no configscan dependency)
 try:
@@ -147,29 +172,65 @@ async def health():
     return health_status
 
 
-@app.post("/api/v1/threat/generate")
+@app.post("/api/v1/scan")
 async def generate_threat_report(request: ThreatReportRequest):
     """
-    Generate threat report from scan results.
-    
+    Run threat scan and generate threat report from check results.
+
     Supports both S3 and local file sources.
     """
     import time
     start_time = time.time()
     
+    # Determine check_scan_id and metadata
+    # Priority: direct check_scan_id (ad-hoc) > orchestration_id (pipeline)
+    check_query_scan_id = None
+    tenant_id = None
+
+    if request.check_scan_id:
+        # MODE 1: Ad-hoc mode - use provided check_scan_id and tenant_id
+        check_query_scan_id = request.check_scan_id
+        tenant_id = request.tenant_id
+        logger.info(f"Ad-hoc mode: Using direct check_scan_id: {check_query_scan_id}")
+
+    elif request.orchestration_id or request.scan_run_id:
+        # MODE 2: Pipeline mode - query scan_orchestration for ALL metadata
+        orchestration_id = request.orchestration_id or request.scan_run_id
+
+        try:
+            metadata = get_orchestration_metadata(orchestration_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        check_query_scan_id = metadata.get("check_scan_id")
+        if not check_query_scan_id:
+            raise HTTPException(status_code=400, detail=f"Check not completed yet for orchestration_id={orchestration_id}")
+
+        # Get ALL metadata from orchestration table
+        tenant_id = metadata.get("tenant_id")
+
+        logger.info(f"Pipeline mode: Got metadata from orchestration_id={orchestration_id}", extra={
+            "extra_fields": {
+                "check_scan_id": check_query_scan_id,
+                "tenant_id": tenant_id
+            }
+        })
+    else:
+        raise HTTPException(status_code=400, detail="Either check_scan_id OR orchestration_id must be provided")
+
     with LogContext(
-        tenant_id=request.tenant_id,
+        tenant_id=tenant_id,
         scan_run_id=request.scan_run_id
     ):
         logger.info("Generating threat report", extra={
             "extra_fields": {
                 "cloud": request.cloud.value,
                 "trigger_type": request.trigger_type.value,
-                "accounts": request.accounts,
-                "regions": request.regions
+                "check_scan_id": check_query_scan_id,
+                "tenant_id": tenant_id
             }
         })
-        
+
         try:
             # DB-first only: read failures from Check DB and enrich with rule_metadata.
             if os.getenv("THREAT_USE_DATABASE", "true").lower() != "true":
@@ -177,21 +238,20 @@ async def generate_threat_report(request: ThreatReportRequest):
 
             logger.info("Loading check results from database with metadata enrichment", extra={
                 "extra_fields": {
-                    "scan_run_id": request.scan_run_id,
-                    "tenant_id": request.tenant_id
+                    "check_scan_id": check_query_scan_id,
+                    "tenant_id": tenant_id
                 }
             })
 
             check_results = get_enriched_check_results(
-                scan_id=request.scan_run_id,
+                scan_id=check_query_scan_id,  # Use the resolved check_scan_id
                 schema="check_db",
                 status_filter=["FAIL", "WARN"],
-                customer_id=request.customer_id,
-                tenant_id=request.tenant_id,
+                tenant_id=tenant_id,
             )
 
             if not check_results:
-                raise HTTPException(status_code=404, detail="No failing check results found in database for scan_run_id")
+                raise HTTPException(status_code=404, detail=f"No failing check results found in database for check_scan_id={check_query_scan_id}")
 
             logger.info("Normalizing check results from database (with metadata)", extra={
                 "extra_fields": {
@@ -310,8 +370,23 @@ async def generate_threat_report(request: ThreatReportRequest):
                 misconfig_findings=findings
             )
             
-            # Save report to storage
+            # Save report to storage (writes to threat_report + threat_findings in threat DB)
             storage.save_report(report)
+
+            # ── Write threat_scan_id back to scan_orchestration (pipeline mode only) ──
+            if request.orchestration_id:
+                try:
+                    threat_scan_id = f"threat_{request.scan_run_id}"
+                    from engine_common.orchestration import update_orchestration_scan_id
+                    update_orchestration_scan_id(
+                        orchestration_id=request.orchestration_id,
+                        engine="threat",
+                        scan_id=threat_scan_id,
+                    )
+                    logger.info(f"Updated scan_orchestration with threat_scan_id={threat_scan_id}")
+                except Exception as e:
+                    logger.error(f"Failed to write threat_scan_id to orchestration: {e}")
+                    # Non-fatal — report is saved; downstream engines will fail gracefully
 
             # ── Run threat analysis (blast radius, risk scoring, attack chains) ──
             analysis_count = 0

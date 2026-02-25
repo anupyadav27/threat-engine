@@ -128,13 +128,17 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
             for finding in findings:
                 if finding.get("status") == "FAIL":  # Only store failures
                     finding_id = str(uuid.uuid4())
-                    resource_id = finding.get("resource", {}).get("id") or finding.get("resource", {}).get("arn")
-                    
+                    # Resource fields are at top level (from threat_db_reader), with nested fallback
+                    f_resource_type = finding.get("resource_type") or finding.get("resource", {}).get("type")
+                    f_resource_id = finding.get("resource_id") or finding.get("resource", {}).get("id")
+                    f_resource_arn = finding.get("resource_arn") or finding.get("resource", {}).get("arn")
+                    resource_id = f_resource_id or f_resource_arn
+
                     # Get classification for this resource
                     cls_info = classification_map.get(resource_id, {})
                     data_classification = cls_info.get("types", [])
                     sensitivity = cls_info.get("confidence", 0.0)
-                    
+
                     cur.execute("""
                         INSERT INTO datasec_findings (
                             finding_id, datasec_scan_id, tenant_id, scan_run_id,
@@ -154,9 +158,9 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                         finding.get("data_security_modules", []),
                         finding.get("severity", "medium"),
                         finding.get("status"),
-                        finding.get("resource", {}).get("type"),
-                        finding.get("resource", {}).get("id"),
-                        finding.get("resource", {}).get("arn"),
+                        f_resource_type,
+                        f_resource_id,
+                        f_resource_arn,
                         finding.get("account_id"),
                         finding.get("region"),
                         data_classification,

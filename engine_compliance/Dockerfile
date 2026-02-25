@@ -21,9 +21,6 @@ COPY engine_common/ ./engine_common/
 # Copy consolidated_services
 COPY consolidated_services/ ./consolidated_services/
 
-# Copy API server
-COPY engine_compliance/compliance_engine/api_server.py .
-
 ENV PYTHONPATH=/app
 
 # Expose port
