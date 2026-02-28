@@ -13,15 +13,15 @@ This is the complete specification for building the frontend UI for the CSPM (Cl
 |---|----------|-------------|
 | 01 | [Navigation & Pages](01-NAVIGATION-AND-PAGES.md) | Sidebar navigation structure, page hierarchy, route definitions |
 | 02 | [Page Components & APIs](02-PAGE-COMPONENTS-AND-APIS.md) | Every page wireframe with component-to-API mapping |
-| 03 | [Real API Data](03-REAL-API-DATA.md) | **Live production data** — real tenant/scan IDs, real response JSON, copy-paste ready curl commands |
+| 03 | [Real API Data](03-REAL-API-DATA.md) | **Live production data** — key endpoints per engine, copy-paste curl commands |
 | 04 | [Tech Stack & Design System](04-TECH-STACK-AND-DESIGN-SYSTEM.md) | Recommended libraries, color tokens, component patterns, data flow |
+| 05 | [**Complete API Reference**](05-ALL-ENGINES-COMPLETE-API.md) | **Every endpoint, every engine** — real responses, test data, pipeline walkthrough |
 
 ### Backend Reference Docs
 
 | Document | Location | Description |
 |----------|----------|-------------|
 | Full API Reference | [`docs/API_REFERENCE_ALL_ENGINES.md`](../API_REFERENCE_ALL_ENGINES.md) | All 10 engines: every endpoint, ClusterIPs, ELB URLs, real samples |
-| API Uniformity Plan | [`docs/API_UNIFORMITY.md`](../API_UNIFORMITY.md) | Current inconsistencies + proposed standard + migration path per engine |
 | Scan Pipeline Flow | [`docs/SCAN_PIPELINE.md`](../SCAN_PIPELINE.md) | End-to-end scan pipeline with timing and data flow |
 
 ---
