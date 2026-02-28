@@ -2,7 +2,7 @@
 
 > Last updated: 2026-02-28 (all API samples verified against live cluster)
 > Cluster: `vulnerability-eks-cluster` | Region: `ap-south-1`
-> Live tenant with data: `test-tenant` | AWS account: `588989875114`
+> Live tenant with data: `5a8b072b-8867-4476-a52f-f331b1cbacb3` | AWS account: `588989875114`
 
 ## Overview
 This is the complete specification for building the frontend UI for the CSPM (Cloud Security Posture Management) platform. The platform consists of **10 backend engines + 1 API gateway**, all deployed on AWS EKS and exposed via a single NLB endpoint.
@@ -13,7 +13,7 @@ This is the complete specification for building the frontend UI for the CSPM (Cl
 |---|----------|-------------|
 | 01 | [Navigation & Pages](01-NAVIGATION-AND-PAGES.md) | Sidebar navigation structure, page hierarchy, route definitions |
 | 02 | [Page Components & APIs](02-PAGE-COMPONENTS-AND-APIS.md) | Every page wireframe with component-to-API mapping |
-| 03 | [Sample Requests & Responses](03-SAMPLE-REQUESTS-AND-RESPONSES.md) | **Real** API examples with request/response JSON — tested 2026-02-28 |
+| 03 | [Real API Data](03-REAL-API-DATA.md) | **Live production data** — real tenant/scan IDs, real response JSON, copy-paste ready curl commands |
 | 04 | [Tech Stack & Design System](04-TECH-STACK-AND-DESIGN-SYSTEM.md) | Recommended libraries, color tokens, component patterns, data flow |
 
 ### Backend Reference Docs
