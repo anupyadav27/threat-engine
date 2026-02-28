@@ -326,88 +326,193 @@ class SecurityGraphQueries:
         return self._run(cypher, **all_params)
 
     # ── Pre-built Hunt Queries ───────────────────────────────────────────
+    #
+    # All queries are CSP-agnostic. They use:
+    #   - Generic :Resource label (applies to all CSPs)
+    #   - resource_type filtering for CSP-specific storage/identity types
+    #   - EXPOSES edges inferred by graph_builder for all CSPs
+    #   - r.provider to optionally scope per-CSP if needed
+    #
+    # Storage resource types covered: s3.resource, s3.bucket (AWS),
+    #   azure.storage_account, azure.blob_container (Azure),
+    #   gcp.gcs_bucket (GCP), oci.object_storage_bucket (OCI)
+    #
+    # Identity resource types covered: iam.role, iam.policy, iam.user (AWS),
+    #   azure.managed_identity, azure.service_principal (Azure),
+    #   gcp.iam_service_account (GCP)
 
     PREDEFINED_HUNTS: Dict[str, Dict[str, str]] = {
         "internet_to_sensitive_data": {
-            "name": "Internet → Sensitive Data Path",
-            "description": "Find attack paths from internet to S3 buckets with data destruction risk",
+            "name": "Internet → Sensitive Data Path (All CSPs)",
+            "description": (
+                "Find attack paths from internet to storage resources with data "
+                "destruction risk (T1485). Covers S3, Azure Blob, GCS, OCI Object Storage."
+            ),
             "cypher": """
-                MATCH path = (i:Internet)-[*1..5]->(s:S3Bucket {tenant_id: $tid})
-                WHERE EXISTS { (s)-[:HAS_THREAT]->(t:ThreatDetection) WHERE 'T1485' IN t.mitre_techniques }
+                MATCH path = (i:Internet)-[*1..5]->(r:Resource {tenant_id: $tid})
+                WHERE r.resource_type IN [
+                    's3.resource', 's3.bucket',
+                    'azure.storage_account', 'azure.blob_container',
+                    'gcp.gcs_bucket',
+                    'oci.object_storage_bucket'
+                ]
+                AND EXISTS {
+                    (r)-[:HAS_THREAT]->(t:ThreatDetection)
+                    WHERE 'T1485' IN t.mitre_techniques
+                       OR 'T1530' IN t.mitre_techniques
+                       OR 'T1537' IN t.mitre_techniques
+                }
                 RETURN
-                    s.uid AS target_bucket,
-                    s.name AS bucket_name,
-                    length(path) AS path_length,
+                    r.uid          AS target_resource,
+                    r.name         AS resource_name,
+                    r.resource_type AS resource_type,
+                    r.provider     AS provider,
+                    length(path)   AS path_length,
                     [n IN nodes(path) | coalesce(n.name, n.uid)] AS path_nodes,
-                    [r IN relationships(path) | type(r)] AS path_rels
+                    [rel IN relationships(path) | type(rel)] AS path_rels
                 ORDER BY length(path) ASC
             """,
         },
-        "lateral_movement_iam": {
-            "name": "IAM Lateral Movement Paths",
-            "description": "Find IAM roles/policies that could enable lateral movement",
+        "lateral_movement_identity": {
+            "name": "Identity Lateral Movement Paths (All CSPs)",
+            "description": (
+                "Find IAM roles / Azure managed identities / GCP service accounts "
+                "that can reach other resources — potential lateral movement paths."
+            ),
             "cypher": """
-                MATCH (role:IAMRole {tenant_id: $tid})-[:REFERENCES|RELATES_TO*1..3]->(target:Resource)
-                WHERE role <> target
+                MATCH (identity:Resource {tenant_id: $tid})
+                WHERE identity.resource_type IN [
+                    'iam.role', 'iam.policy', 'iam.user',
+                    'azure.managed_identity', 'azure.service_principal',
+                    'gcp.iam_service_account',
+                    'oci.dynamic_group'
+                ]
+                MATCH (identity)-[:REFERENCES|RELATES_TO*1..3]->(target:Resource)
+                WHERE identity <> target
                 OPTIONAL MATCH (target)-[:HAS_THREAT]->(t:ThreatDetection)
                 RETURN
-                    role.uid AS role_arn,
-                    role.name AS role_name,
-                    target.uid AS reachable_resource,
-                    target.resource_type AS target_type,
-                    collect(t.severity) AS threat_severities
-                ORDER BY size(collect(t.severity)) DESC
+                    identity.uid           AS identity_uid,
+                    identity.name          AS identity_name,
+                    identity.resource_type AS identity_type,
+                    identity.provider      AS provider,
+                    target.uid             AS reachable_resource,
+                    target.resource_type   AS target_type,
+                    collect(DISTINCT t.severity) AS threat_severities
+                ORDER BY size(collect(DISTINCT t.severity)) DESC
                 LIMIT 50
             """,
         },
-        "public_buckets_with_threats": {
-            "name": "Public S3 Buckets with Active Threats",
-            "description": "S3 buckets exposed to internet that have active threat detections",
+        "public_storage_with_threats": {
+            "name": "Public Storage Resources with Active Threats (All CSPs)",
+            "description": (
+                "Storage resources exposed to internet that have active threat detections. "
+                "Covers S3, Azure Blob/Storage Account, GCS, OCI Object Storage."
+            ),
             "cypher": """
-                MATCH (i:Internet)-[:EXPOSES*1..2]->(b:S3Bucket {tenant_id: $tid})
-                MATCH (b)-[:HAS_THREAT]->(t:ThreatDetection)
+                MATCH (i:Internet)-[:EXPOSES*1..2]->(r:Resource {tenant_id: $tid})
+                WHERE r.resource_type IN [
+                    's3.resource', 's3.bucket',
+                    'azure.storage_account', 'azure.blob_container',
+                    'gcp.gcs_bucket',
+                    'oci.object_storage_bucket'
+                ]
+                MATCH (r)-[:HAS_THREAT]->(t:ThreatDetection)
                 RETURN
-                    b.uid AS bucket_arn,
-                    b.name AS bucket_name,
-                    collect({severity: t.severity, category: t.threat_category, techniques: t.mitre_techniques}) AS threats,
+                    r.uid           AS resource_uid,
+                    r.name          AS resource_name,
+                    r.resource_type AS resource_type,
+                    r.provider      AS provider,
+                    collect({
+                        severity:   t.severity,
+                        category:   t.threat_category,
+                        techniques: t.mitre_techniques,
+                        risk_score: t.risk_score
+                    }) AS threats,
                     count(t) AS threat_count
                 ORDER BY threat_count DESC
             """,
         },
         "high_blast_radius": {
-            "name": "Resources with High Blast Radius",
-            "description": "Find resources where compromise could reach 5+ other resources",
+            "name": "Resources with High Blast Radius (All CSPs)",
+            "description": (
+                "Find resources where compromise could reach 3+ other resources. "
+                "Works across AWS, Azure, GCP, OCI, K8s."
+            ),
             "cypher": """
-                MATCH (r:Resource {tenant_id: $tid})-[:REFERENCES|RELATES_TO|ATTACK_PATH*1..4]->(target:Resource)
+                MATCH (r:Resource {tenant_id: $tid})
+                    -[:REFERENCES|RELATES_TO|ATTACK_PATH*1..4]->
+                    (target:Resource)
                 WHERE r <> target
                 WITH r, count(DISTINCT target) AS blast_count
                 WHERE blast_count >= 3
                 OPTIONAL MATCH (r)-[:HAS_THREAT]->(t:ThreatDetection)
                 RETURN
-                    r.uid AS resource_uid,
-                    r.name AS resource_name,
+                    r.uid           AS resource_uid,
+                    r.name          AS resource_name,
                     r.resource_type AS resource_type,
+                    r.provider      AS provider,
                     blast_count,
-                    collect(t.severity) AS threat_severities
+                    collect(DISTINCT t.severity) AS threat_severities
                 ORDER BY blast_count DESC
                 LIMIT 20
             """,
         },
-        "unprotected_critical_resources": {
-            "name": "Critical Resources Without Protection",
-            "description": "High-criticality resources with threats but no security group protection",
+        "internet_exposed_with_threats": {
+            "name": "Internet-Exposed Resources with Active Threats (All CSPs)",
+            "description": (
+                "High-criticality or high-risk resources directly reachable from internet "
+                "that also have active threat detections. CSP-agnostic."
+            ),
             "cypher": """
-                MATCH (r:Resource {tenant_id: $tid})
-                WHERE r.criticality = 'high'
-                  AND NOT EXISTS { (sg:SecurityGroup)-[:REFERENCES]->(r) }
+                MATCH (i:Internet)-[:EXPOSES*1..3]->(r:Resource {tenant_id: $tid})
                 OPTIONAL MATCH (r)-[:HAS_THREAT]->(t:ThreatDetection)
+                WITH r, count(DISTINCT t) AS threat_count,
+                     collect(DISTINCT {
+                         severity:   t.severity,
+                         category:   t.threat_category,
+                         techniques: t.mitre_techniques
+                     }) AS threats
+                WHERE threat_count > 0
+                  OR r.criticality = 'high'
+                  OR r.risk_score >= 60
                 RETURN
-                    r.uid AS resource_uid,
-                    r.name AS resource_name,
+                    r.uid           AS resource_uid,
+                    r.name          AS resource_name,
                     r.resource_type AS resource_type,
-                    r.risk_score AS risk_score,
-                    count(t) AS threat_count
+                    r.provider      AS provider,
+                    r.risk_score    AS risk_score,
+                    r.criticality   AS criticality,
+                    threat_count,
+                    threats
                 ORDER BY threat_count DESC, r.risk_score DESC
+                LIMIT 30
+            """,
+        },
+        "network_boundary_open_rules": {
+            "name": "Network Boundary Resources with Open Inbound Rules (All CSPs)",
+            "description": (
+                "SecurityGroups (AWS), NSGs (Azure), VPC Firewall Rules (GCP), "
+                "and Security Lists (OCI) that allow inbound traffic from 0.0.0.0/0."
+            ),
+            "cypher": """
+                MATCH (i:Internet)-[:EXPOSES]->(n:Resource {tenant_id: $tid})
+                WHERE n.resource_type IN [
+                    'ec2.security-group',
+                    'azure.network_security_group',
+                    'gcp.vpc_firewall_rule', 'gcp.firewall',
+                    'oci.security_list', 'oci.network_security_group',
+                    'k8s.networkpolicy'
+                ]
+                OPTIONAL MATCH (n)-[:RELATES_TO|REFERENCES]->(downstream:Resource)
+                OPTIONAL MATCH (downstream)-[:HAS_THREAT]->(t:ThreatDetection)
+                RETURN
+                    n.uid           AS boundary_resource_uid,
+                    n.name          AS boundary_resource_name,
+                    n.resource_type AS resource_type,
+                    n.provider      AS provider,
+                    count(DISTINCT downstream) AS downstream_count,
+                    count(DISTINCT t)           AS downstream_threats
+                ORDER BY downstream_threats DESC, downstream_count DESC
                 LIMIT 30
             """,
         },

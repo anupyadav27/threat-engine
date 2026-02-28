@@ -8,16 +8,69 @@ Creates a Wiz-style security graph with:
   - Relationship edges (REFERENCES, RELATES_TO, HAS_THREAT, HAS_FINDING, etc.)
   - Virtual nodes   (Internet, Account, Region) for reachability analysis
 
-Node labels map AWS resource types → graph-friendly labels:
-  s3.resource       → S3Bucket
-  iam.role          → IAMRole
-  iam.policy        → IAMPolicy
-  ec2.security-group → SecurityGroup
-  lambda.resource   → LambdaFunction
-  vpc.subnet        → Subnet
-  iam.user          → IAMUser
-  iam.group         → IAMGroup
-  iam.instance-profile → InstanceProfile
+Node labels map resource types → graph-friendly labels across all CSPs:
+
+  AWS:
+    s3.resource / s3.bucket  → S3Bucket
+    iam.role                 → IAMRole
+    iam.policy               → IAMPolicy
+    iam.user                 → IAMUser
+    iam.group                → IAMGroup
+    iam.instance-profile     → InstanceProfile
+    ec2.security-group       → SecurityGroup
+    ec2.instance             → EC2Instance
+    ec2.volume               → EBSVolume
+    ec2.network-interface    → NetworkInterface
+    lambda.resource          → LambdaFunction
+    vpc.subnet               → Subnet
+    vpc.vpc                  → VPC
+    rds.instance             → RDSInstance
+    eks.cluster              → EKSCluster
+    kms.key                  → KMSKey
+
+  Azure:
+    azure.storage_account        → StorageAccount
+    azure.blob_container         → BlobContainer
+    azure.virtual_machine        → VirtualMachine
+    azure.network_security_group → NetworkSecurityGroup
+    azure.sql_server             → SQLServer
+    azure.sql_database           → SQLDatabase
+    azure.key_vault              → KeyVault
+    azure.app_service            → AppService
+    azure.function_app           → FunctionApp
+    azure.aks_cluster            → AKSCluster
+    azure.managed_identity       → ManagedIdentity
+    azure.resource_group         → ResourceGroup
+    azure.subscription           → AzureSubscription
+
+  GCP:
+    gcp.gcs_bucket           → GCSBucket
+    gcp.compute_instance     → ComputeInstance
+    gcp.vpc_network          → VPCNetwork
+    gcp.vpc_firewall_rule    → VPCFirewallRule
+    gcp.iam_service_account  → ServiceAccount
+    gcp.cloud_function       → CloudFunction
+    gcp.gke_cluster          → GKECluster
+    gcp.cloud_sql_instance   → CloudSQLInstance
+    gcp.kms_key_ring         → KMSKeyRing
+    gcp.bigquery_dataset     → BigQueryDataset
+    gcp.pubsub_topic         → PubSubTopic
+
+  OCI:
+    oci.compute_instance          → OCIComputeInstance
+    oci.object_storage_bucket     → ObjectStorageBucket
+    oci.vcn                       → VCN
+    oci.security_list             → SecurityList
+    oci.network_security_group    → OCINetworkSecurityGroup
+    oci.autonomous_database       → AutonomousDatabase
+
+  K8s:
+    k8s.pod            → K8sPod
+    k8s.deployment     → K8sDeployment
+    k8s.service        → K8sService
+    k8s.namespace      → K8sNamespace
+    k8s.serviceaccount → K8sServiceAccount
+    k8s.ingress        → K8sIngress
 """
 
 from __future__ import annotations
@@ -31,24 +84,160 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 logger = logging.getLogger(__name__)
 
 # ── Resource type → Neo4j label mapping ──────────────────────────────────────
+# Covers AWS, Azure, GCP, OCI, K8s. Falls back to "CloudResource" for unknowns.
 RESOURCE_TYPE_LABELS: Dict[str, str] = {
+    # ── AWS ──────────────────────────────────────────────────────────────────
     "s3.resource": "S3Bucket",
+    "s3.bucket": "S3Bucket",
     "s3": "S3Bucket",
     "iam.role": "IAMRole",
     "iam.policy": "IAMPolicy",
     "iam.user": "IAMUser",
     "iam.group": "IAMGroup",
     "iam.instance-profile": "InstanceProfile",
+    "iam.iam-instance-profile-association": "InstanceProfileAssociation",
     "ec2.security-group": "SecurityGroup",
     "ec2.iam-instance-profile-association": "InstanceProfileAssociation",
+    "ec2.instance": "EC2Instance",
+    "ec2.volume": "EBSVolume",
+    "ec2.network-interface": "NetworkInterface",
+    "ec2.subnet": "Subnet",
+    "ec2.vpc": "VPC",
     "lambda.resource": "LambdaFunction",
+    "lambda.function": "LambdaFunction",
     "vpc.subnet": "Subnet",
+    "vpc.vpc": "VPC",
+    "vpc.internet-gateway": "InternetGateway",
+    "vpc.nat-gateway": "NATGateway",
+    "rds.instance": "RDSInstance",
+    "rds.db-instance": "RDSInstance",
+    "rds.cluster": "RDSCluster",
+    "eks.cluster": "EKSCluster",
+    "kms.key": "KMSKey",
+    "kms.alias": "KMSAlias",
+    "cloudtrail.trail": "CloudTrailTrail",
+    "sqs.queue": "SQSQueue",
+    "sns.topic": "SNSTopic",
+    "secretsmanager.secret": "SecretsManagerSecret",
+    "elasticloadbalancing.loadbalancer": "LoadBalancer",
+    "elasticloadbalancingv2.loadbalancer": "LoadBalancer",
+    "cloudfront.distribution": "CloudFrontDistribution",
+    "wafv2.web-acl": "WAFWebACL",
+    "guardduty.detector": "GuardDutyDetector",
+    "securityhub.hub": "SecurityHub",
+    # ── Azure ────────────────────────────────────────────────────────────────
+    "azure.storage_account": "StorageAccount",
+    "azure.blob_container": "BlobContainer",
+    "azure.virtual_machine": "VirtualMachine",
+    "azure.network_security_group": "NetworkSecurityGroup",
+    "azure.sql_server": "SQLServer",
+    "azure.sql_database": "SQLDatabase",
+    "azure.key_vault": "KeyVault",
+    "azure.app_service": "AppService",
+    "azure.function_app": "FunctionApp",
+    "azure.aks_cluster": "AKSCluster",
+    "azure.managed_identity": "ManagedIdentity",
+    "azure.service_principal": "ServicePrincipal",
+    "azure.resource_group": "ResourceGroup",
+    "azure.subscription": "AzureSubscription",
+    "azure.virtual_network": "VirtualNetwork",
+    "azure.subnet": "AzureSubnet",
+    "azure.public_ip_address": "PublicIPAddress",
+    "azure.load_balancer": "AzureLoadBalancer",
+    "azure.application_gateway": "ApplicationGateway",
+    "azure.cosmos_db": "CosmosDB",
+    "azure.service_bus": "ServiceBus",
+    "azure.event_hub": "EventHub",
+    "azure.container_registry": "ContainerRegistry",
+    "azure.monitor_log_analytics": "LogAnalytics",
+    # ── GCP ──────────────────────────────────────────────────────────────────
+    "gcp.gcs_bucket": "GCSBucket",
+    "gcp.compute_instance": "ComputeInstance",
+    "gcp.vpc_network": "VPCNetwork",
+    "gcp.vpc_firewall_rule": "VPCFirewallRule",
+    "gcp.firewall": "VPCFirewallRule",
+    "gcp.iam_service_account": "ServiceAccount",
+    "gcp.service_account": "ServiceAccount",
+    "gcp.cloud_function": "CloudFunction",
+    "gcp.gke_cluster": "GKECluster",
+    "gcp.cloud_sql_instance": "CloudSQLInstance",
+    "gcp.kms_key_ring": "KMSKeyRing",
+    "gcp.kms_crypto_key": "KMSCryptoKey",
+    "gcp.bigquery_dataset": "BigQueryDataset",
+    "gcp.bigquery_table": "BigQueryTable",
+    "gcp.pubsub_topic": "PubSubTopic",
+    "gcp.pubsub_subscription": "PubSubSubscription",
+    "gcp.cloud_run_service": "CloudRunService",
+    "gcp.artifact_registry": "ArtifactRegistry",
+    "gcp.logging_sink": "LoggingSink",
+    # ── OCI ──────────────────────────────────────────────────────────────────
+    "oci.compute_instance": "OCIComputeInstance",
+    "oci.object_storage_bucket": "ObjectStorageBucket",
+    "oci.vcn": "VCN",
+    "oci.security_list": "SecurityList",
+    "oci.network_security_group": "OCINetworkSecurityGroup",
+    "oci.autonomous_database": "AutonomousDatabase",
+    "oci.vault": "OCIVault",
+    "oci.compartment": "Compartment",
+    # ── K8s ──────────────────────────────────────────────────────────────────
+    "k8s.pod": "K8sPod",
+    "k8s.deployment": "K8sDeployment",
+    "k8s.service": "K8sService",
+    "k8s.namespace": "K8sNamespace",
+    "k8s.serviceaccount": "K8sServiceAccount",
+    "k8s.ingress": "K8sIngress",
+    "k8s.configmap": "K8sConfigMap",
+    "k8s.secret": "K8sSecret",
+    "k8s.role": "K8sRole",
+    "k8s.clusterrole": "K8sClusterRole",
+    "k8s.rolebinding": "K8sRoleBinding",
+    "k8s.networkpolicy": "K8sNetworkPolicy",
+}
+
+# ── Internet-facing resource types per CSP ────────────────────────────────────
+# These node labels indicate a resource that controls network ingress/egress.
+# Used by _infer_internet_exposure() to detect public-facing paths.
+_NETWORK_BOUNDARY_LABELS: Dict[str, List[str]] = {
+    "aws":   ["SecurityGroup"],
+    "azure": ["NetworkSecurityGroup"],
+    "gcp":   ["VPCFirewallRule"],
+    "oci":   ["SecurityList", "OCINetworkSecurityGroup"],
+    "k8s":   ["K8sNetworkPolicy", "K8sIngress"],
+}
+
+# ── Storage resource types per CSP ────────────────────────────────────────────
+# Used for public storage exposure inference.
+_STORAGE_LABELS: Dict[str, str] = {
+    "aws":   "S3Bucket",
+    "azure": "StorageAccount",
+    "gcp":   "GCSBucket",
+    "oci":   "ObjectStorageBucket",
 }
 
 
 def _neo4j_label(resource_type: str) -> str:
     """Map resource type to Neo4j node label."""
     return RESOURCE_TYPE_LABELS.get(resource_type, "CloudResource")
+
+
+def _arn_to_custom_uid(arn: str) -> str:
+    """Convert an AWS ARN to the custom ec2:region:account:id UID format used by inventory_findings.
+
+    inventory_relationships stores ARNs (arn:aws:ec2:ap-south-1:123:security-group/sg-xxx)
+    inventory_findings stores custom UIDs (ec2:ap-south-1:123:sg-xxx)
+    This function bridges the gap so graph MATCH queries can find nodes.
+    """
+    if not arn.startswith("arn:aws:ec2:"):
+        return arn  # S3/IAM/Lambda already use ARN format in findings — no conversion needed
+    # arn:aws:ec2:REGION:ACCOUNT:RESOURCE-TYPE/RESOURCE-ID
+    parts = arn.split(":", 6)  # ['arn','aws','ec2','region','account','type/id']
+    if len(parts) < 6:
+        return arn
+    region = parts[3]
+    account = parts[4]
+    resource_path = parts[5]   # e.g. 'security-group/sg-xxx'
+    resource_id = resource_path.split("/", 1)[-1]  # strip 'security-group/', 'instance/', etc.
+    return f"ec2:{region}:{account}:{resource_id}"
 
 
 def _safe_props(d: Dict[str, Any], max_depth: int = 1) -> Dict[str, Any]:
@@ -130,9 +319,9 @@ class SecurityGraphBuilder:
                 # Match by tenant_id OR account_id (inventory may use different tenant naming)
                 cur.execute("""
                     SELECT asset_id, resource_uid, provider, account_id, region,
-                           resource_type, resource_id, name, properties,
-                           configuration, compliance_status, risk_score,
-                           criticality, tags, labels
+                           resource_type, resource_id, name,
+                           configuration::text AS configuration,
+                           compliance_status, risk_score, criticality
                     FROM inventory_findings
                     WHERE tenant_id = %s OR account_id = %s
                 """, (tenant_id, tenant_id))
@@ -255,11 +444,12 @@ class SecurityGraphBuilder:
             params = []
             for f in batch:
                 label = _neo4j_label(f.get("resource_type", ""))
+                cfg = f.get("configuration")
                 props = {
                     "uid": f["resource_uid"],
                     "asset_id": str(f["asset_id"]),
                     "tenant_id": tenant_id,
-                    "provider": f.get("provider", "aws"),
+                    "provider": f.get("provider") or "unknown",
                     "account_id": f.get("account_id", ""),
                     "region": f.get("region", ""),
                     "resource_type": f.get("resource_type", ""),
@@ -269,6 +459,8 @@ class SecurityGraphBuilder:
                     "risk_score": f.get("risk_score", 0),
                     "criticality": f.get("criticality", ""),
                     "label": label,
+                    # Store config as string for internet exposure inference queries
+                    "configuration": cfg if isinstance(cfg, str) else (json.dumps(cfg) if cfg else ""),
                 }
                 params.append(props)
 
@@ -279,24 +471,41 @@ class SecurityGraphBuilder:
                     r:Resource
             """, batch=params)
 
-            # Also add specific labels
-            for f in batch:
-                label = _neo4j_label(f.get("resource_type", ""))
-                if label != "CloudResource":
-                    try:
-                        session.run(
-                            f"MATCH (r:Resource {{uid: $uid}}) SET r:`{label}`",
-                            uid=f["resource_uid"],
-                        )
-                    except Exception:
-                        pass
-
             count += len(batch)
+
+        # Batch label-setting: group UIDs by label → one query per label type
+        # (avoids N individual session.run() calls which OOM at scale)
+        label_groups: Dict[str, List[str]] = {}
+        for f in findings:
+            label = _neo4j_label(f.get("resource_type", ""))
+            if label != "CloudResource":
+                label_groups.setdefault(label, []).append(f["resource_uid"])
+
+        for label, uids in label_groups.items():
+            for j in range(0, len(uids), 500):
+                chunk = uids[j:j + 500]
+                try:
+                    session.run(
+                        f"UNWIND $uids AS uid MATCH (r:Resource {{uid: uid}}) SET r:`{label}`",
+                        uids=chunk,
+                    )
+                except Exception:
+                    pass
 
         return count
 
-    def _create_virtual_nodes(self, session, tenant_id: str, accounts: Set[str], regions: Set[str]) -> int:
+    def _create_virtual_nodes(
+        self,
+        session,
+        tenant_id: str,
+        accounts: Dict[str, str],  # account_id → provider
+        regions: Set[str],
+    ) -> int:
         """Create Internet, Account, and Region virtual nodes."""
+        _CSP_DISPLAY = {
+            "aws": "AWS", "azure": "Azure", "gcp": "GCP",
+            "oci": "OCI", "ibm": "IBM", "alicloud": "AliCloud", "k8s": "K8s",
+        }
         count = 0
 
         # Internet node
@@ -306,12 +515,15 @@ class SecurityGraphBuilder:
         """, tid=tenant_id)
         count += 1
 
-        # Account nodes
-        for acct in accounts:
+        # Account nodes — named by CSP (e.g. "AWS Account 588989875114")
+        for acct, provider in accounts.items():
+            csp_label = _CSP_DISPLAY.get(provider.lower(), provider.upper())
             session.run("""
                 MERGE (a:Account:VirtualNode {uid: $uid})
-                SET a.name = $name, a.tenant_id = $tid, a.account_id = $acct
-            """, uid=f"account:{acct}", name=f"AWS Account {acct}", tid=tenant_id, acct=acct)
+                SET a.name = $name, a.tenant_id = $tid, a.account_id = $acct,
+                    a.provider = $provider
+            """, uid=f"account:{acct}", name=f"{csp_label} Account {acct}",
+                tid=tenant_id, acct=acct, provider=provider)
             count += 1
 
         # Region nodes
@@ -327,83 +539,58 @@ class SecurityGraphBuilder:
     def _create_resource_relationships(
         self, session, relationships: List[Dict[str, Any]]
     ) -> int:
-        """Create edges between resource nodes from inventory_relationships."""
-        count = 0
-        batch_size = 200
+        """Create edges between resource nodes from inventory_relationships.
 
-        for i in range(0, len(relationships), batch_size):
-            batch = relationships[i:i + batch_size]
-            params = []
-            for rel in batch:
-                src = rel.get("source_resource_uid") or rel.get("from_uid") or ""
-                dst = rel.get("target_resource_uid") or rel.get("to_uid") or ""
-                rel_type = (rel.get("relationship_type") or rel.get("relation_type") or "RELATED").upper().replace(" ", "_")
+        inventory_relationships stores UIDs in two formats:
+          - ARN format:    arn:aws:ec2:ap-south-1:123456:security-group/sg-xxx
+          - Custom format: ec2:ap-south-1:123456:sg-xxx  (EC2-family resources)
+          - ARN format:    arn:aws:s3:::bucket  (S3, IAM, Lambda — already match findings)
 
-                if not src or not dst or src == dst:
-                    continue
+        We normalise EC2 ARNs → custom format before MATCH so nodes are found.
+        All rel-types are batched via UNWIND to avoid per-row session.run() calls.
+        """
+        # Build normalised params list (ARN → custom uid conversion)
+        all_params: Dict[str, List[Dict]] = {}  # rel_type → [params]
+        for rel in relationships:
+            raw_src = rel.get("source_resource_uid") or rel.get("from_uid") or ""
+            raw_dst = rel.get("target_resource_uid") or rel.get("to_uid") or ""
+            src = _arn_to_custom_uid(raw_src)
+            dst = _arn_to_custom_uid(raw_dst)
+            rel_type = (
+                rel.get("relationship_type") or rel.get("relation_type") or "RELATED"
+            ).upper().replace(" ", "_")
+            # Map RELATED → RELATES_TO for readability
+            if rel_type == "RELATED":
+                rel_type = "RELATES_TO"
 
-                params.append({
-                    "src": src,
-                    "dst": dst,
-                    "rel_type": rel_type,
-                    "strength": rel.get("relationship_strength", "strong"),
-                    "bidirectional": rel.get("bidirectional", False),
-                })
-
-            if not params:
+            if not src or not dst or src == dst:
                 continue
 
-            # Create REFERENCES relationships
-            refs = [p for p in params if p["rel_type"] == "REFERENCES"]
-            if refs:
-                session.run("""
-                    UNWIND $batch AS p
-                    MATCH (a:Resource {uid: p.src})
-                    MATCH (b:Resource {uid: p.dst})
-                    MERGE (a)-[r:REFERENCES]->(b)
-                    SET r.strength = p.strength
-                """, batch=refs)
-                count += len(refs)
+            all_params.setdefault(rel_type, []).append({
+                "src": src, "dst": dst,
+                "strength": rel.get("relationship_strength", "strong"),
+            })
 
-            # Create RELATED relationships
-            related = [p for p in params if p["rel_type"] == "RELATED"]
-            if related:
-                session.run("""
-                    UNWIND $batch AS p
-                    MATCH (a:Resource {uid: p.src})
-                    MATCH (b:Resource {uid: p.dst})
-                    MERGE (a)-[r:RELATES_TO]->(b)
-                    SET r.strength = p.strength
-                """, batch=related)
-                count += len(related)
+        count = 0
+        batch_size = 500
 
-            # Any other types
-            other = [p for p in params if p["rel_type"] not in ("REFERENCES", "RELATED")]
-            for p in other:
+        # For each rel-type, run a single batched UNWIND Cypher
+        for rel_type, params in all_params.items():
+            for i in range(0, len(params), batch_size):
+                chunk = params[i:i + batch_size]
                 try:
-                    session.run(f"""
-                        MATCH (a:Resource {{uid: $src}})
-                        MATCH (b:Resource {{uid: $dst}})
-                        MERGE (a)-[r:`{p['rel_type']}`]->(b)
-                        SET r.strength = $strength
-                    """, src=p["src"], dst=p["dst"], strength=p["strength"])
-                    count += 1
-                except Exception:
-                    pass
-
-            # Bidirectional edges
-            bidir = [p for p in params if p.get("bidirectional")]
-            for p in bidir:
-                try:
-                    session.run("""
-                        MATCH (a:Resource {uid: $dst})
-                        MATCH (b:Resource {uid: $src})
-                        MERGE (a)-[r:RELATES_TO]->(b)
-                        SET r.strength = $strength
-                    """, src=p["src"], dst=p["dst"], strength=p["strength"])
-                    count += 1
-                except Exception:
-                    pass
+                    result = session.run(f"""
+                        UNWIND $batch AS p
+                        MATCH (a:Resource {{uid: p.src}})
+                        MATCH (b:Resource {{uid: p.dst}})
+                        MERGE (a)-[r:`{rel_type}`]->(b)
+                        SET r.strength = p.strength
+                        RETURN COUNT(*) AS c
+                    """, batch=chunk)
+                    record = result.single()
+                    count += record["c"] if record else 0
+                except Exception as exc:
+                    logger.debug(f"Relationship batch failed ({rel_type}): {exc}")
 
         return count
 
@@ -515,19 +702,21 @@ class SecurityGraphBuilder:
                 SET f += p
             """, batch=params)
 
-            # Link findings to resources
-            for f in batch:
-                resource_uid = f.get("resource_uid", "")
-                if resource_uid:
-                    try:
-                        session.run("""
-                            MATCH (f:Finding {finding_id: $fid})
-                            MATCH (r:Resource)
-                            WHERE r.uid STARTS WITH $ruid
-                            MERGE (r)-[:HAS_FINDING]->(f)
-                        """, fid=str(f["finding_id"]), ruid=resource_uid)
-                    except Exception:
-                        pass
+            # Link findings to resources — batched UNWIND (avoids N individual queries)
+            link_params = [
+                {"fid": str(f["finding_id"]), "ruid": f.get("resource_uid", "")}
+                for f in batch if f.get("resource_uid")
+            ]
+            if link_params:
+                try:
+                    session.run("""
+                        UNWIND $links AS lnk
+                        MATCH (f:Finding {finding_id: lnk.fid})
+                        MATCH (r:Resource {uid: lnk.ruid})
+                        MERGE (r)-[:HAS_FINDING]->(f)
+                    """, links=link_params)
+                except Exception:
+                    pass
 
             count += len(batch)
 
@@ -580,49 +769,196 @@ class SecurityGraphBuilder:
 
         return count
 
-    def _infer_internet_exposure(self, session, tenant_id: str) -> int:
-        """
-        Infer internet exposure from Security Group rules and public resources.
+    def _create_internet_edges(self, session, tenant_id: str) -> int:
+        """Wire the Internet virtual node to internet-facing resources.
 
-        Connects Internet node → SecurityGroup → Resource for publicly exposed assets.
+        Creates the IGW → VPC → Subnet/EC2 flow path:
+          Internet -[EXPOSES]-> InternetGateway
+          InternetGateway -[CONNECTS_TO]-> VPC  (same region/account)
+          VPC -[CONNECTS_TO]-> EC2Instance       (EC2 in same account/region via CONTAINED_BY)
+        Also directly exposes S3 buckets that have public-access findings.
         """
         count = 0
 
-        # SGs with 0.0.0.0/0 in configuration
-        result = session.run("""
-            MATCH (sg:SecurityGroup {tenant_id: $tid})
-            WHERE sg.configuration IS NOT NULL
-              AND sg.configuration CONTAINS '0.0.0.0/0'
-            RETURN sg.uid as uid
-        """, tid=tenant_id)
+        # 1. Internet → every InternetGateway node
+        try:
+            r = session.run("""
+                MATCH (inet:Internet), (igw:Resource {tenant_id: $tid})
+                WHERE igw.resource_type STARTS WITH 'ec2.internet-gateway'
+                MERGE (inet)-[e:EXPOSES]->(igw)
+                RETURN COUNT(e) AS c
+            """, tid=tenant_id)
+            rec = r.single()
+            if rec:
+                count += rec["c"]
+        except Exception as exc:
+            logger.debug(f"Internet→IGW edges failed: {exc}")
 
+        # 2. InternetGateway → VPC in same region+account (IGW attaches to one VPC)
+        try:
+            r = session.run("""
+                MATCH (igw:Resource {tenant_id: $tid})
+                WHERE igw.resource_type STARTS WITH 'ec2.internet-gateway'
+                MATCH (vpc:VPC {tenant_id: $tid, account_id: igw.account_id, region: igw.region})
+                MERGE (igw)-[e:CONNECTS_TO]->(vpc)
+                RETURN COUNT(e) AS c
+            """, tid=tenant_id)
+            rec = r.single()
+            if rec:
+                count += rec["c"]
+        except Exception as exc:
+            logger.debug(f"IGW→VPC edges failed: {exc}")
+
+        # 3. VPC → EC2Instance in same region+account (instances live inside VPCs)
+        try:
+            r = session.run("""
+                MATCH (vpc:VPC {tenant_id: $tid})
+                MATCH (ec2:EC2Instance {tenant_id: $tid, account_id: vpc.account_id, region: vpc.region})
+                MERGE (vpc)-[e:CONTAINS]->(ec2)
+                RETURN COUNT(e) AS c
+            """, tid=tenant_id)
+            rec = r.single()
+            if rec:
+                count += rec["c"]
+        except Exception as exc:
+            logger.debug(f"VPC→EC2 edges failed: {exc}")
+
+        # 4. EC2Instance → S3Bucket (via Lambda or direct: all S3 in same account reachable from EC2)
+        #    Use ACCESSES edge type — only if both exist in the graph
+        try:
+            r = session.run("""
+                MATCH (ec2:EC2Instance {tenant_id: $tid})
+                MATCH (s3:S3Bucket {tenant_id: $tid, account_id: ec2.account_id})
+                MERGE (ec2)-[e:ACCESSES]->(s3)
+                RETURN COUNT(e) AS c
+            """, tid=tenant_id)
+            rec = r.single()
+            if rec:
+                count += rec["c"]
+        except Exception as exc:
+            logger.debug(f"EC2→S3 edges failed: {exc}")
+
+        # 5. Lambda → S3Bucket in same account
+        try:
+            r = session.run("""
+                MATCH (fn:LambdaFunction {tenant_id: $tid})
+                MATCH (s3:S3Bucket {tenant_id: $tid, account_id: fn.account_id})
+                MERGE (fn)-[e:ACCESSES]->(s3)
+                RETURN COUNT(e) AS c
+            """, tid=tenant_id)
+            rec = r.single()
+            if rec:
+                count += rec["c"]
+        except Exception as exc:
+            logger.debug(f"Lambda→S3 edges failed: {exc}")
+
+        return count
+
+    def _infer_internet_exposure(self, session, tenant_id: str) -> int:
+        """
+        Infer internet exposure from network boundary resources and public storage.
+
+        Covers all supported CSPs:
+          AWS   — SecurityGroup with 0.0.0.0/0 or ::/0 inbound rules
+          Azure — NetworkSecurityGroup with * source or 0.0.0.0/0
+          GCP   — VPCFirewallRule with sourceRanges 0.0.0.0/0
+          OCI   — SecurityList / OCINetworkSecurityGroup with 0.0.0.0/0
+          K8s   — K8sIngress (always externally accessible by design)
+
+        Also infers public storage exposure from check findings across all CSPs.
+        """
+        count = 0
+
+        # ── Network boundary nodes with open inbound rules ────────────────────
+        # Single query covers all CSP boundary node labels via CONTAINS check on
+        # configuration (stored as JSON string in Neo4j string property).
+        # The configuration field contains the raw API response serialised as text.
+        network_boundary_check = """
+            MATCH (n {tenant_id: $tid})
+            WHERE (n:SecurityGroup OR n:NetworkSecurityGroup OR
+                   n:VPCFirewallRule OR n:SecurityList OR
+                   n:OCINetworkSecurityGroup)
+              AND n.configuration IS NOT NULL
+              AND (
+                n.configuration CONTAINS '0.0.0.0/0'
+                OR n.configuration CONTAINS '::/0'
+                OR n.configuration CONTAINS '"source": "*"'
+                OR n.configuration CONTAINS '"SourceAddressPrefix": "*"'
+                OR n.configuration CONTAINS '"sourceRanges"'
+              )
+            RETURN n.uid AS uid, n.resource_type AS resource_type
+        """
+        result = session.run(network_boundary_check, tid=tenant_id)
         for record in result:
-            sg_uid = record["uid"]
             session.run("""
                 MATCH (i:Internet {uid: 'INTERNET'})
-                MATCH (sg:Resource {uid: $uid})
-                MERGE (i)-[r:EXPOSES]->(sg)
-                SET r.reason = 'inbound_0.0.0.0/0'
-            """, uid=sg_uid)
+                MATCH (n:Resource {uid: $uid})
+                MERGE (i)-[r:EXPOSES]->(n)
+                SET r.reason = 'open_inbound_rule',
+                    r.resource_type = $rtype
+            """, uid=record["uid"], rtype=record["resource_type"] or "")
             count += 1
 
-        # Public S3 buckets (infer from findings with public access rules)
+        # ── K8s Ingress — always internet-facing by definition ────────────────
         result = session.run("""
-            MATCH (r:S3Bucket {tenant_id: $tid})-[:HAS_FINDING]->(f:Finding)
-            WHERE f.rule_id CONTAINS 'public' OR f.title CONTAINS 'public'
-            RETURN DISTINCT r.uid as uid
+            MATCH (n:K8sIngress {tenant_id: $tid})
+            RETURN n.uid AS uid
         """, tid=tenant_id)
+        for record in result:
+            session.run("""
+                MATCH (i:Internet {uid: 'INTERNET'})
+                MATCH (n:Resource {uid: $uid})
+                MERGE (i)-[r:EXPOSES]->(n)
+                SET r.reason = 'k8s_ingress'
+            """, uid=record["uid"])
+            count += 1
 
+        # ── Public storage: infer from findings that flag public access ────────
+        # Works for S3Bucket (AWS), StorageAccount/BlobContainer (Azure),
+        # GCSBucket (GCP), ObjectStorageBucket (OCI) — anything in storage labels.
+        public_storage_labels = list(_STORAGE_LABELS.values())
+        for label in public_storage_labels:
+            result = session.run(f"""
+                MATCH (r:`{label}` {{tenant_id: $tid}})-[:HAS_FINDING]->(f:Finding)
+                WHERE f.rule_id CONTAINS 'public'
+                   OR f.title CONTAINS 'public'
+                   OR f.rule_id CONTAINS 'anonymous'
+                   OR f.rule_id CONTAINS 'open_access'
+                RETURN DISTINCT r.uid AS uid
+            """, tid=tenant_id)
+            for record in result:
+                session.run("""
+                    MATCH (i:Internet {uid: 'INTERNET'})
+                    MATCH (r:Resource {uid: $uid})
+                    MERGE (i)-[e:EXPOSES]->(r)
+                    SET e.reason = 'public_access_finding'
+                """, uid=record["uid"])
+                count += 1
+
+        # ── Public IP on compute resources ────────────────────────────────────
+        result = session.run("""
+            MATCH (r:Resource {tenant_id: $tid})
+            WHERE (r:EC2Instance OR r:VirtualMachine OR r:ComputeInstance
+                   OR r:OCIComputeInstance)
+              AND r.configuration IS NOT NULL
+              AND (
+                r.configuration CONTAINS '"PublicIpAddress"'
+                OR r.configuration CONTAINS '"public_ip"'
+                OR r.configuration CONTAINS '"natIP"'
+                OR r.configuration CONTAINS '"primaryPublicIPAddress"'
+              )
+            RETURN r.uid AS uid
+        """, tid=tenant_id)
         for record in result:
             session.run("""
                 MATCH (i:Internet {uid: 'INTERNET'})
                 MATCH (r:Resource {uid: $uid})
                 MERGE (i)-[e:EXPOSES]->(r)
-                SET e.reason = 'public_access_finding'
+                SET e.reason = 'public_ip_assigned'
             """, uid=record["uid"])
             count += 1
 
-        logger.info(f"Inferred {count} internet exposure edges")
+        logger.info(f"Inferred {count} internet exposure edges across all CSPs")
         return count
 
     # ── Main orchestrator ────────────────────────────────────────────────
@@ -667,7 +1003,12 @@ class SecurityGraphBuilder:
         driver = self._get_driver()
         with driver.session() as session:
             # 4a. Virtual nodes (Internet, Accounts, Regions)
-            accounts = set(f.get("account_id", "") for f in inv_findings if f.get("account_id"))
+            # accounts: Dict[account_id → provider] — preserves CSP per account
+            accounts: Dict[str, str] = {}
+            for f in inv_findings:
+                acct = f.get("account_id")
+                if acct:
+                    accounts.setdefault(acct, f.get("provider") or "unknown")
             regions = set(f.get("region", "") for f in inv_findings if f.get("region"))
             stats["virtual_nodes"] = self._create_virtual_nodes(session, tenant_id, accounts, regions)
             logger.info(f"  → {stats['virtual_nodes']} virtual nodes")
@@ -687,7 +1028,7 @@ class SecurityGraphBuilder:
                     missing_resources.append({
                         "asset_id": str(det["detection_id"]),
                         "resource_uid": arn,
-                        "provider": det.get("provider", "aws"),
+                        "provider": det.get("provider") or "unknown",
                         "account_id": det.get("account_id", ""),
                         "region": det.get("region", ""),
                         "resource_type": det.get("resource_type", ""),
@@ -723,7 +1064,11 @@ class SecurityGraphBuilder:
             stats["analysis_edges"] = self._create_analysis_edges(session, analyses)
             logger.info(f"  → {stats['analysis_edges']} analysis/attack-path edges")
 
-            # 4i. Infer internet exposure
+            # 4i. Internet flow edges (Internet→IGW→VPC→EC2→S3)
+            stats["internet_edges"] = self._create_internet_edges(session, tenant_id)
+            logger.info(f"  → {stats['internet_edges']} internet flow edges")
+
+            # 4j. Infer additional internet exposure from network boundary config
             stats["exposure_edges"] = self._infer_internet_exposure(session, tenant_id)
             logger.info(f"  → {stats['exposure_edges']} internet exposure edges")
 
@@ -731,7 +1076,8 @@ class SecurityGraphBuilder:
         total_nodes = stats.get("virtual_nodes", 0) + stats.get("resource_nodes", 0) + \
                       stats.get("threat_nodes", 0) + stats.get("finding_nodes", 0)
         total_rels = stats.get("resource_rels", 0) + stats.get("hierarchy_rels", 0) + \
-                     stats.get("analysis_edges", 0) + stats.get("exposure_edges", 0)
+                     stats.get("analysis_edges", 0) + stats.get("exposure_edges", 0) + \
+                     stats.get("internet_edges", 0)
 
         stats["total_nodes"] = total_nodes
         stats["total_relationships"] = total_rels

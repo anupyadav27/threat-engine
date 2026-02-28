@@ -1,92 +1,77 @@
-# Engine Discoveries (AWS Resource Discovery Engine)
+# Discoveries Engine (`engine_discoveries`)
 
-> Discovers and inventories AWS resources across 40+ services and multiple regions using the AWS SDK.
+Multi-CSP resource discovery engine for CSPM — discovers all cloud resources across AWS, Azure, GCP, and OCI using provider-native APIs, stores findings in PostgreSQL, and feeds downstream engines (check, inventory, threat).
+
+**Port:** `8001` | **Database:** `threat_engine_discoveries` | **Image:** `yadavanup84/engine-discoveries:v10-multicloud`
 
 ---
 
 ## Overview
 
-The Discovery Engine is **Phase 1** of the scan pipeline — the entry point for all cloud security assessments. It connects to AWS accounts via IAM cross-account roles, access keys, or IRSA, then systematically discovers all resources across configured services and regions.
+The Discovery Engine is **Phase 1** of the scan pipeline — the entry point for all cloud security assessments. It connects to cloud accounts via Secrets Manager credentials, discovers resources across all active services and regions in parallel, and writes findings to the discoveries DB.
 
-**Port:** `8001`
-**Database:** `threat_engine_check` (shared with check engine)
-**Docker Image:** `yadavanup84/engine-discoveries:latest`
+Pipeline position:
+
+```
+onboarding → discoveries → check → inventory → threat / compliance / IAM / datasec
+  (8008)        (8001)      (8002)    (8022)         (8020 / 8010 / 8003 / 8004)
+```
 
 ---
 
 ## Architecture
 
 ```
-AWS Account (via STS AssumeRole)
-        |
-        v
-  +----------------------------+
-  |   Discovery Engine          |
-  |                              |
-  |  1. Authenticate to AWS      |
-  |  2. Scan services in parallel|
-  |  3. Extract resource fields  |
-  |  4. Store discoveries        |
-  +----------------------------+
-        |
-        v
-  PostgreSQL (discoveries table)
-  + NDJSON files (engine_output/)
+scan_orchestration (onboarding DB)
+        ↓
+  api_server.py (POST /api/v1/discovery)
+        ↓ orchestration_id lookup
+  SecretsManagerStorage    ← retrieves CSP credentials from AWS Secrets Manager
+        ↓
+  CSP Scanner (per provider)  ← AWSDiscoveryScanner / AzureDiscoveryScanner / GCPDiscoveryScanner / OCIDiscoveryScanner
+        ↓
+  DiscoveryEngine          ← parallel scan across services × regions
+        ↓
+  DatabaseManager          ← writes discovery_report + discovery_findings to discoveries DB
+        ↓
+  scan_orchestration       ← updates discovery_scan_id for downstream engines
 ```
+
+**Service configuration** is loaded from the `rule_discoveries` table in `threat_engine_check` DB. Set `is_active = FALSE` to suppress a service without code changes.
 
 ---
 
-## Directory Structure
+## Multi-CSP Architecture
 
 ```
 engine_discoveries/
+├── common/
+│   └── api_server.py              # Entry point — CSP-agnostic FastAPI app
+├── providers/
+│   ├── aws/
+│   │   ├── auth/aws_auth.py       # AWS authentication (access key, IAM role, IRSA)
+│   │   ├── scanner/
+│   │   │   └── service_scanner.py # AWSDiscoveryScanner
+│   │   └── config/                # AWS-specific scan config
+│   ├── azure/
+│   │   ├── auth/                  # Azure authentication (service principal, managed identity)
+│   │   └── scanner/
+│   │       └── service_scanner.py # AzureDiscoveryScanner
+│   ├── gcp/
+│   │   ├── auth/                  # GCP authentication (service account key)
+│   │   └── scanner/
+│   │       └── service_scanner.py # GCPDiscoveryScanner
+│   └── oci/
+│       ├── auth/                  # OCI authentication (API key)
+│       └── scanner/
+│           └── service_scanner.py # OCIDiscoveryScanner
 └── engine_discoveries_aws/
-    ├── api_server.py              # FastAPI application (port 8001)
-    ├── Dockerfile                 # Container definition
+    ├── Dockerfile                 # Container build
     ├── requirements.txt           # Python dependencies
-    ├── auth/
-    │   └── aws_auth.py            # AWS authentication (IAM/IRSA/keys)
-    ├── config/
-    │   ├── service_list.json      # 40+ supported AWS services
-    │   ├── scan_config.json       # Scan behavior configuration
-    │   ├── parameter_name_mapping.json
-    │   ├── actions.yaml           # API action definitions
-    │   ├── actions_selection.yaml # Action selection rules
-    │   └── check_exceptions.yaml  # Exception handling
-    ├── database/
-    │   ├── schema.sql             # PostgreSQL schema
-    │   ├── setup_database.sh      # Database initialization
-    │   ├── connection/
-    │   │   └── database_config.py # Connection pool config
-    │   └── migrations/
-    │       ├── 002_add_resource_uid.sql
-    │       └── run_migration_002.py
-    ├── engine/
-    │   ├── discovery_engine.py    # Core discovery execution logic
-    │   ├── database_manager.py    # DB read/write operations
-    │   ├── service_scanner.py     # Per-service scanning logic
-    │   └── discovery_helper.py    # Discovery data helpers
-    ├── utils/
-    │   ├── metadata_loader.py     # Service metadata loading
-    │   ├── exception_manager.py   # Exception handling
-    │   ├── service_feature_manager.py
-    │   ├── reporting_manager.py   # Result reporting
-    │   ├── phase_logger.py        # Phase-specific logging
-    │   ├── progressive_output.py  # Incremental file writing
-    │   ├── action_runner.py       # AWS API action executor
-    │   ├── progress_monitor.py    # Scan progress tracking
-    │   ├── discovery_resource_mapper.py
-    │   └── organizations_scanner.py # AWS Organizations scanning
-    └── services/                  # Per-service discovery definitions
-        ├── codebuild/
-        │   ├── discoveries/codebuild.discoveries.yaml
-        │   ├── checks/default/codebuild.checks.yaml
-        │   ├── rules/codebuild.yaml
-        │   └── metadata/
-        ├── edr/
-        ├── kinesis/
-        └── [40+ AWS services...]
+    └── database/                  # Legacy DB utilities
 ```
+
+**Supported providers:** `aws`, `azure`, `gcp`, `oci`
 
 ---
 
@@ -94,139 +79,206 @@ engine_discoveries/
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/discovery` | Create a discovery scan |
-| `GET` | `/api/v1/discovery/{discovery_scan_id}/status` | Get scan status |
-| `GET` | `/api/v1/discoveries` | List all discovery scans |
-| `GET` | `/api/v1/services` | List available AWS services |
-| `GET` | `/api/v1/health` | Health check |
-| `GET` | `/api/v1/metrics` | Engine metrics |
+| `POST` | `/api/v1/discovery` | Run discovery scan (async — returns scan_id immediately) |
+| `GET` | `/api/v1/discovery/{scan_id}` | Get scan status and result |
+| `GET` | `/health` | Health check with DB connection status |
+| `GET` | `/api/v1/health/live` | Kubernetes liveness probe |
+| `GET` | `/api/v1/health/ready` | Kubernetes readiness probe |
+| `GET` | `/metrics` | Engine metrics (total/success/failed scans) |
 
-### Create Discovery Scan
+### Run Discovery Scan
 
 ```bash
-curl -X POST http://localhost:8001/api/v1/discovery \
+# Pipeline mode (recommended) — all metadata pulled from orchestration table
+curl -X POST http://engine-discoveries/api/v1/discovery \
   -H "Content-Type: application/json" \
   -d '{
-    "tenant_id": "your-tenant",
-    "customer_id": "your-customer",
-    "account_id": "123456789012",
-    "role_arn": "arn:aws:iam::123456789012:role/CSPMReadOnlyRole",
-    "services": ["s3", "iam", "ec2", "rds"],
-    "regions": ["ap-south-1"]
+    "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"
+  }'
+
+# Ad-hoc mode — provide credentials and account info directly
+curl -X POST http://engine-discoveries/api/v1/discovery \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "aws",
+    "tenant_id": "tenant-uuid",
+    "hierarchy_id": "588989875114",
+    "include_services": ["s3", "ec2", "iam"],
+    "include_regions": ["ap-south-1"],
+    "credentials": {
+      "credential_type": "access_key",
+      "aws_access_key_id": "AKIA...",
+      "aws_secret_access_key": "..."
+    }
   }'
 ```
 
-### Get Scan Status
+**Request fields:**
 
-```bash
-curl http://localhost:8001/api/v1/discovery/{discovery_scan_id}/status
+| Field | Required | Description |
+|-------|----------|-------------|
+| `orchestration_id` | One of these | Pipeline mode — resolves tenant, account, credentials, CSP automatically |
+| `provider` | One of these | Ad-hoc mode — CSP (`aws`, `azure`, `gcp`, `oci`) |
+| `hierarchy_id` | Ad-hoc | Account/subscription/project ID |
+| `tenant_id` | Ad-hoc | Tenant identifier |
+| `include_services` | No | Services to scan; if omitted, all active services |
+| `include_regions` | No | Regions to scan; if omitted, all regions |
+| `exclude_regions` | No | Regions to skip |
+| `credentials` | Ad-hoc | CSP credentials (access key, role ARN, service principal, etc.) |
+
+**Response:**
+```json
+{
+  "discovery_scan_id": "a1b2c3d4-...",
+  "status": "running",
+  "message": "Discovery scan started for provider: aws",
+  "orchestration_id": "337a7425-...",
+  "provider": "aws"
+}
 ```
+
+The scan runs asynchronously. Poll `GET /api/v1/discovery/{scan_id}` to check completion.
+
+### Pipeline Mode Flow
+
+When `orchestration_id` is provided:
+1. Reads `cloud_accounts` from onboarding DB to get `account_id`, `provider`, `credential_ref`
+2. Retrieves CSP credentials from AWS Secrets Manager using `credential_ref`
+3. Selects CSP-specific scanner based on provider
+4. Runs discovery across all active services and regions in parallel
+5. Writes `discovery_report` + `discovery_findings` to discoveries DB
+6. Updates `scan_orchestration.discovery_scan_id` for downstream engines
 
 ---
 
-## Supported AWS Services (40+)
-
-```
-s3, iam, ec2, rds, lambda, dynamodb, sns, sqs, cloudfront, cloudtrail,
-cloudwatch, config, efs, elasticache, elasticsearch, elb, elbv2, glacier,
-kms, redshift, route53, secretsmanager, ses, ssm, vpc, waf, backup,
-codebuild, codepipeline, ecr, ecs, eks, guardduty, inspector, kinesis,
-macie, organizations, sagemaker, and more
-```
-
----
-
-## Database Schema
-
-**Database:** `threat_engine_check` (shared with check engine)
+## Database Tables (`threat_engine_discoveries`)
 
 | Table | Description |
 |-------|-------------|
-| `customers` | Customer records |
-| `tenants` | Tenant records (per CSP) |
-| `scans` | Scan metadata and status |
-| `discoveries` | Discovered resources with emitted_fields, raw_response |
-| `discovery_history` | Historical discoveries for drift detection |
+| `discovery_report` | One row per scan — status, provider, tenant, hierarchy |
+| `discovery_findings` | One row per discovered resource — raw_response + emitted_fields |
+| `discovery_history` | Historical snapshots for drift detection — config_hash, diff_summary |
+| `tenants` | Tenant registry |
+| `customers` | Customer registry |
 
-### Key Indexes
+### `discovery_findings` key columns
+
+| Column | Description |
+|--------|-------------|
+| `discovery_scan_id` | Links to discovery_report |
+| `resource_uid` | Unique resource identifier (ARN-derived) |
+| `resource_arn` | Full resource ARN |
+| `resource_type` | Service resource type (e.g. `ec2.instance`, `s3.bucket`) |
+| `service` | AWS/CSP service name (e.g. `ec2`, `s3`) |
+| `region` | Resource region |
+| `emitted_fields` | JSONB — explicitly extracted fields per rule YAML `emit:` block |
+| `raw_response` | JSONB — full API response from CSP SDK |
+| `config_hash` | SHA-256 of raw_response — used for drift detection |
+
+---
+
+## Rule Configuration (DB-Driven)
+
+Services to scan and their API call sequences are loaded from the `rule_discoveries` table in `threat_engine_check` DB:
 
 ```sql
-CREATE INDEX idx_discoveries_scan ON discoveries(scan_id);
-CREATE INDEX idx_discoveries_tenant ON discoveries(tenant_id);
-CREATE INDEX idx_discoveries_service ON discoveries(service);
-CREATE INDEX idx_discoveries_resource ON discoveries(resource_uid);
+-- Suppress a noisy service without code changes
+UPDATE rule_discoveries SET is_active = FALSE
+WHERE boto3_client_name = 'savingsplans';
+
+-- Check active service counts
+SELECT boto3_client_name, COUNT(*) AS rules,
+       SUM(CASE WHEN is_active THEN 1 ELSE 0 END) AS active
+FROM rule_discoveries
+GROUP BY boto3_client_name
+ORDER BY active DESC;
 ```
 
+Key `rule_discoveries` columns used by discoveries engine:
+
+| Column | Description |
+|--------|-------------|
+| `boto3_client_name` | AWS SDK client (`ec2`, `s3`, `iam`) |
+| `arn_identifier` | Field path to extract the ARN |
+| `arn_identifier_independent_methods[]` | API calls that list resources (no parent needed) |
+| `arn_identifier_dependent_methods[]` | API calls that need a parent resource |
+| `is_active` | `FALSE` = skip this service entirely |
+| `filter_rules.response_filters` | JSONB — post-call item exclusion rules |
+
 ---
 
-## Storage Modes
+## Parallelism Configuration
 
-| Mode | Output | Description |
-|------|--------|-------------|
-| **Database** (default) | PostgreSQL | Stores discoveries in `discoveries` table |
-| **NDJSON** | File system | Writes to `engine_output/` as NDJSON files |
-| **Hybrid** | Both | Writes to both database and NDJSON (recommended) |
+The discovery engine uses three levels of parallelism for maximum throughput:
+
+```
+Level 1: Services (asyncio semaphore, MAX_SERVICE_WORKERS=10)
+  └── Level 2: Regions per service (asyncio semaphore, MAX_REGION_WORKERS=5)
+        └── Level 3: Sub-discoveries (thread pool, MAX_DISCOVERY_WORKERS=20)
+              └── for_each expansions (nested threads, FOR_EACH_MAX_WORKERS=5)
+
+Peak concurrent API calls: 10 × 5 × 20 = 1,000
+Peak boto3 threads: 10 × 20 = 200
+```
+
+**Boto3 timeout tuning** prevents unsupported-region calls from blocking the pool:
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `BOTO_READ_TIMEOUT` | `10s` | Fast-fail on unavailable endpoints (was 120s) |
+| `BOTO_CONNECT_TIMEOUT` | `5s` | Connection timeout |
+| `BOTO_MAX_ATTEMPTS` | `2` | 1 attempt + 1 retry only |
+| `OPERATION_TIMEOUT` | `60s` | Hard cap per API call |
 
 ---
 
-## Configuration
-
-### Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8001` | Server port |
-| `DISCOVERY_DB_HOST` | `localhost` | PostgreSQL host |
-| `DISCOVERY_DB_PORT` | `5432` | PostgreSQL port |
-| `DISCOVERY_DB_NAME` | `threat_engine_check` | Database name |
-| `DISCOVERY_DB_USER` | `postgres` | Database user |
-| `DISCOVERY_DB_PASSWORD` | - | Database password |
-| `MAX_DISCOVERY_WORKERS` | `50` | Parallel service discovery threads |
-| `MAX_SERVICE_WORKERS` | `10` | Workers per service |
-| `MAX_REGION_WORKERS` | `5` | Workers per region |
-| `BOTO_MAX_POOL_CONNECTIONS` | `100` | AWS API connection pool size |
-| `BOTO_RETRY_MODE` | `standard` | AWS retry mode (`standard` or `adaptive`) |
-| `OPERATION_TIMEOUT` | `600` | Per-operation timeout (seconds) |
-
----
-
-## Service Discovery Definitions
-
-Each service has YAML definitions that describe how to discover resources:
-
-```
-services/{service}/discoveries/{service}.discoveries.yaml
-```
-
-These YAML files define:
-- AWS API actions to call (e.g., `ListBuckets`, `DescribeInstances`)
-- Fields to extract from API responses
-- Resource identifier mapping
-- Pagination handling
-- Region-specific behavior
+| `DISCOVERY_DB_HOST` | `localhost` | Discoveries DB host |
+| `DISCOVERY_DB_PORT` | `5432` | Discoveries DB port |
+| `DISCOVERY_DB_NAME` | `threat_engine_discoveries` | Discoveries database name |
+| `DISCOVERY_DB_USER` | `postgres` | DB user |
+| `DISCOVERY_DB_PASSWORD` | — | DB password (from K8s secret) |
+| `ONBOARDING_DB_HOST` | `localhost` | Onboarding DB host (for orchestration lookup) |
+| `ONBOARDING_DB_NAME` | `threat_engine_onboarding` | Onboarding database name |
+| `ONBOARDING_DB_PASSWORD` | — | Onboarding DB password |
+| `CHECK_DB_HOST` | `localhost` | Check DB host (for rule_discoveries config) |
+| `CHECK_DB_NAME` | `threat_engine_check` | Check database name |
+| `CHECK_DB_PASSWORD` | — | Check DB password |
+| `MAX_SERVICE_WORKERS` | `10` | Concurrent services (asyncio) |
+| `MAX_REGION_WORKERS` | `5` | Concurrent regions per service (asyncio) |
+| `MAX_DISCOVERY_WORKERS` | `20` | Sub-discovery thread pool size |
+| `FOR_EACH_MAX_WORKERS` | `5` | for_each expansion threads |
+| `SCAN_EXECUTOR_THREADS` | `100` | Total thread pool for scans |
+| `BOTO_READ_TIMEOUT` | `10` | boto3 read timeout (seconds) |
+| `BOTO_CONNECT_TIMEOUT` | `5` | boto3 connect timeout (seconds) |
+| `BOTO_MAX_ATTEMPTS` | `2` | boto3 retry attempts |
+| `DB_POOL_MIN` | `5` | Min DB connections |
+| `DB_POOL_MAX` | `60` | Max DB connections |
+| `ORCHESTRATION_ENABLED` | `true` | Enable orchestration mode |
+| `OUTPUT_DIR` | `/output` | Directory for output files (synced to S3) |
+| `LOG_LEVEL` | `INFO` | Log verbosity |
 
 ---
 
 ## Running Locally
 
 ```bash
-cd engine_discoveries/engine_discoveries_aws
+cd engine_discoveries
 
-# Install dependencies
-pip install -r requirements.txt
+pip install -r engine_discoveries_aws/requirements.txt
 
-# Configure AWS credentials
-export AWS_PROFILE=your-profile
-# OR
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-
-# Set database connection
 export DISCOVERY_DB_HOST=localhost
 export DISCOVERY_DB_PASSWORD=your_password
+export CHECK_DB_HOST=localhost
+export CHECK_DB_PASSWORD=your_password
+export ONBOARDING_DB_HOST=localhost
+export ONBOARDING_DB_PASSWORD=your_password
+export PYTHONPATH=$(pwd)/..
 
-# Run server
-uvicorn api_server:app --host 0.0.0.0 --port 8001 --reload
+python -m uvicorn common.api_server:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ---
@@ -234,42 +286,56 @@ uvicorn api_server:app --host 0.0.0.0 --port 8001 --reload
 ## Docker
 
 ```bash
-# Build
-docker build -t engine-discoveries -f engine_discoveries/engine_discoveries_aws/Dockerfile engine_discoveries/engine_discoveries_aws/
+# Build (from repo root)
+docker build -t yadavanup84/engine-discoveries:latest \
+  -f engine_discoveries/engine_discoveries_aws/Dockerfile .
 
 # Run
 docker run -p 8001:8001 \
   -e DISCOVERY_DB_HOST=host.docker.internal \
   -e DISCOVERY_DB_PASSWORD=your_password \
-  -e AWS_ACCESS_KEY_ID=your_key \
-  -e AWS_SECRET_ACCESS_KEY=your_secret \
-  engine-discoveries
+  -e CHECK_DB_HOST=host.docker.internal \
+  -e CHECK_DB_PASSWORD=your_password \
+  yadavanup84/engine-discoveries:latest
 ```
 
 ---
 
-## Pipeline Integration
+## Kubernetes Deployment
 
-```
-engine_discoveries (Phase 1) -----> discoveries table
-    |
-    | discovery_scan_id
-    v
-engine_check (Phase 2) -----> check_results table
-    |
-    v
-engine_inventory / engine_threat / engine_compliance (Phases 3-5)
+Manifest: `deployment/aws/eks/engines/engine-discoveries.yaml`
+
+```bash
+kubectl apply -f deployment/aws/eks/engines/engine-discoveries.yaml
+kubectl rollout status deployment/engine-discoveries -n threat-engine-engines
+kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
 ```
 
-The discovery engine is the first step in every scan pipeline. It produces a `discovery_scan_id` that all downstream engines reference to access the discovered resources.
+**Spot node scanning:** The manifest has spot affinity rules commented out. Uncomment the `affinity`, `tolerations`, and `topologySpreadConstraints` blocks to run discovery scans on spot instances (`vulnerability-spot-scanners` node group) for cost savings.
 
 ---
 
-## Typical Performance
+## Triggering a Scan
+
+```bash
+# Pipeline mode (orchestration_id resolves all context)
+curl -X POST http://engine-discoveries/api/v1/discovery \
+  -H "Content-Type: application/json" \
+  -d '{"orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"}'
+
+# Poll for completion
+curl http://engine-discoveries/api/v1/discovery/a1b2c3d4-.../
+```
+
+---
+
+## Typical Scan Performance
 
 | Metric | Value |
 |--------|-------|
-| Full scan (all services) | 2-5 minutes |
-| Resources discovered | ~280 per account |
-| Services scanned | 40+ |
-| Parallel threads | Up to 50 |
+| Services scanned | 414 active AWS services |
+| Scan speed | ~2 services/min = ~3–4h full scan |
+| Concurrent API calls (peak) | ~1,000 |
+| boto3 threads | up to 200 |
+| DB pool | 5–60 connections |
+| Discovery findings per account | 5,000–50,000+ rows |
