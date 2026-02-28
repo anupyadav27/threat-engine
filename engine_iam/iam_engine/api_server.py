@@ -91,6 +91,25 @@ async def readiness():
     return {"status": "ready"}
 
 
+@app.get("/api/v1/health")
+async def api_health():
+    """Full health check with DB connectivity."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat"),
+            user=os.getenv("THREAT_DB_USER", "postgres"),
+            password=os.getenv("THREAT_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "healthy", "database": "connected", "service": "engine-iam", "version": "1.0.0"}
+    except Exception as e:
+        return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-iam", "version": "1.0.0"}
+
+
 @app.post("/api/v1/iam-security/scan", response_model=ReportResponse)
 async def generate_report(request: ScanRequest):
     """Generate IAM security report (findings filtered by IAM-relevant rules, enriched)."""
@@ -230,8 +249,8 @@ async def list_modules():
 
 @app.get("/api/v1/iam-security/findings")
 async def get_findings(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None),
     hierarchy_id: Optional[str] = Query(None),
@@ -287,8 +306,8 @@ async def get_iam_rule_ids():
 @app.get("/api/v1/iam-security/accounts/{account_id}")
 async def get_account_iam_posture(
     account_id: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     module: Optional[str] = Query(None, description="Filter by IAM module"),
     status: Optional[str] = Query(None, description="Filter by status (PASS/FAIL)"),
@@ -325,8 +344,8 @@ async def get_account_iam_posture(
 @app.get("/api/v1/iam-security/services/{service}")
 async def get_service_iam_posture(
     service: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     module: Optional[str] = Query(None, description="Filter by IAM module"),
@@ -364,8 +383,8 @@ async def get_service_iam_posture(
 @app.get("/api/v1/iam-security/resources/{resource_uid}")
 async def get_resource_iam_findings(
     resource_uid: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
 ):
     """Get IAM findings for a specific resource (by resource_uid or ARN) from Threat DB."""
@@ -383,6 +402,23 @@ async def get_resource_iam_findings(
     except Exception as e:
         logger.error(f"Error getting resource IAM findings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Standard route aliases ─────────────────────────────────────────────────────
+# POST /api/v1/scan — standard scan alias (same handler as /api/v1/iam-security/scan)
+app.add_api_route("/api/v1/scan", generate_report, methods=["POST"], response_model=ReportResponse)
+
+# GET /api/v1/iam/* — standard prefix aliases for all /api/v1/iam-security/* routes
+from fastapi import APIRouter as _APIRouter
+_iam_router = _APIRouter(prefix="/api/v1/iam")
+_iam_router.add_api_route("/findings", get_findings, methods=["GET"])
+_iam_router.add_api_route("/modules", list_modules, methods=["GET"])
+_iam_router.add_api_route("/rule-ids", get_iam_rule_ids, methods=["GET"])
+_iam_router.add_api_route("/rules/{rule_id}", get_rule_info, methods=["GET"])
+_iam_router.add_api_route("/accounts/{account_id}", get_account_iam_posture, methods=["GET"])
+_iam_router.add_api_route("/services/{service}", get_service_iam_posture, methods=["GET"])
+_iam_router.add_api_route("/resources/{resource_uid}", get_resource_iam_findings, methods=["GET"])
+app.include_router(_iam_router)
 
 
 if __name__ == "__main__":

@@ -150,9 +150,9 @@ async def health():
     """Health check endpoint"""
     import time
     start = time.time()
-    
+
     health_status = {"status": "healthy"}
-    
+
     duration_ms = (time.time() - start) * 1000
     logger.info("Health check", extra={
         "extra_fields": {
@@ -160,8 +160,54 @@ async def health():
             "duration_ms": duration_ms
         }
     })
-    
+
     return health_status
+
+
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — DB ping."""
+    try:
+        import psycopg2
+        db_cfg = get_database_config("inventory")
+        conn = psycopg2.connect(
+            host=db_cfg.host,
+            port=db_cfg.port,
+            dbname=db_cfg.database,
+            user=db_cfg.username,
+            password=db_cfg.password,
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "ready"}
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
+
+
+@app.get("/api/v1/health")
+async def api_health():
+    """Full health check with DB connectivity."""
+    try:
+        import psycopg2
+        db_cfg = get_database_config("inventory")
+        conn = psycopg2.connect(
+            host=db_cfg.host,
+            port=db_cfg.port,
+            dbname=db_cfg.database,
+            user=db_cfg.username,
+            password=db_cfg.password,
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "healthy", "database": "connected", "service": "engine-inventory", "version": "1.0.0"}
+    except Exception as e:
+        return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-inventory", "version": "1.0.0"}
 
 
 @app.post("/api/v1/scan", response_model=ScanResponse)

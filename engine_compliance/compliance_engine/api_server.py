@@ -2145,18 +2145,49 @@ async def download_report_excel(report_id: str):
     )
 
 
+@app.get("/health")
+async def simple_health():
+    """Simple health check — no DB (for LB target-group checks)."""
+    return {"status": "ok"}
+
+
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — DB ping."""
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("COMPLIANCE_DB_HOST", "localhost"),
+            port=int(os.getenv("COMPLIANCE_DB_PORT", "5432")),
+            dbname=os.getenv("COMPLIANCE_DB_NAME", "compliance"),
+            user=os.getenv("COMPLIANCE_DB_USER", "postgres"),
+            password=os.getenv("COMPLIANCE_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "ready"}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
+
+
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint."""
     import time
     start = time.time()
-    
+
     health_status = {
         "status": "healthy",
         "service": "engine-compliance",
         "version": "1.0.0"
     }
-    
+
     duration_ms = (time.time() - start) * 1000
     logger.info("Health check", extra={
         "extra_fields": {
@@ -2164,7 +2195,7 @@ async def health_check():
             "duration_ms": duration_ms
         }
     })
-    
+
     return health_status
 
 

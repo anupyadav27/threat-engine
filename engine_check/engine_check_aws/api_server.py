@@ -309,6 +309,12 @@ async def list_checks(
     }
 
 
+@app.get("/health")
+async def simple_health():
+    """Simple health check — no DB (for LB target-group checks)."""
+    return {"status": "ok"}
+
+
 @app.get("/api/v1/health")
 async def health():
     """Health check endpoint"""

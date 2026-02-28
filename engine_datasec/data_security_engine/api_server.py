@@ -126,6 +126,25 @@ async def readiness():
     return {"status": "ready"}
 
 
+@app.get("/api/v1/health")
+async def api_health():
+    """Full health check with DB connectivity."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat"),
+            user=os.getenv("THREAT_DB_USER", "postgres"),
+            password=os.getenv("THREAT_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "healthy", "database": "connected", "service": "engine-datasec", "version": "1.0.0"}
+    except Exception as e:
+        return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-datasec", "version": "1.0.0"}
+
+
 @app.post("/api/v1/data-security/scan", response_model=ReportResponse)
 async def generate_report(request: ScanRequest):
     """
@@ -303,9 +322,9 @@ async def generate_report(request: ScanRequest):
 
 @app.get("/api/v1/data-security/catalog")
 async def get_data_catalog(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
-    tenant_id: str = Query(..., description="Tenant ID"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service (e.g., 's3', 'rds', 'dynamodb')"),
     region: Optional[str] = Query(None, description="Filter by region")
@@ -349,8 +368,8 @@ async def get_data_catalog(
 @app.get("/api/v1/data-security/governance/{resource_id}")
 async def get_access_governance(
     resource_id: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID")
 ):
     """Get access governance analysis for a resource from Threat DB."""
@@ -385,9 +404,9 @@ async def get_access_governance(
 @app.get("/api/v1/data-security/protection/{resource_id}")
 async def get_protection_status(
     resource_id: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
-    tenant_id: str = Query(..., description="Tenant ID"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
 ):
     """Get encryption/protection status for a resource."""
     try:
@@ -492,8 +511,8 @@ async def get_rules_by_module(
 
 @app.get("/api/v1/data-security/classification")
 async def get_classification(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service (e.g., 's3', 'rds')"),
@@ -537,8 +556,8 @@ async def get_classification(
 
 @app.get("/api/v1/data-security/lineage")
 async def get_lineage(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -587,8 +606,8 @@ async def get_lineage(
 
 @app.get("/api/v1/data-security/residency")
 async def get_residency(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -639,9 +658,9 @@ async def get_residency(
 
 @app.get("/api/v1/data-security/activity")
 async def get_activity(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
-    tenant_id: str = Query(..., description="Tenant ID"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
+    tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
     resource_id: Optional[str] = Query(None, description="Filter by resource ID/ARN"),
@@ -699,8 +718,8 @@ async def get_activity(
 
 @app.get("/api/v1/data-security/compliance")
 async def get_compliance(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -773,8 +792,8 @@ async def get_compliance(
 
 @app.get("/api/v1/data-security/findings")
 async def get_findings(
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -840,8 +859,8 @@ async def get_findings(
 @app.get("/api/v1/data-security/accounts/{account_id}")
 async def get_account_data_security(
     account_id: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     service: Optional[str] = Query(None, description="Filter by service")
 ):
@@ -896,8 +915,8 @@ async def get_account_data_security(
 @app.get("/api/v1/data-security/services/{service}")
 async def get_service_data_security(
     service: str,
-    csp: str = Query(..., description="Cloud service provider"),
-    scan_id: str = Query(..., description="Threat scan_run_id (from Threat engine)"),
+    csp: str = Query(default="aws", description="Cloud service provider"),
+    scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
     tenant_id: str = Query(default="default-tenant", description="Tenant ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID")
 ):
@@ -948,6 +967,30 @@ async def get_service_data_security(
     except Exception as e:
         logger.error(f"Error getting service data security: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Standard route aliases ─────────────────────────────────────────────────────
+# POST /api/v1/scan — standard scan alias (same handler as /api/v1/data-security/scan)
+app.add_api_route("/api/v1/scan", generate_report, methods=["POST"], response_model=ReportResponse)
+
+# GET /api/v1/datasec/* — standard prefix aliases for all /api/v1/data-security/* routes
+from fastapi import APIRouter as _APIRouter
+_datasec_router = _APIRouter(prefix="/api/v1/datasec")
+_datasec_router.add_api_route("/findings", get_findings, methods=["GET"])
+_datasec_router.add_api_route("/modules", list_modules, methods=["GET"])
+_datasec_router.add_api_route("/modules/{module}/rules", get_rules_by_module, methods=["GET"])
+_datasec_router.add_api_route("/catalog", get_data_catalog, methods=["GET"])
+_datasec_router.add_api_route("/classification", get_classification, methods=["GET"])
+_datasec_router.add_api_route("/residency", get_residency, methods=["GET"])
+_datasec_router.add_api_route("/lineage", get_lineage, methods=["GET"])
+_datasec_router.add_api_route("/activity", get_activity, methods=["GET"])
+_datasec_router.add_api_route("/compliance", get_compliance, methods=["GET"])
+_datasec_router.add_api_route("/accounts/{account_id}", get_account_data_security, methods=["GET"])
+_datasec_router.add_api_route("/services/{service}", get_service_data_security, methods=["GET"])
+_datasec_router.add_api_route("/rules/{rule_id}", get_rule_info, methods=["GET"])
+_datasec_router.add_api_route("/protection/{resource_id}", get_protection_status, methods=["GET"])
+_datasec_router.add_api_route("/governance/{resource_id}", get_access_governance, methods=["GET"])
+app.include_router(_datasec_router)
 
 
 if __name__ == "__main__":

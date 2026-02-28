@@ -256,6 +256,50 @@ async def health():
     }
 
 
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — DB ping."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("SECOPS_DB_HOST", "localhost"),
+            port=int(os.getenv("SECOPS_DB_PORT", "5432")),
+            dbname=os.getenv("SECOPS_DB_NAME", "secops"),
+            user=os.getenv("SECOPS_DB_USER", "postgres"),
+            password=os.getenv("SECOPS_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "ready"}
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
+
+
+@app.get("/api/v1/health")
+async def api_health():
+    """Full health check with DB connectivity."""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("SECOPS_DB_HOST", "localhost"),
+            port=int(os.getenv("SECOPS_DB_PORT", "5432")),
+            dbname=os.getenv("SECOPS_DB_NAME", "secops"),
+            user=os.getenv("SECOPS_DB_USER", "postgres"),
+            password=os.getenv("SECOPS_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "healthy", "database": "connected", "service": "engine-secops", "version": "3.0.0"}
+    except Exception as e:
+        return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-secops", "version": "3.0.0"}
+
+
 @app.post("/api/v1/secops/scan", response_model=ScanResponse)
 async def scan_repo(request: ScanRequest):
     """

@@ -158,9 +158,9 @@ async def health():
     """Health check endpoint"""
     import time
     start = time.time()
-    
+
     health_status = {"status": "healthy"}
-    
+
     duration_ms = (time.time() - start) * 1000
     logger.info("Health check", extra={
         "extra_fields": {
@@ -168,8 +168,51 @@ async def health():
             "duration_ms": duration_ms
         }
     })
-    
+
     return health_status
+
+
+@app.get("/api/v1/health/live")
+async def liveness():
+    """Kubernetes liveness probe — returns 200 if process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    """Kubernetes readiness probe — DB ping."""
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat"),
+            user=os.getenv("THREAT_DB_USER", "postgres"),
+            password=os.getenv("THREAT_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "ready"}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
+
+
+@app.get("/api/v1/health")
+async def api_health():
+    """Full health check with DB connectivity."""
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat"),
+            user=os.getenv("THREAT_DB_USER", "postgres"),
+            password=os.getenv("THREAT_DB_PASSWORD", ""),
+            connect_timeout=3,
+        )
+        conn.close()
+        return {"status": "healthy", "database": "connected", "service": "engine-threat", "version": "1.0.0"}
+    except Exception as e:
+        return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-threat", "version": "1.0.0"}
 
 
 @app.post("/api/v1/scan")
@@ -1996,13 +2039,22 @@ async def build_security_graph(
     Loads data from all 3 PostgreSQL databases (inventory, checks, threats)
     and creates nodes + relationships in Neo4j.
     """
+    import asyncio
     import time as _time
     start = _time.time()
 
-    try:
+    def _run_build() -> dict:
         builder = SecurityGraphBuilder()
-        stats = builder.build_graph(tenant_id=tenant_id)
-        builder.close()
+        try:
+            return builder.build_graph(tenant_id=tenant_id)
+        finally:
+            builder.close()
+
+    try:
+        # Run blocking Neo4j/PostgreSQL operations in a thread pool so the
+        # asyncio event loop stays free (liveness probe can still respond).
+        loop = asyncio.get_event_loop()
+        stats = await loop.run_in_executor(None, _run_build)
 
         duration_ms = (_time.time() - start) * 1000
 
