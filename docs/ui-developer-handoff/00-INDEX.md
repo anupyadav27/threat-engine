@@ -1,7 +1,8 @@
 # CSPM Platform — UI Developer Handoff
 
-> Last updated: 2026-02-22
+> Last updated: 2026-02-28 (all API samples verified against live cluster)
 > Cluster: `vulnerability-eks-cluster` | Region: `ap-south-1`
+> Live tenant with data: `test-tenant` | AWS account: `588989875114`
 
 ## Overview
 This is the complete specification for building the frontend UI for the CSPM (Cloud Security Posture Management) platform. The platform consists of **10 backend engines + 1 API gateway**, all deployed on AWS EKS and exposed via a single NLB endpoint.
@@ -12,8 +13,16 @@ This is the complete specification for building the frontend UI for the CSPM (Cl
 |---|----------|-------------|
 | 01 | [Navigation & Pages](01-NAVIGATION-AND-PAGES.md) | Sidebar navigation structure, page hierarchy, route definitions |
 | 02 | [Page Components & APIs](02-PAGE-COMPONENTS-AND-APIS.md) | Every page wireframe with component-to-API mapping |
-| 03 | [Sample Requests & Responses](03-SAMPLE-REQUESTS-AND-RESPONSES.md) | Real API examples with request/response JSON for every endpoint |
+| 03 | [Sample Requests & Responses](03-SAMPLE-REQUESTS-AND-RESPONSES.md) | **Real** API examples with request/response JSON — tested 2026-02-28 |
 | 04 | [Tech Stack & Design System](04-TECH-STACK-AND-DESIGN-SYSTEM.md) | Recommended libraries, color tokens, component patterns, data flow |
+
+### Backend Reference Docs
+
+| Document | Location | Description |
+|----------|----------|-------------|
+| Full API Reference | [`docs/API_REFERENCE_ALL_ENGINES.md`](../API_REFERENCE_ALL_ENGINES.md) | All 10 engines: every endpoint, ClusterIPs, ELB URLs, real samples |
+| API Uniformity Plan | [`docs/API_UNIFORMITY.md`](../API_UNIFORMITY.md) | Current inconsistencies + proposed standard + migration path per engine |
+| Scan Pipeline Flow | [`docs/SCAN_PIPELINE.md`](../SCAN_PIPELINE.md) | End-to-end scan pipeline with timing and data flow |
 
 ---
 
@@ -57,18 +66,23 @@ Engine receives: GET /api/v1/inventory/assets?tenant_id=T
 
 ### Engine API Summary
 
-| Engine | Direct Path | Key Endpoints | Primary Use |
+| Engine | Direct Path | Key Endpoints | Health Path |
 |--------|------------|---------------|-------------|
-| **Onboarding** | `/onboarding/api/v1/` | `/accounts`, `/scan/trigger`, `/orchestration` | Register accounts, trigger scans |
-| **Discoveries** | `/discoveries/api/v1/` | `POST /discovery` | Cloud resource discovery |
-| **Check** | `/check/api/v1/` | `/findings`, `/check` | Misconfig rule evaluation |
-| **Inventory** | `/inventory/api/v1/inventory/` | `/assets`, `/relationships`, `/graph`, `/runs/latest/summary` | Asset inventory |
-| **Compliance** | `/compliance/api/v1/compliance/` | `/reports`, `/scan`, `/frameworks` | Framework compliance |
-| **Threat** | `/threat/api/v1/` | `/threats`, `/scan`, `/analytics/` | Threat detection |
-| **IAM** | `/iam/api/v1/` | `/findings`, `/scan` | IAM posture |
-| **DataSec** | `/datasec/api/v1/` | `/findings`, `/scan` | Data security |
-| **SecOps** | `/secops/api/v1/` | `/scan`, `/scans` | IaC scanning |
-| **API Gateway** | `/gateway/` | `/health`, `/services`, `/orchestrate` | Orchestration proxy |
+| **Onboarding** | `/onboarding/api/v1/` | `GET /cloud-accounts`, `POST /cloud-accounts`, `POST /{id}/validate-credentials` | `/onboarding/api/v1/health` |
+| **Discoveries** | `/discoveries/api/v1/` | `POST /discovery`, `GET /discovery/{scan_id}` | `/discoveries/health` |
+| **Check** | `/check/api/v1/` | `POST /scan`, `GET /checks`, `GET /check/{id}/status` | `/check/api/v1/health` |
+| **Inventory** | `/inventory/api/v1/inventory/` | `GET /assets`, `GET /relationships`, `GET /graph`, `GET /runs/latest/summary` | `/inventory/health` |
+| **Compliance** | `/compliance/api/v1/compliance/` | `POST /generate/from-threat-engine`, `GET /reports`, `GET /frameworks` | `/compliance/api/v1/health` |
+| **Threat** | `/threat/api/v1/` | `POST /scan`, `GET /threat/threats`, `GET /graph/summary`, `GET /checks/dashboard` | `/threat/health` |
+| **IAM** | `/iam/api/v1/iam-security/` | `POST /scan`, `GET /findings`, `GET /modules` | `/iam/health` |
+| **DataSec** | `/datasec/api/v1/data-security/` | `POST /scan`, `GET /findings`, `GET /modules` | `/datasec/health` |
+| **SecOps** | `/secops/api/v1/secops/` | `POST /scan`, `GET /scans`, `GET /rules/stats` | `/secops/health` |
+| **API Gateway** | `/gateway/` | `/health`, `/services`, `/orchestrate` | `/gateway/health` |
+
+> **API INCONSISTENCY NOTE**: IAM uses `/iam-security/` and DataSec uses `/data-security/` as route prefixes.
+> Also, IAM and DataSec require `csp=aws&scan_id=latest` on GET endpoints.
+> Threat engine requires `scan_run_id` instead of `tenant_id` for per-scan analytics.
+> **Full analysis and migration plan**: see [`docs/API_UNIFORMITY.md`](../API_UNIFORMITY.md)
 
 ---
 
