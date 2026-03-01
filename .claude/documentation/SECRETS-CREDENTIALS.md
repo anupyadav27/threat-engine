@@ -1,7 +1,7 @@
 # Secrets & Credentials Management
 
 > **CRITICAL:** This file documents secret **locations and structure**, NOT the actual secret values
-> **Last Updated:** 2026-02-20
+> **Last Updated:** 2026-03-01
 > **Security Level:** Internal Documentation
 
 ---
@@ -25,14 +25,14 @@ All sensitive credentials are stored in **AWS Secrets Manager** with KMS encrypt
 
 **Secret Path in AWS Secrets Manager:**
 ```
-threat-engine/prod/rds/postgres-master-password
+threat-engine/rds-credentials
 ```
 
 **Retrieve via AWS CLI:**
 ```bash
 aws secretsmanager get-secret-value \
   --region ap-south-1 \
-  --secret-id threat-engine/prod/rds/postgres-master-password \
+  --secret-id threat-engine/rds-credentials \
   --query SecretString \
   --output text
 ```
@@ -41,15 +41,17 @@ aws secretsmanager get-secret-value \
 | Database Name | Purpose | Used By |
 |---------------|---------|---------|
 | `postgres` | Default admin database | DBA operations |
-| `threat_engine_discoveries` | Discovery scan results | engine-discoveries |
+| `discoveries` | Discovery scan results | engine-discoveries |
 | `threat_engine_check` | Compliance check findings | engine-check |
 | `threat_engine_inventory` | Asset inventory | engine-inventory |
-| `threat_engine_threat` | Threat detections | engine-threat |
+| `threat` | Threat detections | engine-threat |
 | `threat_engine_compliance` | Compliance reports | engine-compliance |
 | `threat_engine_iam` | IAM security findings | engine-iam |
 | `threat_engine_datasec` | Data security findings | engine-datasec |
-| `threat_engine_shared` | Onboarding, orchestration | engine-onboarding |
-| `threat_engine_pythonsdk` | Legacy SDK data | (deprecated) |
+| `threat_engine_onboarding` | Cloud accounts + scan orchestration | engine-onboarding |
+| `threat_engine_secops` | IaC scan results | engine-secops |
+| `threat_engine_pythonsdk` | SDK metadata (read-only) | engine-inventory |
+| `shared` | Legacy copy of scan_orchestration (deprecated) | — |
 
 **Local pgAdmin Connection:**
 ```
@@ -57,7 +59,7 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 Port: 5432
 Maintenance Database: postgres
 Username: postgres
-Password: <from Secrets Manager: threat-engine/prod/rds/postgres-master-password>
+Password: <from Secrets Manager: threat-engine/rds-credentials (key: any *_DB_PASSWORD)>
 SSL Mode: Require
 ```
 
@@ -330,16 +332,20 @@ Pod containers
 
 **Namespace:** `threat-engine-engines`
 
-**Keys:**
+**Keys (UPPERCASE_UNDERSCORE format):**
 ```
-discoveries-db-password
-check-db-password
-inventory-db-password
-threat-db-password
-compliance-db-password
-iam-db-password
-datasec-db-password
-shared-db-password
+CHECK_DB_PASSWORD
+COMPLIANCE_DB_PASSWORD
+DATASEC_DB_PASSWORD
+DISCOVERIES_DB_PASSWORD
+DISCOVERY_DB_PASSWORD
+IAM_DB_PASSWORD
+INVENTORY_DB_PASSWORD
+ONBOARDING_DB_PASSWORD
+PYTHONSDK_DB_PASSWORD
+SECOPS_DB_PASSWORD
+SHARED_DB_PASSWORD
+THREAT_DB_PASSWORD
 ```
 
 **View secret (base64 encoded):**
@@ -353,7 +359,7 @@ kubectl get secret threat-engine-db-passwords \
 ```bash
 kubectl get secret threat-engine-db-passwords \
   -n threat-engine-engines \
-  -o jsonpath='{.data.discoveries-db-password}' | base64 -d
+  -o jsonpath='{.data.DISCOVERIES_DB_PASSWORD}' | base64 -d
 ```
 
 ### Kubernetes Secret: threat-engine-cloud-credentials
@@ -391,13 +397,15 @@ spec:
     name: threat-engine-db-passwords
     creationPolicy: Owner
   data:
-  - secretKey: discoveries-db-password
+  - secretKey: DISCOVERIES_DB_PASSWORD
     remoteRef:
-      key: threat-engine/prod/rds/postgres-master-password
-  - secretKey: check-db-password
+      key: threat-engine/rds-credentials
+      property: DISCOVERIES_DB_PASSWORD
+  - secretKey: CHECK_DB_PASSWORD
     remoteRef:
-      key: threat-engine/prod/rds/postgres-master-password
-  # ... (all engines use same RDS password)
+      key: threat-engine/rds-credentials
+      property: CHECK_DB_PASSWORD
+  # ... all engine DB password keys map to same threat-engine/rds-credentials secret
 ```
 
 ### SecretStore Resource
@@ -512,14 +520,14 @@ spec:
 # Get secret value
 aws secretsmanager get-secret-value \
   --region ap-south-1 \
-  --secret-id threat-engine/prod/rds/postgres-master-password \
+  --secret-id threat-engine/rds-credentials \
   --query SecretString \
   --output text
 
 # Store in environment variable
 export DB_PASSWORD=$(aws secretsmanager get-secret-value \
   --region ap-south-1 \
-  --secret-id threat-engine/prod/rds/postgres-master-password \
+  --secret-id threat-engine/rds-credentials \
   --query SecretString \
   --output text)
 ```
@@ -533,7 +541,7 @@ env:
     valueFrom:
       secretKeyRef:
         name: threat-engine-db-passwords
-        key: discoveries-db-password
+        key: DISCOVERIES_DB_PASSWORD
 ```
 
 **Method 2: Mounted File**
@@ -567,7 +575,7 @@ volumes:
 2. **Update Secrets Manager:**
    ```bash
    aws secretsmanager update-secret \
-     --secret-id threat-engine/prod/rds/postgres-master-password \
+     --secret-id threat-engine/rds-credentials \
      --secret-string <new-password>
    ```
 
@@ -591,7 +599,7 @@ All Secrets Manager access is logged to CloudTrail:
 ```bash
 # Query recent secret access
 aws cloudtrail lookup-events \
-  --lookup-attributes AttributeKey=ResourceName,AttributeValue=threat-engine/prod/rds/postgres-master-password \
+  --lookup-attributes AttributeKey=ResourceName,AttributeValue=threat-engine/rds-credentials \
   --region ap-south-1 \
   --max-items 50
 ```
@@ -628,7 +636,7 @@ aws cloudtrail lookup-events \
 
 | Secret Type | Path | Rotation | Last Rotated | Owner |
 |-------------|------|----------|--------------|-------|
-| RDS Master Password | `threat-engine/prod/rds/postgres-master-password` | 90 days | 2026-01-15 | DBA Team |
+| RDS Master Password | `threat-engine/rds-credentials` | 90 days | 2026-01-15 | DBA Team |
 | Neo4j Password | `threat-engine/prod/neo4j/password` | 180 days | 2026-01-01 | Platform Team |
 | AWS Cross-Account Role | `threat-engine/prod/aws/cross-account-role-arn` | N/A | N/A | Security Team |
 | Azure Service Principal | `threat-engine/prod/azure/<sub-id>/client-secret` | 365 days | 2025-12-01 | Cloud Team |

@@ -118,16 +118,17 @@ Open http://localhost:8020/docs for Swagger UI.
 -- Connect to PostgreSQL
 psql -h localhost -U postgres
 
--- Create databases
+-- Create databases (use actual production DB names)
 CREATE DATABASE threat_engine_check;
-CREATE DATABASE threat_engine_threat;
+CREATE DATABASE threat;               -- NOT threat_engine_threat
 CREATE DATABASE threat_engine_inventory;
 CREATE DATABASE threat_engine_compliance;
-CREATE DATABASE threat_engine_discoveries;
+CREATE DATABASE discoveries;          -- NOT threat_engine_discoveries
 CREATE DATABASE threat_engine_onboarding;
 CREATE DATABASE threat_engine_datasec;
 CREATE DATABASE threat_engine_iam;
-CREATE DATABASE threat_engine_shared;
+CREATE DATABASE threat_engine_secops;
+CREATE DATABASE shared;               -- deprecated, keep for compatibility
 
 -- Create users (optional, can use postgres user)
 CREATE USER check_user WITH PASSWORD 'check_password';
@@ -143,15 +144,17 @@ GRANT ALL PRIVILEGES ON DATABASE threat_engine_inventory TO inventory_user;
 ### Run schema migrations
 
 ```bash
-# Apply all schemas
-cd consolidated_services/database
-for schema in schemas/*.sql; do
-  db_name=$(basename "$schema" .sql | sed 's/_schema//')
-  PGPASSWORD=your_password psql -h localhost -U postgres -d "threat_engine_${db_name}" -f "$schema"
+# Run Alembic migrations (preferred — tracks applied migrations)
+export DB_PASSWORD=your_password
+export RDS_HOST=localhost
+
+for DB in check compliance discoveries inventory threat iam datasec secops onboarding; do
+  DATABASE_URL="postgresql://postgres:${DB_PASSWORD}@${RDS_HOST}/threat_engine_${DB}" \
+    alembic -c shared/database/alembic.ini upgrade head
 done
 
-# Run migrations
-python migrations/migration_runner.py
+# Or apply raw SQL schemas (one-time setup only)
+# Files are in shared/database/schemas/
 ```
 
 ### Load rule metadata
@@ -267,12 +270,12 @@ curl -X POST http://localhost:8010/api/v1/onboarding/aws/init \
   -d '{"tenant_id": "YOUR_TENANT_ID", "account_id": "AWS_ACCOUNT_ID"}'
 
 # 3. Run discovery
-curl -X POST http://localhost:8002/api/v1/discovery \
+curl -X POST http://localhost:8001/api/v1/discovery \
   -H "Content-Type: application/json" \
   -d '{"tenant_id": "YOUR_TENANT", "cloud": "aws", "accounts": ["AWS_ACCOUNT"]}'
 
 # 4. Run check scan
-curl -X POST http://localhost:8001/api/v1/check \
+curl -X POST http://localhost:8002/api/v1/check \
   -H "Content-Type: application/json" \
   -d '{"tenant_id": "YOUR_TENANT", "scan_run_id": "DISCOVERY_SCAN_ID"}'
 

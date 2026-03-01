@@ -27,13 +27,18 @@ SELECT column_name FROM information_schema.columns WHERE table_name = 'check_fin
 
 ### Database Does Not Exist
 ```
-FATAL: database "threat_engine_threat" does not exist
+FATAL: database "threat" does not exist
 ```
-**Solution:** Create the database:
-```sql
-CREATE DATABASE threat_engine_threat;
+**Note:** Actual RDS database names differ from what you might expect:
+- `threat` (not `threat_engine_threat`)
+- `discoveries` (not `threat_engine_discoveries`)
+- All others follow `threat_engine_<engine>` pattern
+
+**Solution:** Create the database and run migrations:
+```bash
+alembic -c shared/database/alembic.ini upgrade head
 ```
-Then run schema migrations from `consolidated_services/database/schemas/`.
+Or apply schema SQL from `shared/database/schemas/`.
 
 ---
 
@@ -170,7 +175,7 @@ ModuleNotFoundError: No module named 'engine_common'
 ```
 **Solutions:**
 1. Set PYTHONPATH: `export PYTHONPATH=/path/to/threat-engine`
-2. For Docker, ensure Dockerfile copies `engine_common/` and `consolidated_services/`
+2. For Docker, ensure Dockerfile copies `shared/common/` (was `engine_common/`)
 3. For local dev, install from repo root
 
 ### psycopg2 Build Failure
@@ -228,18 +233,27 @@ git stash drop
 
 ## Health Check Endpoints
 
-Use these to diagnose service health:
+All engines expose the same 4 standard health paths (v-uniform standard):
 
-| Engine | Health URL |
-|--------|-----------|
-| API Gateway | `GET /gateway/health` |
-| Threat | `GET /health` |
-| Check | `GET /api/v1/health` |
-| Inventory | `GET /health` |
-| Compliance | `GET /api/v1/health` |
-| Discoveries | `GET /api/v1/health` |
-| Onboarding | `GET /api/v1/health` |
-| Rule | `GET /api/v1/health` |
+| Path | Purpose | DB Check? |
+|------|---------|-----------|
+| `GET /health` | Simple alive check (LB target group) | No |
+| `GET /api/v1/health` | Full health with DB connectivity | Yes |
+| `GET /api/v1/health/live` | K8s liveness probe | No |
+| `GET /api/v1/health/ready` | K8s readiness probe | Yes — returns 503 if DB down |
+
+Engine external paths via NLB (`a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com`):
+
+| Engine | Liveness | Readiness |
+|--------|----------|-----------|
+| compliance | `GET /compliance/api/v1/health/live` | `GET /compliance/api/v1/health/ready` |
+| onboarding | `GET /onboarding/api/v1/health/live` | `GET /onboarding/api/v1/health/ready` |
+| discoveries | `GET /discoveries/api/v1/health/live` | `GET /discoveries/api/v1/health/ready` |
+| check | `GET /check/api/v1/health/live` | `GET /check/api/v1/health/ready` |
+| inventory | `GET /inventory/api/v1/health/live` | `GET /inventory/api/v1/health/ready` |
+| threat | `GET /threat/api/v1/health/live` | `GET /threat/api/v1/health/ready` |
+| iam | `GET /iam/api/v1/health/live` | `GET /iam/api/v1/health/ready` |
+| datasec | `GET /datasec/api/v1/health/live` | `GET /datasec/api/v1/health/ready` |
 
 ---
 

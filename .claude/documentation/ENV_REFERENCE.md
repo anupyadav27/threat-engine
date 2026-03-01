@@ -27,18 +27,18 @@
 
 Each engine has its own set of DB variables. Pattern: `{ENGINE}_DB_{SETTING}`
 
-| Engine Prefix | Default DB Name | Default User |
-|--------------|----------------|-------------|
-| `CHECK_DB_` | `threat_engine_check` | `check_user` |
-| `THREAT_DB_` | `threat_engine_threat` | `threat_user` |
-| `INVENTORY_DB_` | `threat_engine_inventory` | `inventory_user` |
-| `COMPLIANCE_DB_` | `threat_engine_compliance` | `compliance_user` |
-| `DISCOVERIES_DB_` | `threat_engine_discoveries` | `discoveries_user` |
-| `ONBOARDING_DB_` | `threat_engine_onboarding` | `onboarding_user` |
+| Engine Prefix | Actual RDS DB Name | Default User |
+|--------------|-------------------|-------------|
+| `CHECK_DB_` | `threat_engine_check` | `postgres` |
+| `THREAT_DB_` | `threat` | `postgres` |
+| `INVENTORY_DB_` | `threat_engine_inventory` | `postgres` |
+| `COMPLIANCE_DB_` | `threat_engine_compliance` | `postgres` |
+| `DISCOVERIES_DB_` | `discoveries` | `postgres` |
+| `ONBOARDING_DB_` | `threat_engine_onboarding` | `postgres` |
 | `DATASEC_DB_` | `threat_engine_datasec` | `postgres` |
 | `IAM_DB_` | `threat_engine_iam` | `postgres` |
-| `SHARED_DB_` | `threat_engine_shared` | `shared_user` |
-| `CONFIGSCAN_DB_` | `threat_engine_configscan` | `configscan_user` |
+| `SECOPS_DB_` | `threat_engine_secops` | `postgres` |
+| `SHARED_DB_` | `shared` (deprecated) | `postgres` |
 
 Each prefix supports: `_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`
 
@@ -64,33 +64,29 @@ Each prefix supports: `_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`
 | Variable | Default | Used By |
 |----------|---------|---------|
 | `THREAT_ENGINE_URL` | `http://localhost:8020` | API Gateway, Admin/User portal |
-| `COMPLIANCE_ENGINE_URL` | `http://localhost:8021` | API Gateway, Admin/User portal |
+| `COMPLIANCE_ENGINE_URL` | `http://localhost:8010` | API Gateway, Admin/User portal |
 | `INVENTORY_ENGINE_URL` | `http://localhost:8022` | API Gateway, Admin/User portal |
 | `ONBOARDING_ENGINE_URL` | `http://localhost:8010` | API Gateway, Onboarding |
 | `RULE_ENGINE_URL` | `http://localhost:8011` | API Gateway, Onboarding |
-| `DATASEC_ENGINE_URL` | - | Admin/User portal |
-| `SECOPS_ENGINE_URL` | - | User portal |
+| `DATASEC_ENGINE_URL` | `http://localhost:8004` | Admin/User portal |
+| `SECOPS_ENGINE_URL` | `http://localhost:8009` | User portal |
 | `API_GATEWAY_URL` | `http://api-gateway:8000` | User portal, Onboarding |
 
-### ConfigScan Engine URLs
+### K8s Internal Service DNS (production)
 
-| Variable | Default |
-|----------|---------|
-| `CONFIGSCAN_AWS_URL` | `http://localhost:8001` |
-| `CONFIGSCAN_AZURE_URL` | `http://localhost:8002` |
-| `CONFIGSCAN_GCP_URL` | `http://localhost:8003` |
-| `CONFIGSCAN_ALICLOUD_URL` | `http://localhost:8004` |
-| `CONFIGSCAN_IBM_URL` | `http://localhost:8005` |
-| `CONFIGSCAN_OCI_URL` | `http://localhost:8006` |
+In EKS, engines are accessed via ClusterIP service DNS names (namespace `threat-engine-engines`):
 
-### K8s Internal Service URLs
-
-| Variable | Default |
-|----------|---------|
-| `CORE_ENGINE_URL` | `http://core-engine-service:8001` |
-| `CONFIGSCAN_SERVICE_URL` | `http://configscan-service:8002` |
-| `PLATFORM_SERVICE_URL` | `http://platform-service:8003` |
-| `DATA_SECOPS_SERVICE_URL` | `http://data-secops-service:8004` |
+| Engine | K8s Service DNS | Container Port |
+|--------|----------------|----------------|
+| onboarding | `engine-onboarding.threat-engine-engines.svc.cluster.local` | 8008 |
+| discoveries | `engine-discoveries.threat-engine-engines.svc.cluster.local` | 8001 |
+| check | `engine-check.threat-engine-engines.svc.cluster.local` | 8002 |
+| inventory | `engine-inventory.threat-engine-engines.svc.cluster.local` | 8022 |
+| compliance | `engine-compliance.threat-engine-engines.svc.cluster.local` | 8010 |
+| threat | `engine-threat.threat-engine-engines.svc.cluster.local` | 8020 |
+| iam | `engine-iam.threat-engine-engines.svc.cluster.local` | 8003 |
+| datasec | `engine-datasec.threat-engine-engines.svc.cluster.local` | 8004 |
+| secops | `engine-secops.threat-engine-engines.svc.cluster.local` | 8009 |
 
 ---
 

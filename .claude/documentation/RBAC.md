@@ -243,12 +243,12 @@ SESSION LAYER (Performance Cache)
 
 ---
 
-## Shared Auth Package -- `engine_auth/`
+## Shared Auth Package -- `shared/auth/`
 
 Shared between Django (portals) and FastAPI (API gateway/engines).
 
 ```
-engine_auth/
+shared/auth/
   __init__.py
   core/
     models.py             # AuthContext dataclass

@@ -1,6 +1,6 @@
 # AWS Infrastructure Documentation
 
-> **Last Updated:** 2026-02-22
+> **Last Updated:** 2026-03-01
 > **Environment:** Production
 > **Region:** ap-south-1 (Mumbai)
 > **AWS Account:** 588989875114
@@ -148,11 +148,11 @@ All engines use the same RDS instance with separate databases:
 | Database Name | Purpose | Engine(s) |
 |---------------|---------|-----------|
 | `threat_engine_onboarding` | Cloud accounts + scan_orchestration (pipeline hub) | engine-onboarding |
-| `threat_engine_discoveries` | Raw cloud resource records | engine-discoveries |
+| `discoveries` | Raw cloud resource records | engine-discoveries |
 | `threat_engine_check` | Compliance check findings (PASS/FAIL) | engine-check |
 | `threat_engine_inventory` | Normalised asset inventory + relationships | engine-inventory |
 | `threat_engine_compliance` | Framework compliance reports | engine-compliance |
-| `threat_engine_threat` | Threat detections + MITRE mappings | engine-threat |
+| `threat` | Threat detections + MITRE mappings | engine-threat |
 | `threat_engine_iam` | IAM posture findings | engine-iam |
 | `threat_engine_datasec` | Data security findings | engine-datasec |
 | `threat_engine_secops` | IaC scan results | engine-secops |
@@ -177,11 +177,11 @@ Stored in ConfigMap: `threat-engine-db-config` (namespace: `threat-engine-engine
 **Examples:**
 ```bash
 DISCOVERIES_DB_HOST=postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
-DISCOVERIES_DB_NAME=threat_engine_discoveries
+DISCOVERIES_DB_NAME=discoveries
 DISCOVERIES_DB_USER=postgres
 
 THREAT_DB_HOST=postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
-THREAT_DB_NAME=threat_engine_threat
+THREAT_DB_NAME=threat
 THREAT_DB_USER=postgres
 ```
 
@@ -196,11 +196,11 @@ kubectl run -it --rm psql-client \
   --namespace=threat-engine-engines \
   -- psql -h postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com \
        -U postgres \
-       -d threat_engine_discoveries
+       -d discoveries
 
 # Or via kubectl port-forward (if you have a DB proxy pod)
 kubectl port-forward svc/<db-proxy> 5432:5432 -n threat-engine-engines
-psql -h localhost -U postgres -d threat_engine_discoveries
+psql -h localhost -U postgres -d discoveries
 ```
 
 **From Pods:**
@@ -210,21 +210,21 @@ Pods connect directly using ConfigMap environment variables and Secrets for pass
 
 ## Deployment Configuration
 
-### Engine Deployments (as of 2026-02-22)
+### Engine Deployments (as of 2026-03-01)
 
 | Deployment | Replicas | Containers | Image | Status |
 |------------|----------|------------|-------|--------|
 | `api-gateway` | 1 | 1 | `yadavanup84/threat-engine-api-gateway:latest` | ✓ Running |
-| `engine-discoveries` | 1 | 1 | `yadavanup84/engine-discoveries:v10-multicloud` | ✓ Running |
-| `engine-check` | 1 | 1 | `yadavanup84/engine-check:latest` | ✓ Running |
-| `engine-inventory` | 1 | 2 (+ s3-sync) | `yadavanup84/inventory-engine:v6-multi-csp` | ✓ Running |
-| `engine-threat` | 1 | 2 (+ s3-sync) | `yadavanup84/threat-engine:latest` | ✓ Running |
-| `engine-compliance` | 1 | 2 (+ s3-sync) | `yadavanup84/threat-engine-compliance-engine:v2-db-reports` | ✓ Running |
-| `engine-iam` | 1 | 2 (+ s3-sync) | `yadavanup84/engine-iam:v2-fixes` | ✓ Running |
-| `engine-datasec` | 1 | 2 (+ s3-sync) | `yadavanup84/engine-datasec:v3-fixes` | ✓ Running |
-| `engine-onboarding` | 1 | 1 | `yadavanup84/threat-engine-onboarding-api:latest` | ✓ Running |
+| `engine-discoveries` | 1 | 1 | `yadavanup84/engine-discoveries:v11-multicloud` | ✓ Running |
+| `engine-check` | 1 | 1 | `yadavanup84/engine-check:v-uniform` | ✓ Running |
+| `engine-inventory` | 1 | 2 (+ s3-sync) | `yadavanup84/inventory-engine:v5-yaml-rules` | ✓ Running |
+| `engine-threat` | 1 | 2 (+ s3-sync) | `yadavanup84/threat-engine:v8-p2-edges` | ✓ Running |
+| `engine-compliance` | 1 | 2 (+ s3-sync) | `yadavanup84/threat-engine-compliance-engine:v-uniform` | ✓ Running |
+| `engine-iam` | 1 | 2 (+ s3-sync) | `yadavanup84/engine-iam:v-uniform` | ✓ Running |
+| `engine-datasec` | 1 | 2 (+ s3-sync) | `yadavanup84/engine-datasec:v-uniform` | ✓ Running |
+| `engine-onboarding` | 1 | 1 | `yadavanup84/threat-engine-onboarding-api:v2-multicloud` | ✓ Running |
 | `engine-rule` | 1 | 2 (+ s3-sync) | `yadavanup84/threat-engine-yaml-rule-builder:latest` | ✓ Running |
-| `engine-secops` | 1 | 2 (+ s3-sync) | `yadavanup84/secops-scanner:latest` | ✓ Running |
+| `engine-secops` | 1 | 2 (+ s3-sync) | `yadavanup84/secops-scanner:v-uniform` | ✓ Running |
 | `engine-userportal` | 1 | 1 | `yadavanup84/cspm-django-backend:latest` | ✓ Running |
 | `engine-userportal-ui` | 1 | 1 | `yadavanup84/cspm-ui:latest` | ⚠ CrashLoopBackOff |
 
@@ -251,14 +251,15 @@ All engines implement health endpoints:
 livenessProbe:
   httpGet:
     path: /api/v1/health/live
-    port: 8001
+    port: <container-port>   # 8001=discoveries, 8002=check, 8003=iam, 8004=datasec
+                             # 8008=onboarding, 8009=secops, 8010=compliance, 8020=threat, 8022=inventory
   initialDelaySeconds: 30
   periodSeconds: 30
 
 readinessProbe:
   httpGet:
     path: /api/v1/health/ready
-    port: 8001
+    port: <container-port>
   initialDelaySeconds: 10
   periodSeconds: 10
 ```
@@ -332,7 +333,7 @@ data:
 threat-engine/<environment>/<component>/<credential-type>
 
 Examples:
-- threat-engine/prod/rds/postgres-password
+- threat-engine/rds-credentials
 - threat-engine/prod/aws/role-arn
 - threat-engine/prod/azure/client-secret
 - threat-engine/prod/gcp/service-account-key
@@ -358,7 +359,7 @@ env:
 
 | Secret Path | Purpose | Used By |
 |-------------|---------|---------|
-| `threat-engine/prod/rds/postgres-password` | RDS master password | All engines |
+| `threat-engine/rds-credentials` | RDS master password | All engines |
 | `threat-engine/prod/aws/onboarding-role` | AWS cross-account role ARN | engine-onboarding |
 | `threat-engine/prod/azure/tenant-id` | Azure tenant ID | engine-onboarding |
 | `threat-engine/prod/gcp/service-account` | GCP service account JSON | engine-onboarding |
@@ -370,7 +371,7 @@ env:
 # Get secret value
 aws secretsmanager get-secret-value \
   --region ap-south-1 \
-  --secret-id threat-engine/prod/rds/postgres-password \
+  --secret-id threat-engine/rds-credentials \
   --query SecretString \
   --output text
 
@@ -670,7 +671,7 @@ kubectl get svc -n threat-engine-engines
 kubectl run -it --rm psql-client --image=postgres:15 --restart=Never \
   --namespace=threat-engine-engines \
   -- psql -h postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com \
-       -U postgres -d threat_engine_discoveries
+       -U postgres -d discoveries
 ```
 
 ### Logs
@@ -687,7 +688,7 @@ kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
 # Get secret from AWS
 aws secretsmanager get-secret-value \
   --region ap-south-1 \
-  --secret-id threat-engine/prod/rds/postgres-password
+  --secret-id threat-engine/rds-credentials
 ```
 
 ---

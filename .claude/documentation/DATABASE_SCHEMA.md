@@ -8,10 +8,10 @@
 
 | Database | Tables | Used By |
 |----------|--------|---------|
-| `threat_engine_discoveries` | 5 | engine_discoveries |
+| `discoveries` | 5 | engine_discoveries |
 | `threat_engine_check` | 5 | engine_check, engine_threat, engine_compliance, engine_iam, engine_datasec |
 | `threat_engine_inventory` | 11 | engine_inventory |
-| `threat_engine_threat` | 9 | engine_threat |
+| `threat` | 9 | engine_threat |
 | `threat_engine_compliance` | 9 | engine_compliance |
 | `threat_engine_iam` | 3 | engine_iam |
 | `threat_engine_datasec` | 3 | engine_datasec |
@@ -41,7 +41,7 @@ Each engine's `*_report` table links upstream via FK-like columns:
 
 ---
 
-## threat_engine_discoveries (5 tables)
+## discoveries (5 tables)
 
 ### discovery_report
 Scan-level discovery report metadata.
@@ -279,7 +279,7 @@ Configuration drift between scans.
 
 ---
 
-## threat_engine_threat (9 tables)
+## threat (9 tables)
 
 ### threat_report
 Scan-level threat report summary.
@@ -678,13 +678,13 @@ Pre-built classification indexes per CSP.
 ## Cross-Database Relationships
 
 ```
-threat_engine_discoveries                 threat_engine_check
+discoveries                 threat_engine_check
   discovery_report                          check_report
     .discovery_scan_id ──────────────────► .discovery_scan_id
                                             .check_scan_id ──────────► threat_report.check_scan_id
                                                                        compliance_report.check_scan_id
 
-threat_engine_threat                      threat_engine_iam / threat_engine_datasec
+threat                      threat_engine_iam / threat_engine_datasec
   threat_report                             iam_report / datasec_report
     .threat_scan_id ─────────────────────► .threat_scan_id
 
@@ -706,14 +706,14 @@ threat_engine_pythonsdk (SDK metadata — used by inventory engine for resource 
 
 ## Schema SQL Files
 
-Located at `consolidated_services/database/schemas/`:
+Located at `shared/database/schemas/`:
 
 | File | Database | Tables |
 |------|----------|--------|
-| `discoveries_schema.sql` | threat_engine_discoveries | discovery_report, discovery_findings, discovery_history, rule_definitions |
+| `discoveries_schema.sql` | discoveries | discovery_report, discovery_findings, discovery_history, rule_definitions |
 | `check_schema.sql` | threat_engine_check | check_report, check_findings, rule_checks, rule_metadata |
 | `inventory_schema.sql` | threat_engine_inventory | inventory_report, inventory_scans, inventory_findings, inventory_relationships, inventory_drift, inventory_asset_* |
-| `threat_schema.sql` | threat_engine_threat | threat_report, threat_findings, threat_detections, threat_analysis, threat_intelligence, threat_hunt_*, mitre_technique_reference |
+| `threat_schema.sql` | threat | threat_report, threat_findings, threat_detections, threat_analysis, threat_intelligence, threat_hunt_*, mitre_technique_reference |
 | `compliance_schema.sql` | threat_engine_compliance | compliance_report, compliance_findings, compliance_frameworks, compliance_controls, compliance_assessments, rule_control_mapping, remediation_tracking |
 | `iam_schema.sql` | threat_engine_iam | iam_report, iam_findings |
 | `datasec_schema.sql` | threat_engine_datasec | datasec_report, datasec_findings |
