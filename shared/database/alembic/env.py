@@ -69,14 +69,19 @@ def build_db_url(engine_name: str) -> str:
     """Build the PostgreSQL connection URL from environment variables.
 
     Reads env vars in priority order:
-      1. <ENGINE>_DB_HOST  (per-engine override, e.g. CHECK_DB_HOST)
-      2. DB_HOST           (shared default)
-      3. Hardcoded fallback for local dev
+      1. RDS_HOST          — direct RDS endpoint (used by migrations Job, bypasses pgbouncer)
+      2. <ENGINE>_DB_HOST  — per-engine override (e.g. CHECK_DB_HOST, normally "pgbouncer")
+      3. DB_HOST           — shared default (normally "pgbouncer" in K8s)
+      4. localhost fallback for local dev
 
-    All engines share the same RDS host and password in this deployment.
+    The migrations Job sets RDS_HOST so it connects directly to RDS (pgbouncer
+    may not be ready yet, or we need DDL/CREATE TABLE support which pgbouncer
+    in transaction mode can block in some edge cases).
     """
     prefix = engine_name.upper()
-    host     = os.environ.get(f"{prefix}_DB_HOST")     or os.environ.get("DB_HOST", "localhost")
+    host     = (os.environ.get("RDS_HOST")
+                or os.environ.get(f"{prefix}_DB_HOST")
+                or os.environ.get("DB_HOST", "localhost"))
     port     = os.environ.get(f"{prefix}_DB_PORT")     or os.environ.get("DB_PORT", "5432")
     user     = os.environ.get(f"{prefix}_DB_USER")     or os.environ.get("DB_USER", "postgres")
     password = os.environ.get(f"{prefix}_DB_PASSWORD") or os.environ.get("DB_PASSWORD", "")

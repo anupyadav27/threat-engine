@@ -56,12 +56,14 @@ spec:
           command: ["python", "alembic/migrate_all.py"]
 
           env:
-            # ── Shared RDS endpoint ─────────────────────────────────────────────
-            - name: DB_HOST
+            # ── Direct RDS endpoint (bypass pgbouncer — migrations need DDL) ────
+            # env.py checks RDS_HOST first, so this overrides the pgbouncer alias
+            # in threat-engine-db-config even if pgbouncer is not yet deployed.
+            - name: RDS_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_HOST
+                  name: pgbouncer-rds-config
+                  key: RDS_HOST
             - name: DB_PORT
               valueFrom:
                 configMapKeyRef:

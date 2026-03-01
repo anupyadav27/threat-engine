@@ -3,74 +3,84 @@ kind: ConfigMap
 metadata:
   name: threat-engine-db-config
   namespace: threat-engine-engines
+  annotations:
+    description: >
+      All *_DB_HOST values point to the pgbouncer ClusterIP service (not RDS directly).
+      PgBouncer handles connection pooling and forwards to the actual RDS endpoint.
+      The real RDS host is stored in pgbouncer-rds-config and only read by the
+      pgbouncer init container.
 data:
-  # All engines use same RDS host (postgres-vulnerability-db), different databases
-  DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+  # ── Default fallback (used by engines that don't set per-engine overrides) ──
+  DB_HOST: "pgbouncer"
   DB_PORT: "5432"
-  
-  # Check Engine DB (check_results, rule_metadata)
-  CHECK_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Check Engine ─────────────────────────────────────────────────────────────
+  CHECK_DB_HOST: "pgbouncer"
   CHECK_DB_PORT: "5432"
   CHECK_DB_NAME: "threat_engine_check"
   CHECK_DB_USER: "postgres"
-  
-  # Discoveries Engine DB (discovery_report, discovery_findings, discovery_history)
-  # Standardized singular names (preferred)
-  DISCOVERY_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Discoveries Engine ────────────────────────────────────────────────────────
+  DISCOVERY_DB_HOST: "pgbouncer"
   DISCOVERY_DB_PORT: "5432"
   DISCOVERY_DB_NAME: "threat_engine_discoveries"
   DISCOVERY_DB_USER: "postgres"
-  # Legacy plural names (backward compat)
-  DISCOVERIES_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+  # Legacy plural alias
+  DISCOVERIES_DB_HOST: "pgbouncer"
   DISCOVERIES_DB_PORT: "5432"
   DISCOVERIES_DB_NAME: "threat_engine_discoveries"
   DISCOVERIES_DB_USER: "postgres"
-  
-  # Compliance DB (compliance outputs, control mappings, analysis views)
-  COMPLIANCE_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Compliance Engine ─────────────────────────────────────────────────────────
+  COMPLIANCE_DB_HOST: "pgbouncer"
   COMPLIANCE_DB_PORT: "5432"
   COMPLIANCE_DB_NAME: "threat_engine_compliance"
   COMPLIANCE_DB_USER: "postgres"
-  
-  # IAM Engine Database
-  IAM_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── IAM Engine ────────────────────────────────────────────────────────────────
+  IAM_DB_HOST: "pgbouncer"
   IAM_DB_PORT: "5432"
   IAM_DB_NAME: "threat_engine_iam"
   IAM_DB_USER: "postgres"
-  
-  # DataSec Engine Database
-  DATASEC_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── DataSec Engine ────────────────────────────────────────────────────────────
+  DATASEC_DB_HOST: "pgbouncer"
   DATASEC_DB_PORT: "5432"
   DATASEC_DB_NAME: "threat_engine_datasec"
   DATASEC_DB_USER: "postgres"
-  
-  # Inventory DB (asset inventory, relationships)
-  INVENTORY_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Inventory Engine ──────────────────────────────────────────────────────────
+  INVENTORY_DB_HOST: "pgbouncer"
   INVENTORY_DB_PORT: "5432"
   INVENTORY_DB_NAME: "threat_engine_inventory"
   INVENTORY_DB_USER: "postgres"
-  
-  # Threat DB (threat intelligence, detections, analysis)
-  THREAT_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Threat Engine ─────────────────────────────────────────────────────────────
+  THREAT_DB_HOST: "pgbouncer"
   THREAT_DB_PORT: "5432"
   THREAT_DB_NAME: "threat_engine_threat"
   THREAT_DB_USER: "postgres"
-  
-  # Shared DB (DEPRECATED - scan_orchestration moved to onboarding)
-  # Kept for backward compatibility only
-  SHARED_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+
+  # ── Onboarding Engine (holds scan_orchestration) ──────────────────────────────
+  ONBOARDING_DB_HOST: "pgbouncer"
+  ONBOARDING_DB_PORT: "5432"
+  ONBOARDING_DB_NAME: "threat_engine_onboarding"
+  ONBOARDING_DB_USER: "postgres"
+
+  # ── SecOps Engine ─────────────────────────────────────────────────────────────
+  SECOPS_DB_HOST: "pgbouncer"
+  SECOPS_DB_PORT: "5432"
+  SECOPS_DB_NAME: "threat_engine_secops"
+  SECOPS_DB_USER: "postgres"
+
+  # ── Shared DB (DEPRECATED — scan_orchestration moved to onboarding) ───────────
+  SHARED_DB_HOST: "pgbouncer"
   SHARED_DB_PORT: "5432"
   SHARED_DB_NAME: "threat_engine_shared"
   SHARED_DB_USER: "postgres"
 
-  # Python SDK Metadata DB (service metadata, operations, resource classifications)
-  PYTHONSDK_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+  # ── Python SDK Metadata DB ────────────────────────────────────────────────────
+  PYTHONSDK_DB_HOST: "pgbouncer"
   PYTHONSDK_DB_PORT: "5432"
   PYTHONSDK_DB_NAME: "threat_engine_pythonsdk"
   PYTHONSDK_DB_USER: "postgres"
-
-  # Onboarding DB (includes scan_orchestration table - moved from shared)
-  ONBOARDING_DB_HOST: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
-  ONBOARDING_DB_PORT: "5432"
-  ONBOARDING_DB_NAME: "threat_engine_onboarding"
-  ONBOARDING_DB_USER: "postgres"
