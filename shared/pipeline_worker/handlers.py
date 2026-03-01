@@ -67,6 +67,7 @@ async def trigger_threat(
     orchestration_id: str,
     provider_type: str,
     check_scan_id: Optional[str],
+    tenant_id: str = "",
     timeout: float = 120.0,
 ) -> Dict[str, Any]:
     from datetime import datetime
@@ -76,13 +77,14 @@ async def trigger_threat(
             json={
                 "orchestration_id": orchestration_id,
                 "scan_run_id": orchestration_id,
+                "tenant_id": tenant_id,
                 "cloud": provider_type.lower(),
-                "trigger_type": "sqs",
+                "trigger_type": "api",
                 "accounts": [],
                 "regions": [],
                 "services": [],
                 "started_at": datetime.utcnow().isoformat(),
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": None,
             },
         )
         resp.raise_for_status()
@@ -91,14 +93,14 @@ async def trigger_threat(
 
 async def trigger_compliance(
     orchestration_id: str,
-    timeout: float = 120.0,
+    timeout: float = 300.0,
 ) -> Dict[str, Any]:
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{_url('compliance')}/api/v1/scan",
             json={
                 "orchestration_id": orchestration_id,
-                "trigger_type": "sqs",
+                "trigger_type": "manual",
                 "export_to_db": True,
             },
         )
@@ -108,12 +110,13 @@ async def trigger_compliance(
 
 async def trigger_iam(
     orchestration_id: str,
+    csp: str = "aws",
     timeout: float = 120.0,
 ) -> Dict[str, Any]:
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{_url('iam')}/api/v1/scan",
-            json={"orchestration_id": orchestration_id, "max_findings": 5000},
+            json={"orchestration_id": orchestration_id, "csp": csp, "max_findings": 5000},
         )
         resp.raise_for_status()
         return resp.json()
@@ -121,6 +124,7 @@ async def trigger_iam(
 
 async def trigger_datasec(
     orchestration_id: str,
+    csp: str = "aws",
     timeout: float = 120.0,
 ) -> Dict[str, Any]:
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -128,6 +132,7 @@ async def trigger_datasec(
             f"{_url('datasec')}/api/v1/scan",
             json={
                 "orchestration_id": orchestration_id,
+                "csp": csp,
                 "include_classification": True,
                 "include_lineage": True,
                 "include_residency": True,
