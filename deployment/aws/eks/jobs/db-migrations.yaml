@@ -1,0 +1,127 @@
+# Kubernetes Job: Run Alembic database migrations before engine rollout.
+#
+# Build the migrations image first:
+#   docker build -t yadavanup84/db-migrations:v1 -f shared/database/Dockerfile .
+#   docker push yadavanup84/db-migrations:v1
+#
+# Apply BEFORE rolling out new engine deployments:
+#   kubectl apply -f deployment/aws/eks/jobs/db-migrations.yaml -n threat-engine-engines
+#   kubectl wait --for=condition=complete job/db-migrations --timeout=300s -n threat-engine-engines
+#
+# Check logs:
+#   kubectl logs -l job-name=db-migrations -n threat-engine-engines
+#
+# Clean up after success:
+#   kubectl delete job db-migrations -n threat-engine-engines
+#
+# The Job runs migrate_all.py → alembic upgrade head for all 9 engine databases.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrations
+  namespace: threat-engine-engines
+  labels:
+    app: db-migrations
+    component: migrations
+  annotations:
+    description: "Alembic upgrade head for all 9 engine databases"
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600   # auto-delete 10 min after completion
+  template:
+    metadata:
+      labels:
+        app: db-migrations
+        component: migrations
+    spec:
+      restartPolicy: Never
+
+      # Prefer on-demand nodes — migrations must not be interrupted by spot eviction
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: NotIn
+                    values: ["spot"]
+
+      containers:
+        - name: alembic-migrate
+          image: yadavanup84/db-migrations:latest
+          imagePullPolicy: Always
+          workingDir: /app/shared/database
+          command: ["python", "alembic/migrate_all.py"]
+
+          env:
+            # ── Shared RDS endpoint ─────────────────────────────────────────────
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+                  optional: true
+            - name: DB_USER
+              value: "postgres"
+
+            # ── Per-engine DB passwords ─────────────────────────────────────────
+            - name: CHECK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: CHECK_DB_PASSWORD
+            - name: DISCOVERIES_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            - name: COMPLIANCE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: COMPLIANCE_DB_PASSWORD
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: INVENTORY_DB_PASSWORD
+            - name: THREAT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: THREAT_DB_PASSWORD
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+            - name: IAM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: IAM_DB_PASSWORD
+            - name: DATASEC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DATASEC_DB_PASSWORD
+            - name: SECOPS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: SECOPS_DB_PASSWORD
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
