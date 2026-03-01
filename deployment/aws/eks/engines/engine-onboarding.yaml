@@ -135,6 +135,19 @@ spec:
           value: "threat_engine_onboarding"
         - name: DB_SCHEMA
           value: "public"
+        # ── SQS async pipeline (optional — enables async mode when set) ──────
+        - name: SQS_PIPELINE_QUEUE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sqs-config
+              key: SQS_PIPELINE_QUEUE_URL
+              optional: true
+        - name: SQS_EVENTS_QUEUE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sqs-config
+              key: SQS_EVENTS_QUEUE_URL
+              optional: true
         - name: ROOT_PATH
           value: "/onboarding"
         - name: PORT
@@ -171,13 +184,13 @@ spec:
             cpu: "1000m"
         livenessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/live
             port: 8008
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/ready
             port: 8008
           initialDelaySeconds: 10
           periodSeconds: 5
