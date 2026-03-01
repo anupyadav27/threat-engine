@@ -22,6 +22,7 @@ import psycopg2
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 
@@ -60,6 +61,7 @@ app = FastAPI(
     description="Cloud Security Threat Detection and Reporting",
     version="1.0.0"
 )
+configure_telemetry("engine-threat", app)
 
 # Lightweight in-memory job tracker for async generation.
 # NOTE: This is per-pod memory; for HA move to Redis/DB.

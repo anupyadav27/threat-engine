@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-config
+  namespace: threat-engine-engines
+  annotations:
+    description: >
+      OpenTelemetry SDK configuration injected into all engine pods.
+      Engines read these standard OTEL_* env vars automatically.
+      Set OTEL_ENABLED=false on any pod to disable instrumentation.
+data:
+  # ── SDK feature flag ──────────────────────────────────────────────────────
+  OTEL_ENABLED: "true"
+
+  # ── OTLP exporter endpoint (OTel Collector ClusterIP) ────────────────────
+  # Uses gRPC (port 4317).  Matches the ClusterIP service in otel-collector.yaml.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.threat-engine-engines.svc.cluster.local:4317"
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+
+  # ── Trace sampling ────────────────────────────────────────────────────────
+  # always_on   — record every trace (good for dev/staging)
+  # traceidratio — sample a fraction; set OTEL_TRACES_SAMPLER_ARG=0.1 for 10%
+  OTEL_TRACES_SAMPLER: "always_on"
+  OTEL_TRACES_SAMPLER_ARG: "1.0"
+
+  # ── Propagation ───────────────────────────────────────────────────────────
+  # W3C TraceContext + Baggage.  Enables cross-engine trace propagation when
+  # the orchestrator calls downstream engines via httpx.
+  OTEL_PROPAGATORS: "tracecontext,baggage"
+
+  # ── Python SDK logging ────────────────────────────────────────────────────
+  OTEL_PYTHON_LOG_CORRELATION: "true"
+  OTEL_PYTHON_LOG_FORMAT: "%(asctime)s %(levelname)s %(name)s [trace_id=%(otelTraceID)s span_id=%(otelSpanID)s] %(message)s"

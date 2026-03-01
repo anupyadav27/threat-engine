@@ -17,6 +17,7 @@ import psycopg2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.storage_paths import get_project_root
 from engine_common.orchestration import get_orchestration_metadata
@@ -62,6 +63,7 @@ app = FastAPI(
     description="Generate compliance reports from CSP scan results",
     version="1.0.0"
 )
+configure_telemetry("engine-compliance", app)
 
 # Add logging middleware
 app.add_middleware(CorrelationIDMiddleware)

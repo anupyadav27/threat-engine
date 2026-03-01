@@ -32,6 +32,13 @@ from pydantic import BaseModel, Field
 from scan_local import scan_path
 from scanner_plugin import get_supported_languages
 
+try:
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..', '..'))
+    from engine_common.telemetry import configure_telemetry as _configure_telemetry
+except ImportError:
+    _configure_telemetry = None
+
 logger = logging.getLogger("secops")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -49,6 +56,8 @@ app = FastAPI(
     description="Multi-language code security scanner — 14 languages, ~2,900 rules",
     version="3.0.0",
 )
+if _configure_telemetry:
+    _configure_telemetry("engine-secops", app)
 
 app.add_middleware(
     CORSMiddleware,

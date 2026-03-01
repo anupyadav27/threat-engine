@@ -12,6 +12,10 @@ import os
 from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router
 from engine_onboarding.config import settings
 from engine_onboarding.database.connection import init_db, check_connection
+try:
+    from engine_common.telemetry import configure_telemetry as _configure_telemetry
+except ImportError:
+    _configure_telemetry = None
 # from engine_onboarding.database import mark_stale_running_executions_as_failed  # REMOVED - old schema
 # from engine_onboarding.scheduler.scheduler_service import SchedulerService  # REMOVED - uses old schema
 
@@ -26,6 +30,8 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None
 )
+if _configure_telemetry:
+    _configure_telemetry("engine-onboarding", app)
 
 # Inject root_path as OpenAPI server so Swagger calls include /onboarding.
 def _custom_openapi():

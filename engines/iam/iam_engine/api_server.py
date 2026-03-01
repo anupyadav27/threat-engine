@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 
@@ -30,6 +31,7 @@ app = FastAPI(
     description="Identity & Access Management posture for CSPM - least privilege, MFA, policy, roles",
     version="1.0.0",
 )
+configure_telemetry("engine-iam", app)
 
 app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(RequestLoggingMiddleware, engine_name="engine-iam")

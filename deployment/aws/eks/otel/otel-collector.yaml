@@ -1,0 +1,227 @@
+# OpenTelemetry Collector — receives traces/metrics from all engine pods,
+# exports metrics to Prometheus and traces to a configurable backend.
+#
+# Deploy:
+#   kubectl apply -f deployment/aws/eks/otel/otel-collector.yaml \
+#     -n threat-engine-engines
+#
+# Verify:
+#   kubectl port-forward svc/otel-collector 4317:4317 -n threat-engine-engines
+#   # Then from any engine pod: grpcurl -plaintext localhost:4317 list
+#
+# Prometheus scrape config (add to your Prometheus or ServiceMonitor):
+#   - job_name: otel-collector
+#     static_configs:
+#       - targets: ['otel-collector.threat-engine-engines.svc:8889']
+#
+# To enable distributed tracing backend (e.g. Grafana Tempo):
+#   1. Add the otlp/tempo exporter block in the ConfigMap
+#   2. Add it to the traces pipeline exporters list
+#   3. Restart the collector: kubectl rollout restart deploy/otel-collector
+---
+# ── ConfigMap: collector pipeline config ─────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: threat-engine-engines
+  labels:
+    app: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Drop spans from health-check endpoints (high volume, low value)
+      filter/healthchecks:
+        error_mode: ignore
+        traces:
+          span:
+            - 'attributes["http.route"] == "/health"'
+            - 'attributes["http.route"] == "/api/v1/health"'
+            - 'attributes["http.route"] == "/api/v1/health/live"'
+            - 'attributes["http.route"] == "/api/v1/health/ready"'
+
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+        send_batch_max_size: 2048
+
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 400
+        spike_limit_mib: 100
+
+    exporters:
+      # ── Prometheus (metrics) ───────────────────────────────────────────
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        namespace: "threat_engine"
+        enable_open_metrics: true
+
+      # ── Debug logging (traces — visible in collector pod logs) ─────────
+      # Useful for development; disable in production by removing from pipeline.
+      debug:
+        verbosity: normal
+        sampling_initial: 5
+        sampling_thereafter: 200
+
+      # ── Optional: Grafana Tempo (uncomment + set endpoint) ────────────
+      # otlp/tempo:
+      #   endpoint: "http://tempo.monitoring.svc.cluster.local:4317"
+      #   tls:
+      #     insecure: true
+
+      # ── Optional: AWS X-Ray (uncomment + ensure IRSA has xray:PutTraceSegments) ──
+      # awsxray:
+      #   region: ap-south-1
+      #   indexed_attributes: ["orchestration_id", "tenant_id", "scan_stage"]
+
+    service:
+      telemetry:
+        logs:
+          level: "info"
+        metrics:
+          address: 0.0.0.0:8888   # collector's own Prometheus metrics
+
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/healthchecks, batch]
+          exporters: [debug]
+          # For production: replace debug with otlp/tempo or awsxray
+
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: threat-engine-engines
+  labels:
+    app: otel-collector
+    component: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+        component: observability
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8889"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: NotIn
+                    values: ["spot"]
+
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.104.0
+          imagePullPolicy: IfNotPresent
+          args: ["--config=/conf/config.yaml"]
+
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: prometheus
+              containerPort: 8889
+              protocol: TCP
+            - name: self-metrics
+              containerPort: 8888
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133   # collector health-check extension
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: threat-engine-engines
+  labels:
+    app: otel-collector
+    component: observability
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8889"
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: prometheus
+      port: 8889
+      targetPort: 8889
+      protocol: TCP

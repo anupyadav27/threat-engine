@@ -57,6 +57,7 @@ _consolidated_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "
 sys.path.insert(0, _consolidated_path)
 
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 
@@ -65,6 +66,7 @@ from ..database.connection.database_config import get_database_config
 
 from ..api.orchestrator import ScanOrchestrator
 from ..api.inventory_db_loader import InventoryDBLoader
+from ..api.rules_router import router as rules_router
 from ..schemas.asset_schema import Provider
 from ..connectors.discovery_reader_factory import get_discovery_reader
 
@@ -75,6 +77,7 @@ app = FastAPI(
     description="Cloud Resource Inventory Discovery and Graph Building",
     version="1.0.0"
 )
+configure_telemetry("engine-inventory", app)
 
 # Thread pool for running synchronous scan orchestrator without blocking the asyncio loop
 _scan_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inv-scan")
@@ -94,6 +97,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rules admin router — DB-driven rule management (single source of truth for multi-CSP)
+app.include_router(rules_router)
 
 
 class ScanRequest(BaseModel):

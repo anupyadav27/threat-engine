@@ -17,6 +17,7 @@ import psycopg2
 # Add project root for engine_common
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from engine_common.logger import setup_logger, LogContext, log_duration
+from engine_common.telemetry import configure_telemetry
 from engine_common.orchestration import get_orchestration_metadata
 
 from engine.check_engine import CheckEngine
@@ -30,6 +31,7 @@ app = FastAPI(
     description="API for running AWS compliance checks",
     version="1.0.0"
 )
+configure_telemetry("engine-check", app)
 
 # CORS middleware
 app.add_middleware(
