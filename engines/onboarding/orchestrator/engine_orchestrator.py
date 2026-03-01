@@ -1,5 +1,15 @@
 """
-Orchestrates downstream engines after ConfigScan completes
+Orchestrates downstream engines after ConfigScan completes.
+
+SQS mode
+--------
+When the environment variable ``SQS_PIPELINE_QUEUE_URL`` is set, the
+orchestrator creates the ``scan_orchestration`` record and then publishes a
+``scan_requested`` event to SQS **instead of** running the pipeline inline.
+The ``pipeline_worker`` service picks up the message and runs the stages.
+
+When ``SQS_PIPELINE_QUEUE_URL`` is NOT set, behaviour is identical to the
+original synchronous HTTP pipeline (backward compatible).
 """
 import asyncio
 import httpx
@@ -25,6 +35,53 @@ from engine_onboarding.database.postgres_operations import (
 )
 
 logger = setup_logger(__name__, engine_name="orchestrator")
+
+# ── SQS helpers (imported lazily so missing boto3 doesn't break HTTP mode) ───
+
+_SQS_QUEUE_URL: Optional[str] = os.getenv("SQS_PIPELINE_QUEUE_URL")
+
+
+def _publish_scan_requested(
+    orchestration_id: str,
+    tenant_id: str,
+    account_id: str,
+    provider_type: str,
+) -> None:
+    """Publish a ``scan_requested`` event to SQS (best-effort).
+
+    Import errors (boto3 not installed) are logged and silently swallowed so
+    the caller can fall back to inline HTTP orchestration.
+    """
+    try:
+        from engine_common.sqs import SQSClient  # type: ignore[import]
+        from engine_common.pipeline_events import scan_requested  # type: ignore[import]
+    except ImportError:
+        # Fallback: try shared path directly
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+            from shared.common.sqs import SQSClient  # type: ignore[import]
+            from shared.common.pipeline_events import scan_requested  # type: ignore[import]
+        except ImportError as exc:
+            logger.error("sqs module not available — cannot publish scan_requested: %s", exc)
+            return
+
+    event = scan_requested(
+        orchestration_id=orchestration_id,
+        tenant_id=tenant_id,
+        account_id=account_id,
+        provider=provider_type,
+    )
+    try:
+        client = SQSClient()
+        msg_id = client.publish(
+            _SQS_QUEUE_URL,
+            event.to_sqs_body(),
+            deduplication_id=event.event_id,
+            group_id=orchestration_id,
+        )
+        logger.info("scan_requested published to SQS msg_id=%s oid=%s", msg_id, orchestration_id)
+    except Exception as exc:
+        logger.error("failed to publish scan_requested to SQS: %s", exc)
 
 
 class EngineOrchestrator:
@@ -85,6 +142,24 @@ class EngineOrchestrator:
         except Exception as e:
             logger.error(f"Failed to create orchestration record: {e}", exc_info=True)
             # Continue anyway - this is tracking only
+
+        # ── SQS mode: publish event and return immediately ────────────────
+        # When SQS_PIPELINE_QUEUE_URL is set, hand off to the pipeline_worker
+        # service instead of running the stages inline.  This frees the
+        # onboarding API to return to the caller without blocking for 10+ min.
+        if _SQS_QUEUE_URL:
+            _publish_scan_requested(orchestration_id, tenant_id, account_id, provider_type)
+            return {
+                "scan_run_id": scan_run_id,
+                "orchestration_id": orchestration_id,
+                "tenant_id": tenant_id,
+                "account_id": account_id,
+                "provider_type": provider_type,
+                "orchestration_started_at": datetime.utcnow().isoformat(),
+                "mode": "sqs",
+                "status": "queued",
+                "message": "Pipeline handed off to SQS worker — poll scan_orchestration for status.",
+            }
 
         # Use scan_id if provided, otherwise use scan_run_id
         effective_scan_id = scan_id or scan_run_id

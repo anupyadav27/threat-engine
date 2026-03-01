@@ -1,0 +1,114 @@
+# Pipeline Worker — polls SQS and drives the engine pipeline asynchronously.
+#
+# Build:
+#   docker build -t yadavanup84/pipeline-worker:v1 \
+#     -f shared/pipeline_worker/Dockerfile .
+#   docker push yadavanup84/pipeline-worker:v1
+#
+# Deploy:
+#   kubectl apply -f deployment/aws/eks/pipeline-worker/pipeline-worker.yaml \
+#     -n threat-engine-engines
+#
+# Enable SQS mode on onboarding engine by adding SQS_PIPELINE_QUEUE_URL to
+# its deployment (see engine-onboarding.yaml).  The worker and onboarding
+# must share the same queue URL.
+#
+# IAM requirements:
+#   The pod's IRSA role (or node instance profile) needs:
+#     sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage,
+#     sqs:ChangeMessageVisibility, sqs:GetQueueAttributes
+#   on both the pipeline queue and the events queue ARNs.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipeline-worker
+  namespace: threat-engine-engines
+  labels:
+    app: pipeline-worker
+    component: pipeline
+spec:
+  replicas: 1   # Scale up for higher concurrency (each replica handles one scan)
+  selector:
+    matchLabels:
+      app: pipeline-worker
+  template:
+    metadata:
+      labels:
+        app: pipeline-worker
+        component: pipeline
+    spec:
+      # Prefer on-demand nodes — worker drives long-running pipeline
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: NotIn
+                    values: ["spot"]
+
+      containers:
+        - name: pipeline-worker
+          image: yadavanup84/pipeline-worker:v1
+          imagePullPolicy: Always
+
+          env:
+            # ── SQS config ─────────────────────────────────────────────────
+            - name: SQS_PIPELINE_QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: sqs-config
+                  key: SQS_PIPELINE_QUEUE_URL
+            - name: SQS_EVENTS_QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: sqs-config
+                  key: SQS_EVENTS_QUEUE_URL
+                  optional: true
+            - name: SQS_VISIBILITY_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: sqs-config
+                  key: SQS_VISIBILITY_TIMEOUT
+            - name: SQS_POLL_INTERVAL_S
+              valueFrom:
+                configMapKeyRef:
+                  name: sqs-config
+                  key: SQS_POLL_INTERVAL_S
+
+            # ── AWS region ────────────────────────────────────────────────
+            - name: AWS_REGION
+              value: "ap-south-1"
+
+            # ── Engine service URLs ───────────────────────────────────────
+            # Defaults match K8s DNS; override here only if non-standard.
+            - name: INVENTORY_ENGINE_URL
+              value: "http://engine-inventory.threat-engine-engines.svc.cluster.local"
+            - name: CHECK_ENGINE_URL
+              value: "http://engine-check.threat-engine-engines.svc.cluster.local"
+            - name: THREAT_ENGINE_URL
+              value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
+            - name: COMPLIANCE_ENGINE_URL
+              value: "http://engine-compliance.threat-engine-engines.svc.cluster.local"
+            - name: IAM_ENGINE_URL
+              value: "http://engine-iam.threat-engine-engines.svc.cluster.local"
+            - name: DATASEC_ENGINE_URL
+              value: "http://engine-datasec.threat-engine-engines.svc.cluster.local"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          # Liveness: the worker process stays alive
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import os; open('/tmp/alive')"]
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            failureThreshold: 3
