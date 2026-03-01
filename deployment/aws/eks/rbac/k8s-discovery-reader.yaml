@@ -1,0 +1,37 @@
+# ClusterRole and ClusterRoleBinding for K8s Discovery Scanner
+# Grants read access to namespaces, pods, deployments, services
+# Used by engine-discoveries pod for K8s self-scan
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-discovery-reader
+  labels:
+    app: engine-discoveries
+    purpose: k8s-self-scan
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - services
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-discovery-reader-binding
+  labels:
+    app: engine-discoveries
+    purpose: k8s-self-scan
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-discovery-reader
+subjects:
+- kind: ServiceAccount
+  name: engine-sa
+  namespace: threat-engine-engines

@@ -1,0 +1,36 @@
+# EKS Spot Node Group - vulnerability-spot-scanners
+# Created via AWS CLI (managed node groups cannot be defined in K8s YAML)
+#
+# This file documents the node group configuration for reference.
+# To recreate:
+#   aws eks create-nodegroup \
+#     --cluster-name vulnerability-eks-cluster \
+#     --nodegroup-name vulnerability-spot-scanners \
+#     --scaling-config minSize=0,maxSize=6,desiredSize=0 \
+#     --instance-types t3.xlarge m5.xlarge c5.xlarge \
+#     --ami-type AL2023_x86_64_STANDARD \
+#     --capacity-type SPOT \
+#     --subnets subnet-0eb3ec80f3c9cb1af subnet-fe709485 subnet-06cc90b4acc9aa656 \
+#     --node-role arn:aws:iam::588989875114:role/vulnerability-eks-cluster-node-role \
+#     --disk-size 30 \
+#     --labels workload-type=scan,node-type=spot \
+#     --taints "key=spot-scanner,value=true,effect=NO_SCHEDULE" \
+#     --tags "k8s.io/cluster-autoscaler/enabled=true,k8s.io/cluster-autoscaler/vulnerability-eks-cluster=owned,workload-type=scan" \
+#     --region ap-south-1
+#
+# Node Group Properties:
+#   Name:           vulnerability-spot-scanners
+#   Capacity:       SPOT
+#   Instance types: t3.xlarge (4vCPU/16GB), m5.xlarge (4vCPU/16GB), c5.xlarge (4vCPU/8GB)
+#   Min/Max:        0 / 6  (scales to zero when no scans running)
+#   Taint:          spot-scanner=true:NoSchedule
+#   Labels:         workload-type=scan, node-type=spot
+#   Tags:           k8s.io/cluster-autoscaler/enabled=true (for auto-discovery)
+#
+# Cluster Autoscaler:
+#   scale-down-delay-after-add: 5m  (scale down 5 min after last pod finishes)
+#   scale-down-unneeded-time:   5m  (node removed after 5 min unused)
+#
+# IAM:
+#   Role:   ThreatEngineClusterAutoscalerRole  (IRSA)
+#   Policy: ThreatEngineClusterAutoscalerPolicy

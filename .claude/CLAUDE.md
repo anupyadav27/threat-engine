@@ -10,22 +10,29 @@ Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud 
 
 ## Repository Structure
 
-### Core Engines
-- `engine_onboarding/`: Multi-cloud account onboarding and credential management (Port 8010)
-- `engine_discoveries/`: Cloud resource discovery and enumeration (Port 8001)
-- `engine_check/`: Compliance rule evaluation - PASS/FAIL assessment (Port 8002)
-- `engine_inventory/`: Asset normalization, relationships, drift detection (Port 8022)
-- `engine_threat/`: Threat detection, MITRE mapping, attack chains (Port 8020)
-- `engine_compliance/`: Framework reporting and compliance scoring (Port 8000)
-- `engine_iam/`: IAM security posture analysis (Port 8001)
-- `engine_datasec/`: Data security and classification (Port 8003)
-- `engine_secops/`: IaC scanning (14 languages) (Port 8005)
-- `engine_rule/`: YAML rule management (Port 8011)
-- `Vulnerability-main/`: CVE and vulnerability database subsystem
+### Core Engines (`engines/`)
+- `engines/onboarding/`: Multi-cloud account onboarding and credential management (Port 8010)
+- `engines/discoveries/`: Cloud resource discovery and enumeration (Port 8001)
+- `engines/check/`: Compliance rule evaluation - PASS/FAIL assessment (Port 8002)
+- `engines/inventory/`: Asset normalization, relationships, drift detection (Port 8022)
+- `engines/threat/`: Threat detection, MITRE mapping, attack chains (Port 8020)
+- `engines/compliance/`: Framework reporting and compliance scoring (Port 8000)
+- `engines/iam/`: IAM security posture analysis (Port 8001)
+- `engines/datasec/`: Data security and classification (Port 8003)
+- `engines/secops/`: IaC scanning (14 languages) (Port 8005)
+- `engines/rule/`: YAML rule management (Port 8011)
+- `vulnerability/`: CVE and vulnerability database subsystem
 
-### Shared Services
-- `consolidated_services/database/`: PostgreSQL schemas, migrations, database config
-- `api_gateway/`: Central API routing and service discovery
+### Shared Services (`shared/`)
+- `shared/database/`: PostgreSQL schemas, migrations, database config (was `consolidated_services/`)
+- `shared/common/`: Shared Python utilities across all engines (was `engine_common/`)
+- `shared/api_gateway/`: Central API routing and service discovery (was `api_gateway/`)
+- `shared/auth/`: Authentication utilities (was `engine_auth/`)
+
+### Data Catalog
+- `catalog/`: CSP service catalog for inventory (was `data_pythonsdk/`)
+
+### Infrastructure
 - `deployment/`: Kubernetes manifests, Docker Compose, AWS configurations
 
 ## Important Paths (Always Use Absolute Paths)
@@ -34,18 +41,20 @@ Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud 
 Always use absolute paths: `/Users/apple/Desktop/threat-engine/...`
 
 Key locations:
-- **Database schemas**: `/Users/apple/Desktop/threat-engine/consolidated_services/database/schemas/`
-- **Database config**: `/Users/apple/Desktop/threat-engine/consolidated_services/database/config/`
-- **Engine implementations**: `/Users/apple/Desktop/threat-engine/engine_*/`
+- **Database schemas**: `/Users/apple/Desktop/threat-engine/shared/database/schemas/`
+- **Database config**: `/Users/apple/Desktop/threat-engine/shared/database/config/`
+- **Engine implementations**: `/Users/apple/Desktop/threat-engine/engines/*/`
+- **Shared utilities**: `/Users/apple/Desktop/threat-engine/shared/common/`
 - **Kubernetes manifests**: `/Users/apple/Desktop/threat-engine/deployment/aws/eks/`
 - **Docker configs**: `/Users/apple/Desktop/threat-engine/deployment/docker/`
+- **CSP catalog**: `/Users/apple/Desktop/threat-engine/catalog/`
 
 ## Development Commands
 
 ### Build & Test
 ```bash
-# Build Docker images
-docker build -t threat-engine -f engine_discoveries/Dockerfile .
+# Build Docker images (build context is repo root)
+docker build -t threat-engine -f engines/discoveries/Dockerfile .
 
 # Run tests
 pytest /Users/apple/Desktop/threat-engine/tests/ -v
@@ -54,7 +63,7 @@ pytest /Users/apple/Desktop/threat-engine/tests/ -v
 mypy /Users/apple/Desktop/threat-engine/src/
 
 # Linting
-pylint /Users/apple/Desktop/threat-engine/engine_*/
+pylint /Users/apple/Desktop/threat-engine/engines/*/
 ```
 
 ### Kubernetes Operations
@@ -208,18 +217,18 @@ Onboarding → Discovery → Check → Inventory → Threat/Compliance
 ## Common Workflows
 
 ### Adding a New Engine
-1. Create directory: `/Users/apple/Desktop/threat-engine/engine_newtype/`
-2. Copy template: Use `engine_compliance/` as reference
+1. Create directory: `/Users/apple/Desktop/threat-engine/engines/newtype/`
+2. Copy template: Use `engines/compliance/` as reference
 3. Implement API server: Follow FastAPI pattern from `api_server.py`
-4. Create database schema: Add to `consolidated_services/database/schemas/`
+4. Create database schema: Add to `shared/database/schemas/`
 5. Create K8s manifest: `deployment/aws/eks/engines/engine-newtype.yaml`
 6. Update orchestration: Add `newtype_scan_id` to `scan_orchestration` table
 7. Test locally: Build Docker image and run
 8. Deploy: `kubectl apply -f` the manifest
 
 ### Database Schema Changes
-1. Create migration: `/Users/apple/Desktop/threat-engine/consolidated_services/database/migrations/`
-2. Update schema SQL: `consolidated_services/database/schemas/<engine>_schema.sql`
+1. Create migration: `/Users/apple/Desktop/threat-engine/shared/database/migrations/`
+2. Update schema SQL: `shared/database/schemas/<engine>_schema.sql`
 3. Test migration: `python migrate.py --dry-run`
 4. Apply locally: `python migrate.py`
 5. Review in PR: Database changes require thorough review
