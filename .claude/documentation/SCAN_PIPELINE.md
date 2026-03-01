@@ -3,7 +3,7 @@
 > How a security scan flows through the CSPM platform, from cloud resource discovery
 > to compliance reporting and threat detection.
 >
-> Last updated: 2026-02-22
+> Last updated: 2026-03-01
 
 ---
 
@@ -248,6 +248,38 @@ POST /gateway/api/v1/orchestrate
 ### Method C: Scheduled (via onboarding engine)
 
 Cron schedules can be configured to trigger the full pipeline automatically.
+
+### Method D: SQS async pipeline (recommended for production)
+
+Set `SQS_PIPELINE_QUEUE_URL` on the onboarding engine. When set, `POST /onboarding/api/v1/scan/trigger` publishes a `scan_requested` event to the FIFO queue and returns immediately — the pipeline-worker pod picks it up and drives all stages:
+
+```
+POST /onboarding/api/v1/scan/trigger
+  → publishes to threat-engine-scan-requests.fifo
+  ← returns { "mode": "sqs", "status": "queued", "orchestration_id": "..." }
+
+pipeline-worker polls the queue:
+  1. trigger_inventory()  → POST /inventory/api/v1/inventory/scan/discovery
+  2. trigger_check()      → POST /check/api/v1/check
+  3. trigger_threat()  ┐
+     trigger_compliance() │ parallel via asyncio.gather
+     trigger_iam()        │
+     trigger_datasec() ┘
+
+On stage failure → message left in queue → SQS retries → DLQ after maxReceiveCount
+```
+
+**Queues** (FIFO, ap-south-1):
+- `threat-engine-scan-requests.fifo` — scan trigger input
+- `threat-engine-scan-requests-dlq.fifo` — failed scans after 3 attempts
+- `threat-engine-pipeline-events.fifo` — monitoring events
+- `threat-engine-pipeline-events-dlq.fifo`
+
+**Create queues:** `scripts/create-sqs-queues.sh`
+**Manifest:** `deployment/aws/eks/pipeline-worker/pipeline-worker.yaml`
+**Config:** `deployment/aws/eks/configmaps/sqs-config.yaml`
+
+When `SQS_PIPELINE_QUEUE_URL` is NOT set, the onboarding engine falls back to the original inline synchronous HTTP pipeline (Method A) — zero-downtime migration.
 
 ---
 

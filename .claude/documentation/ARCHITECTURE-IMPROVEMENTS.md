@@ -1,7 +1,7 @@
 # CSPM Platform — Architecture Improvement Roadmap
 
-> **Status**: Planned — implement after current code cleanup
-> **Last reviewed**: 2026-03-01
+> **Status**: ✅ ALL 5 ITEMS IMPLEMENTED — 2026-03-01
+> **Commits**: Alembic (pre-session), PgBouncer (pre-session), RLS + SQS + OTel (2026-03-01 session)
 > **Scope**: 5 structural improvements + 3 debt items
 > **Excluded**: RDS split into two instances (deferred — cost concern, only needed at 10+ concurrent tenants)
 
@@ -13,14 +13,14 @@ These improvements were identified during an architecture review (2026-03-01).
 The platform foundation is solid. These changes address scale, security, and operability
 **before onboarding real enterprise customers**.
 
-| # | Improvement | Priority | Effort | Risk Addressed |
-|---|-------------|----------|--------|----------------|
-| 1 | [Alembic migrations](#1-alembic-schema-migrations) | Immediate | 2 days | Schema drift, manual errors |
-| 2 | [PgBouncer](#2-pgbouncer-connection-pooling) | Before scaling | 1 day | RDS connection limit |
-| 3 | [PostgreSQL RLS](#3-postgresql-row-level-security) | Before first customer | 3 days | Tenant data leakage |
-| 4 | [SQS pipeline](#4-sqs-between-pipeline-stages) | Before multi-tenant | 1 week | Scan reliability, concurrency |
-| 5 | [OpenTelemetry](#5-opentelemetry-observability) | After above | 2 days | Debugging, visibility |
-| 6 | [Debt items](#6-architectural-debt) | Ongoing | varies | Performance, correctness |
+| # | Improvement | Status | Files |
+|---|-------------|--------|-------|
+| 1 | [Alembic migrations](#1-alembic-schema-migrations) | ✅ Done | `shared/database/alembic/` |
+| 2 | [PgBouncer](#2-pgbouncer-connection-pooling) | ✅ Done | `deployment/aws/eks/pgbouncer/` |
+| 3 | [PostgreSQL RLS](#3-postgresql-row-level-security) | ✅ Done | `shared/common/rls.py` + 9 Alembic migrations |
+| 4 | [SQS pipeline](#4-sqs-between-pipeline-stages) | ✅ Done | `shared/pipeline_worker/`, `shared/common/sqs.py` |
+| 5 | [OpenTelemetry](#5-opentelemetry-observability) | ✅ Done | `shared/common/telemetry.py`, `deployment/aws/eks/otel/` |
+| 6 | [Debt items](#6-architectural-debt) | Ongoing | varies |
 
 ---
 

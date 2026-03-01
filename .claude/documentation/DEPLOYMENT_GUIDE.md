@@ -168,6 +168,48 @@ helm install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.service.type=LoadBalancer
 ```
 
+### Step 4b: Deploy PgBouncer (connection pooler)
+
+```bash
+kubectl apply -f deployment/aws/eks/pgbouncer/pgbouncer.yaml -n threat-engine-engines
+# Verify
+kubectl get pods -n threat-engine-engines -l app=pgbouncer
+```
+
+All engine ConfigMaps already point to `pgbouncer.threat-engine-engines.svc.cluster.local:5432`.
+PgBouncer runs in transaction mode — 500 max app connections → 20 real RDS connections per DB.
+
+### Step 4c: Run Database Migrations (Alembic)
+
+Run before every deploy to ensure schema is current:
+
+```bash
+export RDS_HOST=postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+export DB_PASSWORD=<password>
+
+for DB in check compliance discoveries inventory threat iam datasec secops onboarding; do
+  DATABASE_URL="postgresql://postgres:${DB_PASSWORD}@${RDS_HOST}/threat_engine_${DB}" \
+    alembic -c shared/database/alembic.ini upgrade head
+done
+```
+
+Migration files are in `shared/database/alembic/versions/{engine}/`. Alembic tracks applied
+migrations in an `alembic_version` table per DB — safe to re-run.
+
+### Step 4d: Deploy OTel Collector (observability)
+
+```bash
+# ConfigMap first, then collector
+kubectl apply -f deployment/aws/eks/configmaps/otel-config.yaml -n threat-engine-engines
+kubectl apply -f deployment/aws/eks/otel/otel-collector.yaml -n threat-engine-engines
+# Verify collector is running
+kubectl get pods -n threat-engine-engines -l app=otel-collector
+```
+
+The OTel Collector receives OTLP gRPC (4317) and HTTP (4318) from all engine pods,
+exports Prometheus metrics on port 8889, and forwards traces to the debug exporter
+(swap for `otlp/tempo` or `awsxray` in the ConfigMap to route to a real backend).
+
 ### Step 5: Deploy All Engines
 
 ```bash
