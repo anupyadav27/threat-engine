@@ -2,7 +2,7 @@
 
 **Status:** Planning
 **Date:** 2026-03-02
-**Scope:** 5 new engines + 1 engine completion (threatintel feed ingestors)
+**Scope:** 5 new engines (threatintel_worker removed — covered by check engine metadata)
 
 ---
 
@@ -13,9 +13,9 @@ Before designing new engines, the following were verified against the codebase:
 | Engine | Status | Evidence |
 |--------|--------|---------|
 | **engine_attackpath** (Engine 2) | ✅ **FULLY BUILT** | `graph_builder.py` (1,921 lines) — Neo4j graph, 18 edge builders, BFS blast radius, 6 pre-built hunt queries, internet exposure inference, multi-CSP (38 resource types) |
-| **engine_threatintel** (Engine 4) | ⚠️ **PARTIAL** | Schema + manual correlation API exist. Missing: CISA KEV ingestion, EPSS scoring, NVD/CVE lookup, automated IOC scanning, feed polling service |
+| **engine_threatintel** (Engine 4) | ✅ **COVERED** | `check_engine` rule metadata already carries CVE IDs, MITRE technique IDs, severity baselines, and compliance framework mappings per rule. The threat engine reads from `rule_metadata` in the check DB directly — no separate feed ingestor service needed. |
 
-**Action:** Attack path engine needs no new work. Threat intel engine needs feed ingestors only (new `threatintel_worker` service, not a new engine).
+**Action:** Neither engine needs new work. threatintel_worker is dropped from scope.
 
 ---
 
@@ -40,8 +40,10 @@ TO BUILD (this document):
   engine_risk         → financial risk quantification (dollar exposure)
   engine_api          → OWASP API Top 10 + API inventory
 
-TO COMPLETE:
-  threatintel_worker  → feed ingestors (CISA KEV, EPSS, NVD, OTX)
+NOTE:
+  threatintel_worker  → NOT NEEDED. CVE/MITRE/KEV mappings already live in
+                        check_engine rule_metadata. Threat engine reads that
+                        directly for enrichment context.
 ```
 
 ---
@@ -1321,131 +1323,18 @@ feature/engine-api
 
 ---
 
-# COMPLETION: `threatintel_worker`
-## External Feed Ingestors for Threat Intelligence Engine
+# ~~COMPLETION: `threatintel_worker`~~ — NOT REQUIRED
 
----
-
-### What Exists (Do Not Rebuild)
-- `threat_intelligence` table in threat DB — ✅ schema ready
-- `finding_enrichments` concept — ✅ partially built
-- `/api/v1/intel/feed` POST endpoint — ✅ ready to receive data
-- MITRE technique reference table — ✅ populated
-
-### What to Build (Feed Ingestors Only)
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                        threatintel_worker                                     │
-│                   (CronJob in K8s, runs daily)                               │
-├──────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  EXTERNAL FEEDS             INGESTORS              WRITES TO                │
-│                                                                              │
-│  CISA KEV ─────────────► cisa_kev_ingestor.py ──►  threatintel cache        │
-│  (json, free)              (fetch catalog.json,      (indicator_type='cve'  │
-│                             parse, upsert)            source='cisa_kev')    │
-│                                                                              │
-│  NVD/CVE API ──────────► nvd_ingestor.py ────────►  threatintel cache       │
-│  (REST, free,              (delta sync last           + EPSS cross-ref)     │
-│   API key optional)        modified)                                         │
-│                                                                              │
-│  First-Party EPSS ──────► epss_ingestor.py ──────►  threatintel cache        │
-│  (csv.gz, free)            (daily bulk download,       (epss_score field)   │
-│                             gunzip + parse)                                  │
-│                                                                              │
-│  AlienVault OTX ────────► otx_ingestor.py ────────► threatintel cache        │
-│  (free tier)               (malicious IPs,             (indicator_type='ip')│
-│                             domains, hashes)                                 │
-│                                                                              │
-│  Abuse.ch ──────────────► abusech_ingestor.py ───►  threatintel cache        │
-│  (URLhaus, free)           (malicious URLs/IPs)                             │
-│                                                                              │
-│                            ┌──────────────────┐                             │
-│                            │ Enrichment Runner │                             │
-│  all engine findings ────► │ (post-ingest,     │ ──►  finding_enrichments   │
-│                            │  match findings    │      table                 │
-│                            │  against cache)    │      (is_in_kev, epss,    │
-│                            └──────────────────┘       threat_actors)        │
-│                                                                              │
-│  SCHEDULE: daily 00:00 UTC (CronJob)                                         │
-│  Enrichment run: after each engine scan completes (triggered via SQS)        │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Feed URLs & Formats
-
-| Feed | URL | Format | Update Freq |
-|------|-----|--------|-------------|
-| CISA KEV | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | JSON | Daily |
-| EPSS | `https://epss.cyentia.com/epss_scores-current.csv.gz` | CSV.GZ | Daily |
-| NVD CVE | `https://services.nvd.nist.gov/rest/json/cves/2.0` | REST JSON | Continuous |
-| AlienVault OTX | `https://otx.alienvault.com/api/v1/pulses/subscribed` | REST JSON | Hourly |
-| Abuse.ch URLhaus | `https://urlhaus-api.abuse.ch/v1/urls/recent/` | JSON | Hourly |
-
-### Output Schema Addition
-
-```sql
--- Add to existing threat DB (no new DB needed):
-
-CREATE TABLE IF NOT EXISTS threatintel_cache (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  indicator_type    VARCHAR(20),   -- cve | ip | domain | hash | technique
-  indicator_value   VARCHAR(500),
-  source            VARCHAR(50),   -- cisa_kev | epss | nvd | otx | abusech
-  is_malicious      BOOLEAN,
-  severity          VARCHAR(20),
-  epss_score        DECIMAL(6,5),  -- only for cve type
-  is_in_kev         BOOLEAN DEFAULT false,
-  kev_due_date      DATE,          -- CISA mandated remediation date
-  threat_actors     TEXT[],
-  first_seen        TIMESTAMP,
-  last_seen         TIMESTAMP,
-  expires_at        TIMESTAMP,
-  raw_data          JSONB,
-  created_at        TIMESTAMP DEFAULT NOW(),
-  UNIQUE (indicator_type, indicator_value, source)
-);
-
-CREATE TABLE IF NOT EXISTS finding_enrichments (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  finding_id        VARCHAR(255),  -- ID from any engine's findings table
-  engine_source     VARCHAR(30),
-  tenant_id         UUID,
-  orchestration_id  UUID,
-  cve_id            VARCHAR(30),
-  is_in_kev         BOOLEAN DEFAULT false,
-  kev_due_date      DATE,
-  epss_score        DECIMAL(6,5),
-  exploit_maturity  VARCHAR(20),
-  threat_actors     TEXT[],
-  risk_multiplier   DECIMAL(4,2) DEFAULT 1.0,
-  enriched_at       TIMESTAMP DEFAULT NOW()
-);
-```
-
-### Feature Branch
-```
-feature/threatintel-worker
-  shared/threatintel_worker/
-    worker.py                  # main loop / CronJob entry point
-    ingestors/
-      cisa_kev.py
-      epss.py
-      nvd.py
-      otx.py
-      abusech.py
-    enricher/
-      finding_enricher.py      # match findings → cache → write enrichments
-    db/
-      intel_db_writer.py
-      intel_db_reader.py
-    requirements.txt
-    Dockerfile
-  deployment/aws/eks/threatintel-worker/
-    threatintel-worker-cronjob.yaml   # K8s CronJob, schedule: "0 0 * * *"
-    threatintel-enricher-worker.yaml  # SQS consumer for post-scan enrichment
-```
+> **Decision:** The `check_engine` rule metadata (`rule_metadata` table in check DB) already
+> carries CVE IDs, MITRE technique IDs, severity baselines, compliance framework mappings,
+> and remediation guidance per rule — baked in at rule authoring time.
+>
+> The threat engine reads from `rule_metadata` directly for enrichment context.
+> No separate external feed ingestion service is needed.
+>
+> If specific CISA KEV / EPSS lookups are needed in future, they can be added as
+> a lightweight enrichment pass inside `engine_risk` (which already reads all findings)
+> rather than a standalone worker.
 
 ---
 
@@ -1470,7 +1359,8 @@ LAYER 2    check ─────────────────────
 LAYER 3    threat ───────────────────────────────────────────────────┤
            (parallel):  datasec                                      │
                         engine_supplychain  [NEW]                    │
-                        threatintel enrichment pass  [COMPLETE]      │
+                        (threatintel context from check rule_metadata │
+                         — no separate pass needed)                  │
                                                                       │
 LAYER 4    compliance ───────────────────────────────────────────────┤
            (parallel):  engine_risk  [NEW]                           │
@@ -1485,7 +1375,7 @@ OUTPUT     Reports / Dashboard / Alerts / API
 | Engine | Branch | Port | DB Name | Priority |
 |--------|--------|------|---------|---------|
 | `engine_container` | `feature/engine-container` | 8006 | `threat_engine_container` | P1 — Q1 |
-| `threatintel_worker` | `feature/threatintel-worker` | CronJob | threat DB (existing) | P1 — Q1 |
+| ~~`threatintel_worker`~~ | ~~dropped~~ | — | check DB rule_metadata (existing) | ✅ Already covered |
 | `engine_network` | `feature/engine-network` | 8007 | `threat_engine_network` | P2 — Q2 |
 | `engine_supplychain` | `feature/engine-supplychain` | 8008 | `threat_engine_supplychain` | P2 — Q2 |
 | `engine_risk` | `feature/engine-risk` | 8009 | `threat_engine_risk` | P3 — Q3 |
