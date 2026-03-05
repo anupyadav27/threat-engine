@@ -227,6 +227,8 @@ async def validate_credentials(account_id: str):
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error validating credentials for {account_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
