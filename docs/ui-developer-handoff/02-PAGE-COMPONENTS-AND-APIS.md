@@ -112,6 +112,7 @@ All routes go through: /gateway/...
 | 1 | Register Account | `/onboarding/api/v1/cloud-accounts` | POST | `{account_id, tenant_id, account_name, provider, regions:[]}` | created account object |
 | 2 | Store & Validate Credentials | `/onboarding/api/v1/accounts/{id}/credentials` | POST | `{credential_type, credentials:{...}}` — see per-CSP shapes below | `{status:"stored", account_id}` or `400` |
 | 3 | Activate + Schedule | `/onboarding/api/v1/cloud-accounts/{id}/validate` | POST | `{cron_expression, include_regions:[], engines_requested:[]}` | full updated account |
+| — | Account Status | `/onboarding/api/v1/cloud-accounts/{id}/status` | GET | — | `{account_status, onboarding_status, credential_validation_status, schedule_enabled, ...}` |
 | — | Re-validate Credentials | `/onboarding/api/v1/cloud-accounts/{id}/validate-credentials` | POST | — (no body) | `{success, status, message, validated_at}` |
 | — | Update Config | `/onboarding/api/v1/cloud-accounts/{id}` | PATCH | any subset of account fields | updated account |
 | — | Delete Account | `/onboarding/api/v1/cloud-accounts/{id}` | DELETE | — | `{message}` |

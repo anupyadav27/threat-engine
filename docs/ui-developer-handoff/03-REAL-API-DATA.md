@@ -232,6 +232,27 @@ Returns the full updated account with `account_status: "active"`.
 
 ---
 
+### Get account status
+
+```bash
+curl "$BASE/onboarding/api/v1/cloud-accounts/588989875114/status"
+```
+
+```json
+{
+  "account_id": "588989875114",
+  "account_status": "active",
+  "onboarding_status": "validated",
+  "credential_validation_status": "valid",
+  "credential_validated_at": "2026-03-05T10:00:00Z",
+  "schedule_enabled": true,
+  "schedule_next_run_at": "2026-03-06T02:00:00Z",
+  "last_scan_at": "2026-03-05T02:00:00Z"
+}
+```
+
+---
+
 ### Re-validate stored credentials
 
 ```bash
