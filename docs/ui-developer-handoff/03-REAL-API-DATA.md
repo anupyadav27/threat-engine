@@ -119,6 +119,139 @@ curl "$BASE/onboarding/api/v1/cloud-accounts/588989875114"
 
 ---
 
+### Step 1 — Register new account
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/cloud-accounts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "123456789012",
+    "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
+    "account_name": "Dev AWS Account",
+    "provider": "aws",
+    "regions": ["ap-south-1","us-east-1"]
+  }'
+```
+
+```json
+{
+  "account_id": "123456789012",
+  "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
+  "account_name": "Dev AWS Account",
+  "provider": "aws",
+  "account_status": "pending",
+  "account_onboarding_status": "pending",
+  "credential_validation_status": "pending",
+  "created_at": "2026-03-05T10:00:00Z"
+}
+```
+
+---
+
+### Step 2 — Store & validate credentials (all 6 CSPs)
+
+**AWS (access key):**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/123456789012/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"aws_access_key","credentials":{"aws_access_key_id":"AKIA...","aws_secret_access_key":"..."}}'
+```
+
+**AWS (IAM role):**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/123456789012/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"aws_iam_role","credentials":{"role_arn":"arn:aws:iam::123456789012:role/ScanRole","external_id":"my-external-id","account_number":"123456789012"}}'
+```
+
+**Azure:**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-azure-sub/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"azure_service_principal","credentials":{"client_id":"xxx","client_secret":"yyy","tenant_id":"zzz","subscription_id":"www"}}'
+```
+
+**GCP:**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-gcp-project/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"gcp_service_account","credentials":{"service_account_json":{"type":"service_account","project_id":"my-gcp-project","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n","client_email":"scanner@my-gcp-project.iam.gserviceaccount.com"}}}'
+```
+
+**IBM:**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-ibm-account/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"ibm_api_key","credentials":{"api_key":"your-ibm-cloud-api-key"}}'
+```
+
+**OCI:**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-tenancy/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"oci_user_principal","credentials":{"user_ocid":"ocid1.user.oc1..aaa","tenancy_ocid":"ocid1.tenancy.oc1..bbb","fingerprint":"aa:bb:cc:dd","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n","region":"us-ashburn-1"}}'
+```
+
+**AliCloud:**
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-alicloud/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{"credential_type":"alicloud_access_key","credentials":{"access_key_id":"LTAI5tExampleKey","access_key_secret":"ExampleSecret"}}'
+```
+
+**Success response (all CSPs):**
+```json
+{ "status": "stored", "account_id": "123456789012" }
+```
+
+**Failure response (invalid creds):**
+```json
+{
+  "detail": {
+    "message": "AWS Error (InvalidClientTokenId): The security token included in the request is invalid.",
+    "errors": ["..."]
+  }
+}
+```
+
+---
+
+### Step 3 — Activate + set schedule
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/cloud-accounts/123456789012/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cron_expression": "0 2 * * *",
+    "include_regions": ["ap-south-1","us-east-1"],
+    "engines_requested": ["discovery","check","inventory","threat","compliance","iam","datasec"]
+  }'
+```
+
+Returns the full updated account with `account_status: "active"`.
+
+---
+
+### Re-validate stored credentials
+
+```bash
+# No body needed — reads from Secrets Manager and calls CSP live
+curl -X POST "$BASE/onboarding/api/v1/cloud-accounts/588989875114/validate-credentials"
+```
+
+```json
+{
+  "success": true,
+  "account_id": "588989875114",
+  "status": "valid",
+  "message": "Access key validated successfully",
+  "errors": [],
+  "validated_at": "2026-03-05T10:00:00Z"
+}
+```
+
+---
+
 ## 2. Inventory Engine
 
 **Prefix**: `/inventory` → stripped to `/api/v1/inventory/`

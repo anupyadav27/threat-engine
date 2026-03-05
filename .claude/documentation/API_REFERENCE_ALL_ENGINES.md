@@ -162,15 +162,18 @@ Manages the `cloud_accounts` table and writes to `scan_orchestration`.
 | Method | Path | Description | Required Params |
 |--------|------|-------------|-----------------|
 | GET | `/api/v1/health` | Health + DB status | — |
-| POST | `/api/v1/cloud-accounts` | Register a new cloud account | body (see below) |
-| GET | `/api/v1/cloud-accounts` | List all cloud accounts | — |
+| GET | `/api/v1/health/live` | K8s liveness (no DB) | — |
+| GET | `/api/v1/health/ready` | K8s readiness (DB ping) | — |
+| POST | `/api/v1/cloud-accounts` | Step 1 — Register account record | body |
+| GET | `/api/v1/cloud-accounts` | List cloud accounts | optional: `tenant_id`, `provider`, `status` |
 | GET | `/api/v1/cloud-accounts/{account_id}` | Get account details | `account_id` |
 | PATCH | `/api/v1/cloud-accounts/{account_id}` | Update account config | `account_id` |
-| DELETE | `/api/v1/cloud-accounts/{account_id}` | Delete account | `account_id` |
-| POST | `/api/v1/cloud-accounts/{account_id}/validate` | Validate account setup | `account_id` |
-| POST | `/api/v1/cloud-accounts/{account_id}/validate-credentials` | Test credentials | `account_id` |
-| POST | `/api/v1/accounts/{account_id}/credentials` | Add/update credentials | `account_id` |
-| DELETE | `/api/v1/accounts/{account_id}/credentials` | Remove credentials | `account_id` |
+| DELETE | `/api/v1/cloud-accounts/{account_id}` | Soft-delete account | `account_id` |
+| POST | `/api/v1/accounts/{account_id}/credentials` | Step 2 — Store & validate credentials | `account_id`, body |
+| GET | `/api/v1/accounts/{account_id}/credentials/validate` | Re-validate stored credentials | `account_id` |
+| DELETE | `/api/v1/accounts/{account_id}/credentials` | Remove credentials from Secrets Manager | `account_id` |
+| POST | `/api/v1/cloud-accounts/{account_id}/validate-credentials` | Re-validate (returns full detail) | `account_id` |
+| POST | `/api/v1/cloud-accounts/{account_id}/validate` | Step 3 — Set schedule + activate | `account_id`, body |
 
 ### Health Check
 
@@ -268,7 +271,9 @@ GET http://<ELB>/onboarding/api/v1/cloud-accounts/588989875114
 }
 ```
 
-### Register a New Account
+### 3-Step Onboarding Flow
+
+#### Step 1 — Register Account
 
 **Request:**
 ```
@@ -278,32 +283,165 @@ Content-Type: application/json
 
 ```json
 {
+  "account_id": "123456789012",
   "tenant_id": "my-tenant",
   "tenant_name": "My Org",
   "customer_id": "cust-001",
   "customer_email": "admin@example.com",
   "account_name": "AWS Dev Account",
   "provider": "aws",
-  "credential_type": "access_key",
-  "account_id": "123456789012",
-  "credentials": {
-    "aws_access_key_id": "AKIA...",
-    "aws_secret_access_key": "...",
-    "aws_region": "ap-south-1"
-  },
-  "schedule_engines_requested": ["discovery", "check", "inventory"],
-  "schedule_cron_expression": "0 2 * * *"
+  "regions": ["ap-south-1", "us-east-1"]
 }
 ```
 
-**Response (201):** Returns the created account object (same shape as GET single account).
+**Response (201):** Returns created account object with `account_status: "pending"`.
+
+---
+
+#### Step 2 — Store & Validate Credentials
+
+**Request:**
+```
+POST http://<ELB>/onboarding/api/v1/accounts/{account_id}/credentials
+Content-Type: application/json
+```
+
+Credentials are validated live against the CSP API **before** being stored in Secrets Manager.
+Returns `400` if invalid. Returns `200 {"status":"stored"}` on success.
+
+**Per-CSP request bodies:**
+
+| CSP | `credential_type` | Required fields in `credentials` |
+|-----|-------------------|-----------------------------------|
+| AWS Access Key | `aws_access_key` | `aws_access_key_id`, `aws_secret_access_key` |
+| AWS IAM Role | `aws_iam_role` | `role_arn`, `external_id`, `account_number` |
+| Azure | `azure_service_principal` | `client_id`, `client_secret`, `tenant_id`, `subscription_id` |
+| GCP | `gcp_service_account` | `service_account_json` (full JSON object or string) |
+| IBM | `ibm_api_key` | `api_key` |
+| OCI | `oci_user_principal` | `user_ocid`, `tenancy_ocid`, `fingerprint`, `private_key` (PEM), `region` |
+| AliCloud | `alicloud_access_key` | `access_key_id`, `access_key_secret` |
+
+**Example — AWS Access Key:**
+```json
+{
+  "credential_type": "aws_access_key",
+  "credentials": {
+    "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+    "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  }
+}
+```
+
+**Example — Azure Service Principal:**
+```json
+{
+  "credential_type": "azure_service_principal",
+  "credentials": {
+    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "client_secret": "your-client-secret",
+    "tenant_id": "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+    "subscription_id": "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+  }
+}
+```
+
+**Example — GCP Service Account:**
+```json
+{
+  "credential_type": "gcp_service_account",
+  "credentials": {
+    "service_account_json": {
+      "type": "service_account",
+      "project_id": "my-gcp-project",
+      "private_key": "-----BEGIN RSA PRIVATE KEY-----\n...",
+      "client_email": "scanner@my-gcp-project.iam.gserviceaccount.com"
+    }
+  }
+}
+```
+
+**Example — IBM API Key:**
+```json
+{
+  "credential_type": "ibm_api_key",
+  "credentials": { "api_key": "your-ibm-cloud-api-key" }
+}
+```
+
+**Example — OCI User Principal:**
+```json
+{
+  "credential_type": "oci_user_principal",
+  "credentials": {
+    "user_ocid": "ocid1.user.oc1..aaaaaaaa...",
+    "tenancy_ocid": "ocid1.tenancy.oc1..aaaaaaaa...",
+    "fingerprint": "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99",
+    "private_key": "-----BEGIN RSA PRIVATE KEY-----\n...",
+    "region": "us-ashburn-1"
+  }
+}
+```
+
+**Example — AliCloud Access Key:**
+```json
+{
+  "credential_type": "alicloud_access_key",
+  "credentials": {
+    "access_key_id": "LTAI5tExampleKey",
+    "access_key_secret": "ExampleSecret"
+  }
+}
+```
+
+**Success response (200):**
+```json
+{ "status": "stored", "account_id": "123456789012" }
+```
+
+**Error response (400):**
+```json
+{
+  "detail": {
+    "message": "AWS Error (InvalidClientTokenId): The security token included in the request is invalid.",
+    "errors": ["..."]
+  }
+}
+```
+
+After success, `cloud_accounts` is updated:
+- `credential_validation_status` → `"valid"`
+- `account_onboarding_status` → `"deployed"`
+- `account_number` populated from CSP identity response
+- `credential_ref` → `"threat-engine/account/<account_id>"`
+
+---
+
+#### Step 3 — Set Schedule + Activate
+
+**Request:**
+```
+POST http://<ELB>/onboarding/api/v1/cloud-accounts/{account_id}/validate
+Content-Type: application/json
+```
+
+```json
+{
+  "cron_expression": "0 2 * * *",
+  "include_regions": ["ap-south-1", "us-east-1"],
+  "engines_requested": ["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"]
+}
+```
+
+**Response (200):** Returns full updated account with `account_status: "active"`, `account_onboarding_status: "validated"`, and `schedule_next_run_at` calculated.
+
+---
 
 ### Notes
 
-- `account_id` is the cloud provider's account identifier (AWS account number, GCP project ID, etc.).
-- `credential_type` values: `access_key` (AWS), `gcp_service_account`, `azure_service_principal`, `role_arn` (AWS cross-account role).
-- `schedule_engines_requested` controls which engines run on the scheduled cron.
-- Credentials are stored in AWS Secrets Manager at path `threat-engine/account/<account_id>`.
+- `account_id` = cloud provider identifier (AWS account number, GCP project ID, Azure subscription ID, etc.).
+- Credentials stored at Secrets Manager path: `threat-engine/account/<account_id>`.
+- `schedule_engines_requested` controls which pipeline stages run on the cron.
+- `POST /validate-credentials` (no body) re-runs validation against live CSP API using stored credentials.
 
 ---
 

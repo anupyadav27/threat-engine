@@ -170,7 +170,7 @@ curl "$BASE/onboarding/api/v1/cloud-accounts/588989875114"
 
 ### `POST /onboarding/api/v1/cloud-accounts`
 
-**Use**: Onboarding wizard — register a new cloud account
+**Use**: Onboarding wizard **Step 1** — create the account record (no credentials here)
 
 ```bash
 curl -X POST "$BASE/onboarding/api/v1/cloud-accounts" \
@@ -180,15 +180,7 @@ curl -X POST "$BASE/onboarding/api/v1/cloud-accounts" \
     "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
     "account_name": "Dev AWS Account",
     "provider": "aws",
-    "credential_type": "access_key",
-    "credentials": {
-      "access_key_id": "AKIA...",
-      "secret_access_key": "..."
-    },
-    "regions": ["us-east-1","ap-south-1"],
-    "schedule_enabled": true,
-    "schedule_cron_expression": "0 3 * * *",
-    "schedule_engines_requested": ["discovery","check","inventory","threat","compliance"]
+    "regions": ["us-east-1","ap-south-1"]
   }'
 ```
 
@@ -196,8 +188,155 @@ curl -X POST "$BASE/onboarding/api/v1/cloud-accounts" \
 {
   "account_id": "123456789012",
   "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
-  "status": "created",
-  "message": "Account onboarded successfully"
+  "account_name": "Dev AWS Account",
+  "provider": "aws",
+  "account_status": "pending",
+  "account_onboarding_status": "pending",
+  "credential_validation_status": "pending",
+  "created_at": "2026-03-05T10:00:00Z"
+}
+```
+
+---
+
+### `POST /onboarding/api/v1/accounts/{account_id}/credentials`
+
+**Use**: Onboarding wizard **Step 2** — store credentials in Secrets Manager and validate them live against the CSP API.
+
+Returns `400` with `errors` if credentials are invalid; `200` on success.
+
+#### AWS — Access Key
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/123456789012/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "aws_access_key",
+    "credentials": {
+      "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+      "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }
+  }'
+```
+
+#### AWS — IAM Role (cross-account)
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/123456789012/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "aws_iam_role",
+    "credentials": {
+      "role_arn": "arn:aws:iam::123456789012:role/ThreatEngineScanRole",
+      "external_id": "abc123-unique-per-account",
+      "account_number": "123456789012"
+    }
+  }'
+```
+
+#### Azure — Service Principal
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-azure-sub/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "azure_service_principal",
+    "credentials": {
+      "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "client_secret": "your-client-secret",
+      "tenant_id": "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+      "subscription_id": "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+    }
+  }'
+```
+
+#### GCP — Service Account
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-gcp-project/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "gcp_service_account",
+    "credentials": {
+      "service_account_json": {
+        "type": "service_account",
+        "project_id": "my-gcp-project",
+        "private_key_id": "key-id",
+        "private_key": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n",
+        "client_email": "scanner@my-gcp-project.iam.gserviceaccount.com",
+        "client_id": "123456789",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token"
+      }
+    }
+  }'
+```
+
+#### IBM — API Key
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-ibm-account/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "ibm_api_key",
+    "credentials": {
+      "api_key": "your-ibm-cloud-api-key"
+    }
+  }'
+```
+
+#### OCI — User Principal
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-tenancy/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "oci_user_principal",
+    "credentials": {
+      "user_ocid": "ocid1.user.oc1..aaaaaaaa...",
+      "tenancy_ocid": "ocid1.tenancy.oc1..aaaaaaaa...",
+      "fingerprint": "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99",
+      "private_key": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n",
+      "region": "us-ashburn-1"
+    }
+  }'
+```
+
+#### AliCloud — Access Key
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/accounts/my-alicloud-account/credentials" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential_type": "alicloud_access_key",
+    "credentials": {
+      "access_key_id": "LTAI5tExampleAccessKeyId",
+      "access_key_secret": "ExampleAccessKeySecret"
+    }
+  }'
+```
+
+**Success response (200 — all CSPs):**
+
+```json
+{
+  "status": "stored",
+  "account_id": "123456789012"
+}
+```
+
+The engine also updates `cloud_accounts`:
+- `credential_validation_status` → `"valid"`
+- `account_onboarding_status` → `"deployed"`
+- `account_number` → populated from CSP identity call
+
+**Error response (400):**
+```json
+{
+  "detail": {
+    "message": "AWS Error (InvalidClientTokenId): The security token included in the request is invalid.",
+    "errors": ["..."]
+  }
 }
 ```
 
@@ -205,7 +344,8 @@ curl -X POST "$BASE/onboarding/api/v1/cloud-accounts" \
 
 ### `POST /onboarding/api/v1/cloud-accounts/{account_id}/validate-credentials`
 
-**Use**: Credential validation step in onboarding wizard
+**Use**: Re-validate credentials already stored in Secrets Manager (no body needed).
+Called from the Account Detail page "Re-validate" button.
 
 ```bash
 curl -X POST "$BASE/onboarding/api/v1/cloud-accounts/588989875114/validate-credentials"
@@ -213,11 +353,45 @@ curl -X POST "$BASE/onboarding/api/v1/cloud-accounts/588989875114/validate-crede
 
 ```json
 {
+  "success": true,
   "account_id": "588989875114",
-  "validation_status": "valid",
-  "provider": "aws",
-  "checked_at": "2026-02-28T10:00:00Z"
+  "status": "valid",
+  "message": "Access key validated successfully",
+  "errors": [],
+  "validated_at": "2026-03-05T10:00:00Z"
 }
+```
+
+---
+
+### `POST /onboarding/api/v1/cloud-accounts/{account_id}/validate`
+
+**Use**: Onboarding wizard **Step 3** — validate credentials + set scan schedule + activate account.
+
+```bash
+curl -X POST "$BASE/onboarding/api/v1/cloud-accounts/123456789012/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cron_expression": "0 2 * * *",
+    "include_regions": ["ap-south-1","us-east-1"],
+    "engines_requested": ["discovery","check","inventory","threat","compliance","iam","datasec"]
+  }'
+```
+
+Returns the full updated account object with `account_status: "active"` and `account_onboarding_status: "validated"`.
+
+---
+
+### `DELETE /onboarding/api/v1/accounts/{account_id}/credentials`
+
+**Use**: Remove credentials from Secrets Manager (soft-delete, 7-day recovery window).
+
+```bash
+curl -X DELETE "$BASE/onboarding/api/v1/accounts/123456789012/credentials"
+```
+
+```json
+{ "status": "deleted", "account_id": "123456789012" }
 ```
 
 ---

@@ -104,17 +104,33 @@ All routes go through: /gateway/...
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Component | API | Method | Request | Response |
-|-----------|-----|--------|---------|----------|
-| Account List | `/gateway/api/v1/onboarding/accounts` | GET | `?tenant_id=...&provider_type=...` | `{accounts: [...]}` |
-| Onboard Wizard Step 1 | `/gateway/api/v1/onboarding/{provider}/auth-methods` | GET | — | `{provider, methods: [{method, display_name, recommended}]}` |
-| Onboard Wizard Step 2 | `/gateway/api/v1/onboarding/{provider}/init` | POST | `{tenant_id, account_name, auth_method}` | `{onboarding_id, account_id, external_id}` |
-| AWS CFN Template | `/gateway/api/v1/onboarding/aws/cloudformation-template` | GET | `?external_id=...` | `{template, external_id}` |
-| Onboard Wizard Step 3 | `/gateway/api/v1/onboarding/{provider}/validate` | POST | `{account_id, auth_method, credentials}` | `{success, message, account_number}` |
-| Account Health | `/gateway/api/v1/onboarding/accounts/{id}/health` | GET | — | `{health_status, credentials_valid, ...}` |
-| Account Stats | `/gateway/api/v1/onboarding/accounts/{id}/statistics` | GET | — | `{total_scans, success_rate, ...}` |
-| Re-validate | `/gateway/api/v1/accounts/{id}/credentials/validate` | GET | — | `{success, message}` |
-| Delete Account | `/gateway/api/v1/onboarding/accounts/{id}` | DELETE | — | `{status}` |
+**3-step onboarding flow:**
+
+| Step | Component | API | Method | Request Body | Response |
+|------|-----------|-----|--------|--------------|----------|
+| — | Account List | `/onboarding/api/v1/cloud-accounts` | GET | `?tenant_id=...&provider=...&status=...` | `{accounts:[...], count:N}` |
+| 1 | Register Account | `/onboarding/api/v1/cloud-accounts` | POST | `{account_id, tenant_id, account_name, provider, regions:[]}` | created account object |
+| 2 | Store & Validate Credentials | `/onboarding/api/v1/accounts/{id}/credentials` | POST | `{credential_type, credentials:{...}}` — see per-CSP shapes below | `{status:"stored", account_id}` or `400` |
+| 3 | Activate + Schedule | `/onboarding/api/v1/cloud-accounts/{id}/validate` | POST | `{cron_expression, include_regions:[], engines_requested:[]}` | full updated account |
+| — | Re-validate Credentials | `/onboarding/api/v1/cloud-accounts/{id}/validate-credentials` | POST | — (no body) | `{success, status, message, validated_at}` |
+| — | Update Config | `/onboarding/api/v1/cloud-accounts/{id}` | PATCH | any subset of account fields | updated account |
+| — | Delete Account | `/onboarding/api/v1/cloud-accounts/{id}` | DELETE | — | `{message}` |
+| — | Remove Credentials | `/onboarding/api/v1/accounts/{id}/credentials` | DELETE | — | `{status:"deleted"}` |
+
+**Credential body shapes per CSP (Step 2):**
+
+| CSP | `credential_type` | `credentials` object fields |
+|-----|-------------------|-----------------------------|
+| AWS Access Key | `aws_access_key` | `aws_access_key_id`, `aws_secret_access_key` |
+| AWS IAM Role | `aws_iam_role` | `role_arn`, `external_id`, `account_number` |
+| Azure | `azure_service_principal` | `client_id`, `client_secret`, `tenant_id`, `subscription_id` |
+| GCP | `gcp_service_account` | `service_account_json` (full JSON object) |
+| IBM | `ibm_api_key` | `api_key` |
+| OCI | `oci_user_principal` | `user_ocid`, `tenancy_ocid`, `fingerprint`, `private_key` (PEM string), `region` |
+| AliCloud | `alicloud_access_key` | `access_key_id`, `access_key_secret` |
+
+> Credentials are validated **live** before storage. A `400` with `{message, errors:[]}` means the CSP rejected them.
+> On success, `cloud_accounts.credential_validation_status` is set to `"valid"` automatically.
 
 ### 2c. Schedules Page
 **Route**: `/onboarding/schedules`

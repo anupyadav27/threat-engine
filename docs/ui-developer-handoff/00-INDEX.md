@@ -1,6 +1,6 @@
 # CSPM Platform — UI Developer Handoff
 
-> Last updated: 2026-02-28 (all API samples verified against live cluster)
+> Last updated: 2026-03-05 (multi-CSP credential API added; onboarding endpoints corrected)
 > Cluster: `vulnerability-eks-cluster` | Region: `ap-south-1`
 > Live tenant with data: `5a8b072b-8867-4476-a52f-f331b1cbacb3` | AWS account: `588989875114`
 
