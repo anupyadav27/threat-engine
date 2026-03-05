@@ -285,6 +285,35 @@ async def validate_and_schedule(account_id: str, validation_data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{account_id}/status")
+async def get_account_status(account_id: str):
+    """
+    Get the onboarding and scan status for a cloud account.
+
+    Returns a focused status summary without the full account record.
+    """
+    try:
+        account = get_cloud_account(account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+
+        return {
+            "account_id": account_id,
+            "account_status": account.get("account_status"),
+            "onboarding_status": account.get("account_onboarding_status"),
+            "credential_validation_status": account.get("credential_validation_status"),
+            "credential_validated_at": account.get("credential_validated_at"),
+            "schedule_enabled": account.get("schedule_enabled"),
+            "schedule_next_run_at": account.get("schedule_next_run_at"),
+            "last_scan_at": account.get("last_scan_at"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving status for account {account_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/{account_id}")
 async def delete_account(account_id: str):
     """
