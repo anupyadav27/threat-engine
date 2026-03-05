@@ -67,9 +67,12 @@ async def store_credentials(
     if provider_type.lower() == "aws" and credential_type == "access_key":
         normalized_credential_type = "aws_access_key"
 
+    # Inject credential_type into the credentials dict so validator dispatch works
+    credentials_for_validation = {**credentials, 'credential_type': normalized_credential_type}
+
     # Validate credentials first
     validator = get_validator(provider_type, normalized_credential_type)
-    validation_result = await validator.validate(credentials)
+    validation_result = await validator.validate(credentials_for_validation)
 
     if not validation_result.success:
         raise HTTPException(400, detail={

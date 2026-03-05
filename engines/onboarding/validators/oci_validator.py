@@ -13,22 +13,23 @@ except ImportError:
 
 class OCIValidator(BaseValidator):
     """Validator for OCI credentials"""
-    
+
     async def validate(self, credentials: Dict[str, Any]) -> ValidationResult:
         """
         Validate OCI credentials
-        
+
         Supports:
         - oci_user_principal: user_ocid, tenancy_ocid, fingerprint, private_key, region
+          private_key must be a PEM string (contents of the .pem key file)
         """
         if not OCI_AVAILABLE:
             return self._create_error_result(
                 "OCI SDK not available",
                 ["Install oci package"]
             )
-        
+
         credential_type = credentials.get('credential_type')
-        
+
         if credential_type == 'oci_user_principal':
             return await self._validate_user_principal(credentials)
         else:
@@ -36,7 +37,7 @@ class OCIValidator(BaseValidator):
                 f"Unsupported OCI credential type: {credential_type}",
                 ["Supported types: oci_user_principal"]
             )
-    
+
     async def _validate_user_principal(self, credentials: Dict[str, Any]) -> ValidationResult:
         """Validate OCI User Principal credentials"""
         try:
@@ -44,41 +45,47 @@ class OCIValidator(BaseValidator):
             tenancy_ocid = credentials.get('tenancy_ocid')
             fingerprint = credentials.get('fingerprint')
             private_key = credentials.get('private_key')
-            region = credentials.get('region')
-            
-            if not all([user_ocid, tenancy_ocid, fingerprint, private_key, region]):
+            region = credentials.get('region', 'us-ashburn-1')
+
+            if not all([user_ocid, tenancy_ocid, fingerprint, private_key]):
                 return self._create_error_result(
                     "Missing required fields",
-                    ["user_ocid, tenancy_ocid, fingerprint, private_key, and region are required"]
+                    ["user_ocid, tenancy_ocid, fingerprint, and private_key are required"]
                 )
-            
-            # Create config
+
+            # Build config dict — key_content accepts the PEM string directly,
+            # no need for a Signer object.
             config = {
                 "user": user_ocid,
-                "key_file": None,
+                "key_content": private_key,   # PEM string inline
                 "fingerprint": fingerprint,
                 "tenancy": tenancy_ocid,
-                "region": region
+                "region": region,
             }
-            
-            # Create signer with private key
-            signer = oci.signer.Signer(
-                config,
-                private_key_content=private_key
-            )
-            
-            # Test by getting identity
-            identity_client = oci.identity.IdentityClient(config, signer=signer)
-            user = identity_client.get_user(user_id=user_ocid)
-            
+
+            oci.config.validate_config(config)
+
+            identity_client = oci.identity.IdentityClient(config)
+            user_response = identity_client.get_user(user_id=user_ocid)
+            user_data = user_response.data
+
             return self._create_success_result(
                 "OCI user principal validated successfully",
-                account_number=tenancy_ocid
+                account_number=tenancy_ocid,
             )
-            
+
+        except oci.exceptions.ServiceError as e:
+            return self._create_error_result(
+                f"OCI Service Error ({e.status}): {e.message}",
+                [str(e)]
+            )
+        except oci.exceptions.InvalidConfig as e:
+            return self._create_error_result(
+                f"OCI Config Error: {str(e)}",
+                [str(e)]
+            )
         except Exception as e:
             return self._create_error_result(
                 f"OCI Error: {str(e)}",
                 [str(e)]
             )
-
