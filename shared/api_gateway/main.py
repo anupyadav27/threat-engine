@@ -29,6 +29,12 @@ except ImportError:
     OrchestrationService = None
     OrchestrationRequest = None
 
+# Import BFF views router
+try:
+    from views import router as views_router
+except ImportError:
+    views_router = None
+
 logger = setup_logger(__name__, engine_name="api-gateway")
 
 # Initialize orchestration service (if available)
@@ -218,6 +224,11 @@ app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
 # 4. Auth — validate access_token cookie, build AuthContext, set X-Auth-Context
 #    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS
 app.add_middleware(AuthMiddleware)
+
+# BFF views router — provides aggregated, UI-ready endpoints under /gateway/api/v1/views/
+if views_router is not None:
+    app.include_router(views_router)
+
 
 def get_target_service(path: str) -> Optional[str]:
     """Determine which service should handle this request"""

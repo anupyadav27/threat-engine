@@ -29,11 +29,15 @@ Tables READ: None (write-only module)
 """
 
 import json
+import uuid
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from ..schemas.asset_schema import Asset, generate_asset_id
 from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
+
+logger = logging.getLogger(__name__)
 
 
 class IndexWriter:
@@ -196,6 +200,69 @@ class PostgresIndexWriter(IndexWriter):
                 rel.from_resource_type, rel.to_resource_type,
                 json.dumps(rel.properties)
             ))
-        
+
         self.conn.commit()
+
+    def write_drift_index(self, drift_records, scan_run_id: str, previous_scan_id: str, tenant_id: str):
+        """Write drift records to inventory_drift table.
+
+        Args:
+            drift_records: List of DriftRecord pydantic objects from DriftDetector
+            scan_run_id: Current inventory scan ID
+            previous_scan_id: Previous scan ID that was compared against
+            tenant_id: Tenant ID
+        """
+        if not drift_records:
+            return
+
+        cursor = self.conn.cursor()
+        inserted = 0
+
+        for dr in drift_records:
+            try:
+                drift_id = str(uuid.uuid4())
+                change_type = dr.change_type.value if hasattr(dr.change_type, 'value') else str(dr.change_type)
+
+                # Build previous/current state and changes_summary from diff
+                diff_data = dr.diff if hasattr(dr, 'diff') else {}
+                changes_summary = diff_data if isinstance(diff_data, (dict, list)) else {}
+
+                # Determine severity from change type
+                if "remove" in change_type.lower():
+                    severity = "high"
+                elif "change" in change_type.lower() or "modified" in change_type.lower():
+                    severity = "medium"
+                else:
+                    severity = "low"
+
+                # Extract resource metadata
+                resource_uid = dr.resource_uid if hasattr(dr, 'resource_uid') else ""
+                provider = ""
+                resource_type = ""
+                if hasattr(dr, 'resource_type'):
+                    resource_type = dr.resource_type or ""
+
+                cursor.execute("""
+                    INSERT INTO inventory_drift (
+                        drift_id, inventory_scan_id, previous_scan_id, tenant_id,
+                        resource_uid, provider, resource_type, change_type,
+                        previous_state, current_state, changes_summary,
+                        severity, detected_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    drift_id, scan_run_id, previous_scan_id, tenant_id,
+                    resource_uid, provider, resource_type, change_type,
+                    json.dumps({}), json.dumps({}), json.dumps(changes_summary),
+                    severity,
+                    dr.detected_at if hasattr(dr, 'detected_at') else datetime.utcnow()
+                ))
+                inserted += 1
+            except Exception as e:
+                logger.warning(f"Failed to write drift record: {e}")
+                self.conn.rollback()
+                cursor = self.conn.cursor()
+                continue
+
+        self.conn.commit()
+        logger.info(f"Wrote {inserted}/{len(drift_records)} drift records to inventory_drift")
 

@@ -172,6 +172,7 @@ Manages the `cloud_accounts` table and writes to `scan_orchestration`.
 | POST | `/api/v1/accounts/{account_id}/credentials` | Step 2 — Store & validate credentials | `account_id`, body |
 | GET | `/api/v1/accounts/{account_id}/credentials/validate` | Re-validate stored credentials | `account_id` |
 | DELETE | `/api/v1/accounts/{account_id}/credentials` | Remove credentials from Secrets Manager | `account_id` |
+| GET | `/api/v1/cloud-accounts/{account_id}/status` | Lightweight status summary | `account_id` |
 | POST | `/api/v1/cloud-accounts/{account_id}/validate-credentials` | Re-validate (returns full detail) | `account_id` |
 | POST | `/api/v1/cloud-accounts/{account_id}/validate` | Step 3 — Set schedule + activate | `account_id`, body |
 

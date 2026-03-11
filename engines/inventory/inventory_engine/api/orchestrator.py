@@ -758,10 +758,32 @@ class ScanOrchestrator:
             except Exception:
                 pass
 
-        # Step 3: Detect drift (if previous scan provided)
+        # Step 3: Detect drift
+        # Auto-resolve previous_scan_id if not provided — look for the latest
+        # completed scan in inventory_report so drift runs automatically.
         drift_records = []
-        if previous_scan_id:
-            previous_assets, previous_relationships = self._load_previous_scan(previous_scan_id)
+        effective_prev_scan = previous_scan_id
+        if not effective_prev_scan and self.db_url:
+            try:
+                import psycopg2 as _pg
+                _drift_conn = _pg.connect(self.db_url)
+                with _drift_conn.cursor() as _cur:
+                    _cur.execute(
+                        "SELECT inventory_scan_id FROM inventory_report "
+                        "WHERE tenant_id = %s AND status = 'completed' "
+                        "ORDER BY completed_at DESC LIMIT 1",
+                        (self.tenant_id,),
+                    )
+                    _row = _cur.fetchone()
+                    if _row:
+                        effective_prev_scan = _row[0]
+                _drift_conn.close()
+            except Exception as exc:
+                logger.warning(f"Auto-resolve previous_scan_id failed: {exc}")
+
+        if effective_prev_scan and effective_prev_scan != scan_run_id:
+            logger.info(f"Drift detection: comparing against previous scan {effective_prev_scan}")
+            previous_assets, previous_relationships = self._load_previous_scan(effective_prev_scan)
             drift_detector = DriftDetector(self.tenant_id, scan_run_id)
             drift_records = drift_detector.detect_drift(
                 all_assets, all_relationships,
@@ -783,6 +805,15 @@ class ScanOrchestrator:
             index_writer.write_scan_summary(summary)
             index_writer.write_asset_index(all_assets)
             index_writer.write_relationship_index(all_relationships)
+
+            # Step 5b: Write drift records to inventory_drift table
+            if drift_records and effective_prev_scan:
+                try:
+                    index_writer.write_drift_index(
+                        drift_records, scan_run_id, effective_prev_scan, self.tenant_id
+                    )
+                except Exception as exc:
+                    logger.warning(f"Failed to write drift index: {exc}")
 
         return {
             "scan_run_id": scan_run_id,

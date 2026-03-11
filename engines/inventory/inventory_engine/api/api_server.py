@@ -815,8 +815,46 @@ async def list_assets(
 
 
 @app.get("/api/v1/inventory/assets/{resource_uid:path}")
-async def get_asset(resource_uid: str, tenant_id: str = Query(...), scan_run_id: Optional[str] = Query(None)):
-    """Get asset details by resource_uid (DB-first)"""
+async def get_asset(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+):
+    """Get asset details by resource_uid (DB-first) with cross-engine enrichment.
+
+    Enriches the base inventory asset with:
+    - findings: severity counts from check_findings (critical/high/medium/low)
+    - findings_detail: detailed findings list from check_findings + rule_metadata
+    - compliance: compliance controls from compliance_findings
+    - drift_info: drift history from inventory_drift
+    - threats: threat findings with MITRE ATT&CK techniques from threat_findings
+    - threat_severity: threat severity counts (critical/high/medium/low)
+    """
+    # The :path converter is greedy and swallows sub-route suffixes.
+    # Dispatch to the correct handler when a known suffix is detected.
+    if resource_uid.endswith("/relationships"):
+        return await get_asset_relationships(
+            resource_uid=resource_uid[: -len("/relationships")],
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+            depth=1,
+            relation_type=None,
+            direction=None,
+        )
+    if resource_uid.endswith("/drift"):
+        return await get_asset_drift_history(
+            resource_uid=resource_uid[: -len("/drift")],
+            tenant_id=tenant_id,
+            limit=50,
+        )
+    if resource_uid.endswith("/blast-radius"):
+        return await get_asset_blast_radius(
+            resource_uid=resource_uid[: -len("/blast-radius")],
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+            max_depth=3,
+        )
+
     try:
         # Get DB connection
         db_config = get_database_config("inventory")
@@ -824,29 +862,73 @@ async def get_asset(resource_uid: str, tenant_id: str = Query(...), scan_run_id:
         schema = os.getenv("DB_SCHEMA", "public")
         sep = "&" if "?" in db_url else "?"
         db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-        
+
         loader = InventoryDBLoader(db_url)
-        
+
         # Auto-resolve "latest"
         if not scan_run_id or scan_run_id == "latest":
             scan_run_id = loader.get_latest_scan_id(tenant_id)
-        
+
         asset = loader.load_asset_by_uid(
             tenant_id=tenant_id,
             resource_uid=resource_uid,
             scan_run_id=scan_run_id
         )
-        
-        loader.close()
-        
+
         if not asset:
+            loader.close()
             raise HTTPException(
                 status_code=404,
                 detail=f"Asset not found: {resource_uid}"
             )
-        
+
+        # --- Cross-engine enrichment (best-effort, failures don't block response) ---
+
+        # 1. Drift info from inventory_drift table (same DB)
+        try:
+            asset["drift_info"] = loader.load_asset_drift(tenant_id, resource_uid)
+        except Exception as e:
+            logger.warning(f"Drift enrichment failed for {resource_uid}: {e}")
+            asset["drift_info"] = {"last_check": None, "has_drift": False, "changes": [], "total": 0}
+
+        loader.close()
+
+        # 2. Check findings enrichment (severity counts + detailed findings)
+        try:
+            from ..connectors.check_db_reader import CheckDBReader
+            check_reader = CheckDBReader()
+            asset["findings"] = check_reader.get_severity_counts_for_resource(resource_uid, tenant_id)
+            asset["findings_detail"] = check_reader.get_findings_for_resource(resource_uid, tenant_id)
+            check_reader.close()
+        except Exception as e:
+            logger.warning(f"Check findings enrichment failed for {resource_uid}: {e}")
+            asset["findings"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            asset["findings_detail"] = []
+
+        # 3. Compliance findings enrichment
+        try:
+            from ..connectors.compliance_db_reader import ComplianceDBReader
+            compliance_reader = ComplianceDBReader()
+            asset["compliance"] = compliance_reader.get_compliance_for_resource(resource_uid, tenant_id)
+            compliance_reader.close()
+        except Exception as e:
+            logger.warning(f"Compliance enrichment failed for {resource_uid}: {e}")
+            asset["compliance"] = []
+
+        # 4. Threat findings enrichment (MITRE ATT&CK techniques, severity)
+        try:
+            from ..connectors.threat_db_reader import ThreatDBReader
+            threat_reader = ThreatDBReader()
+            asset["threats"] = threat_reader.get_threat_findings_for_resource(resource_uid, tenant_id)
+            asset["threat_severity"] = threat_reader.get_threat_severity_counts(resource_uid, tenant_id)
+            threat_reader.close()
+        except Exception as e:
+            logger.warning(f"Threat findings enrichment failed for {resource_uid}: {e}")
+            asset["threats"] = []
+            asset["threat_severity"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
         return asset
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -975,10 +1057,10 @@ async def get_asset_drift_history(
     tenant_id: str = Query(...),
     limit: int = Query(50, ge=1, le=200)
 ):
-    """Get drift history for a specific asset"""
+    """Get drift history for a specific asset from inventory_drift table."""
     import time
     start_time = time.time()
-    
+
     with LogContext(tenant_id=tenant_id):
         logger.info("Getting asset drift history", extra={
             "extra_fields": {
@@ -986,18 +1068,25 @@ async def get_asset_drift_history(
                 "limit": limit
             }
         })
-        
+
         try:
-            # Drift history is computed by comparing consecutive scan runs.
-            # Return empty list — use /api/v1/inventory/drift?baseline_scan=X&compare_scan=Y for comparison.
+            db_config = get_database_config("inventory")
+            db_url = db_config.connection_string
+            schema = os.getenv("DB_SCHEMA", "public")
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+            loader = InventoryDBLoader(db_url)
+            drift_info = loader.load_asset_drift(tenant_id, resource_uid, limit=limit)
+            loader.close()
+
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Asset drift history retrieved", duration_ms)
 
             return {
                 "resource_uid": resource_uid,
-                "drift_history": [],
-                "total": 0,
-                "hint": "For drift comparison use GET /api/v1/inventory/drift?baseline_scan=<id>&compare_scan=<id>"
+                "drift_info": drift_info,
+                "total": drift_info.get("total", 0),
             }
 
         except Exception as e:
@@ -1011,6 +1100,71 @@ async def get_asset_drift_history(
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to load asset drift history: {str(e)}"
+            )
+
+
+@app.get("/api/v1/inventory/assets/{resource_uid:path}/blast-radius")
+async def get_asset_blast_radius(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    max_depth: int = Query(3, ge=1, le=5),
+):
+    """Get blast radius for a resource — multi-hop impact graph.
+
+    Traces all paths outward from the resource through inventory_relationships
+    to show how compromising this resource could impact others.
+
+    Returns nodes and edges in the same schema as the graph endpoint so
+    the frontend can reuse its graph rendering components.
+    """
+    import time
+    start_time = time.time()
+
+    with LogContext(tenant_id=tenant_id):
+        logger.info("Computing blast radius", extra={
+            "extra_fields": {
+                "resource_uid": resource_uid,
+                "max_depth": max_depth,
+            }
+        })
+
+        try:
+            db_config = get_database_config("inventory")
+            db_url = db_config.connection_string
+            schema = os.getenv("DB_SCHEMA", "public")
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+
+            loader = InventoryDBLoader(db_url)
+
+            if not scan_run_id or scan_run_id == "latest":
+                scan_run_id = loader.get_latest_scan_id(tenant_id)
+
+            result = loader.get_blast_radius(
+                tenant_id=tenant_id,
+                resource_uid=resource_uid,
+                max_depth=max_depth,
+                scan_run_id=scan_run_id,
+            )
+            loader.close()
+
+            duration_ms = (time.time() - start_time) * 1000
+            log_duration(logger, "Blast radius computed", duration_ms)
+
+            return result
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("Failed to compute blast radius", exc_info=True, extra={
+                "extra_fields": {
+                    "error": str(e),
+                    "duration_ms": duration_ms,
+                }
+            })
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to compute blast radius: {str(e)}"
             )
 
 
@@ -1083,6 +1237,107 @@ async def get_graph(
             status_code=500,
             detail=f"Failed to load graph: {str(e)}"
         )
+
+
+_PROVIDER_COLORS = {
+    "aws": "#FF9900", "azure": "#0078D4", "gcp": "#4285F4",
+    "oci": "#F80000", "alicloud": "#FF6A00", "ibm": "#1F70C1",
+}
+
+
+def _classify_link_type(relation_type: str) -> str:
+    """Classify a relation_type into a visual link category for graph rendering."""
+    rt = (relation_type or "").lower()
+    if any(k in rt for k in ("permission", "role", "policy", "assume", "iam", "access")):
+        return "permission"
+    if any(k in rt for k in ("data", "flow", "log", "encrypt", "storage", "read", "write")):
+        return "data_flow"
+    if any(k in rt for k in ("security", "firewall", "rule", "nacl", "waf", "guard")):
+        return "security"
+    return "default"
+
+
+@app.get("/api/v1/inventory/runs/latest/graph")
+async def get_graph_ui(
+    tenant_id: str = Query(...),
+    resource_uid: Optional[str] = Query(None),
+    depth: int = Query(2, ge=1, le=3),
+    limit: int = Query(100, ge=1, le=500),
+    service: Optional[str] = Query(None),
+    provider: Optional[str] = Query(None),
+):
+    """UI-friendly graph endpoint — returns nodes/links with field names matching the frontend.
+
+    Field mapping:
+      nodes[].id            ← resource_uid
+      nodes[].name          ← resource_name
+      nodes[].type          ← resource_type
+      nodes[].service       ← extracted from resource_type
+      nodes[].provider      ← provider
+      nodes[].color         ← derived from provider
+      links[].source        ← from_uid
+      links[].target        ← to_uid
+      links[].label         ← relation_type
+      links[].type          ← classified from relation_type
+    """
+    # Delegate to the core graph endpoint for data fetching
+    raw = await get_graph(
+        tenant_id=tenant_id,
+        scan_run_id="latest",
+        resource_uid=resource_uid,
+        depth=depth,
+        limit=limit,
+    )
+
+    # Transform nodes to UI schema
+    ui_nodes = []
+    for node in raw.get("nodes") or []:
+        rt = node.get("resource_type") or ""
+        prov = node.get("provider") or ""
+        svc = node.get("service") or (rt.split(".")[0] if "." in rt else rt)
+
+        # Apply optional filters
+        if service and svc.lower() != service.lower():
+            continue
+        if provider and prov.lower() != provider.lower():
+            continue
+
+        ui_nodes.append({
+            "id": node.get("resource_uid"),
+            "name": node.get("resource_name") or node.get("name") or node.get("resource_uid", "").rsplit("/", 1)[-1],
+            "type": rt,
+            "service": svc,
+            "provider": prov,
+            "color": _PROVIDER_COLORS.get(prov.lower(), "#6b7280"),
+            "region": node.get("region"),
+            "account_id": node.get("account_id"),
+        })
+
+    # Build set of visible node IDs for link filtering
+    visible_ids = {n["id"] for n in ui_nodes}
+
+    # Transform edges to UI links schema
+    ui_links = []
+    for edge in raw.get("edges") or []:
+        src = edge.get("from_uid")
+        tgt = edge.get("to_uid")
+        if src not in visible_ids or tgt not in visible_ids:
+            continue
+        rel_type = edge.get("relation_type") or ""
+        ui_links.append({
+            "source": src,
+            "target": tgt,
+            "label": rel_type,
+            "type": _classify_link_type(rel_type),
+        })
+
+    return {
+        "nodes": ui_nodes,
+        "links": ui_links,
+        "depth": depth,
+        "total_nodes": len(ui_nodes),
+        "total_links": len(ui_links),
+    }
 
 
 @app.get("/api/v1/inventory/drift")
@@ -1183,23 +1438,38 @@ async def get_drift(
                                 "detected_at": datetime.utcnow().isoformat() + "Z"
                             })
             else:
-                # Single-scan drift: provider two scans to compare (baseline_scan vs compare_scan required)
-                drift_records = []
+                # No baseline/compare → load pre-computed drift from inventory_drift table.
+                # Uses load_drift_records() which returns UI-ready flat records with
+                # resource_name, severity, previous_value, new_value from DB.
+                effective_scan = scan_run_id
+                if not effective_scan or effective_scan == "latest":
+                    effective_scan = loader.get_latest_scan_id(tenant_id)
+
+                drift_records = loader.load_drift_records(
+                    tenant_id=tenant_id,
+                    scan_run_id=effective_scan,
+                    provider=provider,
+                    change_type=change_type,
+                    limit=500,
+                )
 
             loader.close()
 
-            # Apply additional filters
-            if provider:
-                drift_records = [d for d in drift_records if d.get("provider") == provider]
-            if resource_type:
-                drift_records = [d for d in drift_records if d.get("resource_type") == resource_type]
-            if account_id:
-                drift_records = [d for d in drift_records if d.get("account_id") == account_id]
+            # Apply additional filters (for two-scan comparison mode only;
+            # load_drift_records already filters by provider/change_type)
+            if baseline_scan and compare_scan:
+                if provider:
+                    drift_records = [d for d in drift_records if d.get("provider") == provider]
+                if resource_type:
+                    drift_records = [d for d in drift_records if d.get("resource_type") == resource_type]
+                if account_id:
+                    drift_records = [d for d in drift_records if d.get("account_id") == account_id]
 
-            # Group by change type
+            # Group by change/drift type
+            type_key = "drift_type" if not baseline_scan else "change_type"
             by_change_type: Dict[str, List] = {}
             for drift in drift_records:
-                change = drift.get("change_type", "unknown")
+                change = drift.get(type_key, drift.get("change_type", "unknown"))
                 if change not in by_change_type:
                     by_change_type[change] = []
                 by_change_type[change].append(drift)
@@ -1210,33 +1480,43 @@ async def get_drift(
                 prov = drift.get("provider", "unknown")
                 if prov not in by_provider:
                     by_provider[prov] = {"added": 0, "removed": 0, "changed": 0}
-                change = drift.get("change_type", "")
+                change = drift.get(type_key, drift.get("change_type", ""))
                 if "added" in change:
                     by_provider[prov]["added"] += 1
                 elif "removed" in change:
                     by_provider[prov]["removed"] += 1
-                elif "changed" in change:
+                else:
                     by_provider[prov]["changed"] += 1
+
+            # Severity summary (for pre-computed drift records)
+            by_severity: Dict[str, int] = {}
+            for drift in drift_records:
+                sev = drift.get("severity", "medium")
+                by_severity[sev] = by_severity.get(sev, 0) + 1
+
+            # Unique affected resources
+            affected_resources = len({d.get("resource_uid") for d in drift_records if d.get("resource_uid")})
 
             duration_ms = (time.time() - start_time) * 1000
             log_duration(logger, "Drift records retrieved", duration_ms)
-            
+
             return {
                 "tenant_id": tenant_id,
                 "baseline_scan": baseline_scan,
                 "compare_scan": compare_scan,
                 "summary": {
-                    "assets_added": len([d for d in drift_records if d.get("change_type") == "asset_added"]),
-                    "assets_removed": len([d for d in drift_records if d.get("change_type") == "asset_removed"]),
-                    "assets_changed": len([d for d in drift_records if d.get("change_type") == "asset_changed"]),
-                    "relationships_added": len([d for d in drift_records if d.get("change_type") == "relationship_added"]),
-                    "relationships_removed": len([d for d in drift_records if d.get("change_type") == "relationship_removed"])
+                    "total_drift": len(drift_records),
+                    "affected_resources": affected_resources,
+                    "assets_added": len([d for d in drift_records if "added" in (d.get(type_key) or d.get("change_type") or "")]),
+                    "assets_removed": len([d for d in drift_records if "removed" in (d.get(type_key) or d.get("change_type") or "")]),
+                    "assets_changed": len([d for d in drift_records if "changed" in (d.get(type_key) or d.get("change_type") or "") or "modified" in (d.get(type_key) or d.get("change_type") or "")]),
+                    "by_severity": by_severity,
                 },
                 "drift_records": drift_records,
                 "total": len(drift_records),
                 "by_change_type": {k: len(v) for k, v in by_change_type.items()},
                 "by_provider": by_provider,
-                "details": by_change_type
+                "details": by_change_type,
             }
         
         except Exception as e:
@@ -1425,19 +1705,31 @@ async def get_scan_drift(
         })
         
         try:
-            # Drift records are generated by comparing two scans.
-            # For a single scan_run_id, return empty (use /api/v1/inventory/drift?baseline_scan=X&compare_scan=Y for comparison).
-            drift_records: List[Dict[str, Any]] = []
+            db_config = get_database_config("inventory")
+            db_url = db_config.connection_string
+            schema = os.getenv("DB_SCHEMA", "public")
+            sep = "&" if "?" in db_url else "?"
+            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
+            loader = InventoryDBLoader(db_url)
 
-            # Apply filters
-            if provider:
-                drift_records = [d for d in drift_records if d.get("provider") == provider]
+            effective_scan = scan_run_id
+            if effective_scan == "latest":
+                effective_scan = loader.get_latest_scan_id(tenant_id)
+
+            drift_records = loader.load_drift_records(
+                tenant_id=tenant_id,
+                scan_run_id=effective_scan,
+                provider=provider,
+                change_type=change_type,
+                limit=500,
+            )
+            loader.close()
+
+            # Apply additional filters
             if resource_type:
                 drift_records = [d for d in drift_records if d.get("resource_type") == resource_type]
             if account_id:
                 drift_records = [d for d in drift_records if d.get("account_id") == account_id]
-            if change_type:
-                drift_records = [d for d in drift_records if d.get("change_type") == change_type]
 
             # Group by change type
             by_change_type: Dict[str, List] = {}
@@ -1457,7 +1749,6 @@ async def get_scan_drift(
                 "total": len(drift_records),
                 "by_change_type": {k: len(v) for k, v in by_change_type.items()},
                 "details": by_change_type,
-                "hint": "For cross-scan drift comparison use GET /api/v1/inventory/drift?baseline_scan=<id>&compare_scan=<id>"
             }
 
         except Exception as e:

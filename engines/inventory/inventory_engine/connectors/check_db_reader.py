@@ -10,15 +10,13 @@ Env: CHECK_DB_HOST / CHECK_DB_PORT / CHECK_DB_NAME / CHECK_DB_USER / CHECK_DB_PA
 
 Tables READ:
   - check_findings : get_posture_by_resource(scan_id, tenant_id)
-                     — SELECT COALESCE(resource_uid, resource_arn) AS resource_uid,
-                              COUNT(*) AS total,
-                              COUNT(*) FILTER (WHERE status = 'PASS') AS passed,
-                              COUNT(*) FILTER (WHERE status = 'FAIL') AS failed,
-                              COUNT(*) FILTER (WHERE status = 'ERROR') AS errors
-                       FROM check_findings
-                       WHERE check_scan_id = %s AND tenant_id = %s
-                       GROUP BY COALESCE(resource_uid, resource_arn)
-                     Filters: check_scan_id, tenant_id, hierarchy_id (optional)
+                     — Aggregate PASS/FAIL/ERROR counts grouped by resource_uid
+                     get_findings_for_resource(resource_uid, tenant_id)
+                     — Detailed findings list with severity/title from rule_metadata JOIN
+                     get_severity_counts_for_resource(resource_uid, tenant_id)
+                     — Severity breakdown (critical/high/medium/low) for a single resource
+  - rule_metadata  : JOINed in get_findings_for_resource / get_severity_counts_for_resource
+                     — Provides severity, title, service per rule_id
 
 Tables WRITTEN: None (read-only connector)
 ===
@@ -27,10 +25,13 @@ Tables WRITTEN: None (read-only connector)
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, Optional
+import logging
+from typing import Dict, Any, Optional, List
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
 
 
 def _db_url_with_search_path(url: str) -> str:
@@ -110,6 +111,102 @@ class CheckDBReader:
                 "errors": int(r.get("errors") or 0),
             }
         return result
+
+    def get_severity_counts_for_resource(
+        self,
+        resource_uid: str,
+        tenant_id: str,
+    ) -> Dict[str, int]:
+        """
+        Return severity breakdown for a single resource across all scans.
+
+        Returns:
+            {"critical": int, "high": int, "medium": int, "low": int}
+        """
+        query = """
+            SELECT
+                LOWER(COALESCE(rm.severity, 'medium')) AS severity,
+                COUNT(*) AS cnt
+            FROM check_findings cf
+            LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
+            WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+              AND cf.tenant_id = %s
+              AND cf.status = 'FAIL'
+            GROUP BY LOWER(COALESCE(rm.severity, 'medium'))
+        """
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, (resource_uid, tenant_id))
+                rows = cur.fetchall()
+        except Exception as e:
+            logger.warning(f"Severity counts query failed: {e}")
+            rows = []
+
+        counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for r in rows:
+            sev = r.get("severity", "medium")
+            if sev in counts:
+                counts[sev] = int(r.get("cnt") or 0)
+        return counts
+
+    def get_findings_for_resource(
+        self,
+        resource_uid: str,
+        tenant_id: str,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """
+        Return detailed findings list for a specific resource (for asset detail Findings tab).
+
+        JOINs with rule_metadata to get severity and title.
+        """
+        query = """
+            SELECT
+                cf.rule_id,
+                rm.title,
+                LOWER(COALESCE(rm.severity, 'medium')) AS severity,
+                COALESCE(rm.service, cf.service) AS service,
+                cf.status,
+                cf.region,
+                cf.resource_type,
+                cf.created_at
+            FROM check_findings cf
+            LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
+            WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+              AND cf.tenant_id = %s
+            ORDER BY
+                CASE LOWER(COALESCE(rm.severity, 'medium'))
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END,
+                cf.created_at DESC
+            LIMIT %s
+        """
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, (resource_uid, tenant_id, limit))
+                rows = cur.fetchall()
+        except Exception as e:
+            logger.warning(f"Findings detail query failed: {e}")
+            return []
+
+        findings = []
+        for r in rows:
+            created = r.get("created_at")
+            findings.append({
+                "rule_id": r["rule_id"],
+                "title": r.get("title") or r["rule_id"],
+                "severity": r.get("severity") or "medium",
+                "service": r.get("service") or "",
+                "status": r.get("status") or "FAIL",
+                "region": r.get("region") or "",
+                "resource_type": r.get("resource_type") or "",
+                "created_at": created.isoformat() if created else None,
+            })
+        return findings
 
     def close(self) -> None:
         try:
