@@ -422,6 +422,13 @@ _iam_router.add_api_route("/services/{service}", get_service_iam_posture, method
 _iam_router.add_api_route("/resources/{resource_uid}", get_resource_iam_findings, methods=["GET"])
 app.include_router(_iam_router)
 
+# Include unified UI data router
+try:
+    from .api.ui_data_router import router as ui_data_router
+    app.include_router(ui_data_router)
+except ImportError as e:
+    logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
+
 
 if __name__ == "__main__":
     import uvicorn

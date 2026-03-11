@@ -1,6 +1,10 @@
 """
 FastAPI server for YAML Rule Builder
 """
+import os
+
+import psycopg2
+import psycopg2.extras
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -38,6 +42,21 @@ rule_builder_api = RuleBuilderAPI()
 
 # In-memory rule storage (use DB in production)
 rules_storage = {}
+
+
+def _get_check_db_connection():
+    """Return a psycopg2 connection to the check engine database.
+
+    Uses CHECK_DB_* env vars with fallback to generic DB_* vars.
+    """
+    return psycopg2.connect(
+        host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+        user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        connect_timeout=10,
+    )
 
 
 class ConditionInput(BaseModel):
@@ -1044,6 +1063,158 @@ async def list_rules(
         "limit": limit,
         "offset": offset
     }
+
+
+# ---------------------------------------------------------------------------
+# Unified UI data endpoint
+# ---------------------------------------------------------------------------
+
+import logging as _logging
+
+_ui_data_logger = _logging.getLogger(__name__)
+
+
+@app.get("/api/v1/rules/ui-data")
+async def rules_ui_data(
+    tenant_id: Optional[str] = None,
+    limit: int = 500,
+):
+    """Consolidated rule data for the frontend dashboard.
+
+    Reads from the check DB's ``rule_metadata`` and ``rule_discoveries``
+    tables — the authoritative source of truth — instead of the transient
+    in-memory ``rules_storage`` dict.
+
+    Args:
+        tenant_id: Optional tenant filter (currently unused — rules are global).
+        limit: Maximum number of sample rules to return.
+
+    Returns:
+        Dict with rules, total_rules, statistics, templates, and
+        providers_status.
+    """
+    conn = None
+    try:
+        # 1. Provider status from filesystem catalog --------------------------
+        try:
+            providers_status = rule_builder_api.get_all_providers_status()
+        except Exception as ps_err:
+            _ui_data_logger.warning("Failed to load provider status: %s", ps_err)
+            providers_status = {}
+
+        # 2. Query rule_metadata + rule_discoveries from check DB -------------
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # --- Total rules count -----------------------------------------------
+        cur.execute("SELECT COUNT(*) AS cnt FROM rule_metadata")
+        total_rules: int = cur.fetchone()["cnt"]
+
+        # --- Rules by provider ------------------------------------------------
+        cur.execute(
+            "SELECT LOWER(provider) AS provider, COUNT(*) AS cnt "
+            "FROM rule_metadata GROUP BY LOWER(provider) ORDER BY cnt DESC"
+        )
+        by_provider: Dict[str, int] = {
+            row["provider"]: row["cnt"] for row in cur.fetchall()
+        }
+
+        # --- Rules by severity ------------------------------------------------
+        cur.execute(
+            "SELECT UPPER(severity) AS severity, COUNT(*) AS cnt "
+            "FROM rule_metadata GROUP BY UPPER(severity) ORDER BY cnt DESC"
+        )
+        by_severity: Dict[str, int] = {
+            row["severity"]: row["cnt"] for row in cur.fetchall()
+        }
+
+        # --- Rules by service (top 20) ----------------------------------------
+        cur.execute(
+            "SELECT service, COUNT(*) AS cnt "
+            "FROM rule_metadata GROUP BY service "
+            "ORDER BY cnt DESC LIMIT 20"
+        )
+        by_service: List[Dict[str, Any]] = [
+            {"service": row["service"], "count": row["cnt"]}
+            for row in cur.fetchall()
+        ]
+
+        # --- Rules by domain / subcategory ------------------------------------
+        cur.execute(
+            "SELECT COALESCE(domain, 'Uncategorized') AS domain, COUNT(*) AS cnt "
+            "FROM rule_metadata GROUP BY COALESCE(domain, 'Uncategorized') "
+            "ORDER BY cnt DESC"
+        )
+        by_domain: List[Dict[str, Any]] = [
+            {"domain": row["domain"], "count": row["cnt"]}
+            for row in cur.fetchall()
+        ]
+
+        # --- Active services from rule_discoveries ----------------------------
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM rule_discoveries WHERE is_active = TRUE"
+        )
+        active_services: int = cur.fetchone()["cnt"]
+
+        # --- Sample rules list ------------------------------------------------
+        cur.execute(
+            "SELECT rule_id, title, provider, service, severity, "
+            "       domain, subcategory, threat_category, risk_score, "
+            "       created_at, updated_at "
+            "FROM rule_metadata "
+            "ORDER BY created_at DESC NULLS LAST "
+            "LIMIT %s",
+            (limit,),
+        )
+        rules_list: List[Dict[str, Any]] = []
+        for row in cur.fetchall():
+            rules_list.append({
+                "rule_id": row["rule_id"],
+                "title": row["title"],
+                "provider": row["provider"],
+                "service": row["service"],
+                "severity": row["severity"],
+                "domain": row["domain"],
+                "subcategory": row["subcategory"],
+                "threat_category": row["threat_category"],
+                "risk_score": row["risk_score"],
+                "created_at": str(row["created_at"]) if row["created_at"] else None,
+                "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
+            })
+
+        cur.close()
+
+        # 3. Templates --------------------------------------------------------
+        try:
+            templates_resp = await get_rule_templates()
+            templates = templates_resp.get("templates", [])
+        except Exception:
+            templates = []
+
+        return {
+            "rules": rules_list,
+            "total_rules": total_rules,
+            "statistics": {
+                "total": total_rules,
+                "by_provider": by_provider,
+                "by_severity": by_severity,
+                "by_service": by_service,
+                "by_domain": by_domain,
+                "active_services": active_services,
+            },
+            "templates": templates,
+            "providers_status": providers_status,
+        }
+
+    except Exception as exc:
+        _ui_data_logger.error("rules/ui-data error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

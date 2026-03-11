@@ -119,6 +119,13 @@ try:
 except ImportError as e:
     logger.warning("Discovery router not available", extra={"extra_fields": {"error": str(e)}})
 
+# Include unified UI data router (single endpoint for all UI views)
+try:
+    from .api.ui_data_router import router as ui_data_router
+    app.include_router(ui_data_router)
+except ImportError as e:
+    logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
+
 
 class ThreatReportRequest(BaseModel):
     """Request model for threat report generation"""

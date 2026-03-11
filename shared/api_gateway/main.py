@@ -29,9 +29,9 @@ except ImportError:
     OrchestrationService = None
     OrchestrationRequest = None
 
-# Import BFF views router
+# Import BFF views router (modular bff/ package)
 try:
-    from views import router as views_router
+    from bff import router as views_router
 except ImportError:
     views_router = None
 
@@ -226,8 +226,10 @@ app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
 app.add_middleware(AuthMiddleware)
 
 # BFF views router — provides aggregated, UI-ready endpoints under /gateway/api/v1/views/
+# Sub-routers use prefix="/api/v1/views"; adding "/gateway" here so the
+# middleware (which skips /gateway/* paths) lets FastAPI handle them.
 if views_router is not None:
-    app.include_router(views_router)
+    app.include_router(views_router, prefix="/gateway")
 
 
 def get_target_service(path: str) -> Optional[str]:

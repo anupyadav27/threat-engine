@@ -101,6 +101,13 @@ app.add_middleware(
 # Rules admin router — DB-driven rule management (single source of truth for multi-CSP)
 app.include_router(rules_router)
 
+# Include unified UI data router
+try:
+    from .ui_data_router import router as ui_data_router
+    app.include_router(ui_data_router)
+except ImportError as e:
+    logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
+
 
 class ScanRequest(BaseModel):
     """Request model for inventory scan"""

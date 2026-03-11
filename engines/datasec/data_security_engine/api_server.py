@@ -994,6 +994,13 @@ _datasec_router.add_api_route("/protection/{resource_id}", get_protection_status
 _datasec_router.add_api_route("/governance/{resource_id}", get_access_governance, methods=["GET"])
 app.include_router(_datasec_router)
 
+# Include unified UI data router
+try:
+    from .api.ui_data_router import router as ui_data_router
+    app.include_router(ui_data_router)
+except ImportError as e:
+    logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -81,6 +81,13 @@ app.include_router(health_router)
 app.include_router(cloud_accounts_router)
 app.include_router(credentials_router)
 
+# Include unified UI data router
+try:
+    from engine_onboarding.api.ui_data_router import router as ui_data_router
+    app.include_router(ui_data_router)
+except Exception as e:
+    print(f"UI data router not available: {e}")
+
 # Global scheduler instance
 scheduler_service = None
 scheduler_task = None
