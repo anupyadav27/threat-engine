@@ -80,19 +80,21 @@ async def view_risk(
     risk_categories = safe_get(risk_data, "risk_categories", []) or safe_get(risk_data, "riskCategories", [])
 
     # If no categories, derive from risk engine breakdown
+    # Risk engine returns: {"domain": "IAM", "score": 0, "weight": 0.25, "findings": 0}
     if not risk_categories:
         breakdown = safe_get(risk_data, "breakdown", [])
         if isinstance(breakdown, list):
             for item in breakdown:
                 if isinstance(item, dict):
-                    cat = item.get("category", "")
+                    cat = item.get("category") or item.get("domain", "")
                     score = item.get("score", 0)
-                    count = item.get("count", 0)
+                    count = item.get("count") or item.get("findings", 0)
                     if cat:
                         risk_categories.append({
                             "category": cat.replace("_", " ").title(),
                             "score": score,
                             "count": count if isinstance(count, int) else 0,
+                            "weight": item.get("weight", 0),
                         })
         elif isinstance(breakdown, dict):
             for cat, val in breakdown.items():
@@ -155,8 +157,21 @@ async def view_risk(
                 "score": round(max(0, min(100, base + noise + (days_ago * 0.02))), 1),
             })
 
+    # Derive risk level from score
+    if risk_score >= 80:
+        risk_level = "critical"
+    elif risk_score >= 60:
+        risk_level = "high"
+    elif risk_score >= 40:
+        risk_level = "medium"
+    elif risk_score >= 20:
+        risk_level = "low"
+    else:
+        risk_level = "minimal"
+
     return {
         "riskScore": risk_score,
+        "riskLevel": risk_level,
         "averageLoss": safe_get(risk_data, "average_loss") or safe_get(risk_data, "averageLoss", 0),
         "acceptedRisks": safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0),
         "riskReduction": safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0),

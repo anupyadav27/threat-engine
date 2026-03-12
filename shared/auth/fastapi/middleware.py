@@ -44,7 +44,9 @@ PUBLIC_PATHS = {
 
 # Path prefixes that don't require authentication (checked with startswith)
 PUBLIC_PREFIXES = (
-    "/gateway/",       # Gateway management endpoints (health, services, etc.)
+    "/gateway/",         # Gateway management endpoints (health, services, etc.)
+    "/api/v1/views/",    # BFF view endpoints (accessed via ingress rewrite)
+    "/api/v1/health",    # Health check endpoints
 )
 
 

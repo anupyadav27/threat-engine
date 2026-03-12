@@ -102,19 +102,27 @@ async def view_threats(
     # MITRE matrix — prefer engine-provided mitre_matrix, fall back to building from threats
     engine_mitre = safe_get(threat_data, "mitre_matrix", [])
     if engine_mitre and isinstance(engine_mitre, list):
-        # Engine returns list of {technique_id, technique_name, tactic, count, severity_base}
-        # Convert to {tactic: [{id, name, severity, count}]} format
+        # Engine returns list of {technique_id, technique_name, tactics: [...], count, severity_base}
+        # Note: "tactics" is plural (list) — one technique can belong to multiple tactics
         mitre_matrix: Dict[str, list] = {}
         for entry in engine_mitre:
-            tactic = entry.get("tactic", "Uncategorized")
-            if tactic not in mitre_matrix:
-                mitre_matrix[tactic] = []
-            mitre_matrix[tactic].append({
+            tactics_raw = entry.get("tactics") or entry.get("tactic") or []
+            if isinstance(tactics_raw, str):
+                tactics_list = [tactics_raw] if tactics_raw else ["Uncategorized"]
+            elif isinstance(tactics_raw, list) and tactics_raw:
+                tactics_list = tactics_raw
+            else:
+                tactics_list = ["Uncategorized"]
+            tech_item = {
                 "id": entry.get("technique_id", ""),
                 "name": entry.get("technique_name", ""),
                 "severity": entry.get("severity_base", "medium"),
                 "count": entry.get("count", 0),
-            })
+            }
+            for tactic in tactics_list:
+                if tactic not in mitre_matrix:
+                    mitre_matrix[tactic] = []
+                mitre_matrix[tactic].append(tech_item)
     else:
         mitre_matrix = build_mitre_matrix(filtered)
         if not mitre_matrix:

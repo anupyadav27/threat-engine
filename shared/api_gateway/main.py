@@ -225,11 +225,13 @@ app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
 #    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS
 app.add_middleware(AuthMiddleware)
 
-# BFF views router — provides aggregated, UI-ready endpoints under /gateway/api/v1/views/
-# Sub-routers use prefix="/api/v1/views"; adding "/gateway" here so the
-# middleware (which skips /gateway/* paths) lets FastAPI handle them.
+# BFF views router — provides aggregated, UI-ready endpoints under /api/v1/views/
+# Mount WITHOUT extra prefix so it works through the ingress rewrite
+# (ingress strips /gateway prefix: /gateway/api/v1/views/X → /api/v1/views/X).
+# Also mount WITH /gateway prefix for direct pod access (health probes, local dev).
 if views_router is not None:
-    app.include_router(views_router, prefix="/gateway")
+    app.include_router(views_router)                    # /api/v1/views/*  (through ingress)
+    app.include_router(views_router, prefix="/gateway")  # /gateway/api/v1/views/* (direct)
 
 
 def get_target_service(path: str) -> Optional[str]:
@@ -301,8 +303,8 @@ def get_tenant_context(request: Request) -> Dict[str, Any]:
 async def route_requests(request: Request, call_next):
     """Main routing middleware - forwards requests to appropriate services"""
     
-    # Skip gateway routes
-    if request.url.path.startswith("/gateway/"):
+    # Skip gateway routes and BFF views (handled by FastAPI routers, not proxy)
+    if request.url.path.startswith("/gateway/") or request.url.path.startswith("/api/v1/views/"):
         return await call_next(request)
     
     # Handle unified ConfigScan endpoint

@@ -117,7 +117,8 @@ def normalize_threat(t: dict) -> dict:
         "status": t.get("status", "active"),
         "detected": t.get("detected_at") or t.get("first_seen_at"),
         "assignee": t.get("assignee", ""),
-        "risk_score": t.get("risk_score") or risk_map.get(severity, 50),
+        "riskScore": t.get("risk_score") or risk_map.get(severity, 50),
+        "risk_score": t.get("risk_score") or risk_map.get(severity, 50),  # backward compat
         "resource_type": t.get("resource_type", ""),
         "remediation_steps": t.get("remediation_steps", []),
     }
@@ -277,6 +278,7 @@ def normalize_asset(a: dict) -> dict:
         service = a.get("service", "")
     return {
         "resource_id": uid,
+        "resource_uid": uid,  # UI uses resource_uid for navigation links
         "resource_name": metadata.get("name") or uid.rsplit("/", 1)[-1],
         "resource_type": rt,
         "service": service,
@@ -487,6 +489,7 @@ def normalize_scan(s: dict, idx: int = 0) -> dict:
         "critical_findings": s.get("critical_findings", 0),
         "high_findings": s.get("high_findings", 0),
         "trigger_type": s.get("trigger_type") or s.get("triggered_by", "scheduled"),
+        "triggered_by": s.get("triggered_by") or s.get("trigger_type", "scheduled"),
     }
 
 

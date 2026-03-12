@@ -41,7 +41,18 @@ async def view_rules(
 
     # Engine statistics (pre-computed by /ui-data)
     engine_stats = safe_get(data, "statistics", {})
-    templates = safe_get(data, "templates", [])
+    raw_templates = safe_get(data, "templates", [])
+    # Normalize template fields: engine uses template_id, UI expects id
+    templates = []
+    for tmpl in raw_templates:
+        if isinstance(tmpl, dict):
+            templates.append({
+                "id": tmpl.get("template_id") or tmpl.get("id", ""),
+                "name": tmpl.get("name", ""),
+                "description": tmpl.get("description", ""),
+                "framework": tmpl.get("framework") or tmpl.get("service", ""),
+                "provider": tmpl.get("provider", ""),
+            })
     provider_status = safe_get(data, "providers_status", {})
 
     # KPI derivation
@@ -73,7 +84,7 @@ async def view_rules(
 
     return {
         "kpi": {
-            "totalRules": engine_stats.get("total_rules") or total,
+            "totalRules": engine_stats.get("total") or engine_stats.get("total_rules") or total,
             "activeRules": active,
             "builtInRules": built_in,
             "customRules": engine_stats.get("custom_rules_count") or custom,

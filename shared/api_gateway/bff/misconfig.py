@@ -16,6 +16,34 @@ from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
+def _extract_service(t: dict) -> str:
+    """Extract clean service name from threat data.
+
+    Prefer resource_type (clean: 'iam', 's3') over service field which may
+    contain full rule_id|resource_uid|account|region concatenations from the
+    threat engine.
+    """
+    # resource_type is the clean service name set by the threat engine
+    rt = t.get("resource_type", "")
+    if rt and "|" not in rt:
+        return rt
+    # Try to extract from rule_id: e.g. "aws.iam.policy.xxx" → "iam"
+    rule_id = t.get("rule_id", "")
+    if rule_id:
+        parts = rule_id.split(".")
+        if len(parts) >= 3:
+            return parts[1]  # e.g. "aws.iam.policy.xxx" → "iam"
+    # Fallback: try service field, stripping concatenated parts
+    svc = t.get("service", "")
+    if svc and "|" in svc:
+        # Full concatenation — take the first dotted segment's 2nd part
+        first_part = svc.split("|")[0]  # "aws.iam.policy.xxx"
+        dot_parts = first_part.split(".")
+        if len(dot_parts) >= 2:
+            return dot_parts[1]
+    return svc or rt or "other"
+
+
 @router.get("/misconfig")
 async def view_misconfig(
     tenant_id: str = Query(...),
@@ -43,7 +71,7 @@ async def view_misconfig(
         "rule_id": t.get("rule_id", ""),
         "rule_name": t.get("title", ""),
         "severity": t.get("severity", "medium"),
-        "resource_type": t.get("service") or t.get("resource_type", ""),
+        "resource_type": _extract_service(t),
         "resource_id": t.get("resource_uid") or t.get("resource_arn", ""),
         "provider": t.get("provider", ""),
         "account_id": t.get("account_id", ""),

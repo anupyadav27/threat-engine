@@ -9,14 +9,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY api_gateway/requirements.txt .
+COPY shared/api_gateway/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY api_gateway/*.py ./
-COPY api_gateway/ ./
-COPY engine_common/ ./engine_common
-COPY engine_auth/ ./engine_auth
+# Copy application code (build context = repo root)
+COPY shared/api_gateway/*.py ./
+COPY shared/api_gateway/bff/ ./bff/
+COPY shared/common/ ./engine_common
+COPY shared/auth/ ./engine_auth
 
 # Create non-root user
 RUN groupadd -r gateway && useradd -r -g gateway gateway

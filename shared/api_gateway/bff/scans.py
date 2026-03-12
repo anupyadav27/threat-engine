@@ -128,6 +128,7 @@ async def view_scans(
         total_findings = a.get("total_findings", 0) or 0
         scan_name = f"{prov} - {acct_name}" if prov else acct_name
 
+        trigger = "scheduled" if a.get("schedule_enabled") else "manual"
         scans.append({
             "id": i + 1,
             "scan_id": acct_id,
@@ -145,7 +146,8 @@ async def view_scans(
             "total_findings": total_findings,
             "critical_findings": 0,
             "high_findings": 0,
-            "trigger_type": "scheduled" if a.get("schedule_enabled") else "manual",
+            "trigger_type": trigger,
+            "triggered_by": trigger,  # UI uses triggered_by
         })
 
     # Distribute findings severity across scans using account-level total_findings
