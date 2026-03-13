@@ -91,19 +91,6 @@ if __name__ == "__main__":
         json.dump(result, f, indent=2)
     print(f"Scan complete. Results saved to {output_file}")
 
-# FastAPI endpoint for API usage
-try:
-    from fastapi import FastAPI, UploadFile, File
-    import tempfile
-    app = FastAPI()
-
-    @app.post("/scan-local")
-    async def scan_local_api(file: UploadFile = File(...)):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, file.filename)
-            with open(file_path, "wb") as f:
-                f.write(await file.read())
-            result = scan_path(file_path)
-            return result
-except ImportError:
-    pass
+# NOTE: FastAPI /scan-local endpoint removed — it created a duplicate
+# FastAPI app that shadowed the main app in api_server.py.
+# Use the main API server's /api/v1/scan endpoint instead.
