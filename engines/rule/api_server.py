@@ -393,6 +393,28 @@ async def list_service_rules(provider: str, service: str):
     }
 
 
+@app.get("/api/v1/health/live")
+async def liveness_check():
+    """Kubernetes liveness probe — no DB, no external calls."""
+    return {"status": "ok", "service": "yaml-rule-builder"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness_check():
+    """Kubernetes readiness probe — verifies DB connectivity."""
+    try:
+        conn = _get_check_db_connection()
+        conn.cursor().execute("SELECT 1")
+        conn.close()
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "disconnected", "error": str(e)}
+        )
+
+
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint with provider status"""
