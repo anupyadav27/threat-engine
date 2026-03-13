@@ -362,7 +362,7 @@ class EngineOrchestrator:
         except Exception as e:
             with LogContext(tenant_id=tenant_id, scan_run_id=orchestration_id):
                 logger.error("Failed to trigger check engine", exc_info=True, extra={
-                    "extra_fields": {"error": str(e), "engine": "check", "discovery_scan_id": discovery_scan_id}
+                    "extra_fields": {"error": str(e), "engine": "check", "orchestration_id": orchestration_id}
                 })
             update_orchestration_status(orchestration_id, "check", "failed", error=str(e))
             raise

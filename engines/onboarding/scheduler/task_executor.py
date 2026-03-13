@@ -218,7 +218,7 @@ class TaskExecutor:
                 # Send webhook notification after orchestration completes
                 asyncio.create_task(
                     self._send_notification_after_orchestration(
-                        orchestration_task, scan_run_id, tenant_id, account_id, provider_type, status, scan_id
+                        orchestration_task, scan_run_id, tenant_id, account_id, provider_type, "completed", scan_id
                     )
                 )
             except Exception as e:
