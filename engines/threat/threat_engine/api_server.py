@@ -105,19 +105,9 @@ def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
         return None
 
 
-# Include check results router (standalone - no configscan dependency)
-try:
-    from .api.check_router import router as check_router
-    app.include_router(check_router)
-except ImportError as e:
-    logger.warning("Check router not available", extra={"extra_fields": {"error": str(e)}})
-
-# Include discovery results router (standalone - no configscan dependency)
-try:
-    from .api.discovery_router import router as discovery_router
-    app.include_router(discovery_router)
-except ImportError as e:
-    logger.warning("Discovery router not available", extra={"extra_fields": {"error": str(e)}})
+# NOTE: check_router and discovery_router removed — they depended on
+# engine_configscan.DatabaseManager which no longer exists. The underlying
+# data is now served via the /ui-data endpoint (ui_data_router).
 
 # Include unified UI data router (single endpoint for all UI views)
 try:
