@@ -26,6 +26,8 @@ class DriftRecord(BaseModel):
     scan_run_id: str = Field(..., description="Current scan run identifier")
     change_type: ChangeType = Field(..., description="Type of change")
     resource_uid: str = Field(..., description="Affected resource UID")
+    resource_type: str = Field("", description="Normalised resource type (e.g. ec2.instance)")
+    provider: str = Field("", description="Cloud provider (aws, azure, gcp)")
     diff: Optional[Dict[str, Any]] = Field(None, description="Change details")
     detected_at: datetime = Field(default_factory=datetime.utcnow, description="Detection timestamp")
     

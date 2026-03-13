@@ -17,137 +17,200 @@ Tables WRITTEN: None (returns DriftRecord objects; persistence handled by orches
 ===
 """
 
-from typing import List, Dict, Any, Optional
+import logging
+from typing import List, Dict, Any, Optional, Set
+
 from ..schemas.asset_schema import Asset
 from ..schemas.relationship_schema import Relationship
 from ..schemas.drift_schema import DriftRecord, ChangeType
-import json
+
+logger = logging.getLogger(__name__)
+
+# Keys inside metadata that change every scan (timestamps, transient IDs).
+# Differences in these keys are noise — skip them so we surface real drift.
+_METADATA_IGNORE_KEYS: Set[str] = {
+    "scan_timestamp", "created_at", "discovery_id", "emitted_fields",
+    "enriched_from", "raw_refs", "last_scanned",
+}
 
 
 class DriftDetector:
-    """Detects changes between scan runs"""
-    
+    """Detects changes between scan runs."""
+
     def __init__(self, tenant_id: str, current_scan_id: str):
         self.tenant_id = tenant_id
         self.current_scan_id = current_scan_id
-    
+
     def detect_drift(
         self,
         current_assets: List[Asset],
         current_relationships: List[Relationship],
         previous_assets: Optional[List[Asset]] = None,
-        previous_relationships: Optional[List[Relationship]] = None
+        previous_relationships: Optional[List[Relationship]] = None,
     ) -> List[DriftRecord]:
-        """
-        Detect drift between current and previous scan.
-        
+        """Detect drift between current and previous scan.
+
         Returns:
-            List of drift records
+            List of drift records with resource_type and provider populated.
         """
-        drift_records = []
-        
+        drift_records: List[DriftRecord] = []
+
         if not previous_assets:
-            # First scan - all assets are new
+            # First scan — all assets are new
             for asset in current_assets:
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.ASSET_ADDED,
-                    resource_uid=asset.resource_uid
+                    resource_uid=asset.resource_uid,
+                    resource_type=asset.resource_type,
+                    provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
                 ))
             return drift_records
-        
+
         # Build lookup maps
-        current_by_uid = {asset.resource_uid: asset for asset in current_assets}
-        previous_by_uid = {asset.resource_uid: asset for asset in previous_assets}
-        
-        current_hashes = {uid: asset.hash_sha256 for uid, asset in current_by_uid.items()}
-        previous_hashes = {uid: asset.hash_sha256 for uid, asset in previous_by_uid.items()}
-        
+        current_by_uid = {a.resource_uid: a for a in current_assets}
+        previous_by_uid = {a.resource_uid: a for a in previous_assets}
+
+        current_hashes = {uid: a.hash_sha256 for uid, a in current_by_uid.items()}
+        previous_hashes = {uid: a.hash_sha256 for uid, a in previous_by_uid.items()}
+
         # Detect asset changes
         all_uids = set(current_by_uid.keys()) | set(previous_by_uid.keys())
-        
+
         for uid in all_uids:
             if uid not in previous_by_uid:
-                # Asset added
+                asset = current_by_uid[uid]
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.ASSET_ADDED,
-                    resource_uid=uid
+                    resource_uid=uid,
+                    resource_type=asset.resource_type,
+                    provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
                 ))
             elif uid not in current_by_uid:
-                # Asset removed
+                asset = previous_by_uid[uid]
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.ASSET_REMOVED,
-                    resource_uid=uid
+                    resource_uid=uid,
+                    resource_type=asset.resource_type,
+                    provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
                 ))
             elif current_hashes.get(uid) != previous_hashes.get(uid):
-                # Asset changed
-                diff = self._compute_asset_diff(previous_by_uid[uid], current_by_uid[uid])
+                prev_asset = previous_by_uid[uid]
+                curr_asset = current_by_uid[uid]
+                diff = self._compute_asset_diff(prev_asset, curr_asset)
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.ASSET_CHANGED,
                     resource_uid=uid,
-                    diff=diff
+                    diff=diff,
+                    resource_type=curr_asset.resource_type,
+                    provider=curr_asset.provider.value if hasattr(curr_asset.provider, 'value') else str(curr_asset.provider),
                 ))
-        
+
         # Detect relationship changes
         if previous_relationships:
             current_edges = self._build_edge_set(current_relationships)
             previous_edges = self._build_edge_set(previous_relationships)
-            
-            # Edges added
+
             for edge in current_edges - previous_edges:
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.EDGE_ADDED,
-                    resource_uid=edge  # Edge represented as "from_uid|to_uid|type"
+                    resource_uid=edge,
                 ))
-            
-            # Edges removed
+
             for edge in previous_edges - current_edges:
                 drift_records.append(DriftRecord(
                     tenant_id=self.tenant_id,
                     scan_run_id=self.current_scan_id,
                     change_type=ChangeType.EDGE_REMOVED,
-                    resource_uid=edge
+                    resource_uid=edge,
                 ))
-        
+
         return drift_records
-    
+
+    # ── Field-level diff helpers ──────────────────────────────────────
+
+    @staticmethod
+    def _diff_dicts(
+        prev: Dict[str, Any],
+        curr: Dict[str, Any],
+        prefix: str,
+        ignore_keys: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Recursively diff two dicts and return a list of field changes.
+
+        Each entry: {"path": "prefix.key", "before": <val>, "after": <val>}
+        Recurses one level into nested dicts for useful context without bloat.
+        """
+        changes: List[Dict[str, Any]] = []
+        ign = ignore_keys or set()
+        all_keys = set(prev.keys()) | set(curr.keys())
+
+        for key in sorted(all_keys):
+            if key in ign:
+                continue
+            path = f"{prefix}.{key}" if prefix else key
+            prev_val = prev.get(key)
+            curr_val = curr.get(key)
+            if prev_val == curr_val:
+                continue
+
+            # One-level recursion for nested dicts
+            if isinstance(prev_val, dict) and isinstance(curr_val, dict):
+                changes.extend(
+                    DriftDetector._diff_dicts(prev_val, curr_val, path)
+                )
+            else:
+                changes.append({
+                    "path": path,
+                    "before": prev_val,
+                    "after": curr_val,
+                })
+        return changes
+
     def _compute_asset_diff(self, previous: Asset, current: Asset) -> Dict[str, Any]:
-        """Compute diff between two assets"""
-        diff = []
-        
-        # Compare tags
+        """Compute field-level diff between two asset versions.
+
+        Compares tags and metadata key-by-key, filtering out noisy
+        scan-transient fields (timestamps, discovery IDs).
+        """
+        diff: List[Dict[str, Any]] = []
+
+        # Tags — full key-level diff
         if previous.tags != current.tags:
-            for key in set(previous.tags.keys()) | set(current.tags.keys()):
-                prev_val = previous.tags.get(key)
-                curr_val = current.tags.get(key)
-                if prev_val != curr_val:
-                    diff.append({
-                        "path": f"tags.{key}",
-                        "before": prev_val,
-                        "after": curr_val
-                    })
-        
-        # Compare metadata (simplified)
+            diff.extend(self._diff_dicts(
+                previous.tags, current.tags, "tags",
+            ))
+
+        # Metadata — key-level diff, ignoring scan-transient keys
         if previous.metadata != current.metadata:
+            diff.extend(self._diff_dicts(
+                previous.metadata, current.metadata, "metadata",
+                ignore_keys=_METADATA_IGNORE_KEYS,
+            ))
+
+        # If hash changed but no individual field diffs survived filtering,
+        # record a generic "configuration changed" entry so the drift is
+        # still visible in the timeline.
+        if not diff:
             diff.append({
-                "path": "metadata",
-                "before": "changed",
-                "after": "changed"
+                "path": "configuration",
+                "before": "(hash changed)",
+                "after": "(hash changed)",
             })
-        
+
         return {"changes": diff}
-    
+
     def _build_edge_set(self, relationships: List[Relationship]) -> set:
-        """Build set of edge identifiers"""
+        """Build set of edge identifiers."""
         edges = set()
         for rel in relationships:
             edge_id = f"{rel.from_uid}|{rel.to_uid}|{rel.relation_type.value}"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -39,6 +39,188 @@ const SEVERITY_COLORS = {
   low:    '#3b82f6',
 };
 
+const CATEGORY_ORDER = ['security', 'network', 'tags', 'config'];
+
+// ── Field classification (mirrors BFF _FIELD_CATEGORIES) ──────────────
+
+const FIELD_CATEGORIES = {
+  security_groups: 'security', sg: 'security', public_access: 'security',
+  public: 'security', encryption: 'security', encrypted: 'security',
+  ssl: 'security', tls: 'security', kms: 'security',
+  iam_role: 'security', iam_policy: 'security', iam: 'security',
+  acl: 'security', policy: 'security', mfa: 'security',
+  logging: 'security', versioning: 'security', firewall: 'security',
+  subnet_id: 'network', subnet: 'network', vpc_id: 'network', vpc: 'network',
+  private_ip: 'network', public_ip: 'network', cidr: 'network',
+  route_table: 'network', dns: 'network', port: 'network', protocol: 'network',
+  endpoint: 'network', internet_gateway: 'network', nat_gateway: 'network',
+  tags: 'tags', environment: 'tags', costcenter: 'tags', owner: 'tags',
+  name: 'tags', project: 'tags', team: 'tags',
+  instance_type: 'config', instance_class: 'config', storage: 'config',
+  size: 'config', engine: 'config', engine_version: 'config',
+  runtime: 'config', monitoring: 'config', backup: 'config',
+  retention: 'config', replicas: 'config', multi_az: 'config',
+  region: 'config', ami: 'config', state: 'config', status: 'config',
+};
+
+function classifyField(path) {
+  const lower = (path || '').toLowerCase().replace(/[./]/g, '_');
+  if (FIELD_CATEGORIES[lower]) return FIELD_CATEGORIES[lower];
+  for (const [key, cat] of Object.entries(FIELD_CATEGORIES)) {
+    if (lower.includes(key)) return cat;
+  }
+  if (lower.startsWith('tags')) return 'tags';
+  return 'config';
+}
+
+const SEVERITY_WEIGHTS = { security: 3, network: 2, tags: 1, config: 1 };
+
+// ── Client-side transform (mirrors BFF _build_drift_timeline) ─────────
+
+function normaliseChangeType(raw) {
+  if (!raw) return 'modified';
+  if (raw.includes('add')) return 'added';
+  if (raw.includes('remov')) return 'removed';
+  return 'modified';
+}
+
+function extractFieldChanges(change) {
+  const summary = change.changes_summary || {};
+  const fields = [];
+
+  if (summary.changes && Array.isArray(summary.changes)) {
+    for (const c of summary.changes) {
+      fields.push({
+        field: c.path || 'unknown',
+        category: classifyField(c.path || ''),
+        before: c.before,
+        after: c.after,
+      });
+    }
+  } else {
+    for (const [fieldName, diff] of Object.entries(summary)) {
+      if (diff && typeof diff === 'object' && ('before' in diff || 'after' in diff)) {
+        fields.push({
+          field: fieldName,
+          category: classifyField(fieldName),
+          before: diff.before,
+          after: diff.after,
+        });
+      }
+    }
+  }
+
+  if (fields.length === 0) {
+    const rawType = change.change_type || 'modified';
+    if (rawType.includes('add')) {
+      fields.push({ field: 'resource', category: 'config', before: null, after: 'New resource discovered' });
+    } else if (rawType.includes('remov')) {
+      fields.push({ field: 'resource', category: 'config', before: 'Resource existed', after: null });
+    } else {
+      fields.push({ field: 'configuration', category: 'config', before: '(previous version)', after: '(current version)' });
+    }
+  }
+  return fields;
+}
+
+/**
+ * Transforms raw engine drift_info into the BFF timeline shape.
+ * Called client-side when the BFF isn't available (fallback path).
+ */
+function transformRawDrift(raw) {
+  if (!raw || !raw.has_drift) return raw;
+  // Already BFF-transformed? (has transitions key)
+  if (raw.transitions) return raw;
+
+  const changes = raw.changes || [];
+  if (changes.length === 0) {
+    return { ...raw, transitions: [], scans: [], summary: { modified: 0, added: 0, removed: 0 }, total: 0 };
+  }
+
+  // Group by scan transition (detected_at as key since scan_run_id may be missing)
+  const transMap = new Map();
+  for (const c of changes) {
+    const scanId = c.scan_run_id || c.inventory_scan_id || '';
+    const prevId = c.previous_scan_id || '';
+    const key = `${scanId}|${prevId}|${c.detected_at || ''}`;
+
+    if (!transMap.has(key)) {
+      transMap.set(key, {
+        scan_run_id: scanId,
+        previous_scan_id: prevId,
+        detected_at: c.detected_at,
+        field_changes: [],
+        counts: { modified: 0, added: 0, removed: 0 },
+      });
+    }
+    const t = transMap.get(key);
+    const ct = normaliseChangeType(c.change_type);
+    t.counts[ct] = (t.counts[ct] || 0) + 1;
+
+    for (const f of extractFieldChanges(c)) {
+      t.field_changes.push({ ...f, change_type: ct, severity: c.severity || 'medium' });
+    }
+  }
+
+  // Build transitions with category groups
+  const transitions = [];
+  for (const t of transMap.values()) {
+    const byCat = {};
+    for (const fc of t.field_changes) {
+      const cat = fc.category || 'config';
+      (byCat[cat] = byCat[cat] || []).push(fc);
+    }
+
+    const orderedCats = [];
+    for (const cat of CATEGORY_ORDER) {
+      if (byCat[cat]) orderedCats.push({ category: cat, fields: byCat[cat] });
+    }
+    for (const [cat, fields] of Object.entries(byCat)) {
+      if (!CATEGORY_ORDER.includes(cat)) orderedCats.push({ category: cat, fields });
+    }
+
+    const sevScore = t.field_changes.reduce(
+      (s, fc) => s + (SEVERITY_WEIGHTS[fc.category] || 1), 0
+    );
+
+    transitions.push({
+      scan_run_id: t.scan_run_id,
+      previous_scan_id: t.previous_scan_id,
+      detected_at: t.detected_at,
+      categories: orderedCats,
+      counts: t.counts,
+      drift_severity: sevScore >= 6 ? 'high' : sevScore >= 3 ? 'medium' : 'low',
+      total_fields_changed: t.field_changes.length,
+    });
+  }
+
+  // Collect unique scan IDs
+  const scanMap = new Map();
+  for (const t of transitions) {
+    if (t.scan_run_id) scanMap.set(t.scan_run_id, t.detected_at);
+    if (t.previous_scan_id) scanMap.set(t.previous_scan_id, null);
+  }
+  const scans = [...scanMap.entries()].map(([id, ts]) => ({ scan_run_id: id, detected_at: ts }));
+
+  // Grand summary
+  const summary = { modified: 0, added: 0, removed: 0 };
+  for (const t of transitions) {
+    for (const k of Object.keys(summary)) summary[k] += t.counts[k] || 0;
+  }
+
+  return {
+    last_check: raw.last_check,
+    has_drift: true,
+    scans,
+    transitions,
+    summary,
+    total: raw.total || changes.length,
+  };
+}
+
+
+// ── Sub-components ────────────────────────────────────────────────────
+
 /**
  * Renders a single field change row with before/after values.
  */
@@ -47,8 +229,9 @@ function FieldChangeRow({ field }) {
   const meta = CHANGE_TYPE_META[field.change_type] || CHANGE_TYPE_META.modified;
   const ChangeIcon = meta.icon;
 
-  const beforeStr = field.before != null ? JSON.stringify(field.before) : '—';
-  const afterStr  = field.after  != null ? JSON.stringify(field.after)  : '—';
+  const fmt = (v) => v == null ? '—' : typeof v === 'string' ? v : JSON.stringify(v);
+  const beforeStr = fmt(field.before);
+  const afterStr  = fmt(field.after);
   const isLong = beforeStr.length > 40 || afterStr.length > 40;
 
   return (
@@ -214,18 +397,28 @@ function TransitionBlock({ transition, index }) {
   );
 }
 
+
+// ── Main Component ────────────────────────────────────────────────────
+
 /**
  * DriftTimeline — main component for the asset detail Drift tab.
  *
- * Renders a vertical timeline of scan transitions with categorised
- * field-level changes and expandable diffs.
+ * Accepts EITHER shape:
+ *   1. BFF-transformed: { has_drift, transitions, scans, summary }
+ *   2. Raw engine:      { has_drift, changes, last_check, total }
+ *
+ * When raw engine data arrives, transforms it client-side into the
+ * same timeline structure so the display is uniform.
  *
  * Props:
- *   drift — BFF-transformed drift timeline object (from _build_drift_timeline)
+ *   drift   — drift data (BFF-transformed or raw engine)
  *   service — the asset's service type for the header icon
  */
 export default function DriftTimeline({ drift, service }) {
-  if (!drift || (!drift.has_drift && !drift.transitions?.length)) {
+  // Auto-detect and transform raw engine data if needed
+  const timeline = useMemo(() => transformRawDrift(drift), [drift]);
+
+  if (!timeline || (!timeline.has_drift && !timeline.transitions?.length)) {
     return (
       <div className="space-y-4">
         <div
@@ -251,8 +444,8 @@ export default function DriftTimeline({ drift, service }) {
             className="rounded p-4 text-center text-sm"
             style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}
           >
-            {drift?.last_check
-              ? `Last checked ${new Date(drift.last_check).toLocaleString()} — no configuration drift found`
+            {timeline?.last_check
+              ? `Last checked ${new Date(timeline.last_check).toLocaleString()} — no configuration drift found`
               : 'No drift data available — drift detection requires at least two scans'}
           </div>
         </div>
@@ -260,9 +453,9 @@ export default function DriftTimeline({ drift, service }) {
     );
   }
 
-  const transitions = drift.transitions || [];
-  const summary = drift.summary || {};
-  const scans = drift.scans || [];
+  const transitions = timeline.transitions || [];
+  const summary = timeline.summary || {};
+  const scans = timeline.scans || [];
 
   return (
     <div className="space-y-4">
@@ -279,7 +472,7 @@ export default function DriftTimeline({ drift, service }) {
                 Drift Timeline
               </h2>
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Last checked {drift.last_check ? new Date(drift.last_check).toLocaleString() : 'N/A'}
+                Last checked {timeline.last_check ? new Date(timeline.last_check).toLocaleString() : 'N/A'}
                 {' · '}{scans.length} scan{scans.length !== 1 ? 's' : ''} tracked
               </p>
             </div>

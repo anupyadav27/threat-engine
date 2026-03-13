@@ -251,15 +251,32 @@ def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "after": diff.get("after"),
                 })
 
-    # Fallback: if no field-level detail, create a synthetic entry
+    # Fallback: if no field-level detail, create a synthetic entry.
+    # This covers asset_added (new resource), asset_removed (gone),
+    # and asset_changed when the old detector only wrote "metadata changed".
     if not fields:
-        change_type = change.get("change_type", "modified")
-        fields.append({
-            "field": change_type,
-            "category": "config",
-            "before": None if change_type == "added" else "(present)",
-            "after": "(present)" if change_type != "removed" else None,
-        })
+        raw_type = change.get("change_type", "modified")
+        if "add" in raw_type:
+            fields.append({
+                "field": "resource",
+                "category": "config",
+                "before": None,
+                "after": "New resource discovered",
+            })
+        elif "remov" in raw_type:
+            fields.append({
+                "field": "resource",
+                "category": "config",
+                "before": "Resource existed",
+                "after": None,
+            })
+        else:
+            fields.append({
+                "field": "configuration",
+                "category": "config",
+                "before": "(previous version)",
+                "after": "(current version)",
+            })
 
     return fields
 

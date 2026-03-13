@@ -235,12 +235,10 @@ class PostgresIndexWriter(IndexWriter):
                 else:
                     severity = "low"
 
-                # Extract resource metadata
+                # Extract resource metadata (populated by DriftDetector)
                 resource_uid = dr.resource_uid if hasattr(dr, 'resource_uid') else ""
-                provider = ""
-                resource_type = ""
-                if hasattr(dr, 'resource_type'):
-                    resource_type = dr.resource_type or ""
+                provider = getattr(dr, 'provider', "") or ""
+                resource_type = getattr(dr, 'resource_type', "") or ""
 
                 cursor.execute("""
                     INSERT INTO inventory_drift (
