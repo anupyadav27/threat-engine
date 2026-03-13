@@ -196,7 +196,7 @@ export default function InventoryPage() {
     {
       accessorKey: 'resource_name',
       header: 'Resource',
-      size: 260,
+      size: 320,
       cell: (info) => {
         const row = info.row.original;
         const raw = info.getValue() || row.name || row.resource_uid || '';
@@ -221,19 +221,6 @@ export default function InventoryPage() {
       },
     },
     {
-      accessorKey: 'resource_uid',
-      header: 'Resource ID',
-      size: 220,
-      cell: (info) => {
-        const uid = info.getValue() || info.row.original.resource_id || '';
-        return (
-          <code className="text-xs font-mono truncate block" style={{ color: 'var(--text-tertiary)' }}>
-            {uid}
-          </code>
-        );
-      },
-    },
-    {
       accessorKey: 'provider',
       header: 'Provider',
       size: 100,
@@ -250,7 +237,7 @@ export default function InventoryPage() {
     {
       accessorKey: 'region',
       header: 'Region',
-      size: 120,
+      size: 140,
       cell: (info) => (
         <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
           {info.getValue() || '—'}

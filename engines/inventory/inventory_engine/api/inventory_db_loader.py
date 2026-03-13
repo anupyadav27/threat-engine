@@ -197,6 +197,9 @@ class InventoryDBLoader:
             rt = row["resource_type"] or ""
             assets.append(self._row_to_asset(row, rt))
 
+        # Back-fill last_scanned from scan_orchestration for assets missing it
+        self._backfill_last_scanned(assets)
+
         return assets, total
 
     @staticmethod
@@ -231,6 +234,49 @@ class InventoryDBLoader:
             "metadata": row.get("properties") or {},
         }
     
+    @staticmethod
+    def _backfill_last_scanned(assets: List[Dict[str, Any]]) -> None:
+        """Resolve last_scanned for assets where updated_at was NULL.
+
+        Looks up scan_orchestration.completed_at (or started_at) in the
+        onboarding DB using each asset's inventory_scan_id.  A single
+        batch query covers all distinct scan IDs in the page.
+        """
+        need = {
+            a["scan_run_id"]
+            for a in assets
+            if not a.get("last_scanned") and a.get("scan_run_id")
+        }
+        if not need:
+            return
+
+        try:
+            from engine_common.orchestration import _get_orchestration_conn
+            conn = _get_orchestration_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT inventory_scan_id,
+                               COALESCE(completed_at, started_at) AS ts
+                        FROM scan_orchestration
+                        WHERE inventory_scan_id = ANY(%s::text[])
+                        """,
+                        (list(need),),
+                    )
+                    ts_map = {r[0]: r[1] for r in cur.fetchall() if r[1]}
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning("Could not resolve last_scanned from scan_orchestration: %s", exc)
+            return
+
+        for a in assets:
+            if not a.get("last_scanned") and a.get("scan_run_id"):
+                ts = ts_map.get(a["scan_run_id"])
+                if ts:
+                    a["last_scanned"] = ts.isoformat()
+
     def load_asset_by_uid(
         self,
         tenant_id: str,
@@ -460,16 +506,11 @@ class InventoryDBLoader:
         resource_uid: str,
         limit: int = 50,
     ) -> Dict[str, Any]:
-        """Load drift history for a specific asset from inventory_drift table.
-
-        Returns changes grouped by scan transition with scan IDs so the BFF
-        can build a timeline view across multiple scans.
-        """
+        """Load drift history for a specific asset from inventory_drift table."""
         query = """
             SELECT drift_id, inventory_scan_id, previous_scan_id,
                    change_type, previous_state, current_state,
-                   changes_summary, severity, detected_at,
-                   resource_type, provider
+                   changes_summary, severity, detected_at
             FROM inventory_drift
             WHERE tenant_id = %s AND resource_uid = %s
             ORDER BY detected_at DESC
@@ -495,35 +536,15 @@ class InventoryDBLoader:
                     summary = {}
             changes.append({
                 "drift_id": str(r.get("drift_id", "")),
-                "scan_run_id": r.get("inventory_scan_id", ""),
-                "previous_scan_id": r.get("previous_scan_id", ""),
                 "change_type": r.get("change_type", "modified"),
                 "severity": r.get("severity", "medium"),
                 "previous_state": r.get("previous_state") or {},
                 "current_state": r.get("current_state") or {},
                 "changes_summary": summary or {},
                 "detected_at": detected.isoformat() if detected else None,
-                "resource_type": r.get("resource_type", ""),
-                "provider": r.get("provider", ""),
             })
 
         last_check = changes[0]["detected_at"] if changes else None
-
-        # When no drift records exist, fall back to the asset's updated_at
-        # so the UI can still show when the asset was last scanned.
-        if not last_check:
-            try:
-                with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        "SELECT updated_at FROM inventory_findings WHERE tenant_id = %s AND resource_uid = %s",
-                        (tenant_id, resource_uid),
-                    )
-                    row = cur.fetchone()
-                    if row and row.get("updated_at"):
-                        last_check = row["updated_at"].isoformat()
-            except Exception:
-                pass
-
         return {
             "last_check": last_check,
             "has_drift": len(changes) > 0,
