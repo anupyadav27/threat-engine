@@ -196,7 +196,6 @@ export default function InventoryPage() {
     {
       accessorKey: 'resource_name',
       header: 'Resource',
-      size: 320,
       cell: (info) => {
         const row = info.row.original;
         const raw = info.getValue() || row.name || row.resource_uid || '';
@@ -210,11 +209,11 @@ export default function InventoryPage() {
           ? 'var(--accent-success)'
           : status === 'stopped' ? 'var(--accent-warning)' : 'var(--text-tertiary)';
         return (
-          <div className="flex items-start gap-2 min-w-0">
+          <div className="flex items-start gap-2">
             <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: dotColor }} title={status} />
-            <div className="min-w-0">
-              <div className="font-medium truncate text-sm" style={{ color: 'var(--text-primary)' }}>{name}</div>
-              <div className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>{rtype}</div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{name}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{rtype}</div>
             </div>
           </div>
         );
@@ -223,7 +222,7 @@ export default function InventoryPage() {
     {
       accessorKey: 'provider',
       header: 'Provider',
-      size: 100,
+      size: 90,
       cell: (info) => {
         const icons = { aws: '🟠', azure: '🔵', gcp: '🔴', oci: '🟡', alicloud: '🟤', ibm: '⚪' };
         const v = info.getValue() || '';
@@ -237,9 +236,8 @@ export default function InventoryPage() {
     {
       accessorKey: 'region',
       header: 'Region',
-      size: 140,
       cell: (info) => (
-        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           {info.getValue() || '—'}
         </span>
       ),
@@ -260,12 +258,12 @@ export default function InventoryPage() {
     {
       accessorKey: 'findings',
       header: 'Findings',
-      size: 110,
+      size: 90,
       cell: (info) => {
         const f = info.getValue();
         if (!f || (!f.critical && !f.high && !f.medium && !f.low)) {
           return (
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--accent-success)' }}>
+            <span className="flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: 'var(--accent-success)' }}>
               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-success)' }} />
               Clean
             </span>
@@ -284,7 +282,7 @@ export default function InventoryPage() {
     {
       accessorKey: 'last_scanned',
       header: 'Last Seen',
-      size: 85,
+      size: 80,
       cell: (info) => {
         const val = info.getValue();
         if (!val) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;

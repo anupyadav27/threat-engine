@@ -408,7 +408,7 @@ export default function DataTable({
 
       {/* Table */}
       <div style={{ borderColor: 'var(--border-primary)' }} className="overflow-x-auto rounded-lg border transition-colors duration-200">
-        <table style={{ backgroundColor: 'var(--bg-card)' }} className="min-w-full table-fixed">
+        <table style={{ backgroundColor: 'var(--bg-card)' }} className="min-w-full table-auto">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <React.Fragment key={`header-group-${headerGroup.id}`}>
