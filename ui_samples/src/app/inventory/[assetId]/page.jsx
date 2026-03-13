@@ -94,7 +94,7 @@ export default function AssetDetailPage() {
             service: base.service || (base.resource_type ? base.resource_type.split('::')[1]?.toLowerCase() : '') || '',
             provider: (base.provider || 'aws').toLowerCase(),
             tags: base.tags || {},
-            config: (base.config && Object.keys(base.config).length > 0) ? base.config : base.metadata || null,
+            config: (base.config && Object.keys(base.config).length > 0) ? base.config : {},
             relationships: normalizedRels,
             drift_info: driftData?.drift_info || base.drift_info || null,
             blast_radius: blastData || { nodes: [], edges: [], total_impacted: 0, impact_summary: {}, origin: assetId },
@@ -115,10 +115,11 @@ export default function AssetDetailPage() {
           service: base.service || (base.resource_type ? base.resource_type.split('::')[1]?.toLowerCase() : '') || '',
           provider: (base.provider || 'aws').toLowerCase(),
           tags: base.tags || {},
-          config: (base.config && Object.keys(base.config).length > 0) ? base.config : base.metadata || null,
+          config: (base.config && Object.keys(base.config).length > 0) ? base.config : {},
           // Cross-engine enrichment from BFF
           findings: bffData.check_severity || base.findings || {},
           findings_detail: bffData.check_findings || [],
+          check_posture: bffData.check_posture || {},
           threats: bffData.threat_findings || [],
           threat_severity: bffData.threat_severity || {},
           compliance: bffData.compliance_findings || [],
@@ -554,7 +555,7 @@ export default function AssetDetailPage() {
               Owner
             </p>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
-              {asset.owner}
+              {asset.owner || '—'}
             </p>
           </div>
           <div
@@ -651,9 +652,9 @@ export default function AssetDetailPage() {
             </div>
           </div>
 
-          {/* Configuration Highlights */}
+          {/* Security Posture by Domain */}
           <div
-            className="rounded-lg p-6 border"
+            className="lg:col-span-2 rounded-lg p-6 border"
             style={{
               backgroundColor: 'var(--bg-card)',
               borderColor: 'var(--border-primary)',
@@ -662,66 +663,42 @@ export default function AssetDetailPage() {
             <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
               Security Posture
             </h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Encryption', status: true, icon: Lock },
-                { label: 'Public Access', status: false, icon: Shield },
-                { label: 'Logging', status: true, icon: Database },
-                { label: 'Versioning', status: true, icon: Network },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-                      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        {item.label}
-                      </span>
-                    </div>
-                    {item.status ? (
-                      <CheckCircle
-                        className="w-4 h-4"
-                        style={{ color: 'var(--accent-success)' }}
-                      />
-                    ) : (
-                      <AlertTriangle
-                        className="w-4 h-4"
-                        style={{ color: 'var(--accent-danger)' }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div
-            className="rounded-lg p-6 border"
-            style={{
-              backgroundColor: 'var(--bg-card)',
-              borderColor: 'var(--border-primary)',
-            }}
-          >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Tags
-            </h3>
-            <div className="space-y-2">
-              {Object.entries(asset.tags || {}).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded px-3 py-2"
-                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                >
-                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                    {key}
-                  </p>
-                  <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                    {value}
-                  </p>
-                </div>
-              ))}
-            </div>
+            {Object.keys(asset.check_posture || {}).length > 0 ? (
+              <div className="space-y-2">
+                {Object.entries(asset.check_posture)
+                  .sort((a, b) => b[1].fail - a[1].fail)
+                  .map(([domain, counts]) => {
+                    const total = counts.total || 1;
+                    const passRate = Math.round((counts.pass / total) * 100);
+                    const label = domain.replace(/_/g, ' ').replace(/\band\b/g, '&').replace(/\b\w/g, c => c.toUpperCase());
+                    return (
+                      <div key={domain} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                            <span className="text-xs whitespace-nowrap ml-2" style={{ color: 'var(--text-tertiary)' }}>
+                              <span style={{ color: 'var(--accent-success)' }}>{counts.pass}</span>
+                              {' / '}
+                              <span style={{ color: counts.fail > 0 ? 'var(--accent-danger)' : 'var(--text-tertiary)' }}>{counts.fail}</span>
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <div
+                              className="h-1.5 rounded-full transition-all"
+                              style={{
+                                width: `${passRate}%`,
+                                backgroundColor: passRate === 100 ? 'var(--accent-success)' : passRate >= 70 ? '#f59e0b' : 'var(--accent-danger)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No check findings available for this resource.</p>
+            )}
           </div>
 
           {/* Metadata */}
@@ -759,33 +736,57 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      {activeTab === 'configuration' && (
-        <div
-          className="rounded-lg p-6 border"
-          style={{
-            backgroundColor: 'var(--bg-card)',
-            borderColor: 'var(--border-primary)',
-          }}
-        >
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-            Configuration
-          </h2>
+      {activeTab === 'configuration' && (() => {
+        // Only show emitted_fields from metadata — clean, deduplicated
+        const skipKeys = new Set(['_raw_response', '_dependent_data', '_enriched_from',
+          'resource_uid', 'resource_arn', 'resource_type', 'resource_id']);
+        const isSkip = (k) => skipKeys.has(k) || k.startsWith('_');
+
+        const fmtVal = (v) => {
+          if (v === null || v === undefined) return '—';
+          if (typeof v === 'boolean') return v ? 'true' : 'false';
+          if (typeof v === 'object') return JSON.stringify(v, null, 2);
+          return String(v);
+        };
+
+        const emitted = asset.metadata?.emitted_fields || {};
+        const entries = Object.entries(emitted).filter(([k]) => !isSkip(k));
+
+        return (
           <div
-            className="rounded-lg p-4 border overflow-auto max-h-[600px]"
-            style={{
-              backgroundColor: 'var(--bg-secondary)',
-              borderColor: 'var(--border-primary)',
-            }}
+            className="rounded-lg p-6 border"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
           >
-            <pre
-              className="text-xs font-mono"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {JSON.stringify(asset.config, null, 2)}
-            </pre>
+            <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+              Configuration
+            </h2>
+            {entries.length > 0 ? (
+              <div className="rounded-lg border overflow-auto max-h-[600px]" style={{ borderColor: 'var(--border-primary)' }}>
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0">
+                    <tr style={{ backgroundColor: 'var(--bg-tertiary)', borderBottomColor: 'var(--border-primary)' }} className="border-b">
+                      <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-tertiary)', width: '35%' }}>Property</th>
+                      <th className="text-left px-4 py-2 font-medium text-xs" style={{ color: 'var(--text-tertiary)' }}>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map(([key, value], idx) => (
+                      <tr key={key} style={{ backgroundColor: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)', borderBottomColor: 'var(--border-primary)' }} className="border-b last:border-b-0">
+                        <td className="px-4 py-2 font-mono text-xs break-all" style={{ color: 'var(--accent-primary)' }}>{key}</td>
+                        <td className="px-4 py-2 text-xs break-all whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                          {fmtVal(value)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No configuration data available.</p>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {activeTab === 'findings' && (
         <div

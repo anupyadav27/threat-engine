@@ -469,6 +469,7 @@ async def view_asset_detail(
         "asset": inventory_data,
         "check_findings": check_data.get("findings", []),
         "check_severity": check_data.get("severity_counts", {}),
+        "check_posture": check_data.get("posture_by_domain", {}),
         "threat_findings": threat_data.get("findings", []),
         "threat_severity": threat_data.get("severity_counts", {}),
         "compliance_findings": compliance_data.get("findings", []),

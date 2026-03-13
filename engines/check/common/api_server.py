@@ -469,6 +469,34 @@ async def get_findings_for_resource(
             if sev in severity_counts:
                 severity_counts[sev] = int(r.get("cnt") or 0)
 
+        # Posture by domain (pass/fail counts per security domain)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    COALESCE(rm.domain, 'uncategorized') AS domain,
+                    cf.status,
+                    COUNT(*) AS cnt
+                FROM check_findings cf
+                LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
+                WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+                  AND cf.tenant_id = %s
+                GROUP BY COALESCE(rm.domain, 'uncategorized'), cf.status
+            """, (resource_uid, tenant_id))
+            posture_rows = cur.fetchall()
+
+        posture_by_domain = {}
+        for r in posture_rows:
+            domain = r.get("domain", "uncategorized")
+            status = (r.get("status") or "").upper()
+            cnt = int(r.get("cnt") or 0)
+            if domain not in posture_by_domain:
+                posture_by_domain[domain] = {"pass": 0, "fail": 0, "total": 0}
+            if status == "PASS":
+                posture_by_domain[domain]["pass"] += cnt
+            else:
+                posture_by_domain[domain]["fail"] += cnt
+            posture_by_domain[domain]["total"] += cnt
+
         # Detailed findings
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
@@ -480,7 +508,8 @@ async def get_findings_for_resource(
                     cf.status,
                     cf.region,
                     cf.resource_type,
-                    cf.created_at
+                    cf.created_at,
+                    rm.domain
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
                 WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
@@ -506,12 +535,14 @@ async def get_findings_for_resource(
                 "status": r.get("status") or "FAIL",
                 "region": r.get("region") or "",
                 "resource_type": r.get("resource_type") or "",
+                "domain": r.get("domain") or "",
                 "created_at": created.isoformat() if created else None,
             })
 
         return {
             "resource_uid": resource_uid,
             "severity_counts": severity_counts,
+            "posture_by_domain": posture_by_domain,
             "findings": findings,
         }
     finally:
