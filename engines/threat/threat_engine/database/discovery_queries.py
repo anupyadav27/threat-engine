@@ -80,7 +80,7 @@ class DiscoveryDatabaseQueries:
                 [tenant_id]
             )
             return result and result.get('count', 0) > 0
-        except:
+        except Exception:
             return False
     
     def _execute_query(self, query: str, params: List = None):
@@ -863,12 +863,12 @@ class DiscoveryDatabaseQueries:
             if isinstance(result.get('emitted_fields'), str):
                 try:
                     result['emitted_fields'] = json.loads(result['emitted_fields'])
-                except:
+                except Exception:
                     result['emitted_fields'] = {}
             if isinstance(result.get('diff_summary'), str):
                 try:
                     result['diff_summary'] = json.loads(result['diff_summary'])
-                except:
+                except Exception:
                     result['diff_summary'] = {}
 
         return [dict(r) for r in results]

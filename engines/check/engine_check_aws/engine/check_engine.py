@@ -1025,13 +1025,13 @@ class CheckEngine:
                 if isinstance(finding_data, str):
                     try:
                         finding_data = json.loads(finding_data)
-                    except:
+                    except Exception:
                         finding_data = {}
                 
                 if isinstance(checked_fields, str):
                     try:
                         checked_fields = json.loads(checked_fields)
-                    except:
+                    except Exception:
                         checked_fields = []
                 
                 record = {

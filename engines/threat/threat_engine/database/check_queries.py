@@ -79,7 +79,7 @@ class CheckDatabaseQueries:
                 [tenant_id]
             )
             return result and result.get('count', 0) > 0
-        except:
+        except Exception:
             return False
     
     def _get_ndjson_fallback(self, method_name: str, *args, **kwargs):
@@ -98,7 +98,7 @@ class CheckDatabaseQueries:
         if self.own_connection and hasattr(self, 'db'):
             try:
                 self.db.close()
-            except:
+            except Exception:
                 pass
     
     def _execute_query(self, query: str, params: List = None):
@@ -630,13 +630,13 @@ class CheckDatabaseQueries:
             if isinstance(finding.get('checked_fields'), str):
                 try:
                     finding['checked_fields'] = json.loads(finding['checked_fields'])
-                except:
+                except Exception:
                     finding['checked_fields'] = []
             
             if isinstance(finding.get('finding_data'), str):
                 try:
                     finding['finding_data'] = json.loads(finding['finding_data'])
-                except:
+                except Exception:
                     finding['finding_data'] = {}
             
             # Add discovery_scan_id from finding_data if available
@@ -978,12 +978,12 @@ class CheckDatabaseQueries:
             if isinstance(result.get('checked_fields'), str):
                 try:
                     result['checked_fields'] = json.loads(result['checked_fields'])
-                except:
+                except Exception:
                     result['checked_fields'] = []
             if isinstance(result.get('finding_data'), str):
                 try:
                     result['finding_data'] = json.loads(result['finding_data'])
-                except:
+                except Exception:
                     result['finding_data'] = {}
 
         return [dict(r) for r in results]
