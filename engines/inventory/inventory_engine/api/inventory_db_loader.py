@@ -460,11 +460,16 @@ class InventoryDBLoader:
         resource_uid: str,
         limit: int = 50,
     ) -> Dict[str, Any]:
-        """Load drift history for a specific asset from inventory_drift table."""
+        """Load drift history for a specific asset from inventory_drift table.
+
+        Returns changes grouped by scan transition with scan IDs so the BFF
+        can build a timeline view across multiple scans.
+        """
         query = """
             SELECT drift_id, inventory_scan_id, previous_scan_id,
                    change_type, previous_state, current_state,
-                   changes_summary, severity, detected_at
+                   changes_summary, severity, detected_at,
+                   resource_type, provider
             FROM inventory_drift
             WHERE tenant_id = %s AND resource_uid = %s
             ORDER BY detected_at DESC
@@ -490,12 +495,16 @@ class InventoryDBLoader:
                     summary = {}
             changes.append({
                 "drift_id": str(r.get("drift_id", "")),
+                "scan_run_id": r.get("inventory_scan_id", ""),
+                "previous_scan_id": r.get("previous_scan_id", ""),
                 "change_type": r.get("change_type", "modified"),
                 "severity": r.get("severity", "medium"),
                 "previous_state": r.get("previous_state") or {},
                 "current_state": r.get("current_state") or {},
                 "changes_summary": summary or {},
                 "detected_at": detected.isoformat() if detected else None,
+                "resource_type": r.get("resource_type", ""),
+                "provider": r.get("provider", ""),
             })
 
         last_check = changes[0]["detected_at"] if changes else None

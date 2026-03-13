@@ -159,6 +159,240 @@ async def view_inventory(
     }
 
 
+# ── Drift Timeline Transform ──────────────────────────────────────────────
+
+# Maps field names/paths to UI category groups
+_FIELD_CATEGORIES: Dict[str, str] = {
+    # Security
+    "security_groups": "security", "sg": "security",
+    "public_access": "security", "public": "security",
+    "encryption": "security", "encrypted": "security", "encryption_status": "security",
+    "ssl": "security", "tls": "security", "kms": "security",
+    "iam_role": "security", "iam_policy": "security", "iam": "security",
+    "access_control": "security", "acl": "security", "policy": "security",
+    "mfa": "security", "logging": "security", "versioning": "security",
+    "firewall": "security", "waf": "security",
+    # Network
+    "subnet_id": "network", "subnet": "network",
+    "vpc_id": "network", "vpc": "network",
+    "private_ip": "network", "public_ip": "network", "ip_address": "network",
+    "cidr": "network", "route_table": "network", "dns": "network",
+    "load_balancer": "network", "port": "network", "protocol": "network",
+    "endpoint": "network", "internet_gateway": "network",
+    "network_interface": "network", "nat_gateway": "network",
+    # Tags
+    "tags": "tags", "environment": "tags", "costcenter": "tags",
+    "owner": "tags", "name": "tags", "project": "tags",
+    "team": "tags", "department": "tags", "application": "tags",
+    # Config
+    "instance_type": "config", "instance_class": "config",
+    "storage": "config", "size": "config", "capacity": "config",
+    "engine": "config", "engine_version": "config", "runtime": "config",
+    "monitoring": "config", "backup": "config", "retention": "config",
+    "replicas": "config", "multi_az": "config", "availability_zone": "config",
+    "region": "config", "ami": "config", "image": "config",
+    "state": "config", "status": "config",
+}
+
+# Order for display
+_CATEGORY_ORDER = ["security", "network", "tags", "config"]
+
+# Severity weights for drift scoring
+_CATEGORY_SEVERITY_WEIGHT = {"security": 3, "network": 2, "tags": 1, "config": 1}
+
+
+def _classify_field(field_path: str) -> str:
+    """Map a changed field path to a UI category."""
+    lower = field_path.lower().replace(".", "_").replace("/", "_")
+    # Direct lookup
+    if lower in _FIELD_CATEGORIES:
+        return _FIELD_CATEGORIES[lower]
+    # Check if any known prefix matches
+    for key, cat in _FIELD_CATEGORIES.items():
+        if key in lower:
+            return cat
+    # Tags sub-keys (e.g. tags.CostCenter)
+    if lower.startswith("tags"):
+        return "tags"
+    return "config"  # default bucket
+
+
+def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract individual field-level changes from a drift change record.
+
+    Handles multiple changes_summary formats:
+      - {"field": {"before": x, "after": y}}
+      - {"changes": [{"path": p, "before": x, "after": y}]}
+      - {} (fall back to change_type label)
+    """
+    summary = change.get("changes_summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+
+    fields: List[Dict[str, Any]] = []
+
+    # Format A: {"changes": [{"path": ..., "before": ..., "after": ...}]}
+    if "changes" in summary and isinstance(summary["changes"], list):
+        for c in summary["changes"]:
+            fields.append({
+                "field": c.get("path", "unknown"),
+                "category": _classify_field(c.get("path", "")),
+                "before": c.get("before"),
+                "after": c.get("after"),
+            })
+    else:
+        # Format B: {"field_name": {"before": x, "after": y}}
+        for field_name, diff in summary.items():
+            if isinstance(diff, dict) and ("before" in diff or "after" in diff):
+                fields.append({
+                    "field": field_name,
+                    "category": _classify_field(field_name),
+                    "before": diff.get("before"),
+                    "after": diff.get("after"),
+                })
+
+    # Fallback: if no field-level detail, create a synthetic entry
+    if not fields:
+        change_type = change.get("change_type", "modified")
+        fields.append({
+            "field": change_type,
+            "category": "config",
+            "before": None if change_type == "added" else "(present)",
+            "after": "(present)" if change_type != "removed" else None,
+        })
+
+    return fields
+
+
+def _build_drift_timeline(
+    raw_drift: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Transform raw engine drift_info into a grouped timeline for the UI.
+
+    Groups changes by scan transition, categorises fields, and computes
+    a summary table — ready for the timeline component.
+    """
+    changes = raw_drift.get("changes", [])
+    if not changes:
+        return {
+            "last_check": raw_drift.get("last_check"),
+            "has_drift": False,
+            "scans": [],
+            "transitions": [],
+            "summary": {"modified": 0, "added": 0, "removed": 0},
+            "total": 0,
+        }
+
+    # ── Group changes by scan transition ──────────────────────────────
+    # Each unique (scan_run_id, previous_scan_id) pair = one transition
+    from collections import OrderedDict
+    transitions_map: Dict[str, Dict[str, Any]] = OrderedDict()
+
+    for c in changes:
+        scan_id = c.get("scan_run_id", "")
+        prev_id = c.get("previous_scan_id", "")
+        key = f"{scan_id}|{prev_id}"
+
+        if key not in transitions_map:
+            transitions_map[key] = {
+                "scan_run_id": scan_id,
+                "previous_scan_id": prev_id,
+                "detected_at": c.get("detected_at"),
+                "field_changes": [],
+                "counts": {"modified": 0, "added": 0, "removed": 0},
+            }
+
+        change_type = c.get("change_type", "modified")
+        # Normalise change_type to one of modified/added/removed
+        if "add" in change_type:
+            ct = "added"
+        elif "remov" in change_type:
+            ct = "removed"
+        else:
+            ct = "modified"
+
+        transitions_map[key]["counts"][ct] = (
+            transitions_map[key]["counts"].get(ct, 0) + 1
+        )
+
+        # Extract field-level diffs
+        for field in _extract_field_changes(c):
+            field["change_type"] = ct
+            field["severity"] = c.get("severity", "medium")
+            transitions_map[key]["field_changes"].append(field)
+
+    # ── Build per-transition category groups ──────────────────────────
+    transitions = []
+    for t in transitions_map.values():
+        by_category: Dict[str, List[Dict[str, Any]]] = {}
+        for fc in t["field_changes"]:
+            cat = fc.get("category", "config")
+            by_category.setdefault(cat, []).append(fc)
+
+        # Sort categories in display order
+        ordered_cats = []
+        for cat in _CATEGORY_ORDER:
+            if cat in by_category:
+                ordered_cats.append({
+                    "category": cat,
+                    "fields": by_category[cat],
+                })
+        # Any remaining categories not in the standard order
+        for cat, fields in by_category.items():
+            if cat not in _CATEGORY_ORDER:
+                ordered_cats.append({"category": cat, "fields": fields})
+
+        # Compute drift severity for this transition
+        severity_score = sum(
+            _CATEGORY_SEVERITY_WEIGHT.get(fc.get("category", "config"), 1)
+            for fc in t["field_changes"]
+        )
+        if severity_score >= 6:
+            drift_severity = "high"
+        elif severity_score >= 3:
+            drift_severity = "medium"
+        else:
+            drift_severity = "low"
+
+        transitions.append({
+            "scan_run_id": t["scan_run_id"],
+            "previous_scan_id": t["previous_scan_id"],
+            "detected_at": t["detected_at"],
+            "categories": ordered_cats,
+            "counts": t["counts"],
+            "drift_severity": drift_severity,
+            "total_fields_changed": len(t["field_changes"]),
+        })
+
+    # ── Collect unique scan IDs for the timeline rail ─────────────────
+    scan_ids_seen: Dict[str, Optional[str]] = OrderedDict()
+    for t in transitions:
+        if t["scan_run_id"]:
+            scan_ids_seen.setdefault(t["scan_run_id"], t["detected_at"])
+        if t["previous_scan_id"]:
+            scan_ids_seen.setdefault(t["previous_scan_id"], None)
+
+    scans = [
+        {"scan_run_id": sid, "detected_at": ts}
+        for sid, ts in scan_ids_seen.items()
+    ]
+
+    # ── Grand summary ─────────────────────────────────────────────────
+    total_counts = {"modified": 0, "added": 0, "removed": 0}
+    for t in transitions:
+        for k in total_counts:
+            total_counts[k] += t["counts"].get(k, 0)
+
+    return {
+        "last_check": raw_drift.get("last_check"),
+        "has_drift": True,
+        "scans": scans,
+        "transitions": transitions,
+        "summary": total_counts,
+        "total": raw_drift.get("total", len(changes)),
+    }
+
+
 # ── Asset Detail View ─────────────────────────────────────────────────────
 
 
@@ -208,6 +442,12 @@ async def view_asset_detail(
     threat_data = threat_data if isinstance(threat_data, dict) else {}
     compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
 
+    # ── Transform drift into timeline view ───────────────────────────
+    raw_drift = inventory_data.get("drift_info", {})
+    if not isinstance(raw_drift, dict):
+        raw_drift = {}
+    drift_timeline = _build_drift_timeline(raw_drift)
+
     return {
         "asset": inventory_data,
         "check_findings": check_data.get("findings", []),
@@ -215,7 +455,7 @@ async def view_asset_detail(
         "threat_findings": threat_data.get("findings", []),
         "threat_severity": threat_data.get("severity_counts", {}),
         "compliance_findings": compliance_data.get("findings", []),
-        "drift": inventory_data.get("drift_info", {}),
+        "drift": drift_timeline,
         "relationships": inventory_data.get("relationships", []),
     }
 
