@@ -418,48 +418,15 @@ export default function DriftTimeline({ drift, service }) {
   // Auto-detect and transform raw engine data if needed
   const timeline = useMemo(() => transformRawDrift(drift), [drift]);
 
-  if (!timeline || (!timeline.has_drift && !timeline.transitions?.length)) {
-    return (
-      <div className="space-y-4">
-        <div
-          className="rounded-lg p-6 border"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
-        >
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-            Drift Detection
-          </h2>
-
-          {/* Status indicator */}
-          <div className="flex items-center gap-2 mb-4">
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: 'var(--accent-success)' }}
-            />
-            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-              No Drift Detected
-            </span>
-          </div>
-
-          <div
-            className="rounded p-4 text-center text-sm"
-            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}
-          >
-            {timeline?.last_check
-              ? `Last checked ${new Date(timeline.last_check).toLocaleString()} — no configuration drift found`
-              : 'No drift data available — drift detection requires at least two scans'}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const transitions = timeline.transitions || [];
-  const summary = timeline.summary || {};
-  const scans = timeline.scans || [];
+  const hasDrift = timeline?.has_drift && (timeline.transitions?.length > 0);
+  const transitions = timeline?.transitions || [];
+  const summary = timeline?.summary || { modified: 0, added: 0, removed: 0 };
+  const scans = timeline?.scans || [];
+  const lastCheck = timeline?.last_check;
 
   return (
     <div className="space-y-4">
-      {/* ── Header Card ───────────────────────────────── */}
+      {/* ── Header Card (uniform for all assets) ───────── */}
       <div
         className="rounded-lg p-5 border"
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
@@ -472,23 +439,25 @@ export default function DriftTimeline({ drift, service }) {
                 Drift Timeline
               </h2>
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Last checked {timeline.last_check ? new Date(timeline.last_check).toLocaleString() : 'N/A'}
-                {' · '}{scans.length} scan{scans.length !== 1 ? 's' : ''} tracked
+                {lastCheck
+                  ? `Last checked ${new Date(lastCheck).toLocaleString()}`
+                  : 'Drift detection requires at least two scans'}
+                {scans.length > 0 && ` · ${scans.length} scan${scans.length !== 1 ? 's' : ''} tracked`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div
               className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: 'var(--accent-danger)' }}
+              style={{ backgroundColor: hasDrift ? 'var(--accent-danger)' : 'var(--accent-success)' }}
             />
             <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-              Drift Detected
+              {hasDrift ? 'Drift Detected' : 'No Drift'}
             </span>
           </div>
         </div>
 
-        {/* ── Summary Cards ─────────────────────────────── */}
+        {/* ── Summary Cards (always visible) ──────────── */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Modified', count: summary.modified || 0, ...CHANGE_TYPE_META.modified },
@@ -498,12 +467,21 @@ export default function DriftTimeline({ drift, service }) {
             <div
               key={item.label}
               className="rounded-lg p-3 text-center border"
-              style={{ backgroundColor: item.bg, borderColor: `${item.color}20` }}
+              style={{
+                backgroundColor: item.count > 0 ? item.bg : 'var(--bg-tertiary)',
+                borderColor: item.count > 0 ? `${item.color}20` : 'var(--border-primary)',
+              }}
             >
-              <div className="text-2xl font-bold" style={{ color: item.color }}>
+              <div
+                className="text-2xl font-bold"
+                style={{ color: item.count > 0 ? item.color : 'var(--text-tertiary)' }}
+              >
                 {item.count}
               </div>
-              <div className="text-xs font-medium" style={{ color: item.color }}>
+              <div
+                className="text-xs font-medium"
+                style={{ color: item.count > 0 ? item.color : 'var(--text-tertiary)' }}
+              >
                 {item.label}
               </div>
             </div>
@@ -512,23 +490,40 @@ export default function DriftTimeline({ drift, service }) {
       </div>
 
       {/* ── Timeline Rail + Transition Blocks ──────────── */}
-      <div className="relative">
-        {/* Vertical rail line */}
-        {transitions.length > 1 && (
-          <div
-            className="absolute left-[22px] top-6 bottom-6 w-0.5"
-            style={{ backgroundColor: 'var(--border-primary)' }}
-          />
-        )}
-
-        <div className="space-y-3">
-          {transitions.map((t, i) => (
-            <TransitionBlock key={t.scan_run_id || i} transition={t} index={i} />
-          ))}
+      {transitions.length > 0 ? (
+        <div className="relative">
+          {transitions.length > 1 && (
+            <div
+              className="absolute left-[22px] top-6 bottom-6 w-0.5"
+              style={{ backgroundColor: 'var(--border-primary)' }}
+            />
+          )}
+          <div className="space-y-3">
+            {transitions.map((t, i) => (
+              <TransitionBlock key={t.scan_run_id || i} transition={t} index={i} />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="rounded-lg p-6 border text-center"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+        >
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--accent-success)' }} />
+            <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+              No configuration changes detected
+            </span>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+            {lastCheck
+              ? `This resource has remained stable since last scan on ${new Date(lastCheck).toLocaleString()}`
+              : 'Run at least two inventory scans to enable drift detection for this resource'}
+          </p>
+        </div>
+      )}
 
-      {/* ── Legend ──────────────────────────────────────── */}
+      {/* ── Legend (always visible) ────────────────────── */}
       <div
         className="rounded-lg px-5 py-3 border flex items-center gap-6 text-xs"
         style={{

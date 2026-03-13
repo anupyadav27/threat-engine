@@ -508,6 +508,22 @@ class InventoryDBLoader:
             })
 
         last_check = changes[0]["detected_at"] if changes else None
+
+        # When no drift records exist, fall back to the asset's updated_at
+        # so the UI can still show when the asset was last scanned.
+        if not last_check:
+            try:
+                with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT updated_at FROM inventory_findings WHERE tenant_id = %s AND resource_uid = %s",
+                        (tenant_id, resource_uid),
+                    )
+                    row = cur.fetchone()
+                    if row and row.get("updated_at"):
+                        last_check = row["updated_at"].isoformat()
+            except Exception:
+                pass
+
         return {
             "last_check": last_check,
             "has_drift": len(changes) > 0,
