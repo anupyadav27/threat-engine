@@ -2507,6 +2507,79 @@ except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
 
 
+# ── Per-resource finding endpoint (used by BFF asset detail) ──────────────
+
+@app.get("/api/v1/compliance/findings/resource/{resource_uid:path}")
+async def get_compliance_findings_for_resource(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Return compliance findings for a specific resource.
+
+    Used by the BFF layer to enrich asset detail views with
+    per-resource framework compliance status.
+    Matches on both resource_uid and resource_arn to handle format differences.
+    """
+    try:
+        conn = _get_compliance_db_connection()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    compliance_framework,
+                    control_id,
+                    control_name,
+                    severity,
+                    status,
+                    rule_id,
+                    category,
+                    last_seen_at
+                FROM compliance_findings
+                WHERE (resource_uid = %s OR resource_arn = %s)
+                  AND tenant_id = %s
+                ORDER BY
+                    CASE LOWER(COALESCE(severity, 'medium'))
+                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                    END,
+                    compliance_framework, control_id
+                LIMIT %s
+            """, (resource_uid, resource_uid, tenant_id, limit))
+            rows = cur.fetchall()
+
+        findings = []
+        for r in rows:
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "framework": r.get("compliance_framework") or "",
+                "control_id": r.get("control_id") or "",
+                "control_name": r.get("control_name") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "rule_id": r.get("rule_id") or "",
+                "category": r.get("category") or "",
+                "last_seen": last_seen.isoformat() if last_seen else None,
+            })
+
+        return {
+            "resource_uid": resource_uid,
+            "findings": findings,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query compliance findings: {e}")
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

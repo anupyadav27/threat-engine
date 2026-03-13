@@ -2393,6 +2393,106 @@ async def list_hunt_results(
         raise HTTPException(status_code=500, detail=f"Failed to list hunt results: {str(e)}")
 
 
+# ── Per-resource finding endpoint (used by BFF asset detail) ──────────────
+
+@app.get("/api/v1/threat/findings/resource/{resource_uid:path}")
+async def get_threat_findings_for_resource(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Return threat findings for a specific resource.
+
+    Used by the BFF layer to enrich asset detail views with
+    MITRE ATT&CK techniques and threat severity.
+    Matches on both resource_uid and resource_arn to handle format differences.
+    """
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
+            user=os.getenv("THREAT_DB_USER", "threat_user"),
+            password=os.getenv("THREAT_DB_PASSWORD", "threat_password"),
+            connect_timeout=5,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        # Severity counts
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    LOWER(COALESCE(severity, 'medium')) AS severity,
+                    COUNT(*) AS cnt
+                FROM threat_findings
+                WHERE (resource_uid = %s OR resource_arn = %s)
+                  AND tenant_id = %s
+                GROUP BY LOWER(COALESCE(severity, 'medium'))
+            """, (resource_uid, resource_uid, tenant_id))
+            sev_rows = cur.fetchall()
+
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for r in sev_rows:
+            sev = r.get("severity", "medium")
+            if sev in severity_counts:
+                severity_counts[sev] = int(r.get("cnt") or 0)
+
+        # Detailed findings
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    finding_id, rule_id, threat_category, severity, status,
+                    resource_type, region, account_id,
+                    mitre_tactics, mitre_techniques, evidence,
+                    first_seen_at, last_seen_at
+                FROM threat_findings
+                WHERE (resource_uid = %s OR resource_arn = %s)
+                  AND tenant_id = %s
+                ORDER BY
+                    CASE LOWER(COALESCE(severity, 'medium'))
+                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                    END,
+                    last_seen_at DESC
+                LIMIT %s
+            """, (resource_uid, resource_uid, tenant_id, limit))
+            detail_rows = cur.fetchall()
+
+        findings = []
+        for r in detail_rows:
+            first_seen = r.get("first_seen_at")
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "finding_id": r.get("finding_id"),
+                "rule_id": r.get("rule_id"),
+                "threat_category": r.get("threat_category") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "resource_type": r.get("resource_type") or "",
+                "region": r.get("region") or "",
+                "account_id": r.get("account_id") or "",
+                "mitre_tactics": r.get("mitre_tactics") or [],
+                "mitre_techniques": r.get("mitre_techniques") or [],
+                "evidence": r.get("evidence") or {},
+                "first_seen_at": first_seen.isoformat() if first_seen else None,
+                "last_seen_at": last_seen.isoformat() if last_seen else None,
+            })
+
+        return {
+            "resource_uid": resource_uid,
+            "severity_counts": severity_counts,
+            "findings": findings,
+        }
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", "8000"))
