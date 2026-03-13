@@ -194,6 +194,38 @@ export default function InventoryPage() {
   // Table columns — essential CSPM inventory view
   const columns = [
     {
+      accessorKey: 'provider',
+      header: 'Provider',
+      size: 90,
+      cell: (info) => {
+        const icons = { aws: '🟠', azure: '🔵', gcp: '🔴', oci: '🟡', alicloud: '🟤', ibm: '⚪' };
+        const v = info.getValue() || '';
+        return (
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+            {icons[v] || '☁️'} {v.toUpperCase()}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'account_id',
+      header: 'Account',
+      cell: (info) => (
+        <span className="text-xs font-mono" style={{ color: 'var(--text-tertiary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'region',
+      header: 'Region',
+      cell: (info) => (
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
       accessorKey: 'resource_name',
       header: 'Resource',
       cell: (info) => {
@@ -216,42 +248,6 @@ export default function InventoryPage() {
               <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{rtype}</div>
             </div>
           </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'provider',
-      header: 'Provider',
-      size: 90,
-      cell: (info) => {
-        const icons = { aws: '🟠', azure: '🔵', gcp: '🔴', oci: '🟡', alicloud: '🟤', ibm: '⚪' };
-        const v = info.getValue() || '';
-        return (
-          <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-            {icons[v] || '☁️'} {v.toUpperCase()}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: 'region',
-      header: 'Region',
-      cell: (info) => (
-        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          {info.getValue() || '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'account_id',
-      header: 'Account',
-      size: 100,
-      cell: (info) => {
-        const v = info.getValue() || '';
-        return (
-          <span className="text-xs font-mono whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
-            {v.length > 8 ? `${v.slice(0, 4)}...${v.slice(-4)}` : v}
-          </span>
         );
       },
     },
