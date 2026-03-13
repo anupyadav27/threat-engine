@@ -332,9 +332,9 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                         summary = json.loads(summary_obj['Body'].read().decode('utf-8'))
                         account_id = account_id or summary.get('account_id')
                         scanned_at = scanned_at or summary.get('scanned_at')
-                    except:
+                    except Exception:
                         pass
-                
+
                 return {
                     'scan_id': scan_id,
                     'csp': csp,
@@ -412,9 +412,9 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                         summary = json.load(f)
                         account_id = account_id or summary.get('account_id')
                         scanned_at = scanned_at or summary.get('scanned_at')
-                except:
+                except Exception:
                     pass
-            
+
             return {
                 'scan_id': scan_id,
                 'csp': csp,
@@ -2348,15 +2348,15 @@ async def get_framework_detail(
 
 
 @app.get("/api/v1/compliance/control-detail/{framework}/{control_id}")
-async def get_control_detail(
+async def get_control_detail_by_tenant(
     framework: str,
     control_id: str,
     tenant_id: str = Query(...),
     scan_id: Optional[str] = Query("latest")
 ):
     """
-    Detailed control view with affected resources.
-    
+    Detailed control view with affected resources (tenant-scoped, DB-backed).
+
     Uses: compliance_control_detail + resource_compliance_status
     """
     try:
