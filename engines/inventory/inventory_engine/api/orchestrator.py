@@ -11,10 +11,6 @@ READS FROM:
      Tables: discovery_report   → get_latest_scan_id()
              discovery_findings  → read_discovery_records(scan_id) — yields one dict per resource
 
-  2. threat_engine_check (CHECK DB) — via CheckDBReader() [optional]
-     Tables: check_findings      → get_posture_by_resource(scan_id, tenant_id)
-             Returns {resource_uid: {total, passed, failed, errors}}
-
 WRITES TO:
   3. threat_engine_inventory (INVENTORY DB) — via PostgresIndexWriter(db_url)
      Tables: inventory_report        → write_scan_summary(ScanSummary)
@@ -57,7 +53,6 @@ from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
 from ..schemas.drift_schema import DriftRecord
 from ..connectors.discovery_reader_factory import get_discovery_reader
-from ..connectors.check_db_reader import CheckDBReader
 from ..connectors.step5_catalog_loader import Step5CatalogLoader
 from ..normalizer.asset_normalizer import AssetNormalizer
 from ..normalizer.relationship_builder import RelationshipBuilder
@@ -700,24 +695,9 @@ class ScanOrchestrator:
                 f"Check that the discovery engine called parent ops before dependent ops."
             )
 
-        # ── Optional: enrich assets with check posture from Check DB ──
-        if check_scan_id:
-            try:
-                posture = CheckDBReader().get_posture_by_resource(
-                    scan_id=check_scan_id,
-                    tenant_id=self.tenant_id,
-                )
-                posture_count = 0
-                for asset in all_assets:
-                    uid = asset.resource_uid
-                    if uid and uid in posture:
-                        asset.metadata = asset.metadata or {}
-                        asset.metadata["check_posture"] = posture[uid]
-                        posture_count += 1
-                logger.info(f"[{scan_run_id}] Enriched {posture_count} assets with check posture "
-                           f"(check_scan_id={check_scan_id})")
-            except Exception as e:
-                logger.warning(f"[{scan_run_id}] Failed to enrich with check posture: {e}")
+        # NOTE: Check posture enrichment was removed — it was dead code in
+        # pipeline flow (inventory = Stage 2, check = Stage 3) and has been
+        # moved to the BFF layer where it runs at query time via HTTP fan-out.
 
         # Step 2: Build relationships per CSP using DB-driven rules from
         # resource_relationship_rules (inventory DB). One shared connection is

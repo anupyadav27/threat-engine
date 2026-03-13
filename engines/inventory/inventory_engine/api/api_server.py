@@ -4,7 +4,7 @@ Inventory Engine API Server
 FastAPI server for inventory scanning and querying.
 
 === DATABASE & TABLE MAP ===
-This module connects to THREE databases:
+This module connects to TWO databases:
 
 1. threat_engine_inventory (INVENTORY DB) — via get_database_config("inventory")
    Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_USER / INVENTORY_DB_PASSWORD
@@ -12,6 +12,7 @@ This module connects to THREE databases:
      - inventory_report      : Scan-level summaries (get_scan_summary, get_latest_scan_id)
      - inventory_findings     : Asset records (list_assets, get_asset)
      - inventory_relationships: Resource edges (list_relationships, get_asset_relationships)
+     - inventory_drift        : Drift history per asset
    Tables WRITTEN (via orchestrator → PostgresIndexWriter):
      - inventory_report       : INSERT on scan completion
      - inventory_findings     : UPSERT per asset
@@ -23,12 +24,10 @@ This module connects to THREE databases:
      - discovery_report   : List scans, get latest scan ID
      - discovery_findings  : Read discovery records for normalization
 
-3. threat_engine_check (CHECK DB) — via CheckDBReader (optional enrichment)
-   Env: CHECK_DB_HOST / CHECK_DB_PORT / CHECK_DB_NAME / CHECK_DB_USER / CHECK_DB_PASSWORD
-   Tables READ:
-     - check_findings : Aggregate posture (PASS/FAIL/ERROR counts per resource_uid)
+NOTE: Cross-engine enrichment (check, threat, compliance findings) has been moved
+to the BFF layer at shared/api_gateway/bff/inventory.py to avoid tight coupling.
 
-4. LOCAL FILES (legacy, for drift/graph/summary endpoints that haven't been migrated to DB)
+3. LOCAL FILES (legacy, for drift/graph/summary endpoints that haven't been migrated to DB)
    Path: INVENTORY_OUTPUT_DIR or engine_output/engine_inventory/output/{tenant_id}/{scan_run_id}/normalized/
    Files: assets.ndjson, relationships.ndjson, drift.ndjson, summary.json
 ===
@@ -827,15 +826,14 @@ async def get_asset(
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
 ):
-    """Get asset details by resource_uid (DB-first) with cross-engine enrichment.
+    """Get asset details by resource_uid (DB-first) — inventory data only.
 
-    Enriches the base inventory asset with:
-    - findings: severity counts from check_findings (critical/high/medium/low)
-    - findings_detail: detailed findings list from check_findings + rule_metadata
-    - compliance: compliance controls from compliance_findings
-    - drift_info: drift history from inventory_drift
-    - threats: threat findings with MITRE ATT&CK techniques from threat_findings
-    - threat_severity: threat severity counts (critical/high/medium/low)
+    Returns inventory-owned data:
+    - Base asset from inventory_findings
+    - drift_info from inventory_drift
+
+    Cross-engine enrichment (check, threat, compliance findings) is handled
+    at the BFF layer via GET /api/v1/views/inventory/asset/{resource_uid}.
     """
     # The :path converter is greedy and swallows sub-route suffixes.
     # Dispatch to the correct handler when a known suffix is detected.
@@ -899,40 +897,6 @@ async def get_asset(
             asset["drift_info"] = {"last_check": None, "has_drift": False, "changes": [], "total": 0}
 
         loader.close()
-
-        # 2. Check findings enrichment (severity counts + detailed findings)
-        try:
-            from ..connectors.check_db_reader import CheckDBReader
-            check_reader = CheckDBReader()
-            asset["findings"] = check_reader.get_severity_counts_for_resource(resource_uid, tenant_id)
-            asset["findings_detail"] = check_reader.get_findings_for_resource(resource_uid, tenant_id)
-            check_reader.close()
-        except Exception as e:
-            logger.warning(f"Check findings enrichment failed for {resource_uid}: {e}")
-            asset["findings"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-            asset["findings_detail"] = []
-
-        # 3. Compliance findings enrichment
-        try:
-            from ..connectors.compliance_db_reader import ComplianceDBReader
-            compliance_reader = ComplianceDBReader()
-            asset["compliance"] = compliance_reader.get_compliance_for_resource(resource_uid, tenant_id)
-            compliance_reader.close()
-        except Exception as e:
-            logger.warning(f"Compliance enrichment failed for {resource_uid}: {e}")
-            asset["compliance"] = []
-
-        # 4. Threat findings enrichment (MITRE ATT&CK techniques, severity)
-        try:
-            from ..connectors.threat_db_reader import ThreatDBReader
-            threat_reader = ThreatDBReader()
-            asset["threats"] = threat_reader.get_threat_findings_for_resource(resource_uid, tenant_id)
-            asset["threat_severity"] = threat_reader.get_threat_severity_counts(resource_uid, tenant_id)
-            threat_reader.close()
-        except Exception as e:
-            logger.warning(f"Threat findings enrichment failed for {resource_uid}: {e}")
-            asset["threats"] = []
-            asset["threat_severity"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
         return asset
 
