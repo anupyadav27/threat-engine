@@ -6,7 +6,7 @@ pattern matching (e.g. aws.iam.*) to identify IAM-relevant ones.
 """
 
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 import logging
 
@@ -62,7 +62,7 @@ class IAMReporter:
             "scan_context": {
                 "csp": csp,
                 "threat_scan_run_id": scan_id,
-                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             },
             "summary": summary,
             "findings": iam_relevant,

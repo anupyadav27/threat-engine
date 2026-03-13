@@ -19,7 +19,7 @@ import asyncio
 import os
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
@@ -176,7 +176,7 @@ def _default_services(provider: str) -> List[str]:
 def _run_check_sync(check_scan_id: str, request: CheckRequest) -> None:
     """Execute check scan synchronously (runs in a thread pool)."""
     with LogContext(tenant_id=request.tenant_id, scan_run_id=check_scan_id):
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         try:
             # No authenticate() — DB-only engine
             evaluator = _get_evaluator(request.provider)
@@ -197,12 +197,12 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest) -> None:
                 check_source=request.check_source,
             )
 
-            duration = (datetime.utcnow() - start).total_seconds()
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
             scans[check_scan_id].update(
                 {
                     "status": "completed",
                     "results": results,
-                    "completed_at": datetime.utcnow().isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
             metrics["successful_scans"] += 1
@@ -218,14 +218,14 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest) -> None:
         except CheckEvaluationError as exc:
             logger.error("Check evaluation error for %s: %s", check_scan_id, exc)
             scans[check_scan_id].update(
-                {"status": "failed", "error": str(exc), "completed_at": datetime.utcnow().isoformat()}
+                {"status": "failed", "error": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}
             )
             metrics["failed_scans"] += 1
 
         except Exception as exc:
             logger.error("Check scan failed: %s", check_scan_id, exc_info=True)
             scans[check_scan_id].update(
-                {"status": "failed", "error": str(exc), "completed_at": datetime.utcnow().isoformat()}
+                {"status": "failed", "error": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}
             )
             metrics["failed_scans"] += 1
 
@@ -306,7 +306,7 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
         "status": "running",
         "provider": request.provider,
         "discovery_scan_id": request.discovery_scan_id,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
     metrics["total_scans"] += 1
 

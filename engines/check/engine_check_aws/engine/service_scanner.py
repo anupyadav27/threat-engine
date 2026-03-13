@@ -2464,8 +2464,8 @@ def _run_single_check(
         checked_fields = extract_checked_fields(conditions)
         
         # Get scan timestamp
-        from datetime import datetime
-        created_at = datetime.utcnow().isoformat() + 'Z'
+        from datetime import datetime, timezone
+        created_at = datetime.now(timezone.utc).isoformat() + 'Z'
         
         results_mode = os.getenv("RESULTS_NDJSON_MODE", "finding").strip().lower()
         is_verbose = results_mode in ("legacy",)

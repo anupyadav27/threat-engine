@@ -16,7 +16,7 @@ import threading
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 
 # Add common to path for logger import
@@ -527,7 +527,7 @@ async def generate_threat_report_async(request: ThreatReportRequest):
         "status": "running",
         "scan_run_id": request.scan_run_id,
         "tenant_id": request.tenant_id,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
     }
 
@@ -535,11 +535,11 @@ async def generate_threat_report_async(request: ThreatReportRequest):
         try:
             asyncio.run(generate_threat_report(request))
             threat_jobs[job_id]["status"] = "completed"
-            threat_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
         except Exception as e:
             threat_jobs[job_id]["status"] = "failed"
             threat_jobs[job_id]["error"] = str(e)
-            threat_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
 
     threading.Thread(target=_worker, daemon=True).start()
     return threat_jobs[job_id]
@@ -1293,7 +1293,7 @@ async def get_threat_trend(
             })
             
             # Calculate date range
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
             
             for report_meta in reports:

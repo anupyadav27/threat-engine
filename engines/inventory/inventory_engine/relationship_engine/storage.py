@@ -5,7 +5,7 @@ Handles persistence of discovered relationships to database
 
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .discovery import DiscoveredRelationship
@@ -74,7 +74,7 @@ class RelationshipStorage:
             RETURNING id
         """
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         params = []
 
         for rel in relationships:

@@ -22,7 +22,7 @@ import logging
 import os
 import uuid
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -387,7 +387,7 @@ class CheckEngine:
                                         "checked_fields": checked_fields,
                                         "actual_values": actual_values,
                                         "finding_data": finding_data,
-                                        "scan_timestamp": datetime.utcnow().isoformat(),
+                                        "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                                     }
                                 )
                             elif self.db:

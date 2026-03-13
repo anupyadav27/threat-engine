@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from botocore.exceptions import ClientError
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class SecretsManagerStorage:
             'credential_type': credential_type,
             'credentials': credentials,
             'account_id': account_id,
-            'created_at': datetime.utcnow().isoformat(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
             'expires_at': expires_at
         }
         
@@ -119,7 +119,7 @@ class SecretsManagerStorage:
             # Check expiration
             if secret_data.get('expires_at'):
                 expires_at = datetime.fromisoformat(secret_data['expires_at'].replace('Z', '+00:00'))
-                if expires_at < datetime.utcnow().replace(tzinfo=expires_at.tzinfo):
+                if expires_at < datetime.now(timezone.utc).replace(tzinfo=expires_at.tzinfo):
                     raise ValueError(f"Credentials for account {account_id} have expired")
             
             # Return credentials

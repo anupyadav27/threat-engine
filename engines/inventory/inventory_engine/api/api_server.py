@@ -47,7 +47,7 @@ from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
@@ -396,7 +396,7 @@ async def run_inventory_scan_async(request: ScanRequest):
         "tenant_id": request.tenant_id,
         "discovery_scan_id": request.discovery_scan_id,
         "check_scan_id": request.check_scan_id,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
         "result": None,
     }
@@ -422,11 +422,11 @@ async def run_inventory_scan_async(request: ScanRequest):
                 previous_scan_id=request.previous_scan_id,
             )
             inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["result"] = result
         except Exception as e:
             inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["error"] = str(e)
 
     threading.Thread(target=_worker, daemon=True).start()
@@ -599,7 +599,7 @@ async def run_discovery_scan_async(request: DiscoveryScanRequest):
     Returns immediately with a job_id so callers can poll `/api/v1/inventory/jobs/{job_id}`.
     """
     import time
-    started_at = datetime.utcnow().isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
     job_id = f"invjob_{int(time.time()*1000)}_{random.randint(1000,9999)}"
     inventory_jobs[job_id] = {
         "job_id": job_id,
@@ -634,12 +634,12 @@ async def run_discovery_scan_async(request: DiscoveryScanRequest):
                 previous_scan_id=request.previous_scan_id,
             )
             inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["result"] = result
             inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
         except Exception as e:
             inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["error"] = str(e)
             inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
     threading.Thread(target=_run, daemon=True).start()
@@ -1400,7 +1400,7 @@ async def get_drift(
                             "provider": asset.get("provider"),
                             "account_id": asset.get("account_id"),
                             "region": asset.get("region"),
-                            "detected_at": datetime.utcnow().isoformat() + "Z"
+                            "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                         })
                 
                 # Removed assets
@@ -1413,7 +1413,7 @@ async def get_drift(
                             "provider": asset.get("provider"),
                             "account_id": asset.get("account_id"),
                             "region": asset.get("region"),
-                            "detected_at": datetime.utcnow().isoformat() + "Z"
+                            "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                         })
                 
                 # Changed assets
@@ -1442,7 +1442,7 @@ async def get_drift(
                                 "account_id": compare.get("account_id"),
                                 "region": compare.get("region"),
                                 "diff": diff,
-                                "detected_at": datetime.utcnow().isoformat() + "Z"
+                                "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                             })
             else:
                 # No baseline/compare → load pre-computed drift from inventory_drift table.

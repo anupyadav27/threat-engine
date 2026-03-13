@@ -1,7 +1,7 @@
 import os
 import json
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 ALLOWED_EFFECTS = {"mark_skipped", "exempt_results", "skip_check", "skip_service"}
@@ -52,7 +52,7 @@ def add_service_exception(
     if effect not in ALLOWED_EFFECTS:
         raise ValueError(f"effect must be one of {sorted(ALLOWED_EFFECTS)}")
     ex = {
-        "id": ex_id or f"svc-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "id": ex_id or f"svc-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "effect": effect,
         "selector": selector or {},
         "reason": reason,
@@ -86,7 +86,7 @@ def add_check_exception(
     if effect not in ALLOWED_EFFECTS:
         raise ValueError(f"effect must be one of {sorted(ALLOWED_EFFECTS)}")
     ex = {
-        "id": ex_id or f"chk-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "id": ex_id or f"chk-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "check_id": check_id,
         "effect": effect,
         "selector": selector or {},

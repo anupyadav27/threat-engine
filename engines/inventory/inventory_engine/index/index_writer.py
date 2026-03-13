@@ -32,7 +32,7 @@ import json
 import uuid
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..schemas.asset_schema import Asset, generate_asset_id
 from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
@@ -174,7 +174,7 @@ class PostgresIndexWriter(IndexWriter):
                 json.dumps(asset.tags), json.dumps(labels),
                 json.dumps(properties), json.dumps(configuration),
                 asset.scan_run_id, asset.scan_run_id,
-                datetime.utcnow()
+                datetime.now(timezone.utc)
             ))
 
         self.conn.commit()
@@ -254,7 +254,7 @@ class PostgresIndexWriter(IndexWriter):
                     resource_uid, provider, resource_type, change_type,
                     json.dumps({}), json.dumps({}), json.dumps(changes_summary),
                     severity,
-                    dr.detected_at if hasattr(dr, 'detected_at') else datetime.utcnow()
+                    dr.detected_at if hasattr(dr, 'detected_at') else datetime.now(timezone.utc)
                 ))
                 inserted += 1
             except Exception as e:

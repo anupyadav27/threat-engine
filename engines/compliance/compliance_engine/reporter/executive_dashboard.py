@@ -146,6 +146,6 @@ class ExecutiveDashboard:
     
     def _get_current_timestamp(self) -> str:
         """Get current timestamp in ISO format."""
-        from datetime import datetime
-        return datetime.utcnow().isoformat() + 'Z'
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).isoformat() + 'Z'
 

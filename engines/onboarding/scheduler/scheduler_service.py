@@ -2,7 +2,7 @@
 Main scheduler service
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from engine_onboarding.database import (
@@ -56,7 +56,7 @@ class SchedulerService:
         if not next_run_at:
             return False
         
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         return next_run_at <= now
     
     async def execute_schedule(self, schedule_obj: Dict[str, Any]):
@@ -109,7 +109,7 @@ class SchedulerService:
             )
             
             # Calculate execution time
-            completed_at = datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             execution_time = int((completed_at - started_at.replace(tzinfo=None)).total_seconds())
             
             # Update execution
@@ -138,7 +138,7 @@ class SchedulerService:
             })
             
         except Exception as e:
-            completed_at = datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             execution_time = int((completed_at - started_at.replace(tzinfo=None)).total_seconds())
             
             # Update execution with error

@@ -7,7 +7,7 @@ Analyzes CloudTrail and CloudWatch logs for unusual access patterns.
 import boto3
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import logging
 
@@ -59,7 +59,7 @@ class ActivityAnalyzer:
         events = []
         
         try:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(days=days_back)
             
             # Query CloudTrail for S3 events

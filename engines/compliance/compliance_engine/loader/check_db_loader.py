@@ -11,7 +11,7 @@ all data is stored in local PostgreSQL. Configure via CHECK_DB_* env vars.
 import os
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 try:
@@ -191,7 +191,7 @@ class CheckDBLoader:
                     if ts and hasattr(ts, "isoformat"):
                         rec["scan_timestamp"] = ts.isoformat() + "Z"
                     else:
-                        rec["scan_timestamp"] = datetime.utcnow().isoformat() + "Z"
+                        rec["scan_timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
                     rows.append(rec)
         except Exception:
             return []
@@ -212,14 +212,14 @@ class CheckDBLoader:
                 "scan_id": scan_id or "",
                 "csp": csp,
                 "account_id": account_id or "",
-                "scanned_at": scanned_at or datetime.utcnow().isoformat() + "Z",
+                "scanned_at": scanned_at or datetime.now(timezone.utc).isoformat() + "Z",
                 "results": [],
             }
 
         first = check_results[0]
         sid = scan_id or first.get("check_scan_id", "")
         acc = account_id or first.get("hierarchy_id", "")
-        at = scanned_at or first.get("scan_timestamp", datetime.utcnow().isoformat() + "Z")
+        at = scanned_at or first.get("scan_timestamp", datetime.now(timezone.utc).isoformat() + "Z")
         if isinstance(at, datetime):
             at = at.isoformat() + "Z"
 

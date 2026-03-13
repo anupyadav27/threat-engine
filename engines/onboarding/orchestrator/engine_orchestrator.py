@@ -16,7 +16,7 @@ import httpx
 import sys
 import os
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -155,7 +155,7 @@ class EngineOrchestrator:
                 "tenant_id": tenant_id,
                 "account_id": account_id,
                 "provider_type": provider_type,
-                "orchestration_started_at": datetime.utcnow().isoformat(),
+                "orchestration_started_at": datetime.now(timezone.utc).isoformat(),
                 "mode": "sqs",
                 "status": "queued",
                 "message": "Pipeline handed off to SQS worker — poll scan_orchestration for status.",
@@ -170,7 +170,7 @@ class EngineOrchestrator:
             "tenant_id": tenant_id,
             "account_id": account_id,
             "provider_type": provider_type,
-            "orchestration_started_at": datetime.utcnow().isoformat(),
+            "orchestration_started_at": datetime.now(timezone.utc).isoformat(),
             "engines": {}
         }
 
@@ -328,7 +328,7 @@ class EngineOrchestrator:
         except Exception as e:
             logger.error(f"Failed to mark orchestration complete: {e}")
 
-        results["orchestration_completed_at"] = datetime.utcnow().isoformat()
+        results["orchestration_completed_at"] = datetime.now(timezone.utc).isoformat()
         results["orchestration_status"] = overall_status
         return results
 
@@ -391,8 +391,8 @@ class EngineOrchestrator:
                         "accounts": [],
                         "regions": [],
                         "services": [],
-                        "started_at": datetime.utcnow().isoformat(),
-                        "completed_at": datetime.utcnow().isoformat()
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                        "completed_at": datetime.now(timezone.utc).isoformat()
                     }
                 )
                 response.raise_for_status()

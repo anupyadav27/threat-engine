@@ -7,7 +7,7 @@ Uses CloudTrail logs and service relationships to map data lineage.
 import boto3
 from typing import Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class LineageAnalyzer:
         
         try:
             # Look for COPY commands from S3 to Redshift
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(days=days_back)
             
             for bucket in s3_buckets:

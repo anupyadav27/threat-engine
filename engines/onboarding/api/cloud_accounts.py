@@ -4,7 +4,7 @@ Manages cloud accounts using the cloud_accounts table
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import os
 
@@ -129,7 +129,7 @@ async def deploy_account(account_id: str, deployment_data: dict):
         # Extract deployment fields
         updates = {
             'account_onboarding_status': 'deployed',
-            'updated_at': datetime.utcnow()
+            'updated_at': datetime.now(timezone.utc)
         }
 
         if 'credential_ref' in deployment_data:
@@ -209,7 +209,7 @@ async def validate_credentials(account_id: str):
         updates = {
             'credential_validation_status': 'valid' if result.success else 'invalid',
             'credential_validation_message': result.message,
-            'credential_validated_at': datetime.utcnow()
+            'credential_validated_at': datetime.now(timezone.utc)
         }
         if result.success and hasattr(result, 'account_number') and result.account_number:
             updates['account_number'] = result.account_number
@@ -222,7 +222,7 @@ async def validate_credentials(account_id: str):
             "status": "valid" if result.success else "invalid",
             "message": result.message,
             "errors": getattr(result, 'errors', []),
-            "validated_at": datetime.utcnow().isoformat()
+            "validated_at": datetime.now(timezone.utc).isoformat()
         }
 
     except HTTPException:
@@ -256,7 +256,7 @@ async def validate_and_schedule(account_id: str, validation_data: dict):
         from croniter import croniter
 
         cron_expr = validation_data.get('cron_expression', '0 2 * * *')
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         next_run = croniter(cron_expr, base_time).get_next(datetime)
 
         updates = {
@@ -268,7 +268,7 @@ async def validate_and_schedule(account_id: str, validation_data: dict):
             'schedule_include_regions': validation_data.get('include_regions', []),
             'schedule_include_services': validation_data.get('include_services', []),
             'schedule_engines_requested': validation_data.get('engines_requested', []),
-            'updated_at': datetime.utcnow()
+            'updated_at': datetime.now(timezone.utc)
         }
 
         account = update_cloud_account(account_id, updates)
@@ -324,7 +324,7 @@ async def delete_account(account_id: str):
     try:
         updates = {
             'account_status': 'deleted',
-            'updated_at': datetime.utcnow()
+            'updated_at': datetime.now(timezone.utc)
         }
 
         account = update_cloud_account(account_id, updates)

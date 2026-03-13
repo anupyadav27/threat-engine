@@ -3,7 +3,7 @@ Credential management API endpoints
 """
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from engine_onboarding.database.cloud_accounts_operations import (
     get_cloud_account,
@@ -92,7 +92,7 @@ async def store_credentials(
         'credential_type': normalized_credential_type,
         'credential_ref': f"threat-engine/account/{account_id}",
         'credential_validation_status': 'valid',
-        'credential_validated_at': datetime.utcnow(),
+        'credential_validated_at': datetime.now(timezone.utc),
         'account_onboarding_status': 'deployed',
     }
     if hasattr(validation_result, 'account_number') and validation_result.account_number:
@@ -126,7 +126,7 @@ async def revalidate_credentials(
     if validation_result.success:
         update_cloud_account(account_id, {
             'credential_validation_status': 'valid',
-            'credential_validated_at': datetime.utcnow(),
+            'credential_validated_at': datetime.now(timezone.utc),
             'account_status': 'active',
         })
     else:

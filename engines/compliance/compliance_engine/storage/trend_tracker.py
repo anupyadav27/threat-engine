@@ -5,7 +5,7 @@ Tracks compliance scores over time for trend analysis.
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 
@@ -36,18 +36,18 @@ class TrendTracker:
             scanned_at: Timestamp (ISO format, defaults to now)
         """
         if scanned_at is None:
-            scanned_at = datetime.utcnow().isoformat() + 'Z'
+            scanned_at = datetime.now(timezone.utc).isoformat() + 'Z'
         
         key = f"{csp}:{account_id}:{framework}"
         
         self._trends[key].append({
             'score': score,
             'scanned_at': scanned_at,
-            'recorded_at': datetime.utcnow().isoformat() + 'Z'
+            'recorded_at': datetime.now(timezone.utc).isoformat() + 'Z'
         })
         
         # Keep only last 365 days of data
-        cutoff = (datetime.utcnow() - timedelta(days=365)).isoformat() + 'Z'
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat() + 'Z'
         self._trends[key] = [
             t for t in self._trends[key]
             if t['scanned_at'] >= cutoff
@@ -77,7 +77,7 @@ class TrendTracker:
         if key not in self._trends:
             return []
         
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat() + 'Z'
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat() + 'Z'
         
         trends = [
             t for t in self._trends[key]

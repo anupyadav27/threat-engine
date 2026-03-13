@@ -5,7 +5,7 @@ Detects configuration drift from discovery history.
 """
 
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..schemas.threat_report_schema import (
     Threat,
@@ -103,8 +103,8 @@ class DriftDetector:
                 severity=severity,
                 confidence=Confidence.MEDIUM,
                 status=ThreatStatus.OPEN,
-                first_seen_at=event.get("scan_timestamp") or datetime.utcnow(),
-                last_seen_at=event.get("scan_timestamp") or datetime.utcnow(),
+                first_seen_at=event.get("scan_timestamp") or datetime.now(timezone.utc),
+                last_seen_at=event.get("scan_timestamp") or datetime.now(timezone.utc),
                 correlations=ThreatCorrelation(
                     misconfig_finding_refs=[],
                     affected_assets=[]

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -339,7 +339,7 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                     'scan_id': scan_id,
                     'csp': csp,
                     'account_id': account_id,
-                    'scanned_at': scanned_at or datetime.utcnow().isoformat() + 'Z',
+                    'scanned_at': scanned_at or datetime.now(timezone.utc).isoformat() + 'Z',
                     'results': results
                 }
         except s3_client.exceptions.NoSuchKey:
@@ -419,7 +419,7 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                 'scan_id': scan_id,
                 'csp': csp,
                 'account_id': account_id,
-                'scanned_at': scanned_at or datetime.utcnow().isoformat() + 'Z',
+                'scanned_at': scanned_at or datetime.now(timezone.utc).isoformat() + 'Z',
                 'results': results
             }
     
@@ -504,7 +504,7 @@ async def generate_compliance_report(
                 'report_id': report_id,
                 'scan_id': check_query_scan_id,  # Use resolved check_scan_id
                 'csp': request.csp,
-                'generated_at': datetime.utcnow().isoformat() + 'Z',
+                'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
                 'executive_dashboard': dashboard,
                 'framework_reports': framework_reports
             }
@@ -620,7 +620,7 @@ async def generate_compliance_report_direct(request: ScanResultsInput):
             'report_id': report_id,
             'scan_id': request.scan_results.get('scan_id'),
             'csp': request.csp,
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'executive_dashboard': dashboard,
             'framework_reports': framework_reports
         }
@@ -728,7 +728,7 @@ async def generate_compliance_report_from_threat_engine(
             'report_id': report_id,
             'scan_id': scan_results.get('scan_id'),
             'csp': request.csp,
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'source': 'threat_engine',
             'executive_dashboard': dashboard,
             'framework_reports': framework_reports
@@ -848,7 +848,7 @@ async def generate_compliance_report_from_check_db(
             "scan_id": scan_results.get("scan_id"),
             "csp": request.csp,
             "tenant_id": request.tenant_id,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "source": "check_db",
             "executive_dashboard": dashboard,
             "framework_reports": framework_reports,
@@ -984,7 +984,7 @@ async def generate_compliance_report_from_threat_db(
             "scan_id": scan_results.get("scan_id"),
             "csp": request.csp,
             "tenant_id": request.tenant_id,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "source": "threat_db",
             "executive_dashboard": dashboard,
             "framework_reports": framework_reports,
@@ -1176,8 +1176,8 @@ async def generate_enterprise_report(
                 trigger_type=TriggerType(request.trigger_type),
                 cloud=Cloud(csp),
                 collection_mode=CollectionMode(request.collection_mode),
-                started_at=scan_results.get('scanned_at', datetime.utcnow().isoformat() + 'Z'),
-                completed_at=datetime.utcnow().isoformat() + 'Z'
+                started_at=scan_results.get('scanned_at', datetime.now(timezone.utc).isoformat() + 'Z'),
+                completed_at=datetime.now(timezone.utc).isoformat() + 'Z'
             )
 
             s3_bucket = os.getenv("S3_BUCKET", "cspm-lgtech")
@@ -2004,7 +2004,7 @@ async def generate_detailed_reports(
             'csp': csp,
             'account_id': scan_results.get('account_id'),
             'scanned_at': scan_results.get('scanned_at'),
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'output_directory': str(scan_output_dir),
             'executive_summary': 'executive_summary.json',
             'frameworks': {

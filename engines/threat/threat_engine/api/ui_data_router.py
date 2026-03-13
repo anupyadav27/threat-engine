@@ -13,7 +13,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import psycopg2
@@ -520,7 +520,7 @@ def _query_mitre_matrix(conn, where: str, params: list) -> List[dict]:
 def _query_trend(conn, tenant_id: str, days: int) -> List[dict]:
     trend: List[dict] = []
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         date_map: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {"date": "", "total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
         )

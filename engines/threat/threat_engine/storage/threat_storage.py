@@ -10,7 +10,7 @@ import os
 import json
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..schemas.threat_report_schema import ThreatReport, Threat, ThreatStatus
@@ -184,7 +184,7 @@ class ThreatStorage:
                 threat["status"] = status.value
                 if notes:
                     threat["notes"] = notes
-                threat["status_updated_at"] = datetime.utcnow().isoformat()
+                threat["status_updated_at"] = datetime.now(timezone.utc).isoformat()
 
                 tenant_id = (report.get("tenant") or {}).get("tenant_id")
                 if not tenant_id:

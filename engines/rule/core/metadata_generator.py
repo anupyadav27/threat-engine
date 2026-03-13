@@ -5,7 +5,7 @@ Metadata file generator for custom rules
 import yaml
 from pathlib import Path
 from typing import Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 class MetadataGenerator:
     """Generates metadata YAML files for custom rules with provider awareness"""
@@ -68,7 +68,7 @@ class MetadataGenerator:
         # Build metadata structure
         value_str = "" if value is None else str(value)
         rationale_value_part = "" if value is None else f" {value_str}"
-        created_at = datetime.utcnow().isoformat() + "Z"
+        created_at = datetime.now(timezone.utc).isoformat() + "Z"
 
         assertion_id = (
             f"security.configuration."

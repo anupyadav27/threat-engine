@@ -21,7 +21,7 @@ import json
 import shutil
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -155,7 +155,7 @@ def _run_scan_and_persist(
         customer_id=customer_id,
         orchestration_id=orchestration_id,
     )
-    _scan_status[secops_scan_id] = {"status": "running", "started_at": datetime.utcnow().isoformat()}
+    _scan_status[secops_scan_id] = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat()}
 
     try:
         # 2. Run scan
@@ -188,7 +188,7 @@ def _run_scan_and_persist(
             "project_name": project_name,
             "repo_url": repo_url,
             "branch": branch,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": {
                 "files_scanned": total_files,
                 "total_findings": total_findings,
@@ -258,7 +258,7 @@ async def root():
 async def health():
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "supported_languages": list(get_supported_languages()),
         "input_folder": INPUT_FOLDER,
         "output_folder": OUTPUT_FOLDER,
@@ -527,7 +527,7 @@ async def scan_project_legacy(request: LegacyScanRequest):
         response = {
             "success": True,
             "project_name": project_name,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": {
                 "files_scanned": total_files,
                 "total_findings": total_findings,
@@ -539,7 +539,7 @@ async def scan_project_legacy(request: LegacyScanRequest):
         if request.save_results:
             output_path = os.path.join(OUTPUT_FOLDER, project_name)
             os.makedirs(output_path, exist_ok=True)
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             result_file = os.path.join(output_path, f"scan_results_{ts}.json")
             latest_file = os.path.join(output_path, "scan_results_latest.json")
             with open(result_file, "w") as f:

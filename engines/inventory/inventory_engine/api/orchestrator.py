@@ -47,7 +47,7 @@ import os
 import json
 import uuid as _uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -492,7 +492,7 @@ class ScanOrchestrator:
         from ..normalizer.resource_classifier import InventoryDecision
 
         scan_run_id = str(_uuid.uuid4())
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
 
         # Step 1: Read ALL discovery records and split into root vs dependent
         #
@@ -791,7 +791,7 @@ class ScanOrchestrator:
             )
 
         # Step 4: Save normalized artifacts
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         artifact_paths = self._save_artifacts(
             scan_run_id, all_assets, all_relationships, drift_records, raw_refs, started_at, completed_at
         )

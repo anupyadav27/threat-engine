@@ -6,7 +6,7 @@ Combines enriched configScan findings with new analysis (classification, lineage
 
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 import logging
 
@@ -157,7 +157,7 @@ class DataSecurityReporter:
             "scan_context": {
                 "csp": csp,
                 "threat_scan_run_id": scan_id,
-                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
                 "total_data_stores": len(data_stores),
             },
             "summary": summary,

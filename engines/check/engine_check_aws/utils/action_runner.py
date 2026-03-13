@@ -2,7 +2,7 @@ import os
 import json
 import argparse
 from typing import Any, Dict, List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 import yaml
 
@@ -168,7 +168,7 @@ def run(report_folder: str, enforce: bool = False) -> str:
     for item in [c for c in (main_checks + skipped_checks) if c.get('result') == 'FAIL']:
         for act in _ensure_actions(item, selected, catalog):
             results.append(_run_action(item, act, enforce))
-    out = {'metadata': {'generated_at': datetime.utcnow().isoformat() + 'Z', 'report_folder': os.path.abspath(report_folder), 'enforce': enforce}, 'results': results}
+    out = {'metadata': {'generated_at': datetime.now(timezone.utc).isoformat() + 'Z', 'report_folder': os.path.abspath(report_folder), 'enforce': enforce}, 'results': results}
     out_path = os.path.join(report_folder, 'action_results.json')
     with open(out_path, 'w') as fh:
         json.dump(out, fh, indent=2)
