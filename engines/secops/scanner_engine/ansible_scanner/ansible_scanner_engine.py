@@ -117,7 +117,7 @@ def _is_ansible_file(file_path):
             # Look for Ansible-specific keywords
             ansible_keywords = ['hosts:', 'tasks:', 'roles:', 'handlers:', 'vars:', 'become:', 'playbook']
             return any(keyword in content for keyword in ansible_keywords)
-    except:
+    except Exception:
         return False
 
 

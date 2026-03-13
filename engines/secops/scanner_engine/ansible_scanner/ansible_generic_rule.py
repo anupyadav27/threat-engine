@@ -184,9 +184,9 @@ class AnsibleGenericRule:
             if match:
                 lines_before_match = source[:match.start()].count('\n')
                 line_number = max(1, line_number + lines_before_match)
-        except:
+        except Exception:
             pass
-            
+
         return line_number
     
     def _extract_match_context(self, source, pattern, context_lines=2):
@@ -210,9 +210,9 @@ class AnsibleGenericRule:
                 
                 context = '\n'.join(lines[context_start:context_end])
                 return context[:500] + '...' if len(context) > 500 else context
-        except:
+        except Exception:
             pass
-        
+
         # Fallback to truncated source
         return source[:200] + '...' if len(source) > 200 else source
 
@@ -569,9 +569,9 @@ class AnsibleGenericRule:
                 start_pos = node['range'][0]
                 lines_before = source[:start_pos].count('\n')
                 return lines_before + 1
-            except:
+            except Exception:
                 pass
-                
+
         return 1
 
 

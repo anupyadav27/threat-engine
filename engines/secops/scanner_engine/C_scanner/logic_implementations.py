@@ -4026,9 +4026,9 @@ def scan_source_for_function_parameters(filename, already_detected):
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             content = f.read()
-    except:
+    except Exception:
         return findings
-    
+
     # Remove comments first to avoid false positives
     content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
     content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
@@ -4551,9 +4551,9 @@ def check_function_pointer_conversion(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
     seen_violations = set()  # To avoid duplicate reports
     
@@ -5367,11 +5367,11 @@ def check_parameter_reassignment(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
-    
+
     # Find all functions and their parameters
     functions = []
     
@@ -5541,11 +5541,11 @@ def check_function_naming_convention(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
-    
+
     # Find function definitions and declarations
     # Regex to match function definitions and declarations
     function_patterns = [
@@ -5657,11 +5657,11 @@ def check_bare_function_names(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
-    
+
     # First, collect all function names declared in this file
     function_names = set()
     function_patterns = [
@@ -5844,11 +5844,11 @@ def check_macro_argument_count(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
-    
+
     # First pass: collect all function-like macro definitions
     macro_definitions = {}
     
@@ -6020,11 +6020,11 @@ def check_function_like_macros_usage(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 content = f.read()
-        except:
+        except Exception:
             return findings
-    
+
     lines = content.split('\n')
-    
+
     # Process each line looking for function-like macro definitions
     i = 0
     while i < len(lines):

@@ -7509,7 +7509,7 @@ def check_var_placement_in_source(source):
         try:
             if re.search(pattern4, source, re.MULTILINE):
                 return True
-        except:
+        except Exception:
             pass  # Skip if regex fails
         
         return False

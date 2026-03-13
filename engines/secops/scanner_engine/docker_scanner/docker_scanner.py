@@ -286,7 +286,7 @@ def _parse_dockerfile_legacy(file_path):
                 # Try to parse JSON array
                 try:
                     instruction['command_array'] = json.loads(value)
-                except:
+                except Exception:
                     instruction['form'] = 'shell'
             else:
                 instruction['form'] = 'shell'
@@ -507,17 +507,16 @@ def deduplicate_findings(findings: List[Finding]) -> List[Finding]:
 def main():
     """Main entry point for the Docker scanner."""
     if len(sys.argv) < 2:
-        print("Usage: docker_scanner.py <input_path> [output_format]")
-        print("  input_path: Path to Dockerfile or directory containing Dockerfiles")
-        print("  output_format: json (default), text, or sarif")
-        sys.exit(1)
+        raise RuntimeError(
+            "Missing required argument: input_path. "
+            "Usage: docker_scanner.py <input_path> [output_format]"
+        )
     
     input_path = sys.argv[1]
     output_format = sys.argv[2].lower() if len(sys.argv) > 2 else "json"
     
     if not os.path.exists(input_path):
-        print(f"Error: Path '{input_path}' does not exist", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"Path '{input_path}' does not exist")
     
     try:
         # Run the scanner
@@ -546,17 +545,13 @@ def main():
             print(format_findings_report(findings, 'sarif'))
         
         else:
-            print(f"Error: Unknown output format '{output_format}'", file=sys.stderr)
-            sys.exit(1)
-        
-        # Exit with error code if violations found
-        sys.exit(1 if len(findings) > 0 else 0)
-    
+            raise RuntimeError(f"Unknown output format '{output_format}'")
+
+        # Return instead of sys.exit to avoid killing uvicorn workers
+        return
+
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"Docker scanner failed: {str(e)}") from e
 
 
 if __name__ == "__main__":

@@ -421,7 +421,7 @@ def check_exception_inheritance(node, ast_root=None):
                                     elif base_type == 'Attribute' and base.get('attr') == 'Exception':
                                         return True
                                     # Recurse into parent classes if needed
-                except:
+                except Exception:
                     pass
 
     elif node.get('node_type') == 'ClassDef':
@@ -1863,7 +1863,7 @@ def check_database_password_security(node):
                                     password = password_part.split(':')[1]
                                     if is_weak_password(password):
                                         return True
-                            except:
+                            except Exception:
                                 pass
     return False
 # ...existing code...
