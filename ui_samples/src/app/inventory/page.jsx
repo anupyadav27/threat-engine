@@ -210,8 +210,9 @@ export default function InventoryPage() {
     {
       accessorKey: 'account_id',
       header: 'Account',
+      size: 120,
       cell: (info) => (
-        <span className="text-xs font-mono" style={{ color: 'var(--text-tertiary)' }}>
+        <span className="text-xs font-mono whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
           {info.getValue() || '—'}
         </span>
       ),
@@ -219,8 +220,9 @@ export default function InventoryPage() {
     {
       accessorKey: 'region',
       header: 'Region',
+      size: 110,
       cell: (info) => (
-        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
           {info.getValue() || '—'}
         </span>
       ),
@@ -278,7 +280,7 @@ export default function InventoryPage() {
     {
       accessorKey: 'last_scanned',
       header: 'Last Seen',
-      size: 80,
+      size: 95,
       cell: (info) => {
         const val = info.getValue();
         if (!val) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;

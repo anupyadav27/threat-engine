@@ -424,7 +424,7 @@ export default function DataTable({
                         style={{
                           color: 'var(--text-secondary)',
                           borderRightColor: 'var(--border-primary)',
-                          ...(columnDef.size && { width: columnDef.size, minWidth: columnDef.size, maxWidth: columnDef.size }),
+                          ...(columnDef.size && columnDef.size !== 150 && { width: columnDef.size, minWidth: columnDef.size, maxWidth: columnDef.size }),
                           ...(isSticky && {
                             position: 'sticky',
                             left: 0,
@@ -515,7 +515,7 @@ export default function DataTable({
                           style={{
                             color: 'var(--text-secondary)',
                             borderRightColor: 'var(--border-primary)',
-                            ...(col.size && { width: col.size, minWidth: col.size, maxWidth: col.size }),
+                            ...(col.size && col.size !== 150 && { width: col.size, minWidth: col.size, maxWidth: col.size }),
                             ...(isSticky && {
                               position: 'sticky',
                               left: 0,
@@ -523,9 +523,9 @@ export default function DataTable({
                               boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                             }),
                           }}
-                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 overflow-hidden`}
+                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
                         >
-                          <div className="truncate">
+                          <div className="break-words">
                             {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
                           </div>
                         </td>
@@ -550,7 +550,7 @@ export default function DataTable({
                           style={{
                             color: 'var(--text-secondary)',
                             borderRightColor: 'var(--border-primary)',
-                            ...(colSize && { width: colSize, minWidth: colSize, maxWidth: colSize }),
+                            ...(colSize && colSize !== 150 && { width: colSize, minWidth: colSize, maxWidth: colSize }),
                             ...(isSticky && {
                               position: 'sticky',
                               left: 0,
@@ -558,9 +558,9 @@ export default function DataTable({
                               boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                             }),
                           }}
-                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 overflow-hidden`}
+                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
                         >
-                          <div className="truncate">
+                          <div className="break-words">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </div>
                         </td>
