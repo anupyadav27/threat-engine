@@ -447,7 +447,7 @@ class RelationshipDiscoveryEngine:
                     resource_type = resource_part
 
                 return f"{service}.{resource_type}"
-        except:
+        except Exception:
             pass
 
         return None

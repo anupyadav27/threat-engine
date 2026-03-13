@@ -478,7 +478,7 @@ Features:
     try:
         temp_config = Config()
         available_providers = list(temp_config._provider_registry.keys())
-    except:
+    except Exception:
         available_providers = ['aws', 'azure', 'gcp', 'oci', 'alicloud', 'ibm', 'k8s']
     
     list_services_parser.add_argument('--provider', 

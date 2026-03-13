@@ -90,10 +90,26 @@ class ThreatDBReader:
         The threat_findings table uses threat_scan_id as FK, not scan_run_id directly.
         threat_scan_id format is typically 'threat_{scan_run_id}'.
 
-        If scan_run_id already starts with 'threat_' it IS the threat_scan_id — return it directly
-        to avoid the double-prefix bug (threat_threat_...) that occurs when IAM receives the
-        orchestration threat_scan_id value and mistakenly tries to resolve it again.
+        Special cases:
+          - 'latest' → find the most recent threat_scan_id for this tenant.
+          - Already prefixed with 'threat_' → return as-is to avoid double-prefix bug.
         """
+        # Handle "latest" — resolve to the most recent threat_scan_id for the tenant
+        if scan_run_id == "latest":
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT threat_scan_id FROM threat_report WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
+                        (tenant_id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        return row[0]
+            except Exception as e:
+                logger.error(f"Error resolving latest threat_scan_id: {e}")
+                conn.rollback()
+            return None
+
         # Already a threat_scan_id (passed from orchestration metadata)
         if scan_run_id.startswith("threat_"):
             return scan_run_id

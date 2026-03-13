@@ -166,7 +166,7 @@ class DiscoveryReader:
                         try:
                             with open(summary_file, 'r') as f:
                                 metadata = json.load(f)
-                        except:
+                        except Exception:
                             pass
                     
                     scans.append({

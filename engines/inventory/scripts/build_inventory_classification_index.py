@@ -130,7 +130,7 @@ def load_resource_inventory_report(service_path: Path) -> Optional[Dict]:
         try:
             with open(report_file, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return None
     return None
 
@@ -142,7 +142,7 @@ def load_resource_operations_prioritized(service_path: Path) -> Optional[Dict]:
         try:
             with open(ops_file, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return None
     return None
 

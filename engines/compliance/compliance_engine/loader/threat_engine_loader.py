@@ -158,7 +158,7 @@ class ThreatEngineLoader:
                 # Try to parse and reformat
                 dt = datetime.fromisoformat(scanned_at.replace('Z', '+00:00'))
                 scanned_at = dt.isoformat() + 'Z'
-            except:
+            except Exception:
                 scanned_at = datetime.utcnow().isoformat() + 'Z'
         
         for record in check_results:

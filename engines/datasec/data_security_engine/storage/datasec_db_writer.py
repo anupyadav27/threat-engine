@@ -47,7 +47,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
     generated_at_str = scan_context.get("generated_at", "")
     try:
         generated_at = datetime.fromisoformat(generated_at_str.replace('Z', '+00:00'))
-    except:
+    except Exception:
         generated_at = datetime.now(timezone.utc)
     
     # Extract summary
