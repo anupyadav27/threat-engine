@@ -60,8 +60,7 @@ CREATE TABLE IF NOT EXISTS threat_findings (
     status VARCHAR(20) NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
-    resource_arn TEXT,
-    resource_uid TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     account_id VARCHAR(255),
     region VARCHAR(50),
     mitre_tactics JSONB DEFAULT '[]',
@@ -135,7 +134,7 @@ CREATE TABLE IF NOT EXISTS threat_detections (
     detection_type VARCHAR(50) NOT NULL,
     rule_id VARCHAR(255),
     rule_name VARCHAR(255),
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     resource_id VARCHAR(255),
     resource_type VARCHAR(100),
     account_id VARCHAR(255),
@@ -258,7 +257,7 @@ CREATE INDEX IF NOT EXISTS idx_intel_expires ON threat_intelligence(expires_at) 
 -- Detection indexes
 CREATE INDEX IF NOT EXISTS idx_detection_tenant ON threat_detections(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_detection_status_severity ON threat_detections(status, severity);
-CREATE INDEX IF NOT EXISTS idx_detection_resource ON threat_detections(resource_arn);
+CREATE INDEX IF NOT EXISTS idx_detection_resource_uid ON threat_detections(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_detection_timestamp ON threat_detections(detection_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_detection_rule ON threat_detections(rule_id, status);
 CREATE INDEX IF NOT EXISTS idx_detection_account ON threat_detections(account_id, region, provider);

@@ -533,7 +533,7 @@ async def get_classification(
         if service:
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if resource_id:
-            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_arn", "") or resource_id in ds.get("resource_id", "")]
+            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_uid", "") or resource_id in ds.get("resource_id", "")]
         
         # Run classification analysis
         analyzer = ClassificationAnalyzer()
@@ -578,7 +578,7 @@ async def get_lineage(
         if service:
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if resource_id:
-            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_arn", "") or resource_id in ds.get("resource_id", "")]
+            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_uid", "") or resource_id in ds.get("resource_id", "")]
         
         # Build lineage graph
         analyzer = LineageAnalyzer()
@@ -629,7 +629,7 @@ async def get_residency(
         if service:
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if resource_id:
-            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_arn", "") or resource_id in ds.get("resource_id", "")]
+            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_uid", "") or resource_id in ds.get("resource_id", "")]
         
         # Create residency policy if allowed_regions provided
         policies = []
@@ -685,7 +685,7 @@ async def get_activity(
         if service:
             data_stores = [ds for ds in data_stores if service.lower() in ds.get("service", "").lower()]
         if resource_id:
-            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_arn", "") or resource_id in ds.get("resource_id", "")]
+            data_stores = [ds for ds in data_stores if resource_id in ds.get("resource_uid", "") or resource_id in ds.get("resource_id", "")]
 
         # Run activity monitoring
         analyzer = ActivityAnalyzer()
@@ -740,7 +740,7 @@ async def get_compliance(
         if service:
             findings = [f for f in findings if service.lower() in f.get("service", "").lower()]
         if resource_id:
-            findings = [f for f in findings if resource_id in f.get("resource_arn", "") or resource_id in f.get("resource_uid", "")]
+            findings = [f for f in findings if resource_id in f.get("resource_uid", "") or resource_id in f.get("resource_id", "")]
         
         # Enrich findings
         enriched = finding_enricher.enrich_findings(findings)
@@ -815,7 +815,7 @@ async def get_findings(
         if service:
             findings = [f for f in findings if service.lower() in f.get("service", "").lower()]
         if resource_id:
-            findings = [f for f in findings if resource_id in f.get("resource_arn", "") or resource_id in f.get("resource_uid", "")]
+            findings = [f for f in findings if resource_id in f.get("resource_uid", "") or resource_id in f.get("resource_id", "")]
         
         # Enrich findings
         enriched = finding_enricher.enrich_findings(findings)

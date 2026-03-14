@@ -37,7 +37,7 @@ class Asset(BaseModel):
     scope: Scope = Field(..., description="Global or regional")
     resource_type: str = Field(..., description="Normalized resource type (e.g., s3.bucket)")
     resource_id: str = Field(..., description="Resource-specific ID")
-    resource_uid: str = Field(..., description="Stable unique identifier (ARN/resourceId)")
+    resource_uid: str = Field(..., description="Canonical resource ARN — the single unique identifier")
     name: Optional[str] = Field(None, description="Resource name")
     tags: Dict[str, str] = Field(default_factory=dict, description="Resource tags")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")

@@ -166,7 +166,7 @@ class DiscoveryDatabaseQueries:
             SELECT
                 discovery_scan_id,
                 COUNT(*) as total_discoveries,
-                COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+                COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
                 MAX(scan_timestamp) as scan_timestamp
             FROM discovery_findings
             WHERE tenant_id = %s
@@ -177,7 +177,7 @@ class DiscoveryDatabaseQueries:
             SELECT
                 service,
                 COUNT(*) as total,
-                COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+                COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
                 array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions
             FROM discovery_findings
             WHERE tenant_id = %s
@@ -269,7 +269,7 @@ class DiscoveryDatabaseQueries:
             hierarchy_id,
             hierarchy_type,
             COUNT(*) as total_discoveries,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
             MAX(scan_timestamp) as scan_timestamp
@@ -319,7 +319,7 @@ class DiscoveryDatabaseQueries:
             hierarchy_id,
             hierarchy_type,
             COUNT(*) as total_discoveries,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
             MAX(scan_timestamp) as scan_timestamp
@@ -360,7 +360,7 @@ class DiscoveryDatabaseQueries:
         SELECT
             service,
             COUNT(*) as total_discoveries,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions,
             array_agg(DISTINCT discovery_id) as discovery_functions
         FROM discovery_findings
@@ -398,7 +398,7 @@ class DiscoveryDatabaseQueries:
         SELECT
             service,
             COUNT(*) as total_discoveries,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions
         FROM discovery_findings
         WHERE discovery_scan_id = %s
@@ -412,8 +412,8 @@ class DiscoveryDatabaseQueries:
         SELECT
             discovery_id,
             COUNT(*) as total,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as unique_resources,
-            array_agg(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resource_arns
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
+            array_agg(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as resource_uids
         FROM discovery_findings
         WHERE discovery_scan_id = %s
           AND service = %s
@@ -442,7 +442,7 @@ class DiscoveryDatabaseQueries:
     
     def get_discoveries(self, scan_id: Optional[str] = None, tenant_id: str = None,
                        customer_id: Optional[str] = None, service: Optional[str] = None,
-                       discovery_id: Optional[str] = None, resource_arn: Optional[str] = None,
+                       discovery_id: Optional[str] = None, resource_uid: Optional[str] = None,
                        page: int = 1, page_size: int = 50) -> Tuple[List[Dict], int]:
         """
         Get discoveries with filtering and pagination.
@@ -451,19 +451,19 @@ class DiscoveryDatabaseQueries:
         # Try database first
         if self.db and tenant_id and self._has_database_data(tenant_id):
             try:
-                return self._get_discoveries_db(scan_id, tenant_id, customer_id, service, discovery_id, resource_arn, page, page_size)
+                return self._get_discoveries_db(scan_id, tenant_id, customer_id, service, discovery_id, resource_uid, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
         if self.use_ndjson_fallback and self.ndjson_reader and tenant_id:
-            return self._get_ndjson_fallback('get_discoveries', scan_id, tenant_id, customer_id, service, discovery_id, resource_arn, page, page_size)
+            return self._get_ndjson_fallback('get_discoveries', scan_id, tenant_id, customer_id, service, discovery_id, resource_uid, page, page_size)
         
         return [], 0
     
     def _get_discoveries_db(self, scan_id: Optional[str] = None, tenant_id: str = None,
                            customer_id: Optional[str] = None, service: Optional[str] = None,
-                           discovery_id: Optional[str] = None, resource_arn: Optional[str] = None,
+                           discovery_id: Optional[str] = None, resource_uid: Optional[str] = None,
                            page: int = 1, page_size: int = 50) -> Tuple[List[Dict], int]:
         """Get discoveries from database"""
         offset = (page - 1) * page_size
@@ -492,9 +492,9 @@ class DiscoveryDatabaseQueries:
             where_clauses.append("discovery_id = %s")
             params.append(discovery_id)
         
-        if resource_arn:
-            where_clauses.append("resource_arn = %s")
-            params.append(resource_arn)
+        if resource_uid:
+            where_clauses.append("resource_uid = %s")
+            params.append(resource_uid)
         
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         
@@ -518,7 +518,7 @@ class DiscoveryDatabaseQueries:
             discovery_id,
             region,
             service,
-            resource_arn,
+            resource_uid,
             resource_id,
             raw_response,
             emitted_fields,
@@ -552,7 +552,7 @@ class DiscoveryDatabaseQueries:
                 'discovery_id': disc['discovery_id'],
                 'region': disc.get('region'),
                 'service': disc['service'],
-                'resource_arn': disc.get('resource_arn'),
+                'resource_uid': disc.get('resource_uid'),
                 'resource_id': disc.get('resource_id'),
                 'raw_response': disc.get('raw_response', {}),
                 'emitted_fields': disc.get('emitted_fields', {}),
@@ -563,7 +563,7 @@ class DiscoveryDatabaseQueries:
         
         return formatted, total
     
-    def get_resource_discoveries(self, resource_arn: str, tenant_id: str,
+    def get_resource_discoveries(self, resource_uid: str, tenant_id: str,
                                 customer_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get all discoveries for a specific resource ARN.
@@ -572,21 +572,21 @@ class DiscoveryDatabaseQueries:
         # Try database first
         if self.db and self._has_database_data(tenant_id):
             try:
-                return self._get_resource_discoveries_db(resource_arn, tenant_id, customer_id)
+                return self._get_resource_discoveries_db(resource_uid, tenant_id, customer_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
         if self.use_ndjson_fallback and self.ndjson_reader:
-            return self._get_ndjson_fallback('get_resource_discoveries', resource_arn, tenant_id, customer_id)
+            return self._get_ndjson_fallback('get_resource_discoveries', resource_uid, tenant_id, customer_id)
         
         return None
     
-    def _get_resource_discoveries_db(self, resource_arn: str, tenant_id: str,
+    def _get_resource_discoveries_db(self, resource_uid: str, tenant_id: str,
                                     customer_id: Optional[str] = None) -> Dict[str, Any]:
         """Get resource discoveries from database"""
-        where_clauses = ["resource_arn = %s", "tenant_id = %s"]
-        params = [resource_arn, tenant_id]
+        where_clauses = ["resource_uid = %s", "tenant_id = %s"]
+        params = [resource_uid, tenant_id]
         
         if customer_id:
             where_clauses.append("customer_id = %s")
@@ -605,7 +605,7 @@ class DiscoveryDatabaseQueries:
             discovery_id,
             region,
             service,
-            resource_arn,
+            resource_uid,
             resource_id,
             raw_response,
             emitted_fields,
@@ -627,7 +627,7 @@ class DiscoveryDatabaseQueries:
         discovery_functions = list(set(d['discovery_id'] for d in discoveries))
         
         return {
-            'resource_arn': resource_arn,
+            'resource_uid': resource_uid,
             'resource_id': discoveries[0].get('resource_id') if discoveries else None,
             'resource_type': discoveries[0].get('service') if discoveries else None,
             'total_discoveries': len(discoveries),
@@ -683,7 +683,7 @@ class DiscoveryDatabaseQueries:
             discovery_id,
             region,
             service,
-            resource_arn,
+            resource_uid,
             resource_id,
             raw_response,
             emitted_fields,
@@ -705,7 +705,7 @@ class DiscoveryDatabaseQueries:
         service = discovery_id.split('.')[1] if '.' in discovery_id else 'unknown'
         
         # Get unique resource ARNs
-        resources = list(set(d['resource_arn'] for d in discoveries if d.get('resource_arn')))
+        resources = list(set(d['resource_uid'] for d in discoveries if d.get('resource_uid')))
         
         return {
             'discovery_id': discovery_id,
@@ -840,14 +840,14 @@ class DiscoveryDatabaseQueries:
         LEFT JOIN discovery_findings d
           ON d.discovery_scan_id = dh.discovery_scan_id
          AND d.discovery_id = dh.discovery_id
-         AND d.resource_arn = dh.resource_arn
+         AND d.resource_uid = dh.resource_uid
          AND d.tenant_id = dh.tenant_id
         LEFT JOIN LATERAL (
             SELECT discovery_scan_id
             FROM discovery_history
             WHERE tenant_id = dh.tenant_id
               AND discovery_id = dh.discovery_id
-              AND resource_arn = dh.resource_arn
+              AND resource_uid = dh.resource_uid
               AND scan_timestamp < dh.scan_timestamp
             ORDER BY scan_timestamp DESC
             LIMIT 1

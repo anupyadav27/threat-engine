@@ -196,8 +196,8 @@ class CheckDatabaseQueries:
             GROUP BY check_scan_id
         ),
         service_stats AS (
-            SELECT 
-                resource_type as service,
+            SELECT
+                COALESCE(resource_service, resource_type) as service,
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
                 SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
@@ -205,7 +205,7 @@ class CheckDatabaseQueries:
             FROM check_findings
             WHERE tenant_id = %s
               {customer_filter}
-            GROUP BY resource_type
+            GROUP BY COALESCE(resource_service, resource_type)
             ORDER BY (SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END)) DESC
             LIMIT 10
         )
@@ -414,8 +414,8 @@ class CheckDatabaseQueries:
         Get service stats from database.
         """
         query = """
-        SELECT 
-            resource_type as service,
+        SELECT
+            COALESCE(resource_service, resource_type) as service,
             COUNT(*) as total,
             SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
@@ -423,8 +423,8 @@ class CheckDatabaseQueries:
         FROM check_findings
         WHERE check_scan_id = %s
           AND tenant_id = %s
-        GROUP BY resource_type
-        ORDER BY resource_type;
+        GROUP BY COALESCE(resource_service, resource_type)
+        ORDER BY COALESCE(resource_service, resource_type);
         """
         
         results = self._execute_query(query, [scan_id, tenant_id])
@@ -464,18 +464,18 @@ class CheckDatabaseQueries:
         """
         # Get overall stats
         stats_query = """
-        SELECT 
-            resource_type as service,
+        SELECT
+            COALESCE(resource_service, resource_type) as service,
             COUNT(*) as total_checks,
             SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
-            COUNT(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resources_affected
+            COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as resources_affected
         FROM check_findings
         WHERE check_scan_id = %s
-          AND resource_type = %s
+          AND COALESCE(resource_service, resource_type) = %s
           AND tenant_id = %s
-        GROUP BY resource_type;
+        GROUP BY COALESCE(resource_service, resource_type);
         """
         
         # Get rule stats
@@ -486,7 +486,7 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
-            array_agg(DISTINCT resource_arn) FILTER (WHERE resource_arn IS NOT NULL) as resource_arns
+            array_agg(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as resource_uids
         FROM check_findings
         WHERE check_scan_id = %s
           AND resource_type = %s
@@ -523,7 +523,7 @@ class CheckDatabaseQueries:
     def get_findings(self, scan_id: Optional[str] = None, tenant_id: str = None,
                     customer_id: Optional[str] = None, service: Optional[str] = None,
                     status: Optional[str] = None, rule_id: Optional[str] = None,
-                    resource_arn: Optional[str] = None,
+                    resource_uid: Optional[str] = None,
                     page: int = 1, page_size: int = 50) -> Tuple[List[Dict], int]:
         """
         Get findings with filtering and pagination.
@@ -533,20 +533,20 @@ class CheckDatabaseQueries:
         # Try database first
         if self.db and tenant_id and self._has_database_data(tenant_id):
             try:
-                return self._get_findings_db(scan_id, tenant_id, customer_id, service, status, rule_id, resource_arn, page, page_size)
+                return self._get_findings_db(scan_id, tenant_id, customer_id, service, status, rule_id, resource_uid, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
         if self.use_ndjson_fallback and self.ndjson_reader and tenant_id:
-            return self._get_ndjson_fallback('get_findings', scan_id, tenant_id, customer_id, service, status, rule_id, resource_arn, page, page_size)
+            return self._get_ndjson_fallback('get_findings', scan_id, tenant_id, customer_id, service, status, rule_id, resource_uid, page, page_size)
         
         return [], 0
     
     def _get_findings_db(self, scan_id: Optional[str] = None, tenant_id: str = None,
                     customer_id: Optional[str] = None, service: Optional[str] = None,
                     status: Optional[str] = None, rule_id: Optional[str] = None,
-                    resource_arn: Optional[str] = None,
+                    resource_uid: Optional[str] = None,
                     page: int = 1, page_size: int = 50) -> Tuple[List[Dict], int]:
         """
         Get findings from database.
@@ -581,9 +581,9 @@ class CheckDatabaseQueries:
             where_clauses.append(f"rule_id = %s")
             params.append(rule_id)
         
-        if resource_arn:
-            where_clauses.append(f"resource_arn = %s")
-            params.append(resource_arn)
+        if resource_uid:
+            where_clauses.append(f"resource_uid = %s")
+            params.append(resource_uid)
         
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
         
@@ -605,7 +605,7 @@ class CheckDatabaseQueries:
             hierarchy_id,
             hierarchy_type,
             rule_id,
-            resource_arn,
+            resource_uid,
             resource_id,
             resource_type,
             status,
@@ -645,27 +645,27 @@ class CheckDatabaseQueries:
         
         return [dict(f) for f in findings], total
     
-    def get_resource_findings(self, resource_arn: str, tenant_id: str,
+    def get_resource_findings(self, resource_uid: str, tenant_id: str,
                              customer_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get all findings for a specific resource ARN.
-        Uses index: idx_check_results_tenant (includes resource_arn in query)
+        Uses index: idx_check_results_tenant (includes resource_uid in query)
         Falls back to NDJSON if database is empty.
         """
         # Try database first
         if self.db and self._has_database_data(tenant_id):
             try:
-                return self._get_resource_findings_db(resource_arn, tenant_id, customer_id)
+                return self._get_resource_findings_db(resource_uid, tenant_id, customer_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
         if self.use_ndjson_fallback and self.ndjson_reader:
-            return self._get_ndjson_fallback('get_resource_findings', resource_arn, tenant_id, customer_id)
+            return self._get_ndjson_fallback('get_resource_findings', resource_uid, tenant_id, customer_id)
         
         return None
     
-    def _get_resource_findings_db(self, resource_arn: str, tenant_id: str,
+    def _get_resource_findings_db(self, resource_uid: str, tenant_id: str,
                              customer_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get resource findings from database.
@@ -680,7 +680,7 @@ class CheckDatabaseQueries:
             hierarchy_id,
             hierarchy_type,
             rule_id,
-            resource_arn,
+            resource_uid,
             resource_id,
             resource_type,
             status,
@@ -688,13 +688,13 @@ class CheckDatabaseQueries:
             finding_data,
             created_at
         FROM check_findings
-        WHERE resource_arn = %s
+        WHERE resource_uid = %s
           AND tenant_id = %s
           AND ($1 OR customer_id = %s)
         ORDER BY created_at DESC;
         """
         
-        findings = self._execute_query(query, [customer_id is None, resource_arn, tenant_id, customer_id or ''])
+        findings = self._execute_query(query, [customer_id is None, resource_uid, tenant_id, customer_id or ''])
         
         if not findings:
             return None
@@ -712,7 +712,7 @@ class CheckDatabaseQueries:
         failed = sum(1 for f in findings if f['status'] == 'FAIL')
         
         return {
-            'resource_arn': resource_arn,
+            'resource_uid': resource_uid,
             'resource_id': findings[0]['resource_id'] if findings else None,
             'resource_type': findings[0]['resource_type'] if findings else None,
             'total_findings': total,
@@ -770,7 +770,7 @@ class CheckDatabaseQueries:
             provider,
             hierarchy_id,
             rule_id,
-            resource_arn,
+            resource_uid,
             resource_id,
             resource_type,
             status,
@@ -805,7 +805,7 @@ class CheckDatabaseQueries:
         service = rule_id.split('.')[1] if '.' in rule_id else 'unknown'
         
         # Get unique resource ARNs
-        resources = list(set(f['resource_arn'] for f in findings if f.get('resource_arn')))
+        resources = list(set(f['resource_uid'] for f in findings if f.get('resource_uid')))
         
         return {
             'rule_id': rule_id,
@@ -834,7 +834,7 @@ class CheckDatabaseQueries:
             return self.get_findings(
                 tenant_id=tenant_id,
                 customer_id=customer_id,
-                resource_arn=query,
+                resource_uid=query,
                 page=page,
                 page_size=page_size
             )
@@ -961,14 +961,14 @@ class CheckDatabaseQueries:
             FROM check_findings cr
             LEFT JOIN rule_metadata rm ON cr.rule_id = rm.rule_id
             WHERE {where_sql}
-            ORDER BY cr.rule_id, cr.resource_arn;
+            ORDER BY cr.rule_id, cr.resource_uid;
             """
         else:
             query = f"""
             SELECT cr.*
             FROM check_findings cr
             WHERE {where_sql}
-            ORDER BY cr.rule_id, cr.resource_arn;
+            ORDER BY cr.rule_id, cr.resource_uid;
             """
 
         results = self._execute_query(query, params)

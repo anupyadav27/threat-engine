@@ -131,8 +131,8 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     # Resource fields are at top level (from threat_db_reader), with nested fallback
                     f_resource_type = finding.get("resource_type") or finding.get("resource", {}).get("type")
                     f_resource_id = finding.get("resource_id") or finding.get("resource", {}).get("id")
-                    f_resource_arn = finding.get("resource_arn") or finding.get("resource", {}).get("arn")
-                    resource_id = f_resource_id or f_resource_arn
+                    f_resource_uid = finding.get("resource_uid") or finding.get("resource_arn") or finding.get("resource", {}).get("arn")
+                    resource_id = f_resource_id or f_resource_uid
 
                     # Get classification for this resource
                     cls_info = classification_map.get(resource_id, {})
@@ -143,7 +143,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                         INSERT INTO datasec_findings (
                             finding_id, datasec_scan_id, tenant_id, scan_run_id,
                             rule_id, datasec_modules, severity, status,
-                            resource_type, resource_id, resource_arn, account_id, region,
+                            resource_type, resource_id, resource_uid, account_id, region,
                             data_classification, sensitivity_score,
                             finding_data, first_seen_at, last_seen_at
                         )
@@ -160,7 +160,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                         finding.get("status"),
                         f_resource_type,
                         f_resource_id,
-                        f_resource_arn,
+                        f_resource_uid,
                         finding.get("account_id"),
                         finding.get("region"),
                         data_classification,

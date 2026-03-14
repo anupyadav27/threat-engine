@@ -170,14 +170,14 @@ class DatabaseManager:
         resource_uid: str = None,
         resource_id: str = None,
         resource_type: str = None,
+        resource_service: str = None,
         status: str = None,
         checked_fields: List[str] = None,
         actual_values: Dict = None,
         finding_data: Dict = None,
     ) -> None:
         """Insert one row into check_findings."""
-        if not resource_uid:
-            resource_uid = resource_arn
+        resource_uid = resource_uid or resource_arn
         conn = self._get_connection()
         try:
             with conn.cursor() as cur:
@@ -187,7 +187,8 @@ class DatabaseManager:
                         (check_scan_id, customer_id, tenant_id, provider,
                          hierarchy_id, hierarchy_type, rule_id,
                          service, discovery_id, region,
-                         resource_arn, resource_uid, resource_id, resource_type,
+                         resource_uid, resource_id, resource_type,
+                         resource_service,
                          status, checked_fields, actual_values, finding_data)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
@@ -195,7 +196,8 @@ class DatabaseManager:
                         scan_id, customer_id, tenant_id, provider,
                         hierarchy_id, hierarchy_type, rule_id,
                         service, discovery_id, region,
-                        resource_arn, resource_uid, resource_id, resource_type,
+                        resource_uid, resource_id, resource_type,
+                        resource_service,
                         status,
                         json.dumps(checked_fields or []),
                         json.dumps(actual_values or {}),

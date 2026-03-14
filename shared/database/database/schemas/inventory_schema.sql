@@ -390,6 +390,10 @@ CREATE TABLE IF NOT EXISTS resource_inventory_identifier (
                                                   --   ${Region}    → discovery_findings.region
                                                   --   ${Account}   → discovery_findings.hierarchy_id (account_id)
                                                   --   ${Partition} → "aws" (default)
+    canonical_type        VARCHAR(255),            -- Normalized resource_type as used by discovery/inventory engines
+                                                  -- e.g. "security-group", "instance", "vpc"
+                                                  -- Matches split_part(inventory_findings.resource_type, '.', 2)
+                                                  -- Lookup: WHERE csp='aws' AND service='ec2' AND canonical_type='security-group'
 
     -- Inventory classification flags
     can_inventory_from_roots  BOOLEAN NOT NULL DEFAULT TRUE,

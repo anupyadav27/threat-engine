@@ -210,9 +210,9 @@ export default function AssetDetailPage() {
       cell: (info) => (
         <code
           className="text-xs px-2 py-1 rounded"
-          style={{ color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)' }}
+          style={{ color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-tertiary)', wordBreak: 'break-word', whiteSpace: 'normal' }}
         >
-          {(info.getValue() || '').substring(0, 20)}
+          {info.getValue() || ''}
         </code>
       ),
     },
@@ -238,6 +238,35 @@ export default function AssetDetailPage() {
           {(info.getValue() || '').toUpperCase()}
         </span>
       ),
+    },
+    {
+      accessorKey: 'posture_category',
+      header: 'Security Posture',
+      cell: (info) => {
+        const val = info.getValue() || 'configuration';
+        const label = val.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const colorMap = {
+          encryption: '#8b5cf6',
+          public_access: '#ef4444',
+          logging: '#3b82f6',
+          backup: '#06b6d4',
+          access_control: '#f59e0b',
+          network: '#6366f1',
+          key_management: '#ec4899',
+          configuration: '#64748b',
+          data_protection: '#14b8a6',
+          threat_detection: '#f97316',
+        };
+        const bg = colorMap[val] || '#64748b';
+        return (
+          <span
+            className="text-xs font-medium px-2 py-1 rounded"
+            style={{ backgroundColor: bg + '20', color: bg }}
+          >
+            {label}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'status',
@@ -538,7 +567,7 @@ export default function AssetDetailPage() {
             }}
           >
             <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              Findings
+              Misconfigurations
             </p>
             <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               {(asset.findings?.critical || 0) + (asset.findings?.high || 0) + (asset.findings?.medium || 0)}
@@ -578,7 +607,7 @@ export default function AssetDetailPage() {
       {/* Tabs */}
       <div style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
         <div className="flex gap-1">
-          {['overview', 'configuration', 'findings', 'threats', 'relationships', 'blast-radius', 'compliance', 'drift'].map(
+          {['overview', 'configuration', 'misconfigurations', 'threats', 'relationships', 'blast-radius', 'compliance', 'drift'].map(
             (tab) => (
               <button
                 key={tab}
@@ -601,7 +630,7 @@ export default function AssetDetailPage() {
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Findings Summary */}
+          {/* Misconfigurations Summary */}
           <div
             className="lg:col-span-2 rounded-lg p-6 border"
             style={{
@@ -610,7 +639,7 @@ export default function AssetDetailPage() {
             }}
           >
             <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Findings Summary
+              Misconfigurations Summary
             </h3>
             <div className="grid grid-cols-4 gap-4">
               {[
@@ -788,7 +817,7 @@ export default function AssetDetailPage() {
         );
       })()}
 
-      {activeTab === 'findings' && (
+      {activeTab === 'misconfigurations' && (
         <div
           className="rounded-lg p-6 border"
           style={{
@@ -798,10 +827,10 @@ export default function AssetDetailPage() {
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Findings
+              Misconfigurations
             </h2>
             <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
-              {asset.findings_detail?.length || 0} findings
+              {asset.findings_detail?.length || 0} misconfigurations
             </span>
           </div>
           {asset.findings_detail && asset.findings_detail.length > 0 ? (
@@ -810,11 +839,11 @@ export default function AssetDetailPage() {
               columns={findingsColumns}
               pageSize={10}
               loading={loading}
-              emptyMessage="No findings found"
+              emptyMessage="No misconfigurations found"
             />
           ) : (
             <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>
-              No findings found
+              No misconfigurations found
             </div>
           )}
         </div>

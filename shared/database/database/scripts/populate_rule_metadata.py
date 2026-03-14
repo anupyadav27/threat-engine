@@ -14,6 +14,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 import psycopg2
+from psycopg2.extras import Json
 
 DEFAULT_METADATA_DIR = os.path.join(
     ROOT, "engine_input", "engine_configscan_aws", "input", "rule_db", "default", "services"
@@ -61,6 +62,7 @@ def parse_metadata_yaml(yaml_path: Path) -> dict:
             'compliance_frameworks': data.get('compliance_frameworks', []),
             'data_security': data.get('data_security', {}),
             'references': data.get('references', []),
+            'resource_service': data.get('resource_service', data.get('service', '')),
         }
     except Exception as e:
         print(f"  Error parsing {yaml_path}: {e}")
@@ -79,16 +81,17 @@ def populate_metadata(services_dir: str = None, upsert: bool = True):
     
     sql = """
     INSERT INTO rule_metadata (
-        rule_id, service, provider, resource, severity, title, description,
-        remediation, rationale, domain, subcategory, requirement, assertion_id,
-        compliance_frameworks, data_security, "references"
+        rule_id, service, provider, resource, resource_service, severity, title,
+        description, remediation, rationale, domain, subcategory, requirement,
+        assertion_id, compliance_frameworks, data_security, "references"
     ) VALUES (
-        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
     )
     ON CONFLICT (rule_id) DO UPDATE SET
         service = EXCLUDED.service,
         provider = EXCLUDED.provider,
         resource = EXCLUDED.resource,
+        resource_service = EXCLUDED.resource_service,
         severity = EXCLUDED.severity,
         title = EXCLUDED.title,
         description = EXCLUDED.description,
@@ -104,11 +107,11 @@ def populate_metadata(services_dir: str = None, upsert: bool = True):
         updated_at = NOW();
     """ if upsert else """
     INSERT INTO rule_metadata (
-        rule_id, service, provider, resource, severity, title, description,
-        remediation, rationale, domain, subcategory, requirement, assertion_id,
-        compliance_frameworks, data_security, "references"
+        rule_id, service, provider, resource, resource_service, severity, title,
+        description, remediation, rationale, domain, subcategory, requirement,
+        assertion_id, compliance_frameworks, data_security, "references"
     ) VALUES (
-        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
     );
     """
     
@@ -132,6 +135,7 @@ def populate_metadata(services_dir: str = None, upsert: bool = True):
                     metadata['service'],
                     metadata['provider'],
                     metadata['resource'],
+                    metadata['resource_service'],
                     metadata['severity'],
                     metadata['title'],
                     metadata['description'],
@@ -141,9 +145,9 @@ def populate_metadata(services_dir: str = None, upsert: bool = True):
                     metadata['subcategory'],
                     metadata['requirement'],
                     metadata['assertion_id'],
-                    psycopg2.extras.Json(metadata['compliance_frameworks']),
-                    psycopg2.extras.Json(metadata['data_security']),
-                    psycopg2.extras.Json(metadata['references']),
+                    Json(metadata['compliance_frameworks']),
+                    Json(metadata['data_security']),
+                    Json(metadata['references']),
                 ))
                 count += 1
                 if count % 100 == 0:

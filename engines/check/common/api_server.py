@@ -417,6 +417,420 @@ async def get_metrics():
     return metrics
 
 
+# ── All-findings endpoints (misconfigurations page) ──────────────────────
+
+
+def _get_check_conn():
+    """Get a psycopg2 connection to the check DB."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+        user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        connect_timeout=5,
+    )
+
+
+@app.get("/api/v1/check/findings/summary")
+async def get_findings_summary(
+    tenant_id: str = Query(...),
+    provider: Optional[str] = Query(None),
+    hierarchy_id: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    domain: Optional[str] = Query(None),
+    posture_category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    check_scan_id: Optional[str] = Query(None),
+):
+    """
+    Aggregated summary for the misconfigurations dashboard.
+
+    Returns severity counts, top failing rules, service breakdown,
+    posture category breakdown, and provider distribution.
+    Supports multi-CSP filtering by provider, account (hierarchy_id), region.
+    """
+    from psycopg2.extras import RealDictCursor
+
+    try:
+        conn = _get_check_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        # Build dynamic WHERE clause
+        conditions = ["cf.tenant_id = %s"]
+        params: list = [tenant_id]
+
+        if provider:
+            conditions.append("cf.provider = %s")
+            params.append(provider.lower())
+        if hierarchy_id:
+            conditions.append("cf.hierarchy_id = %s")
+            params.append(hierarchy_id)
+        if region:
+            conditions.append("cf.region = %s")
+            params.append(region)
+        if service:
+            conditions.append("""
+                COALESCE(
+                    CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                         THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
+                    rm.resource_service, rm.service,
+                    cf.resource_service, cf.service
+                ) = %s
+            """)
+            params.append(service.lower())
+        if status:
+            conditions.append("cf.status = %s")
+            params.append(status.upper())
+        if severity:
+            conditions.append("LOWER(COALESCE(rm.severity, 'medium')) = %s")
+            params.append(severity.lower())
+        if domain:
+            conditions.append("COALESCE(rm.domain, 'uncategorized') = %s")
+            params.append(domain)
+        if posture_category:
+            conditions.append("COALESCE(rm.posture_category, 'configuration') = %s")
+            params.append(posture_category)
+        if search:
+            conditions.append("(rm.title ILIKE %s OR cf.rule_id ILIKE %s OR cf.resource_uid ILIKE %s)")
+            like_val = f"%{search}%"
+            params.extend([like_val, like_val, like_val])
+        if check_scan_id:
+            conditions.append("cf.check_scan_id = %s")
+            params.append(check_scan_id)
+
+        where = " AND ".join(conditions)
+        base_join = """
+            FROM check_findings cf
+            LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
+            WHERE {where}
+        """.format(where=where)
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. Severity counts
+            cur.execute(f"""
+                SELECT LOWER(COALESCE(rm.severity, 'medium')) AS severity,
+                       COUNT(*) AS cnt
+                {base_join}
+                GROUP BY LOWER(COALESCE(rm.severity, 'medium'))
+            """, params)
+            sev_rows = cur.fetchall()
+
+            # 2. Status counts
+            cur.execute(f"""
+                SELECT cf.status, COUNT(*) AS cnt
+                {base_join}
+                GROUP BY cf.status
+            """, params)
+            status_rows = cur.fetchall()
+
+            # 3. Top 10 failing rules
+            cur.execute(f"""
+                SELECT cf.rule_id,
+                       MAX(rm.title) AS title,
+                       MAX(LOWER(COALESCE(rm.severity, 'medium'))) AS severity,
+                       COUNT(*) AS cnt
+                {base_join} AND cf.status = 'FAIL'
+                GROUP BY cf.rule_id
+                ORDER BY cnt DESC
+                LIMIT 10
+            """, params)
+            top_rules = cur.fetchall()
+
+            # 4. Service breakdown
+            cur.execute(f"""
+                SELECT
+                    COALESCE(
+                        CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                             THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
+                        rm.resource_service, rm.service,
+                        cf.resource_service, cf.service
+                    ) AS svc,
+                    COUNT(*) AS cnt,
+                    SUM(CASE WHEN cf.status = 'FAIL' THEN 1 ELSE 0 END) AS fail_cnt
+                {base_join}
+                GROUP BY svc
+                ORDER BY cnt DESC
+                LIMIT 20
+            """, params)
+            svc_rows = cur.fetchall()
+
+            # 5. Posture category breakdown
+            cur.execute(f"""
+                SELECT COALESCE(rm.posture_category, 'configuration') AS category,
+                       COUNT(*) AS cnt,
+                       SUM(CASE WHEN cf.status = 'FAIL' THEN 1 ELSE 0 END) AS fail_cnt
+                {base_join}
+                GROUP BY category
+                ORDER BY cnt DESC
+            """, params)
+            posture_rows = cur.fetchall()
+
+            # 6. Provider breakdown
+            cur.execute(f"""
+                SELECT cf.provider, COUNT(*) AS cnt
+                {base_join}
+                GROUP BY cf.provider
+                ORDER BY cnt DESC
+            """, params)
+            provider_rows = cur.fetchall()
+
+            # 7. Region breakdown
+            cur.execute(f"""
+                SELECT cf.region, COUNT(*) AS cnt
+                {base_join} AND cf.region IS NOT NULL AND cf.region != ''
+                GROUP BY cf.region
+                ORDER BY cnt DESC
+                LIMIT 15
+            """, params)
+            region_rows = cur.fetchall()
+
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for r in sev_rows:
+            s = r.get("severity", "medium")
+            if s in severity_counts:
+                severity_counts[s] = int(r.get("cnt") or 0)
+
+        status_counts = {}
+        for r in status_rows:
+            status_counts[r["status"]] = int(r.get("cnt") or 0)
+
+        total = sum(severity_counts.values())
+
+        return {
+            "total": total,
+            "severity_counts": severity_counts,
+            "status_counts": status_counts,
+            "top_rules": [
+                {"rule_id": r["rule_id"], "title": r.get("title") or r["rule_id"],
+                 "severity": r.get("severity") or "medium", "count": int(r["cnt"])}
+                for r in top_rules
+            ],
+            "by_service": [
+                {"service": r.get("svc") or "unknown", "total": int(r["cnt"]),
+                 "fail": int(r.get("fail_cnt") or 0)}
+                for r in svc_rows if r.get("svc")
+            ],
+            "by_posture": [
+                {"category": r["category"], "total": int(r["cnt"]),
+                 "fail": int(r.get("fail_cnt") or 0)}
+                for r in posture_rows
+            ],
+            "by_provider": [
+                {"provider": r["provider"], "count": int(r["cnt"])}
+                for r in provider_rows if r.get("provider")
+            ],
+            "by_region": [
+                {"region": r["region"], "count": int(r["cnt"])}
+                for r in region_rows if r.get("region")
+            ],
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/check/findings")
+async def list_findings(
+    tenant_id: str = Query(...),
+    provider: Optional[str] = Query(None),
+    hierarchy_id: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    domain: Optional[str] = Query(None),
+    posture_category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    check_scan_id: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    sort_by: str = Query("severity"),
+    sort_order: str = Query("asc"),
+):
+    """
+    List all check findings with filtering, pagination, and sorting.
+
+    Multi-CSP: filter by provider, hierarchy_id (account), region.
+    Security: filter by severity, status, service, domain, posture_category.
+    Enriches each finding with rule_metadata (title, severity, remediation, etc.).
+    """
+    from psycopg2.extras import RealDictCursor
+
+    try:
+        conn = _get_check_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        # Build dynamic WHERE
+        conditions = ["cf.tenant_id = %s"]
+        params: list = [tenant_id]
+
+        if provider:
+            conditions.append("cf.provider = %s")
+            params.append(provider.lower())
+        if hierarchy_id:
+            conditions.append("cf.hierarchy_id = %s")
+            params.append(hierarchy_id)
+        if region:
+            conditions.append("cf.region = %s")
+            params.append(region)
+        if service:
+            conditions.append("""
+                COALESCE(
+                    CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                         THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
+                    rm.resource_service, rm.service,
+                    cf.resource_service, cf.service
+                ) = %s
+            """)
+            params.append(service.lower())
+        if status:
+            conditions.append("cf.status = %s")
+            params.append(status.upper())
+        if severity:
+            conditions.append("LOWER(COALESCE(rm.severity, 'medium')) = %s")
+            params.append(severity.lower())
+        if domain:
+            conditions.append("COALESCE(rm.domain, 'uncategorized') = %s")
+            params.append(domain)
+        if posture_category:
+            conditions.append("COALESCE(rm.posture_category, 'configuration') = %s")
+            params.append(posture_category)
+        if search:
+            conditions.append("(rm.title ILIKE %s OR cf.rule_id ILIKE %s OR cf.resource_uid ILIKE %s)")
+            like_val = f"%{search}%"
+            params.extend([like_val, like_val, like_val])
+        if check_scan_id:
+            conditions.append("cf.check_scan_id = %s")
+            params.append(check_scan_id)
+
+        where = " AND ".join(conditions)
+        base_join = f"""
+            FROM check_findings cf
+            LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
+            WHERE {where}
+        """
+
+        # Sort mapping
+        sort_map = {
+            "severity": """CASE LOWER(COALESCE(rm.severity, 'medium'))
+                           WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                           WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END""",
+            "title": "COALESCE(rm.title, cf.rule_id)",
+            "status": "cf.status",
+            "service": """COALESCE(
+                CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                     THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
+                rm.resource_service, rm.service, cf.resource_service, cf.service)""",
+            "created_at": "cf.created_at",
+            "region": "cf.region",
+            "resource": "cf.resource_uid",
+        }
+        order_col = sort_map.get(sort_by, sort_map["severity"])
+        order_dir = "DESC" if sort_order.lower() == "desc" else "ASC"
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Total count
+            cur.execute(f"SELECT COUNT(*) AS total {base_join}", params)
+            total = int(cur.fetchone()["total"])
+
+            # Paginated results
+            offset = (page - 1) * page_size
+            cur.execute(f"""
+                SELECT
+                    cf.id,
+                    cf.rule_id,
+                    cf.check_scan_id,
+                    cf.provider,
+                    cf.hierarchy_id,
+                    cf.resource_uid,
+                    cf.resource_id,
+                    cf.resource_type,
+                    COALESCE(
+                        CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                             THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
+                        rm.resource_service, rm.service,
+                        cf.resource_service, cf.service
+                    ) AS service,
+                    cf.region,
+                    cf.status,
+                    cf.created_at,
+                    rm.title,
+                    LOWER(COALESCE(rm.severity, 'medium')) AS severity,
+                    rm.description,
+                    rm.remediation,
+                    rm.rationale,
+                    COALESCE(rm.domain, 'uncategorized') AS domain,
+                    rm.subcategory,
+                    COALESCE(rm.posture_category, 'configuration') AS posture_category,
+                    rm.compliance_frameworks,
+                    rm.mitre_tactics,
+                    rm.mitre_techniques,
+                    rm.risk_score,
+                    cf.checked_fields,
+                    cf.actual_values
+                {base_join}
+                ORDER BY {order_col} {order_dir}, cf.created_at DESC
+                LIMIT %s OFFSET %s
+            """, (*params, page_size, offset))
+            rows = cur.fetchall()
+
+        findings = []
+        for r in rows:
+            created = r.get("created_at")
+            # Parse compliance_frameworks if present
+            frameworks = r.get("compliance_frameworks")
+            if isinstance(frameworks, str):
+                import json
+                try:
+                    frameworks = json.loads(frameworks)
+                except Exception:
+                    frameworks = None
+
+            findings.append({
+                "id": r.get("id"),
+                "rule_id": r["rule_id"],
+                "title": r.get("title") or r["rule_id"],
+                "severity": r.get("severity") or "medium",
+                "status": r.get("status") or "FAIL",
+                "resource_uid": r.get("resource_uid") or "",
+                "resource_type": r.get("resource_type") or "",
+                "service": r.get("service") or "",
+                "region": r.get("region") or "",
+                "provider": r.get("provider") or "",
+                "hierarchy_id": r.get("hierarchy_id") or "",
+                "domain": r.get("domain") or "",
+                "posture_category": r.get("posture_category") or "configuration",
+                "description": r.get("description") or "",
+                "remediation": r.get("remediation") or "",
+                "rationale": r.get("rationale") or "",
+                "compliance_frameworks": frameworks,
+                "mitre_tactics": r.get("mitre_tactics"),
+                "mitre_techniques": r.get("mitre_techniques"),
+                "risk_score": r.get("risk_score"),
+                "checked_fields": r.get("checked_fields"),
+                "actual_values": r.get("actual_values"),
+                "created_at": created.isoformat() if created else None,
+            })
+
+        return {
+            "findings": findings,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
+    finally:
+        conn.close()
+
+
 # ── Per-resource finding endpoints (used by BFF asset detail) ─────────────
 
 @app.get("/api/v1/check/findings/resource/{resource_uid:path}")
@@ -430,7 +844,7 @@ async def get_findings_for_resource(
 
     Used by the BFF layer to enrich asset detail views with
     compliance posture (severity counts + detailed finding list).
-    Matches on both resource_uid and resource_arn to handle format differences.
+    Matches on resource_uid to handle format differences.
     """
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -448,19 +862,63 @@ async def get_findings_for_resource(
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
+        # ── Resolve the canonical resource_uid stored in check_findings ─────
+        # Inventory may use short names (e.g. "my-role") while check_findings
+        # stores full ARNs ("arn:aws:iam::123:role/my-role"). Try exact match
+        # first, then fall back to suffix match (LIKE '%/<short_name>').
+        resolved_uid = resource_uid
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Exact match
+            cur.execute("""
+                SELECT resource_uid AS uid, check_scan_id
+                FROM check_findings
+                WHERE resource_uid = %s
+                  AND tenant_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (resource_uid, tenant_id))
+            row = cur.fetchone()
+
+            if not row and '/' not in resource_uid and ':' not in resource_uid:
+                # Short-name → try suffix match
+                cur.execute("""
+                    SELECT resource_uid AS uid, check_scan_id
+                    FROM check_findings
+                    WHERE resource_uid LIKE %s
+                      AND tenant_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (f'%/{resource_uid}', tenant_id))
+                row = cur.fetchone()
+
+            if row:
+                resolved_uid = row["uid"]
+                latest_scan_id = row["check_scan_id"]
+            else:
+                latest_scan_id = None
+
+        # Build the reusable WHERE params — always use resolved_uid + latest scan
+        uid_match = "cf.resource_uid = %s"
+        scan_filter = ""
+        base_params: list = [resolved_uid, tenant_id]
+        if latest_scan_id:
+            scan_filter = " AND cf.check_scan_id = %s"
+            base_params = [resolved_uid, tenant_id, latest_scan_id]
+
         # Severity counts (FAIL only)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
                     LOWER(COALESCE(rm.severity, 'medium')) AS severity,
                     COUNT(*) AS cnt
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
-                WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+                WHERE {uid_match}
                   AND cf.tenant_id = %s
+                  {scan_filter}
                   AND cf.status = 'FAIL'
                 GROUP BY LOWER(COALESCE(rm.severity, 'medium'))
-            """, (resource_uid, tenant_id))
+            """, (*base_params,))
             sev_rows = cur.fetchall()
 
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -471,17 +929,18 @@ async def get_findings_for_resource(
 
         # Posture by domain (pass/fail counts per security domain)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
                     COALESCE(rm.domain, 'uncategorized') AS domain,
                     cf.status,
                     COUNT(*) AS cnt
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
-                WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+                WHERE {uid_match}
                   AND cf.tenant_id = %s
+                  {scan_filter}
                 GROUP BY COALESCE(rm.domain, 'uncategorized'), cf.status
-            """, (resource_uid, tenant_id))
+            """, (*base_params,))
             posture_rows = cur.fetchall()
 
         posture_by_domain = {}
@@ -499,21 +958,29 @@ async def get_findings_for_resource(
 
         # Detailed findings
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
                     cf.rule_id,
                     rm.title,
                     LOWER(COALESCE(rm.severity, 'medium')) AS severity,
-                    COALESCE(rm.service, cf.service) AS service,
+                    COALESCE(
+                        CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
+                             THEN split_part(cf.resource_uid, ':', 3)
+                             ELSE NULL END,
+                        rm.resource_service, rm.service,
+                        cf.resource_service, cf.service
+                    ) AS service,
                     cf.status,
                     cf.region,
                     cf.resource_type,
                     cf.created_at,
-                    rm.domain
+                    rm.domain,
+                    COALESCE(rm.posture_category, 'configuration') AS posture_category
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
-                WHERE COALESCE(cf.resource_uid, cf.resource_arn) = %s
+                WHERE {uid_match}
                   AND cf.tenant_id = %s
+                  {scan_filter}
                 ORDER BY
                     CASE LOWER(COALESCE(rm.severity, 'medium'))
                         WHEN 'critical' THEN 1 WHEN 'high' THEN 2
@@ -521,7 +988,7 @@ async def get_findings_for_resource(
                     END,
                     cf.created_at DESC
                 LIMIT %s
-            """, (resource_uid, tenant_id, limit))
+            """, (*base_params, limit))
             detail_rows = cur.fetchall()
 
         findings = []
@@ -536,6 +1003,7 @@ async def get_findings_for_resource(
                 "region": r.get("region") or "",
                 "resource_type": r.get("resource_type") or "",
                 "domain": r.get("domain") or "",
+                "posture_category": r.get("posture_category") or "configuration",
                 "created_at": created.isoformat() if created else None,
             })
 

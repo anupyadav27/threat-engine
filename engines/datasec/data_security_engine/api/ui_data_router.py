@@ -265,13 +265,12 @@ async def get_datasec_ui_data(
                        status,
                        resource_type,
                        resource_id,
-                       resource_arn,
+                       resource_uid,
                        account_id,
                        region,
                        data_classification,
                        sensitivity_score,
-                       finding_data,
-                       resource_uid
+                       finding_data
                 FROM datasec_findings
                 WHERE datasec_scan_id = %s AND tenant_id = %s
                 ORDER BY
@@ -304,12 +303,11 @@ async def get_datasec_ui_data(
                     "status": f["status"],
                     "resource_type": f.get("resource_type"),
                     "resource_id": f.get("resource_id"),
-                    "resource_arn": f.get("resource_arn"),
+                    "resource_uid": f.get("resource_uid"),
                     "account_id": f.get("account_id"),
                     "region": f.get("region"),
                     "data_classification": f.get("data_classification") or [],
                     "sensitivity_score": f.get("sensitivity_score"),
-                    "resource_uid": f.get("resource_uid"),
                     "finding_data": fd,
                 })
 
@@ -403,9 +401,9 @@ def _query_findings_by_module(
         cur.execute(
             """
             SELECT finding_id, rule_id, datasec_modules, severity, status,
-                   resource_type, resource_id, resource_arn, account_id,
+                   resource_type, resource_id, resource_uid, account_id,
                    region, data_classification, sensitivity_score,
-                   finding_data, resource_uid
+                   finding_data
             FROM datasec_findings
             WHERE datasec_scan_id = %s
               AND tenant_id = %s
@@ -441,12 +439,11 @@ def _query_findings_by_module(
                 "status": f["status"],
                 "resource_type": f.get("resource_type"),
                 "resource_id": f.get("resource_id"),
-                "resource_arn": f.get("resource_arn"),
+                "resource_uid": f.get("resource_uid"),
                 "account_id": f.get("account_id"),
                 "region": f.get("region"),
                 "data_classification": f.get("data_classification") or [],
                 "sensitivity_score": f.get("sensitivity_score"),
-                "resource_uid": f.get("resource_uid"),
                 "finding_data": fd,
             })
         return result
@@ -538,7 +535,6 @@ def _build_catalog(
         SELECT resource_uid,
                resource_type,
                resource_id,
-               resource_arn,
                account_id,
                region,
                data_classification,
@@ -548,7 +544,7 @@ def _build_catalog(
                COUNT(*) FILTER (WHERE status = 'PASS') AS pass_count
         FROM datasec_findings
         WHERE datasec_scan_id = %s AND tenant_id = %s
-        GROUP BY resource_uid, resource_type, resource_id, resource_arn,
+        GROUP BY resource_uid, resource_type, resource_id,
                  account_id, region, data_classification, sensitivity_score
         ORDER BY fail_count DESC, sensitivity_score DESC NULLS LAST
         """,
@@ -573,7 +569,6 @@ def _build_catalog(
             "resource_uid": uid,
             "resource_type": row.get("resource_type"),
             "resource_id": row.get("resource_id"),
-            "resource_arn": row.get("resource_arn"),
             "account_id": row.get("account_id"),
             "region": row.get("region"),
             "data_classification": row.get("data_classification") or [],

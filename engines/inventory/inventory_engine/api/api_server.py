@@ -100,6 +100,44 @@ app.add_middleware(
 # Rules admin router — DB-driven rule management (single source of truth for multi-CSP)
 app.include_router(rules_router)
 
+
+@app.on_event("startup")
+async def _preload_arn_patterns():
+    """Pre-load identifier patterns from resource_inventory_identifier table.
+
+    Warms the in-memory cache used by shared.common.arn.normalize_resource_uid()
+    so that every scan run can validate/generate ARNs without per-request DB hits.
+    """
+    try:
+        import psycopg2
+        from engine_common.arn import preload_identifier_patterns
+
+        db_cfg = get_database_config("inventory")
+        conn = psycopg2.connect(
+            host=db_cfg.host,
+            port=db_cfg.port,
+            dbname=db_cfg.database,
+            user=db_cfg.username,
+            password=db_cfg.password,
+            connect_timeout=5,
+        )
+        try:
+            total = 0
+            for csp in ("aws", "azure", "gcp", "oci", "ibm", "alicloud"):
+                count = preload_identifier_patterns(conn, csp)
+                total += count
+            logger.info(
+                "ARN identifier patterns preloaded",
+                extra={"extra_fields": {"total_patterns": total}},
+            )
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(
+            "Failed to preload ARN patterns (non-fatal)",
+            extra={"extra_fields": {"error": str(exc)}},
+        )
+
 # Include unified UI data router
 try:
     from .ui_data_router import router as ui_data_router
@@ -1216,16 +1254,29 @@ _PROVIDER_COLORS = {
 }
 
 
+_RELATION_FAMILY_MAP = {
+    "contained_by": "structural", "contains": "structural", "member_of": "structural",
+    "attached_to": "structural", "associated_with": "structural", "references": "structural",
+    "peers_with": "network", "connected_to": "network", "routes_to": "network",
+    "forwards_to": "network", "serves_traffic_for": "network", "resolves_to": "network",
+    "allows_traffic_from": "security", "allows_traffic_to": "security",
+    "restricted_to": "security", "exposed_through": "security",
+    "internet_connected": "security", "protected_by": "security",
+    "uses": "identity", "assumes": "identity", "has_policy": "identity",
+    "grants_access_to": "identity", "controlled_by": "identity", "authenticated_by": "identity",
+    "encrypted_by": "data", "stores_data_in": "data", "backs_up_to": "data", "replicates_to": "data",
+    "runs_on": "execution", "invokes": "execution", "triggers": "execution",
+    "triggered_by": "execution", "publishes_to": "execution", "subscribes_to": "execution",
+    "scales_with": "execution", "cached_by": "execution", "depends_on": "execution",
+    "manages": "governance", "deployed_by": "governance", "applies_to": "governance",
+    "complies_with": "governance", "logging_enabled_to": "governance",
+    "monitored_by": "governance", "scanned_by": "governance",
+}
+
+
 def _classify_link_type(relation_type: str) -> str:
-    """Classify a relation_type into a visual link category for graph rendering."""
-    rt = (relation_type or "").lower()
-    if any(k in rt for k in ("permission", "role", "policy", "assume", "iam", "access")):
-        return "permission"
-    if any(k in rt for k in ("data", "flow", "log", "encrypt", "storage", "read", "write")):
-        return "data_flow"
-    if any(k in rt for k in ("security", "firewall", "rule", "nacl", "waf", "guard")):
-        return "security"
-    return "default"
+    """Classify a relation_type into a taxonomy family for graph rendering."""
+    return _RELATION_FAMILY_MAP.get(relation_type, "default")
 
 
 @app.get("/api/v1/inventory/runs/latest/graph")
@@ -1284,29 +1335,61 @@ async def get_graph_ui(
             "account_id": node.get("account_id"),
         })
 
-    # Build set of visible node IDs for link filtering
+    # Build set of visible node IDs
     visible_ids = {n["id"] for n in ui_nodes}
 
-    # Transform edges to UI links schema
+    # Transform edges to UI links — and create synthetic nodes for
+    # relationship endpoints missing from the initial asset set.
     ui_links = []
+    synthetic_nodes = {}
     for edge in raw.get("edges") or []:
         src = edge.get("from_uid")
         tgt = edge.get("to_uid")
-        if src not in visible_ids or tgt not in visible_ids:
+        if not src or not tgt:
             continue
         rel_type = edge.get("relation_type") or ""
-        ui_links.append({
-            "source": src,
-            "target": tgt,
-            "label": rel_type,
-            "type": _classify_link_type(rel_type),
-        })
+
+        # Create synthetic nodes for endpoints not in the visible set
+        for uid, rtype_key in ((src, "from_resource_type"), (tgt, "to_resource_type")):
+            if uid not in visible_ids and uid not in synthetic_nodes:
+                rt = edge.get(rtype_key) or ""
+                svc = rt.split(".")[0] if "." in rt else rt
+                # Apply service/provider filter to synthetic nodes too
+                if service and svc.lower() != service.lower():
+                    continue
+                if provider:
+                    continue  # Can't determine provider for synthetic nodes
+                name = uid.rsplit("/", 1)[-1] if "/" in uid else uid.rsplit(":", 1)[-1]
+                synthetic_nodes[uid] = {
+                    "id": uid,
+                    "name": name,
+                    "type": rt,
+                    "service": svc,
+                    "provider": edge.get("provider", "aws"),
+                    "color": _PROVIDER_COLORS.get(edge.get("provider", "aws").lower(), "#6b7280"),
+                    "region": edge.get("region"),
+                    "account_id": edge.get("account_id"),
+                    "synthetic": True,
+                }
+
+        # Include link if both endpoints are now visible (original + synthetic)
+        all_ids = visible_ids | set(synthetic_nodes.keys())
+        if src in all_ids and tgt in all_ids:
+            ui_links.append({
+                "source": src,
+                "target": tgt,
+                "label": rel_type,
+                "type": _classify_link_type(rel_type),
+            })
+
+    # Merge synthetic nodes into output
+    all_nodes = ui_nodes + list(synthetic_nodes.values())
 
     return {
-        "nodes": ui_nodes,
+        "nodes": all_nodes,
         "links": ui_links,
         "depth": depth,
-        "total_nodes": len(ui_nodes),
+        "total_nodes": len(all_nodes),
         "total_links": len(ui_links),
     }
 

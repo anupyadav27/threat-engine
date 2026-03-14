@@ -33,6 +33,12 @@ from ..schemas.relationship_schema import Relationship, RelationType
 from .resource_classifier import ResourceClassifier, InventoryDecision
 from ..metadata.service_metadata_loader import ServiceMetadataLoader
 
+# ARN normalizer — converts short-form UIDs to canonical ARN format
+try:
+    from shared.common.arn import normalize_resource_uid, is_arn
+except ImportError:
+    from engine_common.arn import normalize_resource_uid, is_arn
+
 logger = logging.getLogger(__name__)
 
 
@@ -253,9 +259,16 @@ class AssetNormalizer:
             if resource_name:
                 return f"arn:aws:iam::{account_id}:{resource_type}/{resource_name}"
 
-        # Final fallback: construct UID
+        # Final fallback: construct short UID, then try to normalize to ARN
         resource_id = resource.get("Id") or resource.get("ResourceId") or resource.get("Name")
-        return f"{service}:{region}:{account_id}:{resource_id}"
+        short_uid = f"{service}:{region}:{account_id}:{resource_id}"
+        return normalize_resource_uid(
+            resource_uid=short_uid,
+            resource_type=f"{service}.{resource_id}" if resource_id else "",
+            provider="aws",
+            region=region,
+            account_id=account_id,
+        )
 
     def _apply_identifier_pattern(
         self,
@@ -658,6 +671,23 @@ class AssetNormalizer:
         if not resource_arn:
             resource_arn = self._generate_arn_from_fields(flat, service, account_id, region)
 
+        # --- Normalize resource_uid to canonical ARN ---
+        # Always prefer full ARN format as the canonical identifier.
+        # If resource_arn is already available, use it; otherwise attempt to
+        # construct the ARN from short-form components via the normalizer.
+        if resource_arn and is_arn(resource_arn):
+            canonical_uid = resource_arn
+        else:
+            short_uid = resource_arn or f"{service}:{region}:{account_id}:{resource_id}"
+            canonical_uid = normalize_resource_uid(
+                resource_uid=short_uid,
+                resource_type=resource_type,
+                provider="aws",
+                region=region or "global",
+                account_id=account_id,
+                resource_arn=resource_arn or "",
+            )
+
         # --- Create asset ---
         asset = Asset(
             tenant_id=self.tenant_id,
@@ -668,7 +698,7 @@ class AssetNormalizer:
             scope=scope,
             resource_type=resource_type,
             resource_id=resource_id or "",
-            resource_uid=resource_arn or f"{service}:{region}:{account_id}:{resource_id}",
+            resource_uid=canonical_uid,
             name=name,
             tags=tags,
             metadata=metadata,

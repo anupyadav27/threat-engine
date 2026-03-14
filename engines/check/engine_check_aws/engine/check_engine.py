@@ -529,7 +529,9 @@ class CheckEngine:
     def _store_check_result(self, check_scan_id: str, customer_id: str, tenant_id: str,
                             provider: str, hierarchy_id: str, hierarchy_type: str,
                             rule_id: str, item_record: Dict, status: str,
-                            checked_fields: List[str], finding_data: Dict):
+                            checked_fields: List[str], finding_data: Dict,
+                            service: str = None, discovery_id: str = None,
+                            resource_service: str = None):
         """
         Store check result (database or file-based)
         """
@@ -537,7 +539,7 @@ class CheckEngine:
             # Extract resource_uid (primary) and resource_arn (AWS-specific)
             resource_uid = item_record.get('resource_uid') or item_record.get('resource_arn')
             resource_arn = item_record.get('resource_arn')
-            
+
             # Store in database
             self.db.store_check_result(
                 scan_id=check_scan_id,
@@ -553,7 +555,10 @@ class CheckEngine:
                 resource_type=item_record.get('service'),
                 status=status,
                 checked_fields=checked_fields,
-                finding_data=finding_data
+                finding_data=finding_data,
+                service=service,
+                discovery_id=discovery_id,
+                resource_service=resource_service,
             )
         # If NDJSON mode, results will be written to file in _export_check_results_to_file
     
@@ -707,6 +712,15 @@ class CheckEngine:
 
                 self.phase_logger.info(f"  Found {len(checks)} total checks (merged)")
 
+                # Pre-load rule metadata to resolve resource_service for cross-service rules
+                metadata_map = {}
+                if self.rule_reader:
+                    try:
+                        all_rule_ids = [c.get('rule_id') for c in checks if c.get('rule_id')]
+                        metadata_map = self.rule_reader.read_metadata_for_rules(all_rule_ids)
+                    except Exception as e:
+                        self.phase_logger.warning(f"  [{service}] Failed to load metadata for resource_service: {e}")
+
                 # Pre-load discovery data: cache by discovery_id to avoid re-querying
                 discovery_ids_needed = set()
                 for check in checks:
@@ -736,6 +750,10 @@ class CheckEngine:
 
                     for_each = check.get('for_each')  # Discovery ID
                     conditions = check.get('conditions')
+
+                    # Resolve resource_service from metadata (cross-service fix)
+                    rule_meta = metadata_map.get(rule_id, {})
+                    resource_service = rule_meta.get('resource_service') or service
 
                     if not for_each or not conditions:
                         self.phase_logger.warning(f"  ⚠️  Check {rule_id} missing for_each or conditions")
@@ -822,13 +840,14 @@ class CheckEngine:
                             finding_data = {
                                 'rule_id': rule_id,
                                 'service': service,
+                                'resource_service': resource_service,
                                 'discovery_id': for_each,
                                 'resource_arn': resource_arn,
                                 'resource_id': resource_id,
                                 'status': status,
                                 'checked_fields': checked_fields
                             }
-                            
+
                             # Store result (database or memory)
                             if use_ndjson_mode:
                                 # Store in memory for later file export
@@ -841,6 +860,9 @@ class CheckEngine:
                                     'hierarchy_id': hierarchy_id,
                                     'hierarchy_type': hierarchy_type,
                                     'rule_id': rule_id,
+                                    'service': service,
+                                    'resource_service': resource_service,
+                                    'discovery_id': for_each,
                                     'resource_arn': resource_arn,
                                     'resource_id': resource_id,
                                     'resource_type': item_record.get('service'),
@@ -862,7 +884,10 @@ class CheckEngine:
                                     item_record=item_record,
                                     status=status,
                                     checked_fields=checked_fields,
-                                    finding_data=finding_data
+                                    finding_data=finding_data,
+                                    service=service,
+                                    discovery_id=for_each,
+                                    resource_service=resource_service,
                                 )
                             
                             total_checks += 1
